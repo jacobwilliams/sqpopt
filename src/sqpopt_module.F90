@@ -16,9 +16,9 @@
     module sqpopt_module
 
     use sqpopt_kinds,             only: wp => sqpopt_module_wp
-    use sqpopt_types_module,      only: sqpopt_success, sqpopt_error
+    use sqpopt_types_module,      only: sqpopt_success, sqpopt_error, sqpopt_max_iter_reached
     use sqpopt_problem_module,    only: sqpopt_problem_type
-    use sqpopt_options_module,    only: sqpopt_options_type
+    use sqpopt_options_module,    only: sqpopt_options_type, sqpopt_hessian_sr1
     use sqpopt_hessian_module,    only: sqpopt_hessian_type
     use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type
     use sqpopt_linesearch_module, only: sqpopt_linesearch_type
@@ -69,7 +69,15 @@
 
     class(sqpopt_type), intent(inout) :: me
 
-    ! TODO: implement
+    me%problem    = sqpopt_problem_type()
+    me%options    = sqpopt_options_type()
+    me%hessian    = sqpopt_hessian_type()
+    me%qp_solver  = sqpopt_qp_solver_type()
+    me%linesearch = sqpopt_linesearch_type()
+    if (allocated(me%x))      deallocate(me%x)
+    if (allocated(me%lambda)) deallocate(me%lambda)
+    me%iter  = 0
+    me%istat = 0
 
     end subroutine sqpopt_initialize
 !*******************************************************************************
@@ -83,7 +91,7 @@
     class(sqpopt_type),        intent(inout) :: me
     type(sqpopt_problem_type), intent(in)    :: problem  !! the problem definition
 
-    ! TODO: implement
+    me%problem = problem
 
     end subroutine sqpopt_set_problem
 !*******************************************************************************
@@ -97,7 +105,7 @@
     class(sqpopt_type),        intent(inout) :: me
     type(sqpopt_options_type), intent(in)    :: options  !! the solver options
 
-    ! TODO: implement
+    me%options = options
 
     end subroutine sqpopt_set_options
 !*******************************************************************************
@@ -114,7 +122,32 @@
     real(wp), dimension(:), intent(in)    :: x0     !! initial guess for the optimization variables `dimension(n)`
     integer,                intent(out)   :: istat  !! status code (see [[sqpopt_types_module]])
 
-    ! TODO: implement
+    real(wp), dimension(:), allocatable :: x_prev, gl_prev  !! quasi-Newton state (unallocated until the 2nd iteration)
+    logical :: converged
+    integer :: iter_istat, iter
+
+    me%x = x0
+    if (allocated(me%lambda)) deallocate(me%lambda)
+    allocate(me%lambda(me%problem%m))
+    me%lambda = 0.0_wp
+
+    call me%hessian%initialize(me%problem%n, me%options%lbfgs_memory, &
+                                use_sr1=(me%options%hessian_mode == sqpopt_hessian_sr1))
+    me%qp_solver%linear_solver_mode = me%options%linear_solver_mode
+
+    do iter = 1, me%options%max_iter
+        me%iter = iter
+        call sqpopt_iterate(me%problem, me%options, me%hessian, me%qp_solver, me%linesearch, &
+                             me%x, me%lambda, x_prev, gl_prev, converged, iter_istat)
+        if (converged) then
+            istat = sqpopt_success
+            me%istat = istat
+            return
+        end if
+    end do
+
+    istat    = sqpopt_max_iter_reached
+    me%istat = istat
 
     end subroutine sqpopt_solve
 !*******************************************************************************
@@ -129,7 +162,8 @@
     real(wp), dimension(:), intent(out) :: x       !! optimization variables `dimension(n)`
     real(wp), dimension(:), intent(out) :: lambda  !! Lagrange multipliers `dimension(m)`
 
-    ! TODO: implement
+    x      = me%x
+    lambda = me%lambda
 
     end subroutine sqpopt_get_solution
 !*******************************************************************************
@@ -142,7 +176,7 @@
 
     class(sqpopt_type), intent(inout) :: me
 
-    ! TODO: implement
+    call me%initialize()
 
     end subroutine sqpopt_destroy
 !*******************************************************************************

@@ -34,6 +34,9 @@
 
     private
 
+    public :: sqpopt_objective_func, sqpopt_gradient_func, sqpopt_constraint_func
+    public :: sqpopt_jacobian_func, sqpopt_hessian_func
+
     type, public :: sqpopt_problem_type
         !! defines the problem to be solved: the problem size, the
         !! variable and constraint bounds, the sparsity patterns of the
@@ -69,6 +72,7 @@
         contains
 
         procedure, public :: set_problem_size      !! set the problem dimensions and allocate the bound arrays
+        procedure, public :: set_bounds            !! set the variable and constraint bounds
         procedure, public :: set_jacobian_sparsity !! set the (fixed) sparsity pattern of the constraint Jacobian
         procedure, public :: set_hessian_sparsity  !! set the (fixed) sparsity pattern of the Lagrangian Hessian
         procedure, public :: set_functions         !! attach the user-supplied evaluation procedures
@@ -139,9 +143,41 @@
     integer, intent(in) :: m_eq    !! number of nonlinear equality constraints
     integer, intent(in) :: m_ineq  !! number of nonlinear inequality constraints
 
-    ! TODO: implement
+    me%n      = n
+    me%m_eq   = m_eq
+    me%m_ineq = m_ineq
+    me%m      = m_eq + m_ineq
+
+    if (allocated(me%x_lb)) deallocate(me%x_lb)
+    if (allocated(me%x_ub)) deallocate(me%x_ub)
+    if (allocated(me%c_lb)) deallocate(me%c_lb)
+    if (allocated(me%c_ub)) deallocate(me%c_ub)
+    allocate(me%x_lb(n), me%x_ub(n))
+    allocate(me%c_lb(me%m), me%c_ub(me%m))
 
     end subroutine set_problem_size
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  set the variable bounds \( x_l \le x \le x_u \) and the constraint
+!  bounds \( c_l \le c(x) \le c_u \) (equality constraints are given by
+!  `c_lb(i) == c_ub(i)`). `set_problem_size` must be called first.
+
+    subroutine set_bounds(me, x_lb, x_ub, c_lb, c_ub)
+
+    class(sqpopt_problem_type), intent(inout) :: me
+    real(wp), dimension(:), intent(in) :: x_lb !! variable lower bounds `dimension(n)`
+    real(wp), dimension(:), intent(in) :: x_ub !! variable upper bounds `dimension(n)`
+    real(wp), dimension(:), intent(in) :: c_lb !! constraint lower bounds `dimension(m)`
+    real(wp), dimension(:), intent(in) :: c_ub !! constraint upper bounds `dimension(m)`
+
+    me%x_lb = x_lb
+    me%x_ub = x_ub
+    me%c_lb = c_lb
+    me%c_ub = c_ub
+
+    end subroutine set_bounds
 !*******************************************************************************
 
 !*******************************************************************************
@@ -156,7 +192,9 @@
     integer, dimension(:), intent(in) :: irow  !! row indices `dimension(nnz)`
     integer, dimension(:), intent(in) :: icol  !! column indices `dimension(nnz)`
 
-    ! TODO: implement
+    me%jac_nnz = nnz
+    me%jac_irow = irow(1:nnz)
+    me%jac_icol = icol(1:nnz)
 
     end subroutine set_jacobian_sparsity
 !*******************************************************************************
@@ -174,7 +212,9 @@
     integer, dimension(:), intent(in) :: irow  !! row indices `dimension(nnz)`
     integer, dimension(:), intent(in) :: icol  !! column indices `dimension(nnz)`
 
-    ! TODO: implement
+    me%hess_nnz = nnz
+    me%hess_irow = irow(1:nnz)
+    me%hess_icol = icol(1:nnz)
 
     end subroutine set_hessian_sparsity
 !*******************************************************************************
@@ -193,7 +233,11 @@
     procedure(sqpopt_jacobian_func)   :: jac   !! sparse constraint Jacobian values
     procedure(sqpopt_hessian_func), optional :: hess !! sparse exact Hessian of the Lagrangian values (optional)
 
-    ! TODO: implement
+    me%eval_f   => f
+    me%eval_g   => g
+    me%eval_c   => c
+    me%eval_jac => jac
+    if (present(hess)) me%eval_hess => hess
 
     end subroutine set_functions
 !*******************************************************************************
