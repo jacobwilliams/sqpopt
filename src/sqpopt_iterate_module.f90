@@ -103,8 +103,26 @@
     call qp_solver%solve(hessian, jac, x, g, c, problem%x_lb, problem%x_ub, &
                           problem%c_lb, problem%c_ub, p, new_lambda, qp_istat)
 
+    ! update the merit function's penalty parameter so that it dominates the
+    ! current multiplier estimates (as in slsqp): this is required for the
+    ! l1 exact penalty function's minimizer to coincide with the true
+    ! constrained optimum (Han/Powell); without it, the merit function can
+    ! prefer a "compromise" infeasible point over the true solution:
+    if (size(new_lambda) > 0) linesearch%penalty = max(linesearch%penalty, maxval(abs(new_lambda)) + 1.0_wp)
+
+    ! safeguard (as in slsqp): if `p` is not a descent direction for the
+    ! merit function (can happen since the v1 composite step is only an
+    ! approximate QP solution, so it lacks the usual guarantee that the
+    ! *optimal* QP solution is a descent direction), reset the Hessian
+    ! approximation to the identity and recompute `p` once from scratch:
+    if (dot_product(g,p) - linesearch%penalty*constraint_violation(c, problem%c_lb, problem%c_ub) >= 0.0_wp) then
+        call hessian%reset()
+        call qp_solver%solve(hessian, jac, x, g, c, problem%x_lb, problem%x_ub, &
+                              problem%c_lb, problem%c_ub, p, new_lambda, qp_istat)
+    end if
+
     ! line search along `p` to (approximately) minimize the merit function:
-    call linesearch%search(problem%eval_f, problem%eval_c, x, p, problem%c_lb, problem%c_ub, alpha, ls_istat)
+    call linesearch%search(problem%eval_f, problem%eval_c, x, p, f, g, c, problem%c_lb, problem%c_ub, alpha, ls_istat)
 
     ! save the current point/gradient for the next quasi-Newton update:
     x_prev  = x
@@ -117,6 +135,21 @@
     istat = sqpopt_success
 
     end subroutine sqpopt_iterate
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the \( \ell_1 \) constraint violation measure \( \lVert \max(c_l-c,0,c-c_u)
+!  \rVert_1 \), used by the descent-direction safeguard above.
+
+    pure function constraint_violation(c, c_lb, c_ub) result(v)
+
+    real(wp), dimension(:), intent(in) :: c, c_lb, c_ub
+    real(wp) :: v
+
+    v = sum(max(c_lb-c, 0.0_wp) + max(c-c_ub, 0.0_wp))
+
+    end function constraint_violation
 !*******************************************************************************
 
     end module sqpopt_iterate_module

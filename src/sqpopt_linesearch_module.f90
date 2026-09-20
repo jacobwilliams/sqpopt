@@ -4,14 +4,22 @@
 !
 !  Merit function evaluation and line search used to globalize the SQP
 !  iterations (ensures progress towards both optimality and feasibility).
-!  The 1-D minimization of the merit function along the search direction
-!  is done using the derivative-free [[fmin]] routine (from the `fmin`
-!  dependency), rather than a hand-written backtracking search.
+!  Two line search strategies are available (`sqpopt_linesearch_type%mode`):
+!
+!  * `sqpopt_linesearch_armijo` (**default**) -- a standard backtracking
+!    line search with an Armijo-type sufficient-decrease test on the merit
+!    function (as used by default in `slsqp`). An exact line search is
+!    usually overkill (it requires many more function evaluations for a
+!    marginal benefit), so this is the recommended/default mode.
+!  * `sqpopt_linesearch_exact` -- (approximately) minimizes the merit
+!    function along the search direction using the derivative-free [[fmin]]
+!    routine (from the `fmin` dependency), rather than a hand-written
+!    exact-search implementation.
 
     module sqpopt_linesearch_module
 
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
-    use sqpopt_types_module,   only: sqpopt_success
+    use sqpopt_types_module,   only: sqpopt_success, sqpopt_line_search_failed
     use sqpopt_problem_module, only: sqpopt_objective_func, sqpopt_constraint_func
     use fmin_module,           only: fmin
 
@@ -19,11 +27,18 @@
 
     private
 
+    integer, parameter, public :: sqpopt_linesearch_armijo = 1  !! backtracking Armijo-type line search (default)
+    integer, parameter, public :: sqpopt_linesearch_exact  = 2  !! (approximate) exact 1-D minimization of the merit function, via [[fmin]]
+
     type, public :: sqpopt_linesearch_type
         !! options and state for the merit function and line search.
 
-        real(wp) :: penalty = 1.0_wp  !! current penalty parameter used in the merit function
-        real(wp) :: tol     = 1.0e-4_wp !! desired tolerance on the 1-D line search minimizer
+        integer  :: mode        = sqpopt_linesearch_armijo !! line search strategy to use
+        real(wp) :: penalty     = 1.0_wp    !! current penalty parameter used in the merit function
+        real(wp) :: tol         = 1.0e-4_wp !! desired tolerance on the minimizer (`sqpopt_linesearch_exact` mode)
+        real(wp) :: sigma       = 0.1_wp    !! Armijo sufficient-decrease parameter, \( 0 < \sigma < 1 \) (`sqpopt_linesearch_armijo` mode)
+        real(wp) :: backtrack   = 0.5_wp    !! step-length reduction factor at each backtracking step (`sqpopt_linesearch_armijo` mode)
+        integer  :: max_ls_iter = 20        !! maximum number of Armijo backtracking steps (`sqpopt_linesearch_armijo` mode)
 
         contains
 
@@ -65,11 +80,103 @@
 
 !*******************************************************************************
 !>
-!  perform a line search along the direction `p` to find a step length
-!  `alpha` \( \in (0,1] \) that (approximately) minimizes the merit
-!  function, using the derivative-free 1-D minimizer [[fmin]].
+!  perform a line search along the direction `p` to find an accepted step
+!  length `alpha`, dispatching to the strategy selected by `me%mode`.
 
-    subroutine line_search(me, eval_f, eval_c, x, p, c_lb, c_ub, alpha, istat)
+    subroutine line_search(me, eval_f, eval_c, x, p, f, g, c, c_lb, c_ub, alpha, istat)
+
+    class(sqpopt_linesearch_type), intent(inout) :: me
+    procedure(sqpopt_objective_func)  :: eval_f  !! evaluates \( f(x) \)
+    procedure(sqpopt_constraint_func) :: eval_c  !! evaluates \( c(x) \)
+    real(wp), dimension(:), intent(in)  :: x      !! current point `dimension(n)`
+    real(wp), dimension(:), intent(in)  :: p      !! search direction `dimension(n)`
+    real(wp),                intent(in)  :: f      !! objective function value at `x`
+    real(wp), dimension(:), intent(in)  :: g      !! objective gradient at `x` `dimension(n)`
+    real(wp), dimension(:), intent(in)  :: c      !! constraint values at `x` `dimension(m)`
+    real(wp), dimension(:), intent(in)  :: c_lb   !! constraint lower bounds `dimension(m)`
+    real(wp), dimension(:), intent(in)  :: c_ub   !! constraint upper bounds `dimension(m)`
+    real(wp),                intent(out) :: alpha  !! accepted step length
+    integer,                  intent(out) :: istat  !! status code (see [[sqpopt_types_module]])
+
+    select case (me%mode)
+    case (sqpopt_linesearch_exact)
+        call exact_line_search(me, eval_f, eval_c, x, p, c_lb, c_ub, alpha, istat)
+    case default
+        call armijo_line_search(me, eval_f, eval_c, x, p, f, g, c, c_lb, c_ub, alpha, istat)
+    end select
+
+    end subroutine line_search
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  backtracking line search with an Armijo-type sufficient-decrease test
+!  on the \( \ell_1 \) merit function (as used by default in `slsqp`):
+!  starting from `alpha=1`, `alpha` is repeatedly reduced by `backtrack`
+!  until
+!  $$ \phi(x+\alpha p) \le \phi(x) + \sigma \alpha D(\phi;p) $$
+!  where \( D(\phi;p) = g^T p - \mu \lVert \text{viol}(x) \rVert_1 \) is
+!  the (approximate) directional derivative of the merit function along
+!  `p`. If no `alpha` satisfies this in `max_ls_iter` backtracking steps
+!  (which can happen since `p` is only an approximate QP solution, so is
+!  not guaranteed to be a descent direction for `phi` in every case), the
+!  best (lowest-`phi`) step tried is used instead as a safeguard, and
+!  `istat` is set to `sqpopt_line_search_failed`.
+
+    subroutine armijo_line_search(me, eval_f, eval_c, x, p, f, g, c, c_lb, c_ub, alpha, istat)
+
+    class(sqpopt_linesearch_type), intent(inout) :: me
+    procedure(sqpopt_objective_func)  :: eval_f
+    procedure(sqpopt_constraint_func) :: eval_c
+    real(wp), dimension(:), intent(in)  :: x, p, g, c, c_lb, c_ub
+    real(wp),                intent(in)  :: f
+    real(wp),                intent(out) :: alpha
+    integer,                  intent(out) :: istat
+
+    real(wp), dimension(size(x)) :: x_trial
+    real(wp), dimension(size(c)) :: c_trial
+    real(wp) :: phi0, dphi0, v0, phi_trial, f_trial, best_alpha, best_phi
+    integer :: it
+
+    v0    = sum(max(c_lb-c, 0.0_wp) + max(c-c_ub, 0.0_wp))
+    phi0  = f + me%penalty*v0
+    dphi0 = dot_product(g, p) - me%penalty*v0
+
+    alpha      = 1.0_wp
+    best_alpha = 0.0_wp
+    best_phi   = phi0
+    do it = 1, me%max_ls_iter
+        x_trial = x + alpha*p
+        call eval_f(x_trial, f_trial)
+        call eval_c(x_trial, c_trial)
+        phi_trial = f_trial + me%penalty*sum(max(c_lb-c_trial, 0.0_wp) + max(c_trial-c_ub, 0.0_wp))
+        if (phi_trial <= phi0 + me%sigma*alpha*dphi0) then
+            istat = sqpopt_success
+            return
+        end if
+        if (phi_trial < best_phi) then
+            best_phi   = phi_trial
+            best_alpha = alpha
+        end if
+        alpha = me%backtrack*alpha
+    end do
+
+    ! `p` is only an approximate QP solution and is not guaranteed to be a
+    ! descent direction for `phi` in every case; fall back to the best
+    ! (possibly still-improving) step found rather than the last, tiniest,
+    ! essentially useless step tried:
+    alpha = best_alpha
+    istat = sqpopt_line_search_failed
+
+    end subroutine armijo_line_search
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  (approximately) minimize the merit function along `p` using the
+!  derivative-free 1-D minimizer [[fmin]].
+
+    subroutine exact_line_search(me, eval_f, eval_c, x, p, c_lb, c_ub, alpha, istat)
 
     class(sqpopt_linesearch_type), intent(inout) :: me
     procedure(sqpopt_objective_func)  :: eval_f  !! evaluates \( f(x) \)
@@ -92,14 +199,14 @@
     alpha = fmin(merit_along_direction, 0.0_wp, 1.0_wp, me%tol)
     istat = sqpopt_success
 
-    end subroutine line_search
+    end subroutine exact_line_search
 !*******************************************************************************
 
 !*******************************************************************************
 !>
 !  the merit function \( \phi(x + \alpha p) \) along the search direction,
 !  in the form required by [[fmin]]. Uses the module-level state set by
-!  [[line_search]] just before calling `fmin`.
+!  [[exact_line_search]] just before calling `fmin`.
 
     function merit_along_direction(alpha) result(phi)
 

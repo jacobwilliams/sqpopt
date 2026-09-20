@@ -95,6 +95,10 @@
 
     real(wp) :: sty, yty
 
+    ! a near-zero step carries no reliable curvature information and risks
+    ! an ill-conditioned (huge `rho`) update, so skip it outright:
+    if (norm2(s) <= 1.0e-10_wp) return
+
     sty = dot_product(s, y)
 
     ! skip the update if the curvature condition is not sufficiently satisfied:
@@ -125,6 +129,10 @@
 
     real(wp), dimension(me%n) :: bs, w
     real(wp) :: denom, sty, yty
+
+    ! a near-zero step carries no reliable curvature information and risks
+    ! an ill-conditioned update, so skip it outright:
+    if (norm2(s) <= 1.0e-10_wp) return
 
     call hessian_vector_product(me, s, bs)
     w = y - bs

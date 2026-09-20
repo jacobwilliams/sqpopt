@@ -3,6 +3,7 @@ program test_basic
     use sqpopt_module,         only: sqpopt_type
     use sqpopt_problem_module, only: sqpopt_problem_type
     use sqpopt_options_module, only: sqpopt_options_type, sqpopt_hessian_sr1
+    use sqpopt_linesearch_module, only: sqpopt_linesearch_exact
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
 
     implicit none
@@ -13,6 +14,7 @@ program test_basic
     call test_inequality_constrained()
     call test_bounds_only()
     call test_sr1_hessian_mode()
+    call test_exact_linesearch_mode()
 
     contains
 
@@ -194,5 +196,40 @@ program test_basic
     print *, 'test_sr1_hessian_mode PASSED'
 
     end subroutine test_sr1_hessian_mode
+
+    !> same problem as `test_inequality_constrained`, but using the
+    !! exact (fmin-based) line search mode instead of the default Armijo.
+    subroutine test_exact_linesearch_mode()
+
+    type(sqpopt_type)         :: solver
+    type(sqpopt_problem_type) :: problem
+    type(sqpopt_options_type) :: options
+    real(wp) :: x0(2), xsol(2), lam(1)
+    real(wp), parameter :: xexpect(2) = [1.0_wp, 2.0_wp]
+    integer :: istat
+
+    call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
+    call problem%set_bounds(x_lb=[0.0_wp,0.0_wp], x_ub=[big,big], c_lb=[-big], c_ub=[3.0_wp])
+    call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
+    call problem%set_functions(f=obj1, g=grad1, c=cons1, jac=jacv1)
+
+    options%max_iter       = 100
+    options%linesearch_mode = sqpopt_linesearch_exact
+    x0 = [0.0_wp, 0.0_wp]
+
+    call solver%initialize()
+    call solver%set_problem(problem)
+    call solver%set_options(options)
+    call solver%solve(x0, istat)
+    call solver%get_solution(xsol, lam)
+
+    print '(A,2F12.6)', 'test_exact_linesearch_mode: x      = ', xsol
+    print '(A,2F12.6)', 'test_exact_linesearch_mode: x_true = ', xexpect
+    print '(A,I0)',     'test_exact_linesearch_mode: istat  = ', istat
+
+    if (maxval(abs(xsol-xexpect)) > 1.0e-3_wp) error stop 'test_exact_linesearch_mode FAILED'
+    print *, 'test_exact_linesearch_mode PASSED'
+
+    end subroutine test_exact_linesearch_mode
 
 end program test_basic

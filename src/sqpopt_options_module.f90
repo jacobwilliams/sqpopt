@@ -6,8 +6,9 @@
 
     module sqpopt_options_module
 
-    use sqpopt_kinds,        only: wp => sqpopt_module_wp
-    use sqpopt_linalg_module, only: sqpopt_linsolve_lusol
+    use sqpopt_kinds,          only: wp => sqpopt_module_wp
+    use sqpopt_linalg_module,  only: sqpopt_linsolve_lusol
+    use sqpopt_linesearch_module, only: sqpopt_linesearch_armijo
 
     implicit none
 
@@ -27,6 +28,8 @@
                                                    !! Hessian approximation (independent of the problem size `n`)
         integer  :: linear_solver_mode = sqpopt_linsolve_lusol !! sparse linear solver used for the QP subproblem
                                                                 !! (see [[sqpopt_linalg_module]])
+        integer  :: linesearch_mode = sqpopt_linesearch_armijo !! line search strategy to use
+                                                                !! (see [[sqpopt_linesearch_module]])
 
         real(wp) :: ftol  = 1.0e-8_wp   !! convergence tolerance on relative change in the objective function
         real(wp) :: xtol  = 1.0e-8_wp   !! convergence tolerance on relative change in the optimization variables

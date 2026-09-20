@@ -25,7 +25,7 @@ limited-memory Hessian modes.
 | `sqpopt_hessian_module` | limited-memory (L-BFGS/L-SR1) Lagrangian Hessian, matrix-free | done |
 | `sqpopt_linalg_module` | sparse matvec + dispatch to `lusol`/`LSQR`/`LSMR` | done |
 | `sqpopt_qp_solver_module` | v1 composite-step direction finder (see §3) | done (simplified) |
-| `sqpopt_linesearch_module` | \\( \\ell_1 \\) merit function + `fmin`-based line search | done |
+| `sqpopt_linesearch_module` | \( \ell_1 \) merit function + Armijo (default) / `fmin`-exact line search | done |
 | `sqpopt_convergence_module` | projected-gradient KKT test + feasibility | done |
 | `sqpopt_iterate_module` | orchestrates one major SQP iteration | done |
 | `sqpopt_module` | public `sqpopt_type` facade (`initialize`/`set_problem`/`set_options`/`solve`/`get_solution`/`destroy`) | done |
@@ -160,6 +160,48 @@ forward compact-BFGS product just to decide whether to damp) -- adequate
 for the convex test problems tried so far; full damping is a possible
 future refinement if non-convex problems prove to need it.
 
+**Line search**: two modes are available, `sqpopt_linesearch_armijo`
+(**default**) -- standard backtracking with an Armijo sufficient-decrease
+test on the merit function, as used by default in `slsqp` -- and
+`sqpopt_linesearch_exact` -- (approximate) exact 1-D minimization via
+`fmin`. An exact line search is usually overkill (many extra function
+evaluations for marginal benefit), so Armijo is the recommended default.
+
+Switching the default to Armijo exposed several latent robustness bugs in
+the v1 composite step that the (more forgiving) exact search had been
+masking -- all fixed and covered by the test suite:
+
+1. **Tiny-step Hessian corruption**: when a line search step is very small,
+   the resulting `(s,y)` pair carries almost no reliable curvature
+   information and can produce a huge/ill-conditioned `rho`, corrupting
+   the Hessian approximation. Fixed by skipping the BFGS/SR1 update
+   outright when `norm2(s) <= 1e-10`.
+2. **Step overshoot**: the composite step can occasionally be much larger
+   than reasonable. Fixed with a simple trust-region-style cap
+   (`qp_solver%max_step`, default `10.0`): `p` is rescaled if
+   `norm2(p)` exceeds it.
+3. **Penalty parameter too small**: the \( \ell_1 \) exact penalty theory
+   (Han/Powell) requires the penalty `mu` to exceed `||lambda||_inf` for
+   the merit function's minimizer to coincide with the true constrained
+   optimum; a too-small fixed penalty can make an infeasible point look
+   better than the true solution. Fixed by adaptively updating
+   `linesearch%penalty = max(penalty, max(|lambda|)+1)` every iteration
+   (mirrors `slsqp`'s own multiplier-based penalty update).
+4. **Non-descent step**: unlike a true QP solution, the v1 composite step
+   has no guarantee of being a descent direction for the merit function.
+   Fixed with an `slsqp`-style safeguard: if the (approximate) directional
+   derivative `dot(g,p) - mu*viol(x) >= 0`, reset the Hessian to the
+   identity and recompute `p` once before the line search.
+5. **False convergence at inactive constraints**: with no complementarity
+   enforcement, the least-squares multiplier estimate could "explain away"
+   the gradient using an *inactive* constraint's direction whenever the
+   gradient happened to be parallel to it, satisfying the KKT test at a
+   non-optimal point. Fixed by adding a simple **active-set filter**
+   (`qp_solver%active_tol`, default `1e-6`): only constraint rows at/beyond
+   their bound are used for the multiplier estimate and null-space
+   projection (the normal step still uses the full Jacobian, which is
+   harmless since inactive rows have zero linearized violation).
+
 ## 4. Test suite
 
 [test/test_basic.f90](test/test_basic.f90) (`fpm test`) currently covers,
@@ -169,8 +211,9 @@ each against a known closed-form optimum:
 2. `test_inequality_constrained` — linear inequality constraint (active at the solution).
 3. `test_bounds_only` — a variable bound only, no general constraints (`m=0` edge case).
 4. `test_sr1_hessian_mode` — repeats (1) with `hessian_mode = sqpopt_hessian_sr1`.
+5. `test_exact_linesearch_mode` — repeats (2) with `linesearch_mode = sqpopt_linesearch_exact`.
 
-All four pass with `istat = sqpopt_success` (clean convergence, not just
+All five pass with `istat = sqpopt_success` (clean convergence, not just
 hitting `max_iter`).
 
 ## 5. Backlog ("optional/advanced" work, deferred from v1)
