@@ -201,6 +201,21 @@ masking -- all fixed and covered by the test suite:
    their bound are used for the multiplier estimate and null-space
    projection (the normal step still uses the full Jacobian, which is
    harmless since inactive rows have zero linearized violation).
+   (Tried widening `active_tol` to `1.0` to help the HS71 nonlinear test
+   below converge faster -- this *broke* `test_inequality_constrained`,
+   which false-converged early because points well short of the boundary
+   got flagged "active". Reverted to `1e-6`: the right tolerance is
+   inherently problem-scale-dependent, and a small/exact one is safer.)
+6. **Line search cascade**: `sqpopt_linesearch_armijo` now falls back to
+   `sqpopt_linesearch_exact` if no backtracking step satisfies the Armijo
+   test, rather than accepting a useless near-zero step.
+7. **Second-order correction (SOC)**: for strongly nonlinear constraints,
+   the linearized constraint prediction at `x+p` can differ enough from
+   the true (nonlinear) value that a genuinely good step gets rejected by
+   the merit function (the classic "Maratos effect"). `sqpopt_iterate_module`
+   now computes an extra small correction step from the true constraint
+   residual at `x+p` (another `LSQR` solve reusing the same Jacobian) and
+   uses the corrected step if it improves the merit function value.
 
 ## 4. Test suite
 
@@ -216,11 +231,32 @@ each against a known closed-form optimum:
 All five pass with `istat = sqpopt_success` (clean convergence, not just
 hitting `max_iter`).
 
+[test/test_hs71.f90](test/test_hs71.f90) adds a genuinely **nonlinear** test:
+Hock-Schittkowski problem 71 (nonlinear objective, one nonlinear equality and
+one nonlinear inequality constraint, both simultaneously active at the
+solution, plus variable bounds). **This exposed a real v1 limitation**: the
+solver settles into a small, stable oscillation (limit cycle) near the true
+solution rather than converging tightly to it -- confirmed by running up to
+3000 iterations with no further improvement, so it is not merely slow
+convergence. `istat` ends as `sqpopt_max_iter_reached`, not `sqpopt_success`,
+and the test only checks that the final point is within `0.25` of the known
+solution (it typically gets within ~0.2). This is left as a known limitation
+(see §5) rather than force-fit with more heuristics; fixing it properly needs
+a more rigorous QP solver / trust-region radius control, not another patch.
+
 ## 5. Backlog ("optional/advanced" work, deferred from v1)
 
 - A rigorous **active-set or interior-point QP solver** that enforces
   linearized general-constraint bounds exactly (the current composite-step
-  heuristic relies on outer-iteration convergence instead).
+  heuristic relies on outer-iteration convergence instead). **This is now
+  the top-priority item**: `test_hs71` demonstrates that the v1 heuristic
+  (even with the active-set filter, adaptive penalty, descent safeguard,
+  trust-region cap, and second-order correction all in place) only
+  achieves loose convergence (a stable limit cycle) on a problem where two
+  constraints are simultaneously active at a corner-point solution. A
+  proper QP solve (or at least trust-region radius control that shrinks on
+  repeated rejection, rather than a fixed `max_step`) is needed for tight
+  convergence on problems like this.
 - **`sqpopt_hessian_exact`** mode (user-supplied sparse Hessian of the
   Lagrangian) — currently falls back to BFGS in `sqpopt_iterate_module`.
 - **Full Powell damping** for the BFGS update (currently a simpler
@@ -228,15 +264,14 @@ hitting `max_iter`).
 - **`ftol`/`xtol`** no-progress stopping tests (only the KKT/feasibility
   test is implemented).
 - **Diagnostic printing** (`options%print_level` is defined but unused).
-- Nonlinear test problems with curvature (the current test suite is all
-  convex quadratic objectives with linear constraints); a good next step is
-  porting an actual Hock-Schittkowski problem (e.g. HS71, already used by
-  `slsqp`'s and `psqp`'s own test suites) to exercise nonlinear Jacobians
-  and multiple BFGS/SR1 updates per solve.
 - Whether to expose `NumDiff`'s automatic sparsity-pattern detection as a
   convenience path in `sqpopt_problem_module`, or keep sparsity patterns
   strictly user-supplied (current behavior).
-- Default `lbfgs_memory` (currently 10) and default `linear_solver_mode`
-  (currently `lusol`, though not yet exercised by the v1 QP path) —
-  reasonable defaults, worth revisiting once benchmarked on larger problems.
+- Default `lbfgs_memory` (currently 10), `linear_solver_mode` (currently
+  `lusol`, though not yet exercised by the v1 QP path), `qp_solver%max_step`
+  (currently a fixed `2.0`, not problem-scale-aware), and
+  `qp_solver%active_tol` (currently a fixed `1e-6`, also not problem-scale-
+  aware -- see the note in §3) are none of them currently exposed on
+  `sqpopt_options_type` either; worth revisiting together once there's a
+  more rigorous QP solver to tune.
 

@@ -38,6 +38,10 @@
         real(wp) :: tol         = 1.0e-4_wp !! desired tolerance on the minimizer (`sqpopt_linesearch_exact` mode)
         real(wp) :: sigma       = 0.1_wp    !! Armijo sufficient-decrease parameter, \( 0 < \sigma < 1 \) (`sqpopt_linesearch_armijo` mode)
         real(wp) :: backtrack   = 0.5_wp    !! step-length reduction factor at each backtracking step (`sqpopt_linesearch_armijo` mode)
+        real(wp) :: alpha_min   = 0.1_wp    !! minimum step length, \( 0 < \alpha_{min} < 1 \) (`sqpopt_linesearch_armijo` mode):
+                                            !! backtracking never goes below this; if the floor is reached without
+                                            !! satisfying the sufficient-decrease test, `alpha_min` is accepted anyway
+                                            !! (this avoids ever taking a useless near-zero step)
         integer  :: max_ls_iter = 20        !! maximum number of Armijo backtracking steps (`sqpopt_linesearch_armijo` mode)
 
         contains
@@ -117,11 +121,12 @@
 !  $$ \phi(x+\alpha p) \le \phi(x) + \sigma \alpha D(\phi;p) $$
 !  where \( D(\phi;p) = g^T p - \mu \lVert \text{viol}(x) \rVert_1 \) is
 !  the (approximate) directional derivative of the merit function along
-!  `p`. If no `alpha` satisfies this in `max_ls_iter` backtracking steps
-!  (which can happen since `p` is only an approximate QP solution, so is
-!  not guaranteed to be a descent direction for `phi` in every case), the
-!  best (lowest-`phi`) step tried is used instead as a safeguard, and
-!  `istat` is set to `sqpopt_line_search_failed`.
+!  `p`. `alpha` never goes below `alpha_min`: if the floor is reached
+!  without satisfying the test (which can happen since `p` is only an
+!  approximate QP solution, so is not guaranteed to be a descent direction
+!  for `phi` in every case), `alpha_min` is accepted anyway -- this is much
+!  cheaper than falling back to an exact line search, and still guarantees
+!  the step never shrinks to a useless near-zero value.
 
     subroutine armijo_line_search(me, eval_f, eval_c, x, p, f, g, c, c_lb, c_ub, alpha, istat)
 
@@ -135,16 +140,14 @@
 
     real(wp), dimension(size(x)) :: x_trial
     real(wp), dimension(size(c)) :: c_trial
-    real(wp) :: phi0, dphi0, v0, phi_trial, f_trial, best_alpha, best_phi
+    real(wp) :: phi0, dphi0, v0, phi_trial, f_trial
     integer :: it
 
     v0    = sum(max(c_lb-c, 0.0_wp) + max(c-c_ub, 0.0_wp))
     phi0  = f + me%penalty*v0
     dphi0 = dot_product(g, p) - me%penalty*v0
 
-    alpha      = 1.0_wp
-    best_alpha = 0.0_wp
-    best_phi   = phi0
+    alpha = 1.0_wp
     do it = 1, me%max_ls_iter
         x_trial = x + alpha*p
         call eval_f(x_trial, f_trial)
@@ -154,18 +157,13 @@
             istat = sqpopt_success
             return
         end if
-        if (phi_trial < best_phi) then
-            best_phi   = phi_trial
-            best_alpha = alpha
-        end if
-        alpha = me%backtrack*alpha
+        if (alpha <= me%alpha_min) exit
+        alpha = max(me%backtrack*alpha, me%alpha_min)
     end do
 
-    ! `p` is only an approximate QP solution and is not guaranteed to be a
-    ! descent direction for `phi` in every case; fall back to the best
-    ! (possibly still-improving) step found rather than the last, tiniest,
-    ! essentially useless step tried:
-    alpha = best_alpha
+    ! backtracking reached the floor without satisfying the Armijo test;
+    ! accept `alpha_min` anyway rather than continuing to shrink toward zero:
+    alpha = me%alpha_min
     istat = sqpopt_line_search_failed
 
     end subroutine armijo_line_search

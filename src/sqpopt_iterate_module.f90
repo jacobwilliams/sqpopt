@@ -17,8 +17,9 @@
     use sqpopt_hessian_module,    only: sqpopt_hessian_type
     use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type
     use sqpopt_linesearch_module, only: sqpopt_linesearch_type
-    use sqpopt_linalg_module,     only: sparse_matvec_transpose
+    use sqpopt_linalg_module,     only: sparse_matvec_transpose, sparse_matvec
     use sqpopt_convergence_module, only: check_convergence
+    use lsqr_module,              only: lsqr_solver_ez
 
     implicit none
 
@@ -121,6 +122,17 @@
                               problem%c_lb, problem%c_ub, p, new_lambda, qp_istat)
     end if
 
+    ! second-order correction (SOC): for strongly nonlinear constraints, the
+    ! full step `p` can be rejected by the merit function even when it is a
+    ! genuinely good step, because the *linearized* constraint prediction
+    ! differs from the true (nonlinear) constraint value at `x+p` (the
+    ! "Maratos effect"). Correct for this by solving for an additional small
+    ! step that accounts for the true constraint residual at `x+p`, and use
+    ! the corrected step if it has a better merit function value:
+    if (problem%m > 0) then
+        call second_order_correction(problem, linesearch, jac, x, c, p)
+    end if
+
     ! line search along `p` to (approximately) minimize the merit function:
     call linesearch%search(problem%eval_f, problem%eval_c, x, p, f, g, c, problem%c_lb, problem%c_ub, alpha, ls_istat)
 
@@ -150,6 +162,48 @@
     v = sum(max(c_lb-c, 0.0_wp) + max(c-c_ub, 0.0_wp))
 
     end function constraint_violation
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  second-order correction: refine `p` using the true (nonlinear)
+!  constraint residual at `x+p` rather than its linear prediction, and
+!  replace `p` with the corrected step if it improves the merit function
+!  (a standard remedy for the Maratos effect near nonlinear constraints).
+
+    subroutine second_order_correction(problem, linesearch, jac, x, c, p)
+
+    type(sqpopt_problem_type),    intent(inout) :: problem
+    type(sqpopt_linesearch_type), intent(inout) :: linesearch
+    type(sqpopt_sparse_matrix),   intent(in)    :: jac
+    real(wp), dimension(:),       intent(in)    :: x
+    real(wp), dimension(:),       intent(in)    :: c
+    real(wp), dimension(:),       intent(inout) :: p
+
+    real(wp), dimension(size(c)) :: jp, c_p, resid, c_soc
+    real(wp), dimension(size(p)) :: p_corr, p_soc
+    real(wp) :: f_p, f_soc, phi_p, phi_soc
+    type(lsqr_solver_ez) :: lsqr
+    integer :: istop
+
+    call sparse_matvec(jac, p, jp)
+    call problem%eval_c(x+p, c_p)
+    resid = c_p - (c+jp)  !! nonlinear residual left uncorrected by the linear model
+
+    call lsqr%initialize(problem%m, problem%n, jac%val, jac%irow, jac%icol)
+    call lsqr%solve(-resid, 0.0_wp, p_corr, istop)
+    p_soc = p + p_corr
+
+    call problem%eval_f(x+p, f_p)
+    call linesearch%eval_merit(f_p, c_p, problem%c_lb, problem%c_ub, phi_p)
+
+    call problem%eval_f(x+p_soc, f_soc)
+    call problem%eval_c(x+p_soc, c_soc)
+    call linesearch%eval_merit(f_soc, c_soc, problem%c_lb, problem%c_ub, phi_soc)
+
+    if (phi_soc < phi_p) p = p_soc
+
+    end subroutine second_order_correction
 !*******************************************************************************
 
     end module sqpopt_iterate_module

@@ -68,7 +68,7 @@
 
         integer  :: max_iter           = 0                     !! maximum number of iterations allowed for the QP solver
         integer  :: linear_solver_mode = sqpopt_linsolve_lusol  !! sparse linear solver used for the KKT system
-        real(wp) :: max_step           = 10.0_wp                !! trust-region-style cap on \( \lVert p \rVert_2 \);
+        real(wp) :: max_step           = 2.0_wp                 !! trust-region-style cap on \( \lVert p \rVert_2 \);
                                                                  !! the step is rescaled if it is exceeded (safeguards
                                                                  !! against the v1 composite step occasionally
                                                                  !! overshooting -- see [[sqpopt_qp_solver_module]])
