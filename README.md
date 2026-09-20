@@ -14,3 +14,14 @@ Features include:
 - Selectable real kinds (single, double, quadruple)
 
 
+### to Build
+
+Use the `pixi` environment and FPM:
+
+```
+pixi shell
+fpm build --profile release
+fpm test --profile release
+```
+
+
