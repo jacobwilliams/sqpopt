@@ -34,9 +34,9 @@ pattern; the Hessian approximation is a matrix-free limited-memory operator.
 
 ## 2. Dependency inventory & reuse strategy
 
-We now have five reference dependencies fetched under `build/dependencies/`:
-`slsqp`, `psqp`, `NumDiff`, `nlesolver-fortran`, plus the sparse linear algebra
-trio `LSQR`, `LSMR`, `lusol`.
+We now have six reference dependencies fetched under `build/dependencies/`:
+`slsqp`, `psqp`, `NumDiff`, `nlesolver-fortran`, `lbfgsb`, plus the sparse
+linear algebra trio `LSQR`, `LSMR`, `lusol`.
 
 ### Directly reusable (linked into `sqpopt` itself, `[dependencies]`)
 
@@ -47,10 +47,23 @@ trio `LSQR`, `LSMR`, `lusol`.
   solvers. Useful as an alternative to `lusol` for very large/ill-conditioned
   KKT systems, and directly usable for the initial least-squares estimate of
   Lagrange multipliers (a common SQP initialization trick, see below).
+- **`lbfgsb`** (BSD, Jacob Williams' modernization of Nocedal/Morales'
+  L-BFGS-B) — this is a genuinely good match for `sqpopt_hessian_module`.
+  Its limited-memory BFGS machinery is *already matrix-free*: history is kept
+  in `Ws`/`Wy` (`dimension(n,m)`, `m` a small constant) plus `Sy`/`Ss`/`Wt`
+  (`dimension(m,m)`), and the compact-formula matrix-vector product is
+  implemented in the standalone `bmv` subroutine (`lbfgsb_module`). Rather
+  than write our own two-loop recursion from scratch, we will reuse `bmv`
+  (and the S/Y/`Sy`/`Wt` bookkeeping it expects) directly inside
+  `sqpopt_hessian_module` for the `sqpopt_hessian_bfgs` mode. Note `lbfgsb`
+  itself only solves *box-constrained* problems (no general linear/nonlinear
+  constraints) — we are not depending on its outer driver (`setulb`/`mainlb`,
+  Cauchy point, subspace minimization), only its inner compact-BFGS
+  matrix-vector product machinery.
 
-All three already take/accept 1-based COO `irow`/`icol`/`val` triplets, which
-is exactly the convention used by `sqpopt_sparse_matrix` — no conversion layer
-needed.
+`lusol`/`LSQR`/`LSMR` already take/accept 1-based COO `irow`/`icol`/`val`
+triplets, which is exactly the convention used by `sqpopt_sparse_matrix` — no
+conversion layer needed.
 
 ### Algorithmic inspiration only (NOT linked as dependencies — both are fully dense)
 
@@ -127,11 +140,16 @@ Bottom-up order, so each layer can be unit-tested before the next depends on it.
 3. **`sqpopt_problem_module`** — implement `set_problem_size`,
    `set_jacobian_sparsity`, `set_hessian_sparsity`, `set_functions`
    (allocation + pointer assignment only, no numerics).
-4. **`sqpopt_hessian_module`** — implement the circular buffer for `(s,y)`
-   pairs, `update_bfgs` (with damping), `update_sr1`, and the two-loop
-   recursion (`inverse_vector_product`) plus forward `hv_product`. Unit test:
-   verify quadratic convergence on a small unconstrained quadratic (no QP
-   solver needed yet — just Hessian ≈ true Hessian for a quadratic function).
+4. **`sqpopt_hessian_module`** — for the BFGS mode, reuse `lbfgsb`'s compact
+   two-loop recursion (`bmv`) and its `Ws`/`Wy`/`Sy`/`Ss`/`Wt` storage
+   convention instead of writing the recursion from scratch; wrap it behind
+   `hv_product`/`inverse_vector_product` so callers never see the `lbfgsb`
+   internals. Implement the circular buffer for `(s,y)` pairs and
+   `update_bfgs` (with SLSQP-style damping) to keep `Sy`/`Ss`/`Wt` up to
+   date. `update_sr1` (limited-memory SR1) has no `lbfgsb` equivalent and
+   must be written from scratch. Unit test: verify quadratic convergence on
+   a small unconstrained quadratic (no QP solver needed yet — just Hessian ≈
+   true Hessian for a quadratic function).
 5. **`sqpopt_qp_solver_module`** — implement the sparse active-set QP solver.
    This is the largest piece of new work. Suggested sub-steps:
    - a. Equality-constrained QP only (no inequalities/bounds) — solve the
