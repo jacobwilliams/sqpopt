@@ -11,5 +11,6 @@ Features include:
 - Open-source and actively maintained
 - Sparse matrix support
 - Easy integration with existing Fortran projects (uses the FPM build system)
+- Selectable real kinds (single, double, quadruple)
 
 
