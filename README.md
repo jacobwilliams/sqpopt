@@ -6,6 +6,7 @@ Modern Fortran SQP OPTimizer
 A modern Fortran implementation of a Sequential Quadratic Programming (SQP) optimizer.
 
 Features include:
+- SQP method: minimizes a nonlinear objective function subject to nonlinear equality and inequality constraints, and bounds.
 - Modern Fortran implementation
 - Modular architecture
 - Open-source and actively maintained
