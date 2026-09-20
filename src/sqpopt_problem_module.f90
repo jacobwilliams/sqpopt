@@ -17,6 +17,14 @@
 !  constraint by setting them to different values (using \( \pm\infty \)
 !  for one-sided inequalities). Variable bounds are specified similarly
 !  via \( x_l \) and \( x_u \).
+!
+!  The Jacobian of \( c(x) \) and the Hessian of the Lagrangian are
+!  never treated as dense \( m \times n \) or \( n \times n \) arrays:
+!  their (fixed) sparsity patterns are supplied once as 1-based COO
+!  `irow`/`icol` triplets (the same convention used by the `lusol`,
+!  `LSQR`, and `LSMR` dependencies), and the user-supplied evaluation
+!  routines only need to fill in the corresponding nonzero *values* on
+!  each call.
 
     module sqpopt_problem_module
 
@@ -28,9 +36,10 @@
 
     type, public :: sqpopt_problem_type
         !! defines the problem to be solved: the problem size, the
-        !! variable and constraint bounds, and the user-supplied
-        !! procedures used to evaluate the objective function,
-        !! constraints, and their derivatives.
+        !! variable and constraint bounds, the sparsity patterns of the
+        !! constraint Jacobian and Lagrangian Hessian, and the
+        !! user-supplied procedures used to evaluate the objective
+        !! function, constraints, and their derivatives.
 
         integer :: n      = 0  !! number of optimization variables (\( n>0 \))
         integer :: m      = 0  !! total number of nonlinear constraints \( c(x) \) (\( m \ge 0 \))
@@ -43,16 +52,26 @@
         real(wp), dimension(:), allocatable :: c_lb  !! lower bounds on the constraints `dimension(m)`
         real(wp), dimension(:), allocatable :: c_ub  !! upper bounds on the constraints `dimension(m)`
 
+        integer :: jac_nnz = 0  !! number of nonzero elements in the constraint Jacobian
+        integer, dimension(:), allocatable :: jac_irow  !! Jacobian sparsity pattern: row indices `dimension(jac_nnz)`
+        integer, dimension(:), allocatable :: jac_icol  !! Jacobian sparsity pattern: column indices `dimension(jac_nnz)`
+
+        integer :: hess_nnz = 0  !! number of nonzero elements in the (symmetric) Hessian of the Lagrangian
+        integer, dimension(:), allocatable :: hess_irow !! Hessian sparsity pattern: row indices `dimension(hess_nnz)`
+        integer, dimension(:), allocatable :: hess_icol !! Hessian sparsity pattern: column indices `dimension(hess_nnz)`
+
         procedure(sqpopt_objective_func), pointer, nopass :: eval_f    => null() !! evaluates \( f(x) \)
         procedure(sqpopt_gradient_func),  pointer, nopass :: eval_g    => null() !! evaluates \( \nabla f(x) \)
         procedure(sqpopt_constraint_func),pointer, nopass :: eval_c    => null() !! evaluates \( c(x) \)
-        procedure(sqpopt_jacobian_func),  pointer, nopass :: eval_jac  => null() !! evaluates the Jacobian of \( c(x) \)
-        procedure(sqpopt_hessian_func),   pointer, nopass :: eval_hess => null() !! evaluates the Hessian of the Lagrangian (only used when an exact Hessian is requested)
+        procedure(sqpopt_jacobian_func),  pointer, nopass :: eval_jac  => null() !! evaluates the nonzero values of the Jacobian of \( c(x) \)
+        procedure(sqpopt_hessian_func),   pointer, nopass :: eval_hess => null() !! evaluates the nonzero values of the Hessian of the Lagrangian (only used when an exact Hessian is requested)
 
         contains
 
-        procedure, public :: set_problem_size  !! set the problem dimensions and allocate the bound arrays
-        procedure, public :: set_functions     !! attach the user-supplied evaluation procedures
+        procedure, public :: set_problem_size      !! set the problem dimensions and allocate the bound arrays
+        procedure, public :: set_jacobian_sparsity !! set the (fixed) sparsity pattern of the constraint Jacobian
+        procedure, public :: set_hessian_sparsity  !! set the (fixed) sparsity pattern of the Lagrangian Hessian
+        procedure, public :: set_functions         !! attach the user-supplied evaluation procedures
 
     end type sqpopt_problem_type
 
@@ -83,22 +102,25 @@
             real(wp), dimension(:), intent(out) :: c  !! constraint vector `dimension(m)`
         end subroutine sqpopt_constraint_func
 
-        subroutine sqpopt_jacobian_func(x, jac)
-            !! evaluates the Jacobian of the constraint vector: \( J_{ij} = \partial c_i / \partial x_j \)
+        subroutine sqpopt_jacobian_func(x, jac_val)
+            !! evaluates the nonzero values of the Jacobian of the constraint
+            !! vector: \( J_{ij} = \partial c_i / \partial x_j \), ordered to
+            !! match the sparsity pattern set by `set_jacobian_sparsity`.
             import :: wp
             implicit none
-            real(wp), dimension(:),   intent(in)  :: x    !! optimization variable vector `dimension(n)`
-            real(wp), dimension(:,:), intent(out) :: jac  !! constraint Jacobian `dimension(m,n)`
+            real(wp), dimension(:), intent(in)  :: x       !! optimization variable vector `dimension(n)`
+            real(wp), dimension(:), intent(out) :: jac_val !! nonzero Jacobian values `dimension(jac_nnz)`
         end subroutine sqpopt_jacobian_func
 
-        subroutine sqpopt_hessian_func(x, lambda, h)
-            !! evaluates the Hessian of the Lagrangian:
-            !! \( H = \nabla^2 f(x) - \sum_i \lambda_i \nabla^2 c_i(x) \)
+        subroutine sqpopt_hessian_func(x, lambda, hess_val)
+            !! evaluates the nonzero values of the Hessian of the Lagrangian:
+            !! \( H = \nabla^2 f(x) - \sum_i \lambda_i \nabla^2 c_i(x) \),
+            !! ordered to match the sparsity pattern set by `set_hessian_sparsity`.
             import :: wp
             implicit none
-            real(wp), dimension(:),   intent(in)  :: x      !! optimization variable vector `dimension(n)`
-            real(wp), dimension(:),   intent(in)  :: lambda !! Lagrange multipliers `dimension(m)`
-            real(wp), dimension(:,:), intent(out) :: h      !! Hessian of the Lagrangian `dimension(n,n)`
+            real(wp), dimension(:), intent(in)  :: x        !! optimization variable vector `dimension(n)`
+            real(wp), dimension(:), intent(in)  :: lambda   !! Lagrange multipliers `dimension(m)`
+            real(wp), dimension(:), intent(out) :: hess_val !! nonzero Hessian values `dimension(hess_nnz)`
         end subroutine sqpopt_hessian_func
 
     end interface
@@ -124,6 +146,41 @@
 
 !*******************************************************************************
 !>
+!  set the (fixed) sparsity pattern of the constraint Jacobian, given as
+!  1-based COO `irow`/`icol` triplets.
+
+    subroutine set_jacobian_sparsity(me, nnz, irow, icol)
+
+    class(sqpopt_problem_type), intent(inout) :: me
+    integer, intent(in) :: nnz  !! number of nonzero Jacobian elements
+    integer, dimension(:), intent(in) :: irow  !! row indices `dimension(nnz)`
+    integer, dimension(:), intent(in) :: icol  !! column indices `dimension(nnz)`
+
+    ! TODO: implement
+
+    end subroutine set_jacobian_sparsity
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  set the (fixed) sparsity pattern of the Hessian of the Lagrangian,
+!  given as 1-based COO `irow`/`icol` triplets (only the lower triangle
+!  need be supplied, since the Hessian is symmetric).
+
+    subroutine set_hessian_sparsity(me, nnz, irow, icol)
+
+    class(sqpopt_problem_type), intent(inout) :: me
+    integer, intent(in) :: nnz  !! number of nonzero Hessian elements
+    integer, dimension(:), intent(in) :: irow  !! row indices `dimension(nnz)`
+    integer, dimension(:), intent(in) :: icol  !! column indices `dimension(nnz)`
+
+    ! TODO: implement
+
+    end subroutine set_hessian_sparsity
+!*******************************************************************************
+
+!*******************************************************************************
+!>
 !  attach the user-supplied procedures used to evaluate the objective
 !  function, constraints, and (optionally) their derivatives.
 
@@ -133,8 +190,8 @@
     procedure(sqpopt_objective_func)  :: f     !! objective function
     procedure(sqpopt_gradient_func)   :: g     !! objective function gradient
     procedure(sqpopt_constraint_func) :: c     !! constraint vector
-    procedure(sqpopt_jacobian_func)   :: jac   !! constraint Jacobian
-    procedure(sqpopt_hessian_func), optional :: hess !! exact Hessian of the Lagrangian (optional)
+    procedure(sqpopt_jacobian_func)   :: jac   !! sparse constraint Jacobian values
+    procedure(sqpopt_hessian_func), optional :: hess !! sparse exact Hessian of the Lagrangian values (optional)
 
     ! TODO: implement
 

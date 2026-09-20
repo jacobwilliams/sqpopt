@@ -2,8 +2,13 @@
 !> author: Jacob Williams
 !  license: MIT
 !
-!  Linear algebra utility routines, including conversions between dense
-!  and sparse matrix formats.
+!  Sparse linear algebra utility routines. All matrices in `sqpopt` are
+!  stored in coordinate (COO) format (1-based `irow`/`icol`/`val` triplets,
+!  see [[sqpopt_types_module(module):sqpopt_sparse_matrix(type)]]) -- dense
+!  \( n \times n \) or \( m \times n \) arrays are never formed. This is
+!  the same triplet convention used by the `lusol`, `LSQR`, and `LSMR`
+!  dependencies, and by the sparse mode of `nlesolver-fortran`, so that
+!  a [[sqpopt_sparse_matrix]] can be passed directly to those solvers.
 
     module sqpopt_linalg_module
 
@@ -14,55 +19,66 @@
 
     private
 
-    public :: dense_to_sparse
-    public :: sparse_to_dense
-    public :: solve_linear_system
+    integer, parameter, public :: sqpopt_linsolve_lusol = 1  !! direct sparse solve via `lusol_ez_module` (LU factorization)
+    integer, parameter, public :: sqpopt_linsolve_lsqr  = 2  !! iterative sparse solve via `lsqr_module`
+    integer, parameter, public :: sqpopt_linsolve_lsmr  = 3  !! iterative sparse solve via `LSMRmodule`
+
+    public :: sparse_matvec
+    public :: sparse_matvec_transpose
+    public :: solve_sparse_linear_system
 
     contains
 !*******************************************************************************
 
 !*******************************************************************************
 !>
-!  convert a dense matrix to a sparse (COO) matrix, discarding zero elements.
+!  compute the sparse matrix-vector product \( y = A x \), operating
+!  directly on the COO triplets (never forms a dense matrix).
 
-    subroutine dense_to_sparse(dense, sparse)
+    subroutine sparse_matvec(a, x, y)
 
-    real(wp), dimension(:,:),      intent(in)  :: dense  !! dense matrix `dimension(nrows,ncols)`
-    type(sqpopt_sparse_matrix),    intent(out) :: sparse !! equivalent sparse matrix
+    type(sqpopt_sparse_matrix), intent(in)  :: a  !! sparse matrix, `dimension(nrows,ncols)`
+    real(wp), dimension(:),     intent(in)  :: x  !! vector to multiply `dimension(ncols)`
+    real(wp), dimension(:),     intent(out) :: y  !! result vector `dimension(nrows)`
 
     ! TODO: implement
 
-    end subroutine dense_to_sparse
+    end subroutine sparse_matvec
 !*******************************************************************************
 
 !*******************************************************************************
 !>
-!  convert a sparse (COO) matrix to a dense matrix.
+!  compute the sparse transposed matrix-vector product \( x = A^T y \),
+!  operating directly on the COO triplets (never forms a dense matrix).
 
-    subroutine sparse_to_dense(sparse, dense)
+    subroutine sparse_matvec_transpose(a, y, x)
 
-    type(sqpopt_sparse_matrix), intent(in)  :: sparse !! sparse matrix
-    real(wp), dimension(:,:),   intent(out) :: dense  !! equivalent dense matrix `dimension(nrows,ncols)`
+    type(sqpopt_sparse_matrix), intent(in)  :: a  !! sparse matrix, `dimension(nrows,ncols)`
+    real(wp), dimension(:),     intent(in)  :: y  !! vector to multiply `dimension(nrows)`
+    real(wp), dimension(:),     intent(out) :: x  !! result vector `dimension(ncols)`
 
     ! TODO: implement
 
-    end subroutine sparse_to_dense
+    end subroutine sparse_matvec_transpose
 !*******************************************************************************
 
 !*******************************************************************************
 !>
-!  solve the dense linear system \( A x = b \).
+!  solve the sparse linear system \( A x = b \), dispatching to the
+!  solver requested by `method` (one of `sqpopt_linsolve_lusol`,
+!  `sqpopt_linsolve_lsqr`, or `sqpopt_linsolve_lsmr`).
 
-    subroutine solve_linear_system(a, b, x, istat)
+    subroutine solve_sparse_linear_system(a, b, method, x, istat)
 
-    real(wp), dimension(:,:), intent(in)  :: a      !! coefficient matrix `dimension(n,n)`
-    real(wp), dimension(:),   intent(in)  :: b      !! right-hand-side vector `dimension(n)`
-    real(wp), dimension(:),   intent(out) :: x      !! solution vector `dimension(n)`
-    integer,                   intent(out) :: istat  !! status code (see [[sqpopt_types_module]])
+    type(sqpopt_sparse_matrix), intent(in)  :: a       !! coefficient matrix, `dimension(n,n)`
+    real(wp), dimension(:),     intent(in)  :: b       !! right-hand-side vector `dimension(n)`
+    integer,                    intent(in)  :: method  !! linear solver strategy to use
+    real(wp), dimension(:),     intent(out) :: x       !! solution vector `dimension(n)`
+    integer,                    intent(out) :: istat   !! status code (see [[sqpopt_types_module]])
 
     ! TODO: implement
 
-    end subroutine solve_linear_system
+    end subroutine solve_sparse_linear_system
 !*******************************************************************************
 
     end module sqpopt_linalg_module

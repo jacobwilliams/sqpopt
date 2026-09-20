@@ -2,7 +2,10 @@
 !> author: Jacob Williams
 !  license: MIT
 !
-!  Common types and status codes used throughout `sqpopt`.
+!  Common types and status codes used throughout `sqpopt`. Sparse matrices
+!  are always stored in coordinate (COO) format with 1-based indices --
+!  the same convention used by the `lusol`, `LSQR`, and `LSMR` dependencies
+!  -- so that they may be passed to those solvers without conversion.
 
     module sqpopt_types_module
 

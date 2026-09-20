@@ -9,6 +9,9 @@
 !  Hessian approximation, QP subproblem solver, line search, and
 !  convergence checking) are each implemented in their own module so
 !  that they may be developed, tested, and swapped out independently.
+!  Internally, sparse (COO) storage is used by default for the
+!  constraint Jacobian and the Lagrangian Hessian is a matrix-free
+!  limited-memory operator -- dense `n x n`/`m x n` arrays are never formed.
 
     module sqpopt_module
 

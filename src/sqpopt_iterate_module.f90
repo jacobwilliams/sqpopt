@@ -3,8 +3,10 @@
 !  license: MIT
 !
 !  The core SQP major iteration: evaluates the problem functions, updates
-!  the Hessian approximation, solves the QP subproblem for the search
-!  direction, and performs a line search to update the current point.
+!  the (limited-memory, matrix-free) Hessian approximation, solves the
+!  sparse QP subproblem for the search direction, and performs a line
+!  search to update the current point. No dense `n x n` or `m x n`
+!  matrix is ever formed.
 
     module sqpopt_iterate_module
 
