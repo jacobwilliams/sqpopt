@@ -54,7 +54,7 @@
     integer,                 intent(out)   :: istat     !! status code (see [[sqpopt_types_module]])
 
     real(wp) :: f
-    real(wp), dimension(problem%n) :: g, gl, p
+    real(wp), dimension(problem%n) :: g, gl, p, x_new
     real(wp), dimension(problem%m) :: c, new_lambda
     type(sqpopt_sparse_matrix) :: jac
     real(wp) :: alpha
@@ -145,15 +145,26 @@
 
     ! line search along `p` to (approximately) minimize the merit function:
     call linesearch%search(problem%eval_f, problem%eval_c, x, p, f, g, c, jac, new_lambda, &
-                            problem%c_lb, problem%c_ub, alpha, istat)
-    if (istat /= sqpopt_success) return
+                            problem%c_lb, problem%c_ub, alpha, x_new, istat)
 
     ! save the current point/gradient for the next quasi-Newton update:
     x_prev  = x
     gl_prev = gl
 
-    ! update the point and multipliers:
-    x      = x + alpha*p
+    ! update the point and multipliers: `x_new` is always well-defined here
+    ! (even when `istat==sqpopt_line_search_failed`, e.g. the `alpha_min`
+    ! floor is deliberately still accepted -- see `armijo_line_search` --
+    ! or, in `sqpopt_linesearch_watchdog` mode, `x_new` may instead be an
+    ! earlier best point on backtrack). NEVER skip this update based on
+    ! `istat`: doing so previously froze `x`/`lambda`/`x_prev`/`gl_prev` for
+    ! the rest of the major iteration whenever the line search merely
+    ! failed to satisfy the sufficient-decrease test, which (since the next
+    ! major iteration then recomputes the *identical* `p` from the
+    ! *identical*, unchanged `x`) turned a single failed line search into a
+    ! permanent no-op for the remainder of `max_iter` -- a real bug, not
+    ! just slow convergence, and a likely contributor to the
+    ! `test_hs71`/`test_medium` "limit cycle" behavior documented in PLAN.md:
+    x      = x_new
     lambda = new_lambda
 
     istat = sqpopt_success

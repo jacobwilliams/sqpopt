@@ -17,7 +17,7 @@
 !    which is the reason SNOPT-family solvers do not need a second-order
 !    correction (see [[sqpopt_iterate_module]]) to avoid the Maratos effect.
 !
-!  Two line search strategies are available (`sqpopt_linesearch_type%mode`):
+!  Three line search strategies are available (`sqpopt_linesearch_type%mode`):
 !
 !  * `sqpopt_linesearch_armijo` (**default**) -- a standard backtracking
 !    line search with an Armijo-type sufficient-decrease test on the merit
@@ -28,6 +28,19 @@
 !    function along the search direction using the derivative-free [[fmin]]
 !    routine (from the `fmin` dependency), rather than a hand-written
 !    exact-search implementation.
+!  * `sqpopt_linesearch_watchdog` -- Powell's watchdog technique
+!    (Chamberlain, Lemarechal, Pedersen & Powell, *Math. Prog. Study 16*
+!    (1982), as used in `references/vf13`): tracks the best point found so
+!    far and, for a short window after a genuine improvement, *relaxes* the
+!    sufficient-decrease test to allow the merit function to temporarily
+!    get worse (accepting the full quasi-Newton step outright) rather than
+!    stalling near a curved/simultaneously-active constraint boundary (the
+!    Maratos effect). If the relaxed window is used up without a new best
+!    point, it backtracks all the way to the best point found so far and
+!    disables relaxed acceptance for `watchdog_cooldown_len` iterations.
+!    This targets the same failure mode as the second-order correction and
+!    the augmented Lagrangian merit function, via a different mechanism.
+
 
     module sqpopt_linesearch_module
 
@@ -41,8 +54,9 @@
 
     private
 
-    integer, parameter, public :: sqpopt_linesearch_armijo = 1  !! backtracking Armijo-type line search (default)
-    integer, parameter, public :: sqpopt_linesearch_exact  = 2  !! (approximate) exact 1-D minimization of the merit function, via [[fmin]]
+    integer, parameter, public :: sqpopt_linesearch_armijo   = 1  !! backtracking Armijo-type line search (default)
+    integer, parameter, public :: sqpopt_linesearch_exact    = 2  !! (approximate) exact 1-D minimization of the merit function, via [[fmin]]
+    integer, parameter, public :: sqpopt_linesearch_watchdog = 3  !! Powell's watchdog technique (relaxed acceptance + backtracking, see module docs)
 
     integer, parameter, public :: sqpopt_merit_l1                   = 1  !! non-smooth \( \ell_1 \) exact penalty merit function (default)
     integer, parameter, public :: sqpopt_merit_augmented_lagrangian = 2  !! smooth augmented Lagrangian merit function (NPSOL/SNOPT-style)
@@ -63,6 +77,16 @@
                                             !! satisfying the sufficient-decrease test, `alpha_min` is accepted anyway
                                             !! (this avoids ever taking a useless near-zero step)
         integer  :: max_ls_iter = 20        !! maximum number of Armijo backtracking steps (`sqpopt_linesearch_armijo` mode)
+
+        integer  :: watchdog_relaxed_len    = 2     !! number of relaxed steps tolerated before requiring a new best point (`sqpopt_linesearch_watchdog` mode)
+        integer  :: watchdog_cooldown_len   = 10    !! number of iterations relaxed acceptance is disabled for after a backtrack (`sqpopt_linesearch_watchdog` mode)
+
+        ! internal state for `sqpopt_linesearch_watchdog` mode (not user options -- persists across major iterations):
+        logical  :: watchdog_ready               = .false. !! whether the best-point tracking below has been initialized
+        integer  :: watchdog_relaxed_remaining   = 0        !! iterations left in the current relaxed window
+        integer  :: watchdog_cooldown_remaining  = 0        !! iterations left before relaxed acceptance may reactivate
+        real(wp) :: watchdog_w_opt               = 0.0_wp   !! best merit value found so far
+        real(wp), dimension(:), allocatable :: watchdog_x_opt !! best point found so far `dimension(n)`
 
         contains
 
@@ -180,7 +204,7 @@
 !  perform a line search along the direction `p` to find an accepted step
 !  length `alpha`, dispatching to the strategy selected by `me%mode`.
 
-    subroutine line_search(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, alpha, istat)
+    subroutine line_search(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, alpha, x_new, istat)
 
     class(sqpopt_linesearch_type), intent(inout) :: me
     procedure(sqpopt_objective_func)  :: eval_f  !! evaluates \( f(x) \)
@@ -197,13 +221,18 @@
     real(wp), dimension(:), intent(in)  :: c_lb   !! constraint lower bounds `dimension(m)`
     real(wp), dimension(:), intent(in)  :: c_ub   !! constraint upper bounds `dimension(m)`
     real(wp),                intent(out) :: alpha  !! accepted step length
+    real(wp), dimension(:), intent(out) :: x_new   !! the accepted new point `dimension(n)` (normally
+                                                    !! `x + alpha*p`, except `sqpopt_linesearch_watchdog`
+                                                    !! may instead return an earlier best point on backtrack)
     integer,                  intent(out) :: istat  !! status code (see [[sqpopt_types_module]])
 
     select case (me%mode)
     case (sqpopt_linesearch_exact)
-        call exact_line_search(me, eval_f, eval_c, x, p, lambda, c_lb, c_ub, alpha, istat)
+        call exact_line_search(me, eval_f, eval_c, x, p, lambda, c_lb, c_ub, alpha, x_new, istat)
+    case (sqpopt_linesearch_watchdog)
+        call watchdog_line_search(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, alpha, x_new, istat)
     case default
-        call armijo_line_search(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, alpha, istat)
+        call armijo_line_search(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, alpha, x_new, istat)
     end select
 
     end subroutine line_search
@@ -223,7 +252,7 @@
 !  falling back to an exact line search, and still guarantees the step
 !  never shrinks to a useless near-zero value.
 
-    subroutine armijo_line_search(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, alpha, istat)
+    subroutine armijo_line_search(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, alpha, x_new, istat)
 
     class(sqpopt_linesearch_type), intent(inout) :: me
     procedure(sqpopt_objective_func)  :: eval_f
@@ -232,6 +261,7 @@
     type(sqpopt_sparse_matrix), intent(in) :: jac
     real(wp),                intent(in)  :: f
     real(wp),                intent(out) :: alpha
+    real(wp), dimension(:), intent(out) :: x_new
     integer,                  intent(out) :: istat
 
     real(wp), dimension(size(x)) :: x_trial
@@ -250,6 +280,7 @@
         call me%eval_merit(f_trial, c_trial, c_lb, c_ub, lambda, phi_trial)
         if (phi_trial <= phi0 + me%sigma*alpha*dphi0) then
             istat = sqpopt_success
+            x_new = x_trial
             return
         end if
         if (alpha <= me%alpha_min) exit
@@ -259,6 +290,7 @@
     ! backtracking reached the floor without satisfying the Armijo test;
     ! accept `alpha_min` anyway rather than continuing to shrink toward zero:
     alpha = me%alpha_min
+    x_new = x_trial
     istat = sqpopt_line_search_failed
 
     end subroutine armijo_line_search
@@ -269,7 +301,7 @@
 !  (approximately) minimize the merit function along `p` using the
 !  derivative-free 1-D minimizer [[fmin]].
 
-    subroutine exact_line_search(me, eval_f, eval_c, x, p, lambda, c_lb, c_ub, alpha, istat)
+    subroutine exact_line_search(me, eval_f, eval_c, x, p, lambda, c_lb, c_ub, alpha, x_new, istat)
 
     class(sqpopt_linesearch_type), intent(inout) :: me
     procedure(sqpopt_objective_func)  :: eval_f  !! evaluates \( f(x) \)
@@ -280,9 +312,11 @@
     real(wp), dimension(:), intent(in)  :: c_lb   !! constraint lower bounds `dimension(m)`
     real(wp), dimension(:), intent(in)  :: c_ub   !! constraint upper bounds `dimension(m)`
     real(wp),                intent(out) :: alpha  !! accepted step length
+    real(wp), dimension(:), intent(out) :: x_new   !! the accepted new point `dimension(n)`
     integer,                  intent(out) :: istat  !! status code (see [[sqpopt_types_module]])
 
     alpha = fmin(merit_along_direction, 0.0_wp, 1.0_wp, me%tol)
+    x_new = x + alpha*p
     istat = sqpopt_success
 
     contains
@@ -310,6 +344,124 @@
     !*******************************************************************************
 
     end subroutine exact_line_search
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  Powell's watchdog technique (Chamberlain, Lemarechal, Pedersen & Powell,
+!  *Math. Prog. Study 16* (1982); see `references/vf13`): a variant of
+!  [[armijo_line_search]] that, once a genuine improvement has been made,
+!  allows a bounded number of subsequent *relaxed* steps -- accepting the
+!  full step `x+p` outright even if it does not satisfy the sufficient-
+!  decrease test -- rather than stalling near a curved or simultaneously-
+!  active constraint boundary (the Maratos effect). If none of those
+!  relaxed steps beats the best point found so far, the search backtracks
+!  all the way to that best point and disables relaxed acceptance for
+!  `watchdog_cooldown_len` further calls.
+
+    subroutine watchdog_line_search(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, alpha, x_new, istat)
+
+    class(sqpopt_linesearch_type), intent(inout) :: me
+    procedure(sqpopt_objective_func)  :: eval_f
+    procedure(sqpopt_constraint_func) :: eval_c
+    real(wp), dimension(:), intent(in)  :: x, p, g, c, lambda, c_lb, c_ub
+    type(sqpopt_sparse_matrix), intent(in) :: jac
+    real(wp),                intent(in)  :: f
+    real(wp),                intent(out) :: alpha
+    real(wp), dimension(:), intent(out) :: x_new
+    integer,                  intent(out) :: istat
+
+    real(wp), dimension(size(x)) :: x_trial
+    real(wp), dimension(size(c)) :: c_trial
+    real(wp) :: phi0, dphi0, phi_trial, f_trial
+    logical :: standard_ok, relaxed_used
+    integer :: it
+
+    call me%eval_merit(f, c, c_lb, c_ub, lambda, phi0)
+    call me%directional_derivative(jac, g, p, c, c_lb, c_ub, lambda, dphi0)
+
+    ! initialize the best-point-so-far tracking the first time this is called:
+    if (.not. me%watchdog_ready) then
+        me%watchdog_x_opt = x
+        me%watchdog_w_opt = phi0
+        me%watchdog_ready = .true.
+    end if
+    if (me%watchdog_cooldown_remaining > 0) me%watchdog_cooldown_remaining = me%watchdog_cooldown_remaining - 1
+
+    ! standard backtracking Armijo search, exactly as in [[armijo_line_search]]:
+    alpha = 1.0_wp
+    standard_ok = .false.
+    do it = 1, me%max_ls_iter
+        x_trial = x + alpha*p
+        call eval_f(x_trial, f_trial)
+        call eval_c(x_trial, c_trial)
+        call me%eval_merit(f_trial, c_trial, c_lb, c_ub, lambda, phi_trial)
+        if (phi_trial <= phi0 + me%sigma*alpha*dphi0) then
+            standard_ok = .true.
+            exit
+        end if
+        if (alpha <= me%alpha_min) exit
+        alpha = max(me%backtrack*alpha, me%alpha_min)
+    end do
+
+    relaxed_used = .false.
+    if (.not. standard_ok .and. me%watchdog_relaxed_remaining > 0 .and. me%watchdog_cooldown_remaining == 0) then
+        ! the standard sufficient-decrease test failed even at `alpha_min`;
+        ! the watchdog technique allows a relaxed *full* step here instead
+        ! of stalling (the merit function may temporarily get worse):
+        alpha = 1.0_wp
+        x_trial = x + p
+        call eval_f(x_trial, f_trial)
+        call eval_c(x_trial, c_trial)
+        call me%eval_merit(f_trial, c_trial, c_lb, c_ub, lambda, phi_trial)
+        relaxed_used = .true.
+    end if
+
+    x_new = x_trial
+    istat = sqpopt_success
+
+    block
+        logical :: is_new_best
+        is_new_best = phi_trial < me%watchdog_w_opt
+        if (is_new_best) then
+            ! update the safety net whenever there is genuine improvement:
+            me%watchdog_x_opt = x_new
+            me%watchdog_w_opt = phi_trial
+        end if
+
+        if (standard_ok .and. alpha >= 0.99_wp) then
+            ! a good, (nearly) full accepted step: "reward" the next few
+            ! calls with a fresh window of relaxed acceptance (mirroring
+            ! VF13's ISWDOG logic, which opens the relaxed window after an
+            ! iteration whose merit reduction was large enough):
+            me%watchdog_relaxed_remaining = me%watchdog_relaxed_len
+        else if (relaxed_used) then
+            if (is_new_best) then
+                ! the relaxed step paid off with real progress: keep the
+                ! window open for another attempt:
+                me%watchdog_relaxed_remaining = me%watchdog_relaxed_len
+            else
+                ! a relaxed step was taken but did not beat the best point
+                ! so far; consume one attempt from the relaxed budget:
+                me%watchdog_relaxed_remaining = me%watchdog_relaxed_remaining - 1
+                if (me%watchdog_relaxed_remaining <= 0) then
+                    ! the relaxed attempts are exhausted without improvement:
+                    ! back-track all the way to the best point found so far,
+                    ! and disable relaxed acceptance for
+                    ! `watchdog_cooldown_len` further calls:
+                    x_new = me%watchdog_x_opt
+                    alpha = 0.0_wp
+                    me%watchdog_cooldown_remaining = me%watchdog_cooldown_len
+                    istat = sqpopt_line_search_failed
+                end if
+            end if
+        else if (.not. standard_ok) then
+            ! plain Armijo floor reached, with no relaxed window available:
+            istat = sqpopt_line_search_failed
+        end if
+    end block
+
+    end subroutine watchdog_line_search
 !*******************************************************************************
 
     end module sqpopt_linesearch_module

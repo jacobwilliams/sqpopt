@@ -266,6 +266,15 @@ a more rigorous QP solver / trust-region radius control, not another patch.
   `test_hs71`'s limit cycle on its own (see the "Status" note in §6.1), so
   the SOC patch is still needed and the top-priority backlog item above
   (a real QP solve, §6.2) remains the higher-leverage fix for that case.
+- A **watchdog line search** (`sqpopt_linesearch_watchdog`, see §6.3), from
+  Powell's VF13 / the Chamberlain-Lemarechal-Pedersen-Powell watchdog
+  technique: a best-point-so-far safety net plus a periodic relaxed
+  acceptance criterion, targeting the same `test_hs71` limit cycle via a
+  different mechanism than §6.1/SOC. **Implemented** -- gives the smallest
+  `test_hs71` error of the three line-search/merit options tried so far,
+  but (like §6.1) does not fully resolve the limit cycle on its own; see
+  §6.3 for the full result, including an unrelated control-flow bug fix
+  in `sqpopt_iterate_module` found and fixed along the way.
 - **`sqpopt_hessian_exact`** mode (user-supplied sparse Hessian of the
   Lagrangian) — currently falls back to BFGS in `sqpopt_iterate_module`.
 - **Full Powell damping** for the BFGS update (currently a simpler
@@ -422,4 +431,119 @@ the `test_hs71` limit-cycle behavior properly, since a real QP solve
 guarantees its solution is a descent direction for a correctly-parameterized
 merit function (the theoretical property Lemma 4.1(a) relies on, and which
 our heuristic composite step cannot guarantee -- see the safeguards in §3).
+
+### 6.3 Watchdog line search (from `references/vf13`, Powell's VF13 / HSL archive)
+
+`references/vf13` contains the HSL archive package spec (`vf13_Fortran.pdf`)
+plus its Fortran 77 source (`vf13d.f`/`vf13s.f`, `ddeps.f`/`sdeps.f`) for
+**VF13**, M.J.D. Powell's variable-metric SQP method -- a direct ancestor of
+the `slsqp` family already in `[dev-dependencies]`. Two ideas stand out:
+
+- **`VE17AD`: a dense Goldfarb-Idnani dual active-set QP solver.** This is
+  what VF13 calls each iteration to solve the linearized QP subproblem
+  (BFGS Hessian `B`, linearized constraints). It's a smaller, simpler
+  cousin of SQOPT's reduced-Hessian method (§6.2) -- useful as a reference
+  for active-set bookkeeping (how constraints/bounds enter and leave the
+  working set, the KKT system update on each change) -- but its workspace
+  is dense (`B` is `n x n`, `CN` is `(n+1) x m`, cost `~5n^2/2`), which
+  conflicts with `sqpopt`'s "never form a dense `n x n`" design constraint.
+  Like `slsqp`/`psqp`, this is algorithmic inspiration only, not portable
+  as-is; §6.2's sparse/matrix-free design remains the right target.
+- **The "watchdog technique"** (Chamberlain, Lemarechal, Pedersen & Powell,
+  *Math. Prog. Study 16* (1982)) -- a line-search relaxation mechanism
+  aimed at **exactly** `test_hs71`'s failure mode: when constraint
+  boundaries are curved and several are simultaneously active, a strict
+  merit-function line search can force the iterates to hug the boundary
+  and zigzag (the Maratos effect) instead of taking the good, nearly-full
+  quasi-Newton step that would actually make progress. VF13BD's mechanism
+  (traced through `vf13d.f` lines ~230-450):
+  - Tracks the **best point seen so far** (`XOPT`/`FOPT`/`WOPT`, using an
+    \( \ell_1 \)-style merit `W = F + sum_k VMU(k)*violation(c_k)`, with
+    **per-constraint** penalty weights `VMU(k)` that are only ever
+    increased, never decreased -- more granular than our single scalar
+    `penalty`).
+  - On most iterations it uses the standard sufficient-decrease test (like
+    our Armijo/`sqpopt_linesearch_armijo`). But for up to `NWDOGT=2`
+    consecutive iterations after the merit value has been "good enough"
+    once (`ISWDOG=0`, the *relaxed* criterion), it accepts steps using a
+    much weaker test based on the actual Lagrangian value rather than the
+    merit function -- allowing the merit function to **temporarily get
+    worse** so the iteration isn't trapped hugging a curved boundary.
+  - If, after those relaxed iterations, the merit value still hasn't beaten
+    `WOPT`, it **backtracks** all the way to `XOPT` (the safety net) and
+    forces the strict criterion for the next `NWDXXX=10` iterations (a
+    "cooldown" before trying relaxed acceptance again).
+  - This is a different, well-established mechanism for the same problem
+    our second-order-correction patch (§3) and the augmented Lagrangian
+    merit function (§6.1) both target, and it doesn't require a true QP
+    multiplier to work (unlike the AL merit function's full theoretical
+    guarantee) -- it only needs a merit value and a "best point so far",
+    both of which the v1 composite-step method already has.
+
+**Proposed v3 design**: a new `sqpopt_linesearch_watchdog` mode, additive
+to (not a replacement for) the existing `armijo`/`exact` modes and
+orthogonal to `merit_mode`:
+  - New persistent state carried across major iterations (alongside the
+    existing `x_prev`/`gl_prev` quasi-Newton state in
+    `sqpopt_iterate_module`): best-point-so-far `x_opt`/`f_opt`/`w_opt`, a
+    relaxed-mode countdown, and a cooldown counter.
+  - Each iteration: accept the full QP step immediately if it improves on
+    `w_opt`; otherwise fall back to the current strict Armijo test *unless*
+    the relaxed window is open, in which case accept a much weaker test for
+    up to 2 iterations before forcing a backtrack to `x_opt` and starting a
+    10-iteration cooldown.
+  - Worth trying on `test_hs71` specifically, since it targets that exact
+    limit-cycle failure mode with a different (and historically effective)
+    mechanism than what's already been tried in §6.1.
+
+**Status: implemented**, as `sqpopt_linesearch_watchdog` in
+[sqpopt_linesearch_module](src/sqpopt_linesearch_module.f90) (a simplified
+version of the design above; no per-constraint `VMU` weights, just the
+single scalar `penalty` shared with the other modes), together with two
+other changes made along the way:
+
+- **A real (and unrelated) bug fix in `sqpopt_iterate_module`**: the major
+  iteration used to do `if (istat /= sqpopt_success) return` right after
+  the line search call, which *skipped* the `x = x + alpha*p` update
+  whenever `armijo_line_search` reported `sqpopt_line_search_failed` --
+  even though that mode's own doc comment says it "accepts `alpha_min`
+  anyway". Since the next major iteration would then recompute the
+  *identical* `p` from the *identical*, unchanged `x`, a single failed
+  line search could silently freeze the whole rest of a run. Fixed by
+  always applying the line search's returned point. **Empirically, on
+  `test_hs71`, this fix alone made the (already loose) `sqpopt_merit_l1`/
+  `sqpopt_merit_augmented_lagrangian` results *worse*** (x-error grew from
+  ~0.15-0.24 to ~0.42-0.45) -- the old "freeze" bug had apparently been
+  acting as an accidental stabilizer, freezing at a reasonably good point
+  instead of continuing to wander. This is a good illustration of why
+  `test_hs71` matters: it is a much more sensitive probe of small control-
+  flow changes than `test_basic`'s simpler problems (which were and remain
+  unaffected either way).
+- **The `line_search`/`armijo_line_search`/`exact_line_search` interface
+  grew an `x_new` output** (the actual next point), instead of only
+  `alpha` (with the caller always computing `x + alpha*p` itself) --
+  needed so that `sqpopt_linesearch_watchdog`'s backtrack can return an
+  *arbitrary earlier point* (`x_opt`, from a previous major iteration, not
+  reachable as `x + alpha*p` along the *current* search direction `p`).
+- The watchdog's "reward" for opening a fresh relaxed-acceptance window
+  was tuned to only trigger after a **genuinely good, (nearly) full**
+  standard-test-passing step (`alpha >= 0.99`) -- mirroring VF13's
+  `ISWDOG` logic, which is gated on the predicted merit reduction, not
+  just any improvement. An earlier, more permissive version (reward on
+  *any* improvement, however tiny) made `test_hs71` noticeably worse (the
+  relaxed window was open almost constantly, so it behaved close to
+  "always accept the full step", which just wandered more).
+
+**Result on `test_hs71`** (all three modes still end at
+`istat=sqpopt_max_iter_reached`, none reach `sqpopt_success`): the tuned
+watchdog gives the *smallest* max-component error of the three options
+tried so far (`~0.32`, vs `~0.42` for `sqpopt_merit_l1` and `~0.45` for
+`sqpopt_merit_augmented_lagrangian`, all measured after the bug fix above)
+-- a genuine, if partial, improvement, and the best evidence yet that a
+better line-search/step-acceptance strategy alone can move the needle on
+this benchmark. It still doesn't fully resolve the limit cycle, though --
+consistent with the recurring conclusion across §6.1 and this section that
+a real QP solve (§6.2) is needed for `sqpopt_qp_solver_module`'s composite
+step to have the guaranteed-descent property these line-search techniques
+assume.
 

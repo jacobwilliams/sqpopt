@@ -26,19 +26,23 @@ program test_hs71
     !! QP solver is needed for tight convergence on problems like this one.
     !! The tests only check that the solver gets reasonably close.
     !!
-    !! Run twice, with the two available merit functions
-    !! (`sqpopt_linesearch_module`), to compare them on this problem: the
-    !! default `sqpopt_merit_l1` (with the second-order-correction
-    !! safeguard in `sqpopt_iterate_module`), and `sqpopt_merit_augmented_lagrangian`
-    !! (see PLAN.md \u00a76.1). Neither clears the limit cycle noted above -- the
-    !! augmented Lagrangian option gets no closer here, confirming the PLAN.md
-    !! \u00a76.1 caveat that it needs pairing with a real QP solve (\u00a76.2) to fully
-    !! deliver its Maratos-avoidance benefit.
+    !! Run three ways, to compare the available merit functions and line
+    !! searches (`sqpopt_linesearch_module`) on this problem: the default
+    !! `sqpopt_merit_l1` (with the second-order-correction safeguard in
+    !! `sqpopt_iterate_module`), `sqpopt_merit_augmented_lagrangian` (see
+    !! PLAN.md section 6.1), and `sqpopt_linesearch_watchdog` (Powell's
+    !! VF13 watchdog technique, see PLAN.md section 6.3), all with the
+    !! default Armijo line search except the last. None of the three fully
+    !! clears the limit cycle noted above, but the watchdog line search
+    !! gets noticeably closer than the other two (see PLAN.md section 6.3
+    !! for the numbers) -- still confirming the recurring conclusion that a
+    !! real QP solve (section 6.2) is needed to fully resolve it.
 
     use sqpopt_module,         only: sqpopt_type
     use sqpopt_problem_module, only: sqpopt_problem_type
     use sqpopt_options_module, only: sqpopt_options_type
-    use sqpopt_linesearch_module, only: sqpopt_merit_l1, sqpopt_merit_augmented_lagrangian
+    use sqpopt_linesearch_module, only: sqpopt_merit_l1, sqpopt_merit_augmented_lagrangian, &
+                                        sqpopt_linesearch_armijo, sqpopt_linesearch_watchdog
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
 
     implicit none
@@ -49,15 +53,17 @@ program test_hs71
     write(*,*) 'test_hs71'
     write(*,*) '----------------------------'
 
-    call run_hs71('l1 (default)',           sqpopt_merit_l1)
-    call run_hs71('augmented Lagrangian',   sqpopt_merit_augmented_lagrangian)
+    call run_hs71('l1 (default)',           sqpopt_merit_l1,                   sqpopt_linesearch_armijo)
+    call run_hs71('augmented Lagrangian',   sqpopt_merit_augmented_lagrangian, sqpopt_linesearch_armijo)
+    call run_hs71('watchdog',               sqpopt_merit_l1,                   sqpopt_linesearch_watchdog)
 
     contains
 
-    subroutine run_hs71(label, merit_mode)
+    subroutine run_hs71(label, merit_mode, linesearch_mode)
 
     character(len=*), intent(in) :: label
     integer,           intent(in) :: merit_mode
+    integer,           intent(in) :: linesearch_mode
 
     type(sqpopt_type)         :: solver
     type(sqpopt_problem_type) :: problem
@@ -75,8 +81,9 @@ program test_hs71
     call problem%set_jacobian_sparsity(nnz=8, irow=[1,1,1,1,2,2,2,2], icol=[1,2,3,4,1,2,3,4])
     call problem%set_functions(f=obj, g=grad, c=cons, jac=jacv)
 
-    options%max_iter   = 300
-    options%merit_mode = merit_mode
+    options%max_iter        = 300
+    options%merit_mode      = merit_mode
+    options%linesearch_mode = linesearch_mode
     x0 = [1.0_wp, 5.0_wp, 5.0_wp, 1.0_wp]
 
     call solver%initialize(problem=problem, options=options)
