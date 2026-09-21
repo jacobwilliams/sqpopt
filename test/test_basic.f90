@@ -27,6 +27,7 @@ program test_basic
     call test_reduced_hessian_qp_mode()
     call test_vector_bound_enforcement()
     call test_major_step_limit()
+    call test_print_level_and_stalled_progress()
 
     contains
 
@@ -438,5 +439,45 @@ program test_basic
     print *, 'test_major_step_limit PASSED'
 
     end subroutine test_major_step_limit
+
+    !> same problem as `test_equality_constrained`, but with `print_level=1`
+    !! (confirms the per-iteration diagnostic printing doesn't break anything)
+    !! and a `ktol` tight enough that it's very unlikely to ever be met exactly,
+    !! relying instead on the `ftol`/`xtol` stalled-progress criterion to reach
+    !! `sqpopt_success` once the iterates stop moving.
+    subroutine test_print_level_and_stalled_progress()
+
+    type(sqpopt_type)         :: solver
+    type(sqpopt_problem_type) :: problem
+    type(sqpopt_options_type) :: options
+    real(wp) :: x0(2), xsol(2), lam(1)
+    real(wp), parameter :: xexpect(2) = [1.5_wp, 2.5_wp]
+    integer :: istat
+
+    call problem%set_problem_size(n=2, m_eq=1, m_ineq=0)
+    call problem%set_bounds(x_lb=[-big,-big], x_ub=[big,big], c_lb=[4.0_wp], c_ub=[4.0_wp])
+    call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
+    call problem%set_functions(f=obj1, g=grad1, c=cons1, jac=jacv1)
+
+    options%max_iter    = 100
+    options%print_level = 1
+    options%ktol         = 1.0e-15_wp !! essentially unreachable
+    options%ftol         = 1.0e-8_wp
+    options%xtol         = 1.0e-8_wp
+    x0 = [0.0_wp, 0.0_wp]
+
+    call solver%initialize(problem=problem, options=options)
+    call solver%solve(x0, istat)
+    call solver%get_solution(xsol, lam)
+
+    print '(A,2F12.6)', 'test_print_level_and_stalled_progress: x      = ', xsol
+    print '(A,2F12.6)', 'test_print_level_and_stalled_progress: x_true = ', xexpect
+    print '(A,I0)',     'test_print_level_and_stalled_progress: istat  = ', istat
+
+    if (istat /= 0) error stop 'test_print_level_and_stalled_progress FAILED: istat'
+    if (maxval(abs(xsol-xexpect)) > 1.0e-3_wp) error stop 'test_print_level_and_stalled_progress FAILED: wrong x'
+    print *, 'test_print_level_and_stalled_progress PASSED'
+
+    end subroutine test_print_level_and_stalled_progress
 
 end program test_basic
