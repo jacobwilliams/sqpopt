@@ -41,9 +41,7 @@ program test_basic
     options%max_iter = 100
     x0 = [0.0_wp, 0.0_wp]
 
-    call solver%initialize()
-    call solver%set_problem(problem)
-    call solver%set_options(options)
+    call solver%initialize(problem=problem, options=options)
     call solver%solve(x0, istat)
     call solver%get_solution(xsol, lam)
 
@@ -116,9 +114,7 @@ program test_basic
     options%max_iter = 100
     x0 = [0.0_wp, 0.0_wp]
 
-    call solver%initialize()
-    call solver%set_problem(problem)
-    call solver%set_options(options)
+    call solver%initialize(problem=problem, options=options)
     call solver%solve(x0, istat)
     call solver%get_solution(xsol, lam)
 
@@ -151,9 +147,7 @@ program test_basic
     options%max_iter = 100
     x0 = [0.0_wp, 0.0_wp]
 
-    call solver%initialize()
-    call solver%set_problem(problem)
-    call solver%set_options(options)
+    call solver%initialize(problem=problem, options=options)
     call solver%solve(x0, istat)
     call solver%get_solution(xsol, lam)
 
@@ -186,9 +180,7 @@ program test_basic
     options%hessian_mode = sqpopt_hessian_sr1
     x0 = [0.0_wp, 0.0_wp]
 
-    call solver%initialize()
-    call solver%set_problem(problem)
-    call solver%set_options(options)
+    call solver%initialize(problem=problem, options=options)
     call solver%solve(x0, istat)
     call solver%get_solution(xsol, lam)
 
@@ -221,9 +213,7 @@ program test_basic
     options%linesearch_mode = sqpopt_linesearch_exact
     x0 = [0.0_wp, 0.0_wp]
 
-    call solver%initialize()
-    call solver%set_problem(problem)
-    call solver%set_options(options)
+    call solver%initialize(problem=problem, options=options)
     call solver%solve(x0, istat)
     call solver%get_solution(xsol, lam)
 

@@ -50,8 +50,6 @@
         private
 
         procedure, public :: initialize   => sqpopt_initialize
-        procedure, public :: set_problem  => sqpopt_set_problem
-        procedure, public :: set_options  => sqpopt_set_options
         procedure, public :: solve        => sqpopt_solve
         procedure, public :: get_solution => sqpopt_get_solution
         procedure, public :: destroy      => sqpopt_destroy
@@ -65,49 +63,28 @@
 !>
 !  initialize (or reinitialize) an [[sqpopt_type]] solver instance.
 
-    subroutine sqpopt_initialize(me)
+    subroutine sqpopt_initialize(me, problem, options, hessian, qp_solver, linesearch)
 
     class(sqpopt_type), intent(inout) :: me
+    type(sqpopt_problem_type),optional,intent(in)    :: problem      !! the nonlinear program to be solved
+    type(sqpopt_options_type),optional,intent(in)    :: options      !! solver options
+    type(sqpopt_hessian_type),optional,intent(in)    :: hessian      !! Hessian of the Lagrangian approximation
+    type(sqpopt_qp_solver_type),optional,intent(in)  :: qp_solver    !! QP subproblem solver
+    type(sqpopt_linesearch_type),optional,intent(in) :: linesearch   !! merit function / line search
 
-    me%problem    = sqpopt_problem_type()
-    me%options    = sqpopt_options_type()
-    me%hessian    = sqpopt_hessian_type()
-    me%qp_solver  = sqpopt_qp_solver_type()
-    me%linesearch = sqpopt_linesearch_type()
+    ! use inputs if present, else use defaults:
+    if (present(problem))    then; me%problem = problem; else; me%problem = sqpopt_problem_type(); end if
+    if (present(options))    then; me%options = options; else; me%options = sqpopt_options_type(); end if
+    if (present(hessian))    then; me%hessian = hessian; else; me%hessian = sqpopt_hessian_type(); end if
+    if (present(qp_solver))  then; me%qp_solver = qp_solver; else; me%qp_solver = sqpopt_qp_solver_type(); end if
+    if (present(linesearch)) then; me%linesearch = linesearch; else; me%linesearch = sqpopt_linesearch_type(); end if
+
     if (allocated(me%x))      deallocate(me%x)
     if (allocated(me%lambda)) deallocate(me%lambda)
     me%iter  = 0
     me%istat = 0
 
     end subroutine sqpopt_initialize
-!*******************************************************************************
-
-!*******************************************************************************
-!>
-!  define the nonlinear program to be solved.
-
-    subroutine sqpopt_set_problem(me, problem)
-
-    class(sqpopt_type),        intent(inout) :: me
-    type(sqpopt_problem_type), intent(in)    :: problem  !! the problem definition
-
-    me%problem = problem
-
-    end subroutine sqpopt_set_problem
-!*******************************************************************************
-
-!*******************************************************************************
-!>
-!  set the solver options.
-
-    subroutine sqpopt_set_options(me, options)
-
-    class(sqpopt_type),        intent(inout) :: me
-    type(sqpopt_options_type), intent(in)    :: options  !! the solver options
-
-    me%options = options
-
-    end subroutine sqpopt_set_options
 !*******************************************************************************
 
 !*******************************************************************************

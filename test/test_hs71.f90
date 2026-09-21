@@ -58,9 +58,7 @@ program test_hs71
     options%max_iter = 300
     x0 = [1.0_wp, 5.0_wp, 5.0_wp, 1.0_wp]
 
-    call solver%initialize()
-    call solver%set_problem(problem)
-    call solver%set_options(options)
+    call solver%initialize(problem=problem, options=options)
     call solver%solve(x0, istat)
     call solver%get_solution(xsol, lam)
     call obj(xsol, fsol)
