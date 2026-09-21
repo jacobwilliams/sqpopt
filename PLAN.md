@@ -490,18 +490,26 @@ and then implemented as designed:
   direct factorizations, precisely the tradeoff the plan called out in
   advance (§3/§9 there). For problems too large for `sqpopt_qp_dense`'s
   `O(n^2)`/`O(mn)` dense arrays, this is the mode that scales.
-
-
-**Status: design in progress.** A detailed, staged implementation plan
-(reformulation, algorithm, data structures, and a phased build/validation
-order) has been written up in
-[REDUCED_HESSIAN_QP_PLAN.md](REDUCED_HESSIAN_QP_PLAN.md) -- notably, it
-avoids porting SQOPT's maintained sparse-LU basis factorization (too large
-an undertaking to build from scratch on `lusol`) in favor of a **projected-
-CG active-set method** that gets null-space projections by re-solving a
-small `LSQR` least-squares problem each time, reusing the same technique
-v1's composite step already uses for its tangential step. No code has been
-written yet.
+- **`LSQR` tuning matters a lot, and is exposed as user-settable fields**
+  (`lsqr_atol`/`lsqr_btol`/`lsqr_conlim`/`lsqr_itnlim` on
+  `sqpopt_reduced_hessian_qp_type`) rather than hard-coded: by default,
+  every `LSQR` solve in this module passes `atol=btol=0`, which `LSQR`
+  itself treats as "use machine precision" (see `lsqr.f90`) -- tighter
+  than necessary and part of why so many major iterations were needed
+  above. A sweep on `test_hs71` (using the function-call counters
+  `i_obj`/`i_grad`/`i_cons`/`i_jac` added to `test_hs71.f90` as the metric
+  to reduce, not just major-iteration count) found `atol=btol=5e-10` cuts
+  `i_obj` from `8484` to `1237` (~85% fewer function calls) while still
+  reaching `sqpopt_success` to the same accuracy. **This is not a safe new
+  default, though**: the sweep is sharply non-monotonic near the
+  boundary -- `1e-10` helps a little (`6573`), `5e-10` helps a lot
+  (`1237`), but `8e-10` already breaks convergence entirely, and `1e-9`/
+  `2e-9` are worse still (one run even produced `NaN`). The "sweet spot"
+  is real but narrow and almost certainly problem-specific (a different
+  active-set path gets taken at different precisions), so it's kept as a
+  documented, user-tunable knob and a worked example in
+  `test/test_hs71.f90` (`'rh, tuned LSQR (atol=btol=5e-10)'`), not a
+  library-wide default.
 
 ### 6.4 Dense QP solver option (from comparing against `slsqp` directly)
 

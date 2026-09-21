@@ -44,6 +44,18 @@
         real(wp) :: active_tol   = 1.0e-8_wp !! tolerance used to detect an (in)active/equality row
         real(wp) :: opt_tol      = 1.0e-8_wp !! tolerance on the projected-residual stationarity test
 
+        ! `LSQR` settings, used for every `project_null`/`project_onto_active`/multiplier
+        ! solve in this module (see [[lsqr_module]] for the precise meaning of each --
+        ! `0` for `lsqr_atol`/`lsqr_btol`/`lsqr_conlim` means "let LSQR use its own
+        ! machine-precision-based default", which is tighter than usually necessary and
+        ! can mean more internal LSQR iterations per call; loosening these (and/or
+        ! raising `lsqr_itnlim`) is the main lever for trading QP-solve accuracy for
+        ! speed in this QP mode:
+        real(wp) :: lsqr_atol   = 0.0_wp !! `LSQR` relative error tolerance in `A` (0 => `LSQR` default)
+        real(wp) :: lsqr_btol   = 0.0_wp !! `LSQR` relative error tolerance in `b` (0 => `LSQR` default)
+        real(wp) :: lsqr_conlim = 0.0_wp !! `LSQR` upper limit on `cond(Abar)` (0 => `LSQR` default)
+        integer  :: lsqr_itnlim = 100    !! `LSQR` maximum iterations per solve
+
         contains
 
         procedure, public :: solve => solve_reduced_hessian_qp
@@ -124,7 +136,8 @@
     allocate(u(n)); u = 0.0_wp
 
     ! ---- phase 1: bootstrap a feasible-for-the-initial-working-set starting point ----
-    call project_onto_active(arows, row_lb, row_ub, status, mtot, n, u)
+    call project_onto_active(arows, row_lb, row_ub, status, mtot, n, u, &
+                              me%lsqr_atol, me%lsqr_btol, me%lsqr_conlim, me%lsqr_itnlim)
     do k = 1, n
         if (is_equality(m+k)) cycle
         if (u(k) < row_lb(m+k) - me%active_tol) then
@@ -134,7 +147,8 @@
         end if
     end do
     call sparse_row_value(arows, u, m, is_equality, status, row_lb, row_ub, me%active_tol)
-    call project_onto_active(arows, row_lb, row_ub, status, mtot, n, u)
+    call project_onto_active(arows, row_lb, row_ub, status, mtot, n, u, &
+                              me%lsqr_atol, me%lsqr_btol, me%lsqr_conlim, me%lsqr_itnlim)
 
     ! ---- phase 2: active-set iterations ----
     istat = sqpopt_qp_solve_failed
@@ -151,7 +165,7 @@
 
         if (allocated(gproj)) deallocate(gproj)
         allocate(gproj(n))
-        call project_null(ja, n_active, n, hu_g, gproj)
+        call project_null(ja, n_active, n, hu_g, gproj, me%lsqr_atol, me%lsqr_btol, me%lsqr_conlim, me%lsqr_itnlim)
 
         at_face_optimum = .false.
 
@@ -165,6 +179,7 @@
             if (allocated(d_extra)) deallocate(d_extra)
             allocate(d_total(n), d_extra(n))
             call projected_cg(hessian, ja, n_active, n, hu_g, gproj, max_pcg, me%opt_tol, me%active_tol, &
+                               me%lsqr_atol, me%lsqr_btol, me%lsqr_conlim, me%lsqr_itnlim, &
                                d_total, d_extra, truncated)
 
             ! ---- ratio test against every currently-inactive row ----
@@ -232,7 +247,8 @@
                 real(wp), dimension(n_active) :: coeff_local
                 type(lsqr_solver_ez) :: lsqr
                 integer :: istop
-                call lsqr%initialize(n, n_active, ja%val, ja%icol, ja%irow)
+                call lsqr%initialize(n, n_active, ja%val, ja%icol, ja%irow, &
+                                      atol=me%lsqr_atol, btol=me%lsqr_btol, conlim=me%lsqr_conlim, itnlim=me%lsqr_itnlim)
                 call lsqr%solve(hu_g, 0.0_wp, coeff_local, istop)
                 if (allocated(coeff)) deallocate(coeff)
                 allocate(coeff(n_active))
@@ -332,12 +348,14 @@
 !  same transpose-orientation trick as `sqpopt_qp_solver_module`'s v1
 !  composite step (swap `irow`/`icol` so `LSQR` sees `ja^T` directly).
 
-    subroutine project_null(ja, n_active, n, v, out)
+    subroutine project_null(ja, n_active, n, v, out, atol, btol, conlim, itnlim)
 
     type(sqpopt_sparse_matrix), intent(in)  :: ja
     integer,                    intent(in)  :: n_active, n
     real(wp), dimension(:),     intent(in)  :: v
     real(wp), dimension(:),     intent(out) :: out
+    real(wp),                   intent(in)  :: atol, btol, conlim !! `LSQR` tolerances (see [[sqpopt_reduced_hessian_qp_type]])
+    integer,                    intent(in)  :: itnlim              !! `LSQR` max iterations
 
     type(lsqr_solver_ez) :: lsqr
     real(wp), dimension(:), allocatable :: z
@@ -350,7 +368,8 @@
     end if
 
     allocate(z(n_active))
-    call lsqr%initialize(n, n_active, ja%val, ja%icol, ja%irow)
+    call lsqr%initialize(n, n_active, ja%val, ja%icol, ja%irow, &
+                          atol=atol, btol=btol, conlim=conlim, itnlim=itnlim)
     call lsqr%solve(v, 0.0_wp, z, istop)
 
     jtz = 0.0_wp
@@ -377,6 +396,7 @@
 !  to the already-accumulated `d_total`).
 
     subroutine projected_cg(hessian, ja, n_active, n, hu_g0, gproj0, max_pcg, opt_tol, curv_tol, &
+                             lsqr_atol, lsqr_btol, lsqr_conlim, lsqr_itnlim, &
                              d_total, d_extra, truncated)
 
     type(sqpopt_hessian_type),  intent(inout) :: hessian
@@ -385,6 +405,8 @@
     real(wp), dimension(n),     intent(in)    :: hu_g0   !! H*u0+g at the starting point
     real(wp), dimension(n),     intent(in)    :: gproj0  !! project_null(ja,hu_g0) at the starting point
     real(wp),                   intent(in)    :: opt_tol, curv_tol
+    real(wp),                   intent(in)    :: lsqr_atol, lsqr_btol, lsqr_conlim !! `LSQR` tolerances
+    integer,                    intent(in)    :: lsqr_itnlim                      !! `LSQR` max iterations
     real(wp), dimension(n),     intent(out)   :: d_total !! accumulated step
     real(wp), dimension(n),     intent(out)   :: d_extra !! truncation direction (only meaningful if truncated)
     logical,                    intent(out)   :: truncated
@@ -418,7 +440,7 @@
         alpha  = rg_old/kappa
         d_total = d_total + alpha*dvec
         r       = r + alpha*hd
-        call project_null(ja, n_active, n, r, gproj)
+        call project_null(ja, n_active, n, r, gproj, lsqr_atol, lsqr_btol, lsqr_conlim, lsqr_itnlim)
         rg_new = dot_product(r, gproj)
         if (abs(rg_old) <= tiny(1.0_wp)) exit
         beta   = rg_new/rg_old
@@ -494,13 +516,15 @@
 !  `ja*correction = resid`), the same way v1's composite step already
 !  uses it for its own normal step.
 
-    subroutine project_onto_active(arows, row_lb, row_ub, status, mtot, n, u)
+    subroutine project_onto_active(arows, row_lb, row_ub, status, mtot, n, u, atol, btol, conlim, itnlim)
 
     type(sqpopt_sparse_matrix), intent(in)    :: arows
     integer,                    intent(in)    :: mtot, n
     real(wp), dimension(mtot),  intent(in)    :: row_lb, row_ub
     integer,  dimension(mtot),  intent(in)    :: status
     real(wp), dimension(n),     intent(inout) :: u
+    real(wp),                   intent(in)    :: atol, btol, conlim !! `LSQR` tolerances (see [[sqpopt_reduced_hessian_qp_type]])
+    integer,                    intent(in)    :: itnlim              !! `LSQR` max iterations
 
     type(sqpopt_sparse_matrix) :: ja
     real(wp), dimension(:), allocatable :: rhs_active, resid, correction
@@ -518,7 +542,8 @@
         resid(ja%irow(j)) = resid(ja%irow(j)) - ja%val(j)*u(ja%icol(j))
     end do
 
-    call lsqr%initialize(n_active, n, ja%val, ja%irow, ja%icol)
+    call lsqr%initialize(n_active, n, ja%val, ja%irow, ja%icol, &
+                          atol=atol, btol=btol, conlim=conlim, itnlim=itnlim)
     call lsqr%solve(resid, 0.0_wp, correction, istop)
     u = u + correction
 

@@ -25,7 +25,7 @@ program test_hs71
     !! v1 limitation (see `PLAN.md`) -- a rigorous active-set/interior-point
     !! QP solver is needed for tight convergence on problems like this one.
     !!
-    !! Run five ways, to compare the available merit functions, line
+    !! Run six ways, to compare the available merit functions, line
     !! searches, and QP solvers on this problem: the default
     !! `sqpopt_merit_l1` (with the second-order-correction safeguard in
     !! `sqpopt_iterate_module`), `sqpopt_merit_augmented_lagrangian` (see
@@ -33,21 +33,29 @@ program test_hs71
     !! VF13 watchdog technique, see PLAN.md section 6.3) all still use the
     !! v1 composite-step QP and only achieve loose convergence (the
     !! watchdog line search gets noticeably closer than the other two, but
-    !! none reach `sqpopt_success`). The last two, `sqpopt_qp_dense` (see
+    !! none reach `sqpopt_success`). The next two, `sqpopt_qp_dense` (see
     !! `DENSE_QP_PLAN.md`) and `sqpopt_qp_reduced_hessian` (see
     !! `REDUCED_HESSIAN_QP_PLAN.md`), replace the v1 QP heuristic with a
     !! real active-set QP solve (dense and sparse/matrix-free,
     !! respectively) and **both** reach `sqpopt_success`, converging to
     !! the known solution tightly -- confirming the recurring conclusion
     !! (PLAN.md sections 6.1/6.3) that a real QP solve, not another
-    !! merit-function/line-search patch, is what was needed here.
+    !! merit-function/line-search patch, is what was needed here. The
+    !! final run tunes `sqpopt_qp_reduced_hessian`'s `LSQR` tolerances
+    !! (`lsqr_atol`/`lsqr_btol`, exposed as user-settable fields on
+    !! `sqpopt_reduced_hessian_qp_type`), which cuts the function-call
+    !! counts (`i_obj`/`i_grad`/`i_cons`/`i_jac` below) dramatically for
+    !! this problem -- but the sweet spot is narrow (looser than ~8e-10
+    !! breaks convergence here), so it's kept as a tuned *example*, not a
+    !! new library-wide default -- see PLAN.md section 6.2 for the full
+    !! tolerance sweep this came from.
 
     use sqpopt_module,         only: sqpopt_type
     use sqpopt_problem_module, only: sqpopt_problem_type
     use sqpopt_options_module, only: sqpopt_options_type
     use sqpopt_linesearch_module, only: sqpopt_merit_l1, sqpopt_merit_augmented_lagrangian, &
                                         sqpopt_linesearch_armijo, sqpopt_linesearch_watchdog
-    use sqpopt_qp_solver_module, only: sqpopt_qp_composite, sqpopt_qp_dense, sqpopt_qp_reduced_hessian
+    use sqpopt_qp_solver_module, only: sqpopt_qp_composite, sqpopt_qp_dense, sqpopt_qp_reduced_hessian, sqpopt_qp_solver_type
     use sqpopt_types_module,   only: sqpopt_success
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
 
@@ -66,19 +74,29 @@ program test_hs71
     call run_hs71('watchdog',               sqpopt_merit_l1,                   sqpopt_linesearch_watchdog, sqpopt_qp_composite)
     call run_hs71('dense QP',               sqpopt_merit_l1,                   sqpopt_linesearch_armijo,   sqpopt_qp_dense)
     call run_hs71('reduced-Hessian QP',     sqpopt_merit_l1,                   sqpopt_linesearch_armijo,   sqpopt_qp_reduced_hessian)
+    ! tuning the reduced-Hessian solver's LSQR tolerances can cut function
+    ! calls dramatically (see PLAN.md section 6.2 for the full sweep this
+    ! value came from) -- but the sweet spot is narrow and problem-specific
+    ! (looser than ~8e-10 breaks convergence on this problem), so this is
+    ! kept as a *tuned-example* case, not a new library-wide default:
+    call run_hs71('rh, tuned LSQR (atol=btol=5e-10)', sqpopt_merit_l1, sqpopt_linesearch_armijo, sqpopt_qp_reduced_hessian, &
+                  lsqr_atol=5.0e-10_wp, lsqr_btol=5.0e-10_wp)
 
     contains
 
-    subroutine run_hs71(label, merit_mode, linesearch_mode, qp_mode)
+    subroutine run_hs71(label, merit_mode, linesearch_mode, qp_mode, lsqr_atol, lsqr_btol, lsqr_itnlim)
 
     character(len=*), intent(in) :: label
     integer,           intent(in) :: merit_mode
     integer,           intent(in) :: linesearch_mode
     integer,           intent(in) :: qp_mode
+    real(wp), intent(in), optional :: lsqr_atol, lsqr_btol !! LSQR tuning (sqpopt_qp_reduced_hessian mode only)
+    integer,  intent(in), optional :: lsqr_itnlim          !! LSQR tuning (sqpopt_qp_reduced_hessian mode only)
 
     type(sqpopt_type)         :: solver
     type(sqpopt_problem_type) :: problem
     type(sqpopt_options_type) :: options
+    type(sqpopt_qp_solver_type) :: qp_solver
     real(wp) :: x0(4), xsol(4), lam(2)
     real(wp), parameter :: xexpect(4) = [1.0_wp, 4.7429994_wp, 3.8211500_wp, 1.3794083_wp]
     real(wp), parameter :: fexpect = 17.0140173_wp
@@ -101,9 +119,13 @@ program test_hs71
     options%merit_mode      = merit_mode
     options%linesearch_mode = linesearch_mode
     options%qp_solver_mode  = qp_mode
+    qp_solver%mode          = qp_mode
+    if (present(lsqr_atol))   qp_solver%sparse_qp%lsqr_atol   = lsqr_atol
+    if (present(lsqr_btol))   qp_solver%sparse_qp%lsqr_btol   = lsqr_btol
+    if (present(lsqr_itnlim)) qp_solver%sparse_qp%lsqr_itnlim = lsqr_itnlim
     x0 = [1.0_wp, 5.0_wp, 5.0_wp, 1.0_wp]
 
-    call solver%initialize(problem=problem, options=options)
+    call solver%initialize(problem=problem, options=options, qp_solver=qp_solver)
     call solver%solve(x0, istat)
     call solver%get_solution(xsol, lam)
     call obj(xsol, fsol)

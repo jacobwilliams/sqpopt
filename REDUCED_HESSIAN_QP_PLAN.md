@@ -26,6 +26,18 @@ way [DENSE_QP_PLAN.md](DENSE_QP_PLAN.md) did: no `w=(p,s)` slack padding
 bounds uniformly as `m+n` two-sided rows on `p`. See `PLAN.md` §6.2 for
 the full implementation summary.
 
+**Follow-up: `LSQR` tuning** -- `sqpopt_reduced_hessian_qp_type` exposes
+`lsqr_atol`/`lsqr_btol`/`lsqr_conlim`/`lsqr_itnlim` as user-settable
+fields (defaults reproduce the original untuned behavior: `atol=btol=0`,
+which `LSQR` itself treats as "use machine precision"). A sweep on
+`test_hs71` (using its function-call counters, not just major-iteration
+count, as the metric) found `atol=btol=5e-10` cuts objective/gradient/
+constraint/Jacobian evaluations by ~85% while still reaching
+`sqpopt_success` -- but the sweet spot is narrow and sharply
+non-monotonic (`8e-10` already breaks convergence entirely on this same
+problem), so it's a documented, per-problem tunable, not a new default.
+See `PLAN.md` §6.2 for the full numbers.
+
 ## 1. Goal and scope
 
 Replace the v1 composite-step QP (`sqpopt_qp_solver_module`) with an
