@@ -10,6 +10,10 @@ program test_basic
 
     real(wp), parameter :: big = 1.0e20_wp !! sentinel value used for "unbounded" sides
 
+    write(*,*) '----------------------------'
+    write(*,*) 'test_basic'
+    write(*,*) '----------------------------'
+
     call test_equality_constrained()
     call test_inequality_constrained()
     call test_bounds_only()

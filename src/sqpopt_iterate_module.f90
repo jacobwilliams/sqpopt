@@ -119,7 +119,8 @@
     if (dot_product(g,p) - linesearch%penalty*constraint_violation(c, problem%c_lb, problem%c_ub) >= 0.0_wp) then
         call hessian%reset()
         call qp_solver%solve(hessian, jac, x, g, c, problem%x_lb, problem%x_ub, &
-                              problem%c_lb, problem%c_ub, p, new_lambda, qp_istat)
+                              problem%c_lb, problem%c_ub, p, new_lambda, istat)
+        if (istat /= sqpopt_success) return
     end if
 
     ! second-order correction (SOC): for strongly nonlinear constraints, the
@@ -134,7 +135,8 @@
     end if
 
     ! line search along `p` to (approximately) minimize the merit function:
-    call linesearch%search(problem%eval_f, problem%eval_c, x, p, f, g, c, problem%c_lb, problem%c_ub, alpha, ls_istat)
+    call linesearch%search(problem%eval_f, problem%eval_c, x, p, f, g, c, problem%c_lb, problem%c_ub, alpha, istat)
+    if (istat /= sqpopt_success) return
 
     ! save the current point/gradient for the next quasi-Newton update:
     x_prev  = x
