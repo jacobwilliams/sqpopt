@@ -3,7 +3,7 @@
 !  license: MIT
 !
 !  Opt-in **dense** active-set QP solver for the linearized SQP
-!  subproblem (see `DENSE_QP_PLAN.md`). Forms a dense Jacobian and a
+!  subproblem. Forms a dense Jacobian and a
 !  dense Hessian from `sqpopt`'s usual sparse/matrix-free representations
 !  each time it is called, then solves the QP with classical dense
 !  active-set machinery (Nocedal & Wright, *Numerical Optimization*, Ch.
@@ -14,7 +14,8 @@
 !  check to drop one when the current working set's exact minimizer has
 !  been reached.
 !
-!  Unlike `sqpopt_qp_solver_module`'s v1 composite-step heuristic, this
+!  Unlike `sqpopt_qp_solver_module`'s default composite-step heuristic,
+!  this
 !  enforces the linearized constraints and bounds **exactly** within the
 !  QP itself. Unlike a general large-scale sparse QP, it is only suitable
 !  for small-to-moderate `n`/`m`, since it forms `O(n^2)`/`O(mn)` dense
@@ -27,11 +28,10 @@
 !  (`row_lb<=row^T p<=row_ub`); equality rows (`row_lb==row_ub`) are
 !  permanently active and never leave the working set.
 !
-!  @note This intentionally simplifies `DENSE_QP_PLAN.md`'s `w=(p,s)`
-!  slack-variable reformulation: since bounds and general constraints are
-!  both just two-sided rows here, there is no need to introduce a
-!  separate slack vector `s` -- working directly in `p`-space (`n`
-!  unknowns) is mathematically equivalent and simpler to implement.
+!  @note Bounds and general constraints are both just two-sided rows
+!  here, so there is no need to introduce a separate slack vector `s` for
+!  the general constraints -- working directly in `p`-space (`n`
+!  unknowns) is simpler and mathematically equivalent.
 
     module sqpopt_qp_dense_module
 
@@ -340,7 +340,7 @@
 !  adjust `u` (in place) by the minimum-norm correction needed so that
 !  every currently-active row (`status/=0`) exactly satisfies its target
 !  bound value -- used to bootstrap a feasible-for-the-working-set
-!  starting point (see `DENSE_QP_PLAN.md` §7 / [[REDUCED_HESSIAN_QP_PLAN.md]]).
+!  starting point.
 
     subroutine project_onto_active(arows, row_lb, row_ub, status, mtot, n, u)
 

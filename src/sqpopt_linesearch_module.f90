@@ -30,7 +30,7 @@
 !    exact-search implementation.
 !  * `sqpopt_linesearch_watchdog` -- Powell's watchdog technique
 !    (Chamberlain, Lemarechal, Pedersen & Powell, *Math. Prog. Study 16*
-!    (1982), as used in `references/vf13`): tracks the best point found so
+!    (1982)): tracks the best point found so
 !    far and, for a short window after a genuine improvement, *relaxes* the
 !    sufficient-decrease test to allow the merit function to temporarily
 !    get worse (accepting the full quasi-Newton step outright) rather than
@@ -350,7 +350,7 @@
 !*******************************************************************************
 !>
 !  Powell's watchdog technique (Chamberlain, Lemarechal, Pedersen & Powell,
-!  *Math. Prog. Study 16* (1982); see `references/vf13`): a variant of
+!  *Math. Prog. Study 16* (1982)): a variant of
 !  [[armijo_line_search]] that, once a genuine improvement has been made,
 !  allows a bounded number of subsequent *relaxed* steps -- accepting the
 !  full step `x+p` outright even if it does not satisfy the sufficient-
@@ -432,9 +432,9 @@
 
         if (standard_ok .and. alpha >= 0.99_wp) then
             ! a good, (nearly) full accepted step: "reward" the next few
-            ! calls with a fresh window of relaxed acceptance (mirroring
-            ! VF13's ISWDOG logic, which opens the relaxed window after an
-            ! iteration whose merit reduction was large enough):
+            ! calls with a fresh window of relaxed acceptance (only a step
+            ! that met the strict sufficient-decrease test at close to full
+            ! length earns this, not just any improvement):
             me%watchdog_relaxed_remaining = me%watchdog_relaxed_len
         else if (relaxed_used) then
             if (is_new_best) then

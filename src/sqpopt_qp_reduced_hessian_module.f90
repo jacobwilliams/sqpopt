@@ -3,13 +3,13 @@
 !  license: MIT
 !
 !  Opt-in **sparse** active-set QP solver for the linearized SQP
-!  subproblem (see `REDUCED_HESSIAN_QP_PLAN.md`). Like
+!  subproblem. Like
 !  [[sqpopt_qp_dense_module]], this enforces the linearized constraints
-!  and bounds *exactly* (unlike `sqpopt_qp_solver_module`'s v1 composite
+!  and bounds *exactly* (unlike `sqpopt_qp_solver_module`'s default composite
 !  step), but stays fully sparse/matrix-free: instead of forming a dense
 !  `n x n` Hessian and an `n x (n-m_a)` orthonormal null-space basis
 !  (`Z`), it gets any null-space projection it needs by re-solving a
-!  small least-squares problem with `LSQR` (the same technique v1's own
+!  small least-squares problem with `LSQR` (the same technique the
 !  composite step already uses for its tangential step), and solves the
 !  reduced-space Newton system with **projected conjugate gradients**
 !  (Gould, Hribar & Nocedal 1998; Nocedal & Wright, *Numerical
@@ -222,7 +222,7 @@
                 cycle
             else if (truncated) then
                 ! unbounded direction with no blocking row: not a well-posed
-                ! bounded QP face -- bail out defensively (see plan's scope notes):
+                ! bounded QP face -- bail out defensively:
                 istat = sqpopt_qp_solve_failed
                 exit
             else
@@ -345,7 +345,7 @@
 !  project a vector `v` onto the null space of the active-row matrix
 !  `ja` (`n_active x n`): `out = v - ja^T*z`, `z` the minimum-norm
 !  least-squares solution of `ja^T*z ~ v`, solved with `LSQR` using the
-!  same transpose-orientation trick as `sqpopt_qp_solver_module`'s v1
+!  same transpose-orientation trick as `sqpopt_qp_solver_module`'s
 !  composite step (swap `irow`/`icol` so `LSQR` sees `ja^T` directly).
 
     subroutine project_null(ja, n_active, n, v, out, atol, btol, conlim, itnlim)
@@ -510,11 +510,10 @@
 !>
 !  adjust `u` (in place) by the minimum-norm correction needed so that
 !  every currently-active row exactly satisfies its target bound value
-!  (bootstraps a feasible-for-the-working-set starting point, see
-!  `REDUCED_HESSIAN_QP_PLAN.md` §7). Uses `LSQR` in its normal
-!  orientation (minimum-norm solution of the underdetermined system
-!  `ja*correction = resid`), the same way v1's composite step already
-!  uses it for its own normal step.
+!  (bootstraps a feasible-for-the-working-set starting point). Uses `LSQR`
+!  in its normal orientation (minimum-norm solution of the underdetermined
+!  system `ja*correction = resid`), the same way the composite step
+!  already uses it for its own normal step.
 
     subroutine project_onto_active(arows, row_lb, row_ub, status, mtot, n, u, atol, btol, conlim, itnlim)
 

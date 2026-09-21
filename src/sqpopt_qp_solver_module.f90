@@ -16,7 +16,7 @@
 !  is a matrix-free limited-memory operator (see [[sqpopt_hessian_module]])
 !  and \( J \) is stored as sparse COO triplets (see [[sqpopt_types_module]]).
 !
-!  **v1 algorithm** (a simplified composite-step method, chosen so that
+!  **Composite-step algorithm** (the default, chosen so that
 !  neither `H` nor `J` ever needs to be factorized or formed as a dense
 !  `n x n`/`m x n` array):
 !
@@ -26,7 +26,7 @@
 !     to the *active set* (equality constraints, plus inequality
 !     constraints currently at or beyond one of their bounds -- see
 !     `active_tol`). Multipliers for inactive constraints are fixed at zero
-!     (a simple stand-in for full complementarity, since v1 does not
+!     (a simple stand-in for full complementarity, since this method does not
 !     maintain a proper working set across iterations).
 !  2. A *normal step* \( p_n \) is computed as the minimum-norm solution of
 !     \( J p_n = \text{viol} \), where `viol` is the linearized constraint
@@ -45,11 +45,14 @@
 !     composite step occasionally overshooting), then clipped
 !     component-wise so that \( x+p \) respects the variable bounds.
 !
-!  This is a deliberate v1 simplification of a full active-set QP solve
-!  (it does not enforce the linearized general-constraint bounds exactly,
-!  relying on the outer major SQP iterations to converge to feasibility);
-!  a more rigorous active-set/interior-point QP solver is a natural future
-!  enhancement (see `PLAN.md`).
+!  This composite-step method (the default, `sqpopt_qp_composite`) does
+!  not enforce the linearized general-constraint bounds exactly, relying
+!  on the outer major SQP iterations to converge to feasibility instead;
+!  two other modes are available for problems that need the linearized
+!  constraints solved exactly: `sqpopt_qp_dense` (a dense active-set QP,
+!  see [[sqpopt_qp_dense_module]]) and `sqpopt_qp_reduced_hessian` (a
+!  sparse/matrix-free active-set QP, see
+!  [[sqpopt_qp_reduced_hessian_module]]).
 
     module sqpopt_qp_solver_module
 
@@ -65,9 +68,9 @@
 
     private
 
-    integer, parameter, public :: sqpopt_qp_composite       = 1  !! v1 composite-step heuristic (default, see module docs)
-    integer, parameter, public :: sqpopt_qp_dense           = 2  !! opt-in dense active-set QP solver (see [[sqpopt_qp_dense_module]], `DENSE_QP_PLAN.md`)
-    integer, parameter, public :: sqpopt_qp_reduced_hessian = 3  !! opt-in sparse (projected-CG) active-set QP solver (see [[sqpopt_qp_reduced_hessian_module]], `REDUCED_HESSIAN_QP_PLAN.md`)
+    integer, parameter, public :: sqpopt_qp_composite       = 1  !! composite-step heuristic (default, see module docs)
+    integer, parameter, public :: sqpopt_qp_dense           = 2  !! opt-in dense active-set QP solver (see [[sqpopt_qp_dense_module]])
+    integer, parameter, public :: sqpopt_qp_reduced_hessian = 3  !! opt-in sparse (projected-CG) active-set QP solver (see [[sqpopt_qp_reduced_hessian_module]])
 
     type, public :: sqpopt_qp_solver_type
         !! workspace and options for the QP subproblem solver.
@@ -77,7 +80,7 @@
         integer  :: linear_solver_mode = sqpopt_linsolve_lusol  !! sparse linear solver used for the KKT system
         real(wp) :: max_step           = 2.0_wp                 !! trust-region-style cap on \( \lVert p \rVert_2 \);
                                                                  !! the step is rescaled if it is exceeded (safeguards
-                                                                 !! against the v1 composite step occasionally
+                                                                 !! against the composite step occasionally
                                                                  !! overshooting -- see [[sqpopt_qp_solver_module]])
         real(wp) :: active_tol         = 1.0e-6_wp              !! an inequality constraint is considered part of the
                                                                  !! active set if it is within `active_tol` of (or beyond)
@@ -98,9 +101,10 @@
 !>
 !  solve the linearized QP subproblem for the search direction `p` and
 !  the associated Lagrange multipliers `lambda`, dispatching to the
-!  algorithm selected by `me%mode`: the v1 composite-step heuristic
-!  (default, see the module-level documentation) or the opt-in dense
-!  active-set solver (see [[sqpopt_qp_dense_module]]).
+!  algorithm selected by `me%mode`: the composite-step heuristic
+!  (default, see the module-level documentation) or one of the opt-in
+!  active-set solvers (see [[sqpopt_qp_dense_module]],
+!  [[sqpopt_qp_reduced_hessian_module]]).
 
     subroutine solve_qp_subproblem(me, hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
 
@@ -136,7 +140,7 @@
 
 !*******************************************************************************
 !>
-!  the v1 composite-step algorithm (see the module-level documentation).
+!  the composite-step algorithm (see the module-level documentation).
 
     subroutine solve_composite_step(me, hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
 
@@ -229,7 +233,7 @@
     end if
 
     ! (4) trust-region-style safeguard: rescale the step if it is
-    !     unreasonably large (the v1 composite step is only an
+    !     unreasonably large (the composite step is only an
     !     approximate QP solution and can occasionally overshoot):
     if (norm2(p) > me%max_step) p = p*(me%max_step/norm2(p))
 

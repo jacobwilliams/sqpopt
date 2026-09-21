@@ -3,12 +3,12 @@
 !  license: MIT
 !
 !  Small, self-contained dense linear algebra helpers used only by
-!  [[sqpopt_qp_dense_module]] (the opt-in dense QP solver mode, see
-!  `DENSE_QP_PLAN.md`). No other part of `sqpopt` uses dense arrays --
-!  these are only ever formed/used when the user explicitly selects the
-!  dense QP mode. Not linked to any external dependency: classic,
-!  textbook Householder QR and modified Cholesky, small enough to
-!  validate directly against known small matrices.
+!  [[sqpopt_qp_dense_module]] (the opt-in dense QP solver mode). No other
+!  part of `sqpopt` uses dense arrays -- these are only ever formed/used
+!  when the user explicitly selects the dense QP mode. Not linked to any
+!  external dependency: classic, textbook Householder QR and modified
+!  Cholesky, small enough to validate directly against known small
+!  matrices.
 
     module sqpopt_dense_linalg_module
 
@@ -28,8 +28,7 @@
 !*******************************************************************************
 !>
 !  compute an orthonormal basis `Z` (`dimension(n,n_z)`) for the null
-!  space of `A` (`dimension(m_a,n)`, `m_a<=n` assumed full row rank --
-!  see `DENSE_QP_PLAN.md` for the anti-cycling/degeneracy caveat), via
+!  space of `A` (`dimension(m_a,n)`, `m_a<=n` assumed full row rank), via
 !  Householder QR of \( A^T \): \( A^T = QR \), so `null(A)` is spanned by
 !  the last `n-m_a` columns of `Q`. `Z` is allocated here (`intent(out),
 !  allocatable`) with `dimension(n,n_z)`, `n_z = n-m_a`.

@@ -114,8 +114,7 @@
         if (options%hessian_mode == sqpopt_hessian_sr1) then
             call hessian%update_sr1(x - x_prev, gl - gl_prev)
         else
-            ! `sqpopt_hessian_exact` is not yet supported in this v1 driver;
-            ! falls back to the BFGS update (see PLAN.md for future work).
+            ! `sqpopt_hessian_exact` is not yet supported; falls back to the BFGS update:
             call hessian%update_bfgs(x - x_prev, gl - gl_prev)
         end if
     end if
@@ -125,22 +124,21 @@
                           problem%c_lb, problem%c_ub, p, new_lambda, qp_istat)
 
     ! update the merit function's penalty parameter so that it dominates the
-    ! current multiplier estimates (as in slsqp): for `sqpopt_merit_l1` this
+    ! current multiplier estimates (as in `slsqp`): for `sqpopt_merit_l1` this
     ! is required for the exact penalty function's minimizer to coincide with
     ! the true constrained optimum (Han/Powell); for
     ! `sqpopt_merit_augmented_lagrangian` the same rule is used as a simple
-    ! (if not exactly optimal) substitute for the paper's closed-form
-    ! threshold (Lemma 4.3 of `references/merit.pdf`), which would require
-    ! tracking the QP's own multiplier separately from `lambda` (see PLAN.md
-    ! §6.1). Without a large-enough penalty, the merit function can prefer a
-    ! "compromise" infeasible point over the true solution:
+    ! (if not exactly optimal) substitute for the theoretically-correct
+    ! closed-form threshold, which would require tracking the QP's own
+    ! multiplier separately from `lambda`. Without a large-enough penalty,
+    ! the merit function can prefer a "compromise" infeasible point over
+    ! the true solution:
     if (size(new_lambda) > 0) linesearch%penalty = max(linesearch%penalty, maxval(abs(new_lambda)) + 1.0_wp)
 
-    ! safeguard (as in slsqp): if `p` is not a descent direction for the
-    ! merit function (can happen since the v1 composite step is only an
-    ! approximate QP solution, so it lacks the usual guarantee that the
-    ! *optimal* QP solution is a descent direction), reset the Hessian
-    ! approximation to the identity and recompute `p` once from scratch:
+    ! safeguard (as in `slsqp`): if `p` is not a descent direction for the
+    ! merit function (the linearized QP solve is not always guaranteed to
+    ! produce one), reset the Hessian approximation to the identity and
+    ! recompute `p` once from scratch:
     block
         real(wp) :: dphi0
         call linesearch%directional_derivative(jac, g, p, c, problem%c_lb, problem%c_ub, new_lambda, dphi0)
@@ -175,15 +173,9 @@
     ! (even when `istat==sqpopt_line_search_failed`, e.g. the `alpha_min`
     ! floor is deliberately still accepted -- see `armijo_line_search` --
     ! or, in `sqpopt_linesearch_watchdog` mode, `x_new` may instead be an
-    ! earlier best point on backtrack). NEVER skip this update based on
-    ! `istat`: doing so previously froze `x`/`lambda`/`x_prev`/`gl_prev` for
-    ! the rest of the major iteration whenever the line search merely
-    ! failed to satisfy the sufficient-decrease test, which (since the next
-    ! major iteration then recomputes the *identical* `p` from the
-    ! *identical*, unchanged `x`) turned a single failed line search into a
-    ! permanent no-op for the remainder of `max_iter` -- a real bug, not
-    ! just slow convergence, and a likely contributor to the
-    ! `test_hs71`/`test_medium` "limit cycle" behavior documented in PLAN.md:
+    ! earlier best point on backtrack). This update is never skipped based
+    ! on `istat`, since `alpha`/`x_new` are always meaningful regardless of
+    ! whether the sufficient-decrease test was satisfied:
     x      = x_new
     lambda = new_lambda
 
