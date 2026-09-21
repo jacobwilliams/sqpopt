@@ -3,7 +3,8 @@ program test_basic
     use sqpopt_module,         only: sqpopt_type
     use sqpopt_problem_module, only: sqpopt_problem_type
     use sqpopt_options_module, only: sqpopt_options_type, sqpopt_hessian_sr1
-    use sqpopt_linesearch_module, only: sqpopt_linesearch_exact, sqpopt_linesearch_watchdog, sqpopt_merit_augmented_lagrangian
+    use sqpopt_linesearch_module, only: sqpopt_linesearch_exact, sqpopt_linesearch_watchdog, sqpopt_merit_augmented_lagrangian, &
+                                         sqpopt_linesearch_type
     use sqpopt_qp_solver_module, only: sqpopt_qp_dense, sqpopt_qp_reduced_hessian, sqpopt_qp_solver_type, sqpopt_bounds_vector
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
 
@@ -25,6 +26,7 @@ program test_basic
     call test_dense_qp_mode()
     call test_reduced_hessian_qp_mode()
     call test_vector_bound_enforcement()
+    call test_major_step_limit()
 
     contains
 
@@ -399,5 +401,42 @@ program test_basic
     print *, 'test_vector_bound_enforcement PASSED'
 
     end subroutine test_vector_bound_enforcement
+
+    !> same problem as `test_inequality_constrained`, but with a tight
+    !! `major_step_limit` (SNOPT-inspired option) that forces the very
+    !! first major iteration's step to be shrunk well below what the
+    !! (uncapped) QP step and line search would otherwise take; confirms
+    !! the option doesn't prevent eventual convergence, just slows it down.
+    subroutine test_major_step_limit()
+
+    type(sqpopt_type)            :: solver
+    type(sqpopt_problem_type)    :: problem
+    type(sqpopt_options_type)    :: options
+    type(sqpopt_linesearch_type) :: linesearch
+    real(wp) :: x0(2), xsol(2), lam(1)
+    real(wp), parameter :: xexpect(2) = [1.0_wp, 2.0_wp]
+    integer :: istat
+
+    call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
+    call problem%set_bounds(x_lb=[0.0_wp,0.0_wp], x_ub=[big,big], c_lb=[-big], c_ub=[3.0_wp])
+    call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
+    call problem%set_functions(f=obj1, g=grad1, c=cons1, jac=jacv1)
+
+    options%max_iter = 200
+    linesearch%major_step_limit = 0.05_wp
+    x0 = [0.0_wp, 0.0_wp]
+
+    call solver%initialize(problem=problem, options=options, linesearch=linesearch)
+    call solver%solve(x0, istat)
+    call solver%get_solution(xsol, lam)
+
+    print '(A,2F12.6)', 'test_major_step_limit: x      = ', xsol
+    print '(A,2F12.6)', 'test_major_step_limit: x_true = ', xexpect
+    print '(A,I0)',     'test_major_step_limit: istat  = ', istat
+
+    if (maxval(abs(xsol-xexpect)) > 1.0e-3_wp) error stop 'test_major_step_limit FAILED'
+    print *, 'test_major_step_limit PASSED'
+
+    end subroutine test_major_step_limit
 
 end program test_basic

@@ -40,6 +40,16 @@
 !    disables relaxed acceptance for `watchdog_cooldown_len` iterations.
 !    This targets the same failure mode as the second-order correction and
 !    the augmented Lagrangian merit function, via a different mechanism.
+!
+!  All three modes start each search from an initial trial step length
+!  \( \alpha_0 \le 1 \) (see [[initial_step_length]]) rather than always
+!  `1`, capped by `major_step_limit` (SNOPT's "Major step limit" option)
+!  so that no variable can change by more than a factor of
+!  `major_step_limit` relative to its current magnitude in a single major
+!  iteration -- a QP step that is technically feasible can still be
+!  unreasonably large (e.g. from a poorly-scaled problem or an early,
+!  inaccurate Hessian approximation), and this guards against the
+!  resulting merit-function evaluations diverging or becoming undefined.
 
 
     module sqpopt_linesearch_module
@@ -77,6 +87,14 @@
                                             !! satisfying the sufficient-decrease test, `alpha_min` is accepted anyway
                                             !! (this avoids ever taking a useless near-zero step)
         integer  :: max_ls_iter = 20        !! maximum number of Armijo backtracking steps (`sqpopt_linesearch_armijo` mode)
+        real(wp) :: major_step_limit = 2.0_wp !! caps the *initial* trial step length (before any backtracking) so that
+                                              !! no variable changes by more than this fraction of \( \max(1,|x_j|) \)
+                                              !! (SNOPT's "Major step limit" option): the search starts from
+                                              !! \( \alpha_0 = \min\!\left(1, \dfrac{\texttt{major\_step\_limit}}
+                                              !! {\max_j |p_j|/\max(1,|x_j|)}\right) \) instead of always \( \alpha_0=1 \).
+                                              !! Guards against divergence from a QP step that is technically feasible
+                                              !! but unreasonably large relative to the current point; set to `huge(1.0_wp)`
+                                              !! to disable
 
         integer  :: watchdog_relaxed_len    = 2     !! number of relaxed steps tolerated before requiring a new best point (`sqpopt_linesearch_watchdog` mode)
         integer  :: watchdog_cooldown_len   = 10    !! number of iterations relaxed acceptance is disabled for after a backtrack (`sqpopt_linesearch_watchdog` mode)
@@ -240,10 +258,44 @@
 
 !*******************************************************************************
 !>
+!  the initial trial step length used by every line search mode before any
+!  backtracking (SNOPT's "Major step limit" option):
+!  $$ \alpha_0 = \min\!\left(1, \frac{\texttt{step\_limit}}
+!  {\max_j |p_j|/\max(1,|x_j|)}\right) $$
+!  i.e. `p` is scaled down (never up) so that no variable changes by more
+!  than a factor of `step_limit` relative to \( \max(1,|x_j|) \). Returns
+!  `1` unchanged if `p` is zero.
+
+    function initial_step_length(x, p, step_limit) result(alpha0)
+
+    real(wp), dimension(:), intent(in) :: x, p !! current point and search direction, `dimension(n)`
+    real(wp),                intent(in) :: step_limit !! `sqpopt_linesearch_type%major_step_limit`
+    real(wp) :: alpha0
+
+    real(wp) :: rmax
+    integer  :: k
+
+    rmax = 0.0_wp
+    do k = 1, size(x)
+        rmax = max(rmax, abs(p(k))/max(1.0_wp, abs(x(k))))
+    end do
+
+    if (rmax > 0.0_wp) then
+        alpha0 = min(1.0_wp, step_limit/rmax)
+    else
+        alpha0 = 1.0_wp
+    end if
+
+    end function initial_step_length
+!*******************************************************************************
+
+!*******************************************************************************
+!>
 !  backtracking line search with an Armijo-type sufficient-decrease test
 !  on the merit function (as used by default in `slsqp`):
-!  starting from `alpha=1`, `alpha` is repeatedly reduced by `backtrack`
-!  until
+!  starting from \( \alpha_0 \) (see [[initial_step_length]], normally `1`
+!  unless capped by `major_step_limit`), `alpha` is repeatedly reduced by
+!  `backtrack` until
 !  $$ \phi(x+\alpha p) \le \phi(x) + \sigma \alpha D(\phi;p) $$
 !  `alpha` never goes below `alpha_min`: if the floor is reached without
 !  satisfying the test (which can happen since `p` is only an approximate
@@ -272,7 +324,7 @@
     call me%eval_merit(f, c, c_lb, c_ub, lambda, phi0)
     call me%directional_derivative(jac, g, p, c, c_lb, c_ub, lambda, dphi0)
 
-    alpha = 1.0_wp
+    alpha = initial_step_length(x, p, me%major_step_limit)
     do it = 1, me%max_ls_iter
         x_trial = x + alpha*p
         call eval_f(x_trial, f_trial)
@@ -315,7 +367,7 @@
     real(wp), dimension(:), intent(out) :: x_new   !! the accepted new point `dimension(n)`
     integer,                  intent(out) :: istat  !! status code (see [[sqpopt_types_module]])
 
-    alpha = fmin(merit_along_direction, 0.0_wp, 1.0_wp, me%tol)
+    alpha = fmin(merit_along_direction, 0.0_wp, initial_step_length(x, p, me%major_step_limit), me%tol)
     x_new = x + alpha*p
     istat = sqpopt_success
 
@@ -374,7 +426,7 @@
 
     real(wp), dimension(size(x)) :: x_trial
     real(wp), dimension(size(c)) :: c_trial
-    real(wp) :: phi0, dphi0, phi_trial, f_trial
+    real(wp) :: phi0, dphi0, phi_trial, f_trial, alpha0
     logical :: standard_ok, relaxed_used
     integer :: it
 
@@ -390,7 +442,8 @@
     if (me%watchdog_cooldown_remaining > 0) me%watchdog_cooldown_remaining = me%watchdog_cooldown_remaining - 1
 
     ! standard backtracking Armijo search, exactly as in [[armijo_line_search]]:
-    alpha = 1.0_wp
+    alpha0 = initial_step_length(x, p, me%major_step_limit)
+    alpha = alpha0
     standard_ok = .false.
     do it = 1, me%max_ls_iter
         x_trial = x + alpha*p
@@ -408,10 +461,11 @@
     relaxed_used = .false.
     if (.not. standard_ok .and. me%watchdog_relaxed_remaining > 0 .and. me%watchdog_cooldown_remaining == 0) then
         ! the standard sufficient-decrease test failed even at `alpha_min`;
-        ! the watchdog technique allows a relaxed *full* step here instead
-        ! of stalling (the merit function may temporarily get worse):
-        alpha = 1.0_wp
-        x_trial = x + p
+        ! the watchdog technique allows a relaxed step here instead of
+        ! stalling (the merit function may temporarily get worse), still
+        ! capped by the major step limit like the initial standard-search step:
+        alpha = alpha0
+        x_trial = x + alpha*p
         call eval_f(x_trial, f_trial)
         call eval_c(x_trial, c_trial)
         call me%eval_merit(f_trial, c_trial, c_lb, c_ub, lambda, phi_trial)
@@ -430,7 +484,7 @@
             me%watchdog_w_opt = phi_trial
         end if
 
-        if (standard_ok .and. alpha >= 0.99_wp) then
+        if (standard_ok .and. alpha >= 0.99_wp*alpha0) then
             ! a good, (nearly) full accepted step: "reward" the next few
             ! calls with a fresh window of relaxed acceptance (only a step
             ! that met the strict sufficient-decrease test at close to full

@@ -78,8 +78,12 @@ The QP subproblem solver (`sqpopt_qp_solver_type`) and line search
 composite step's bound violations are corrected -- `sqpopt_bounds_scalar`
 (default, clip only the violating components) or `sqpopt_bounds_vector`
 (rescale the whole step uniformly, preserving its direction);
-`linesearch%alpha_min`/`sigma`/`backtrack`, the Armijo parameters) that can
-be set by constructing them directly and passing them to
+`linesearch%alpha_min`/`sigma`/`backtrack`, the Armijo parameters;
+`linesearch%major_step_limit` (SNOPT-inspired "Major step limit", default
+`2.0`), caps the *initial* trial step length of every line search mode so
+that no variable changes by more than this factor relative to its current
+magnitude, guarding against divergence from an unreasonably large QP step)
+that can be set by constructing them directly and passing them to
 `solver%initialize(problem=..., options=..., qp_solver=..., linesearch=...)`.
 
 See [PLAN.md](PLAN.md) for the full architecture write-up, algorithm
