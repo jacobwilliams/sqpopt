@@ -1,4 +1,5 @@
-# sqpopt
+
+![Modern Fortran SQP OPTimizer](media/logo.png)
 Modern Fortran SQP OPTimizer
 
 ### Goals
