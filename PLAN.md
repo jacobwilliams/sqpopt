@@ -24,22 +24,29 @@ limited-memory Hessian modes.
 | `sqpopt_options_module` | tolerances, iteration limits, Hessian/linear-solver mode selectors | done |
 | `sqpopt_hessian_module` | limited-memory (L-BFGS/L-SR1) Lagrangian Hessian, matrix-free | done |
 | `sqpopt_linalg_module` | sparse matvec + dispatch to `lusol`/`LSQR`/`LSMR` | done |
-| `sqpopt_qp_solver_module` | v1 composite-step direction finder (see §3) | done (simplified) |
-| `sqpopt_linesearch_module` | \( \ell_1 \) merit function + Armijo (default) / `fmin`-exact line search | done |
+| `sqpopt_qp_solver_module` | QP direction finder: v1 composite-step (default) or dense active-set (§6.4, opt-in) | done |
+| `sqpopt_qp_dense_module` | opt-in dense active-set QP solver (see §6.4/`DENSE_QP_PLAN.md`) | done |
+| `sqpopt_dense_linalg_module` | dense QR/modified-Cholesky helpers, used only by `sqpopt_qp_dense_module` | done |
+| `sqpopt_linesearch_module` | \( \ell_1 \)/augmented-Lagrangian merit functions + Armijo (default)/exact/watchdog line search | done |
 | `sqpopt_convergence_module` | projected-gradient KKT test + feasibility | done |
 | `sqpopt_iterate_module` | orchestrates one major SQP iteration | done |
 | `sqpopt_module` | public `sqpopt_type` facade (`initialize`/`set_problem`/`set_options`/`solve`/`get_solution`/`destroy`) | done |
 
-Key design decision, upheld throughout: **no dense `n×n` or `m×n` arrays,
-ever**. The Jacobian is sparse COO triplets with a fixed sparsity pattern;
-the Hessian approximation is a matrix-free limited-memory operator (only
-`O(n * lbfgs_memory)` storage, `lbfgs_memory` a small constant).
+Key design decision, upheld throughout **by default**: **no dense `n×n` or
+`m×n` arrays, ever**. The Jacobian is sparse COO triplets with a fixed
+sparsity pattern; the Hessian approximation is a matrix-free limited-
+memory operator (only `O(n * lbfgs_memory)` storage, `lbfgs_memory` a
+small constant). The one exception is the *explicitly opt-in*
+`sqpopt_qp_dense` mode (§6.4), which forms dense arrays on purpose for
+users who know their problem is small enough that the tight convergence
+it buys is worth the `O(n^2)`/`O(mn)` memory -- never the default.
 
 Deliberately **not yet implemented** (see §5 for the "optional/advanced"
-backlog): `sqpopt_hessian_exact` mode (falls back to BFGS), a rigorous
-active-set/interior-point QP solver (v1 uses a simplified composite-step
-heuristic instead, see §3), `ftol`/`xtol` no-progress stopping tests, and
-diagnostic printing (`options%print_level` is currently unused).
+backlog): `sqpopt_hessian_exact` mode (falls back to BFGS), a **sparse**
+rigorous active-set QP solver (`sqpopt_qp_reduced_hessian`, §6.2 -- the
+**dense** one, §6.4, is now implemented), `ftol`/`xtol` no-progress
+stopping tests, and diagnostic printing (`options%print_level` is
+currently unused).
 
 ## 2. Dependency inventory & reuse strategy
 
@@ -246,19 +253,17 @@ a more rigorous QP solver / trust-region radius control, not another patch.
 
 ## 5. Backlog ("optional/advanced" work, deferred from v1)
 
-- A rigorous **active-set or interior-point QP solver** that enforces
+- ~~A rigorous **active-set or interior-point QP solver** that enforces
   linearized general-constraint bounds exactly (the current composite-step
-  heuristic relies on outer-iteration convergence instead). **This is now
-  the top-priority item**: `test_hs71` demonstrates that the v1 heuristic
-  (even with the active-set filter, adaptive penalty, descent safeguard,
-  trust-region cap, and second-order correction all in place) only
-  achieves loose convergence (a stable limit cycle) on a problem where two
-  constraints are simultaneously active at a corner-point solution. A
-  proper QP solve (or at least trust-region radius control that shrinks on
-  repeated rejection, rather than a fixed `max_step`) is needed for tight
-  convergence on problems like this. **See §6 for a concrete design
-  (SQOPT's reduced-Hessian active-set method) instead of a vague
-  "proper QP solver".**
+  heuristic relies on outer-iteration convergence instead).~~ **Implemented**
+  as `sqpopt_qp_dense` (see §6.4/[DENSE_QP_PLAN.md](DENSE_QP_PLAN.md)):
+  a real dense active-set QP that finally gets `test_hs71` to
+  `sqpopt_success`. The **sparse** version of the same idea
+  (`sqpopt_qp_reduced_hessian`, §6.2/[REDUCED_HESSIAN_QP_PLAN.md](REDUCED_HESSIAN_QP_PLAN.md))
+  remains unimplemented and is now lower priority for `test_hs71`
+  specifically (already fixed by the dense mode for small problems) but
+  still worthwhile for large sparse problems, where `sqpopt_qp_dense`'s
+  `O(n^2)`/`O(mn)` dense arrays aren't an option.
 - ~~A **smooth augmented Lagrangian merit function** as an alternative to the
   current \( \ell_1 \) merit function, to avoid the Maratos effect without
   needing the ad hoc second-order-correction patch.~~ **Implemented** as
@@ -462,26 +467,47 @@ dense (`dimension(la,n+1)`/packed dense Cholesky factor) -- there is no
 sparse entry point to reuse, consistent with `PLAN.md` §2's note that
 `slsqp` is "algorithmic inspiration only, not linked as a dependency."
 
-**Status: design in progress.** A staged plan for an *opt-in*
-`sqpopt_qp_dense` mode -- forms dense `J`/`H` from the existing sparse/
-matrix-free representations each iteration, and reuses the **same**
-active-set control logic as §6.2/[REDUCED_HESSIAN_QP_PLAN.md](REDUCED_HESSIAN_QP_PLAN.md)
+**Status: implemented.** A staged plan for an *opt-in* `sqpopt_qp_dense`
+mode -- forms dense `J`/`H` from the existing sparse/matrix-free
+representations each iteration, and reuses the **same** active-set
+control logic as §6.2/[REDUCED_HESSIAN_QP_PLAN.md](REDUCED_HESSIAN_QP_PLAN.md)
 §6, just with a dense QR/modified-Cholesky backend instead of sparse
-`LSQR`/projected-CG -- has been written up in
-[DENSE_QP_PLAN.md](DENSE_QP_PLAN.md). It also documents a concrete
-finding: `slsqp`'s own dense QP-forming routines (`lsq`/`lsei`/`lsi`/
-`ldp`/`nnls`/`hfti`) are all **private** (same situation as `lbfgsb`'s
-`bmv`, §2) -- only `bvls_module`'s `bvls` is public, and it turns out not
-to compose cleanly with the null-space active-set design (bounds become
-general inequalities, not simple box bounds, after the change of basis
-needed to eliminate equality constraints) -- so this plan writes small,
-new, self-contained dense QR/Cholesky helpers rather than reusing `slsqp`/
-`bvls` internals; `slsqp` stays a dev-dependency only. **Recommended to be
-built and validated *before* the sparse §6.2 plan**: same control logic,
-but a dense one-shot QR/Cholesky backend has no iterative tolerances to
-get right (unlike sparse projected-CG), so it's the faster, lower-risk way
-to confirm that a real QP solve is really what fixes `test_hs71` before
-investing in the larger sparse effort. No code has been written yet.
+`LSQR`/projected-CG -- was written up in
+[DENSE_QP_PLAN.md](DENSE_QP_PLAN.md) and then implemented as designed:
+- New [sqpopt_dense_linalg_module](src/sqpopt_dense_linalg_module.f90)
+  (`dense_null_space` via Householder QR, `dense_modified_cholesky`,
+  `dense_solve_cholesky`) and
+  [sqpopt_qp_dense_module](src/sqpopt_qp_dense_module.f90) (the dense
+  active-set QP itself, working directly in `p`-space rather than the
+  `w=(p,s)` padding described in the plan -- general constraints and
+  variable bounds are just treated uniformly as `m+n` two-sided rows on
+  `p`, which is mathematically equivalent and simpler to implement).
+- Validated in isolation first ([test/test_qp_dense.f90](test/test_qp_dense.f90),
+  4 hand-verified small QPs including a two-simultaneously-active-
+  constraints case), all matching hand-derived KKT solutions exactly
+  (including Lagrange multiplier signs) on the first attempt.
+- Wired in via a `mode` field on `sqpopt_qp_solver_type`
+  (`sqpopt_qp_composite`/`sqpopt_qp_dense`) plus
+  `options%qp_solver_mode`, exactly as planned -- no changes needed to
+  `sqpopt_iterate_module` or `sqpopt_module`'s public API.
+- **Result on `test_hs71`**: with `qp_solver_mode=sqpopt_qp_dense`, the
+  solver now reaches **`istat=sqpopt_success`**, converging to within
+  `2e-7` of the known solution -- essentially matching `slsqp`'s own
+  6-iteration machine-precision result on the same problem, and fully
+  resolving the limit cycle that the v1 composite step, the augmented
+  Lagrangian merit function (§6.1), and the watchdog line search (§6.3)
+  could each only partially work around. `sqpopt`'s test suite now
+  enforces this tightly (`test_hs71`'s `dense QP` case requires
+  `sqpopt_success` and `1e-4` accuracy, unlike the other three modes'
+  loose `0.5` tolerance).
+- One unrelated, pre-existing latent bug was found and fixed along the
+  way (via `-fcheck=all`, after an initial segfault): `exact_line_search`'s
+  nested `merit_along_direction` function declared its trial constraint
+  array `c_trial` with `dimension(size(x))` (`n`) instead of `dimension
+  (size(c_lb))` (`m`) -- harmless when `n==m`, but a real out-of-bounds
+  array access whenever `n/=m` (as in `test_hs71`, `n=4`,`m=2`). Always
+  worth re-running the full suite with `-fcheck=all` after any change
+  that touches shape-sensitive array code.
 
 ### 6.3 Watchdog line search (from `references/vf13`, Powell's VF13 / HSL archive)
 

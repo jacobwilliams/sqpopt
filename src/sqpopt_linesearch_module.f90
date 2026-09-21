@@ -332,7 +332,8 @@
         real(wp), intent(in) :: alpha
         real(wp) :: phi
 
-        real(wp), dimension(size(x)) :: x_trial, c_trial
+        real(wp), dimension(size(x)) :: x_trial
+        real(wp), dimension(size(c_lb)) :: c_trial
         real(wp) :: f_trial
 
         x_trial = x + alpha*p

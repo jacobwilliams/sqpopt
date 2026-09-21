@@ -1,16 +1,32 @@
 # Design plan: dense QP solver option (`sqpopt_qp_dense`)
 
-**Status: design only -- no code written yet.** Prompted by comparing
-`test_hs71` against the newly-added `test/slsqp_test_71.f90`: `slsqp`
-converges to machine precision in 6 iterations on the same problem where
-`sqpopt`'s v1 composite-step QP only manages a loose limit cycle. `slsqp`
-gets that tight convergence using an entirely **dense** BFGS Hessian +
-dense active-set-style QP subproblem (see the investigation in §1 below).
-This plan adds an *opt-in* `sqpopt_qp_dense` mode that forms dense
-matrices from `sqpopt`'s existing sparse/matrix-free representations each
-iteration and solves the QP subproblem with dense linear algebra -- for
-users who know their problem is small enough that "dense" is a fine
-trade for the very tight, very reliable convergence it buys.
+**Status: implemented, per this plan, with results below.** Prompted by
+comparing `test_hs71` against the newly-added `test/slsqp_test_71.f90`:
+`slsqp` converges to machine precision in 6 iterations on the same
+problem where `sqpopt`'s v1 composite-step QP only manages a loose limit
+cycle. `slsqp` gets that tight convergence using an entirely **dense**
+BFGS Hessian + dense active-set-style QP subproblem (see the
+investigation in §1 below). This plan adds an *opt-in* `sqpopt_qp_dense`
+mode that forms dense matrices from `sqpopt`'s existing sparse/matrix-free
+representations each iteration and solves the QP subproblem with dense
+linear algebra -- for users who know their problem is small enough that
+"dense" is a fine trade for the very tight, very reliable convergence it
+buys.
+
+**Result**: `test_hs71` with `options%qp_solver_mode = sqpopt_qp_dense`
+now reaches `istat=sqpopt_success`, converging to within `2e-7` of the
+known solution -- fully resolving the limit cycle that the composite-step
+QP, the augmented Lagrangian merit function (PLAN.md §6.1), and the
+watchdog line search (§6.3) could each only partially work around.
+Implementation deviated from this plan in one deliberate way: instead of
+the `w=(p,s)` slack-variable padding described in §3/§6 below, the actual
+code (`sqpopt_qp_dense_module`) works directly in `p`-space, treating
+general constraints and variable bounds uniformly as `m+n` two-sided rows
+on `p` -- mathematically equivalent, and simpler to implement (no need to
+carry `s` as extra unknowns at all). See `PLAN.md` §6.4 for the full
+implementation summary, including an unrelated pre-existing bug found and
+fixed along the way (`exact_line_search`'s `c_trial` array was sized
+`n` instead of `m`).
 
 This is the second of two backlog QP options (see
 [REDUCED_HESSIAN_QP_PLAN.md](REDUCED_HESSIAN_QP_PLAN.md) for the sparse

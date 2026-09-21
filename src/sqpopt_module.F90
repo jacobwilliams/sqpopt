@@ -125,6 +125,7 @@
     call me%hessian%initialize(me%problem%n, me%options%lbfgs_memory, &
                                 use_sr1=(me%options%hessian_mode == sqpopt_hessian_sr1))
     me%qp_solver%linear_solver_mode = me%options%linear_solver_mode
+    me%qp_solver%mode               = me%options%qp_solver_mode
     me%linesearch%mode              = me%options%linesearch_mode
     me%linesearch%merit_mode        = me%options%merit_mode
 

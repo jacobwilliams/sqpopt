@@ -9,6 +9,7 @@
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
     use sqpopt_linalg_module,  only: sqpopt_linsolve_lusol
     use sqpopt_linesearch_module, only: sqpopt_linesearch_armijo, sqpopt_merit_l1
+    use sqpopt_qp_solver_module,  only: sqpopt_qp_composite
 
     implicit none
 
@@ -28,6 +29,8 @@
                                                    !! Hessian approximation (independent of the problem size `n`)
         integer  :: linear_solver_mode = sqpopt_linsolve_lusol !! sparse linear solver used for the QP subproblem
                                                                 !! (see [[sqpopt_linalg_module]])
+        integer  :: qp_solver_mode = sqpopt_qp_composite !! QP subproblem algorithm to use
+                                                          !! (see [[sqpopt_qp_solver_module]])
         integer  :: linesearch_mode = sqpopt_linesearch_armijo !! line search strategy to use
                                                                 !! (see [[sqpopt_linesearch_module]])
         integer  :: merit_mode = sqpopt_merit_l1 !! merit function to use

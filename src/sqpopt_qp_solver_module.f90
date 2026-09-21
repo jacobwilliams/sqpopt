@@ -57,15 +57,20 @@
     use sqpopt_types_module,   only: sqpopt_sparse_matrix, sqpopt_success
     use sqpopt_hessian_module, only: sqpopt_hessian_type
     use sqpopt_linalg_module,  only: sqpopt_linsolve_lusol, sparse_matvec_transpose
+    use sqpopt_qp_dense_module, only: sqpopt_dense_qp_type
     use lsqr_module,           only: lsqr_solver_ez
 
     implicit none
 
     private
 
+    integer, parameter, public :: sqpopt_qp_composite = 1  !! v1 composite-step heuristic (default, see module docs)
+    integer, parameter, public :: sqpopt_qp_dense      = 2  !! opt-in dense active-set QP solver (see [[sqpopt_qp_dense_module]], `DENSE_QP_PLAN.md`)
+
     type, public :: sqpopt_qp_solver_type
         !! workspace and options for the QP subproblem solver.
 
+        integer  :: mode                = sqpopt_qp_composite  !! which QP algorithm to use (see the `sqpopt_qp_*` constants)
         integer  :: max_iter           = 0                     !! maximum number of iterations allowed for the QP solver
         integer  :: linear_solver_mode = sqpopt_linsolve_lusol  !! sparse linear solver used for the KKT system
         real(wp) :: max_step           = 2.0_wp                 !! trust-region-style cap on \( \lVert p \rVert_2 \);
@@ -75,6 +80,7 @@
         real(wp) :: active_tol         = 1.0e-6_wp              !! an inequality constraint is considered part of the
                                                                  !! active set if it is within `active_tol` of (or beyond)
                                                                  !! one of its bounds (equality constraints are always active)
+        type(sqpopt_dense_qp_type) :: dense_qp   !! the dense QP solver (used only when `mode==sqpopt_qp_dense`)
 
         contains
 
@@ -88,10 +94,45 @@
 !*******************************************************************************
 !>
 !  solve the linearized QP subproblem for the search direction `p` and
-!  the associated Lagrange multipliers `lambda` (see the module-level
-!  documentation for the v1 algorithm used).
+!  the associated Lagrange multipliers `lambda`, dispatching to the
+!  algorithm selected by `me%mode`: the v1 composite-step heuristic
+!  (default, see the module-level documentation) or the opt-in dense
+!  active-set solver (see [[sqpopt_qp_dense_module]]).
 
     subroutine solve_qp_subproblem(me, hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
+
+    class(sqpopt_qp_solver_type), intent(inout) :: me
+    type(sqpopt_hessian_type),  intent(inout) :: hessian !! matrix-free Hessian approximation (never a dense `n x n` matrix)
+    type(sqpopt_sparse_matrix), intent(in)    :: jac     !! sparse constraint Jacobian, `dimension(m,n)`
+    real(wp), dimension(:),     intent(in)    :: x       !! current point `dimension(n)`
+    real(wp), dimension(:),     intent(in)    :: g       !! objective gradient `dimension(n)`
+    real(wp), dimension(:),     intent(in)    :: c       !! current constraint values `dimension(m)`
+    real(wp), dimension(:),     intent(in)    :: x_lb    !! variable lower bounds `dimension(n)`
+    real(wp), dimension(:),     intent(in)    :: x_ub    !! variable upper bounds `dimension(n)`
+    real(wp), dimension(:),     intent(in)    :: c_lb    !! constraint lower bounds `dimension(m)`
+    real(wp), dimension(:),     intent(in)    :: c_ub    !! constraint upper bounds `dimension(m)`
+    real(wp), dimension(:),     intent(out)   :: p       !! computed search direction `dimension(n)`
+    real(wp), dimension(:),     intent(out)   :: lambda  !! Lagrange multipliers for the linearized constraints `dimension(m)`
+    integer,                    intent(out)   :: istat   !! status code (see [[sqpopt_types_module]])
+
+    select case (me%mode)
+    case (sqpopt_qp_dense)
+        call me%dense_qp%solve(hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
+        ! the dense solver enforces bounds/constraints exactly, but still apply the
+        ! same trust-region cap as the composite step, for a consistent step-size safeguard:
+        if (norm2(p) > me%max_step) p = p*(me%max_step/norm2(p))
+    case default
+        call solve_composite_step(me, hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
+    end select
+
+    end subroutine solve_qp_subproblem
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the v1 composite-step algorithm (see the module-level documentation).
+
+    subroutine solve_composite_step(me, hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
 
     class(sqpopt_qp_solver_type), intent(inout) :: me
     type(sqpopt_hessian_type),  intent(inout) :: hessian !! matrix-free Hessian approximation (never a dense `n x n` matrix)
@@ -193,7 +234,7 @@
 
     istat = sqpopt_success
 
-    end subroutine solve_qp_subproblem
+    end subroutine solve_composite_step
 !*******************************************************************************
 
 !*******************************************************************************
