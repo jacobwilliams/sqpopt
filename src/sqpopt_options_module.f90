@@ -8,7 +8,7 @@
 
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
     use sqpopt_linalg_module,  only: sqpopt_linsolve_lusol
-    use sqpopt_linesearch_module, only: sqpopt_linesearch_armijo
+    use sqpopt_linesearch_module, only: sqpopt_linesearch_armijo, sqpopt_merit_l1
 
     implicit none
 
@@ -30,6 +30,8 @@
                                                                 !! (see [[sqpopt_linalg_module]])
         integer  :: linesearch_mode = sqpopt_linesearch_armijo !! line search strategy to use
                                                                 !! (see [[sqpopt_linesearch_module]])
+        integer  :: merit_mode = sqpopt_merit_l1 !! merit function to use
+                                                  !! (see [[sqpopt_linesearch_module]])
 
         real(wp) :: ftol  = 1.0e-8_wp   !! convergence tolerance on relative change in the objective function
         real(wp) :: xtol  = 1.0e-8_wp   !! convergence tolerance on relative change in the optimization variables

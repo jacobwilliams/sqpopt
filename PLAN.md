@@ -259,9 +259,13 @@ a more rigorous QP solver / trust-region radius control, not another patch.
   convergence on problems like this. **See §6 for a concrete design
   (SQOPT's reduced-Hessian active-set method) instead of a vague
   "proper QP solver".**
-- A **smooth augmented Lagrangian merit function** as an alternative to the
+- ~~A **smooth augmented Lagrangian merit function** as an alternative to the
   current \( \ell_1 \) merit function, to avoid the Maratos effect without
-  needing the ad hoc second-order-correction patch. **See §6.**
+  needing the ad hoc second-order-correction patch.~~ **Implemented** as
+  `sqpopt_merit_augmented_lagrangian` (see §6.1) -- but it did not clear up
+  `test_hs71`'s limit cycle on its own (see the "Status" note in §6.1), so
+  the SOC patch is still needed and the top-priority backlog item above
+  (a real QP solve, §6.2) remains the higher-leverage fix for that case.
 - **`sqpopt_hessian_exact`** mode (user-supplied sparse Hessian of the
   Lagrangian) — currently falls back to BFGS in `sqpopt_iterate_module`.
 - **Full Powell damping** for the BFGS update (currently a simpler
@@ -345,6 +349,35 @@ solved to KKT optimality, giving a well-defined multiplier `mu` satisfying
 (1.4); our v1 composite-step QP only produces an *approximate* least-squares
 `lambda`, not a true QP multiplier -- so this pairs best with §6.2 (a real
 QP solve), not as a drop-in replacement for the current merit function alone.
+
+**Status: implemented** as `sqpopt_merit_augmented_lagrangian` in
+[sqpopt_linesearch_module](src/sqpopt_linesearch_module.f90), with two
+deliberate simplifications relative to the full NPSQP theory above (both
+consistent with the caveat just noted, and clearly commented in the code):
+
+- The slack `s` generalizes \( s_i=\max(0,c_i-\lambda_i/\rho) \) to
+  `sqpopt`'s two-sided bounds: \( s = \text{clip}(c-\lambda/\rho,\, c_l,\,
+  c_u) \) (equality rows are handled automatically, since `s` is then
+  clipped to the single value `c_lb=c_ub` regardless of `lambda`/`rho`).
+- `lambda`/`s` are recomputed fresh at each trial point during the line
+  search (using the *current* `lambda` estimate, held fixed) rather than
+  being advanced along a joint `(x,lambda,s)` step with its own search
+  direction `xi`/`q` -- much simpler, at the cost of not exactly matching
+  the paper's line-search theory.
+- The penalty parameter reuses the same `penalty = max(penalty,
+  max|lambda|+1)` heuristic as `sqpopt_merit_l1`, rather than the paper's
+  closed-form `rho-hat` threshold (Lemma 4.3) -- implementing that exactly
+  requires the QP's own multiplier `mu` (distinct from `lambda`) and the
+  `xi`/`q` machinery above, which pairs better with §6.2 (a real QP solve).
+
+`test/test_basic.f90`'s `test_augmented_lagrangian_merit` confirms the new
+mode converges correctly on the existing inequality-constrained test.
+**However, trying it on `test_hs71` did *not* clearly fix the limit-cycle**
+(similar residual error to the default `sqpopt_merit_l1` + SOC combination)
+-- consistent with the caveat above: without a real QP multiplier and the
+full joint-step line search, smoothness alone doesn't fully deliver the
+paper's Maratos-avoidance guarantee. §6.2 (a real QP solve) remains the
+higher-leverage next step for `test_hs71` specifically.
 
 ### 6.2 Reduced-Hessian active-set QP (from `sqdoc7.pdf`, SQOPT)
 

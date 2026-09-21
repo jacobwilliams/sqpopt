@@ -105,10 +105,15 @@
                           problem%c_lb, problem%c_ub, p, new_lambda, qp_istat)
 
     ! update the merit function's penalty parameter so that it dominates the
-    ! current multiplier estimates (as in slsqp): this is required for the
-    ! l1 exact penalty function's minimizer to coincide with the true
-    ! constrained optimum (Han/Powell); without it, the merit function can
-    ! prefer a "compromise" infeasible point over the true solution:
+    ! current multiplier estimates (as in slsqp): for `sqpopt_merit_l1` this
+    ! is required for the exact penalty function's minimizer to coincide with
+    ! the true constrained optimum (Han/Powell); for
+    ! `sqpopt_merit_augmented_lagrangian` the same rule is used as a simple
+    ! (if not exactly optimal) substitute for the paper's closed-form
+    ! threshold (Lemma 4.3 of `references/merit.pdf`), which would require
+    ! tracking the QP's own multiplier separately from `lambda` (see PLAN.md
+    ! §6.1). Without a large-enough penalty, the merit function can prefer a
+    ! "compromise" infeasible point over the true solution:
     if (size(new_lambda) > 0) linesearch%penalty = max(linesearch%penalty, maxval(abs(new_lambda)) + 1.0_wp)
 
     ! safeguard (as in slsqp): if `p` is not a descent direction for the
@@ -116,12 +121,16 @@
     ! approximate QP solution, so it lacks the usual guarantee that the
     ! *optimal* QP solution is a descent direction), reset the Hessian
     ! approximation to the identity and recompute `p` once from scratch:
-    if (dot_product(g,p) - linesearch%penalty*constraint_violation(c, problem%c_lb, problem%c_ub) >= 0.0_wp) then
-        call hessian%reset()
-        call qp_solver%solve(hessian, jac, x, g, c, problem%x_lb, problem%x_ub, &
-                              problem%c_lb, problem%c_ub, p, new_lambda, istat)
-        if (istat /= sqpopt_success) return
-    end if
+    block
+        real(wp) :: dphi0
+        call linesearch%directional_derivative(jac, g, p, c, problem%c_lb, problem%c_ub, new_lambda, dphi0)
+        if (dphi0 >= 0.0_wp) then
+            call hessian%reset()
+            call qp_solver%solve(hessian, jac, x, g, c, problem%x_lb, problem%x_ub, &
+                                  problem%c_lb, problem%c_ub, p, new_lambda, istat)
+            if (istat /= sqpopt_success) return
+        end if
+    end block
 
     ! second-order correction (SOC): for strongly nonlinear constraints, the
     ! full step `p` can be rejected by the merit function even when it is a
@@ -131,11 +140,12 @@
     ! step that accounts for the true constraint residual at `x+p`, and use
     ! the corrected step if it has a better merit function value:
     if (problem%m > 0) then
-        call second_order_correction(problem, linesearch, jac, x, c, p)
+        call second_order_correction(problem, linesearch, jac, x, c, new_lambda, p)
     end if
 
     ! line search along `p` to (approximately) minimize the merit function:
-    call linesearch%search(problem%eval_f, problem%eval_c, x, p, f, g, c, problem%c_lb, problem%c_ub, alpha, istat)
+    call linesearch%search(problem%eval_f, problem%eval_c, x, p, f, g, c, jac, new_lambda, &
+                            problem%c_lb, problem%c_ub, alpha, istat)
     if (istat /= sqpopt_success) return
 
     ! save the current point/gradient for the next quasi-Newton update:
@@ -153,33 +163,19 @@
 
 !*******************************************************************************
 !>
-!  the \( \ell_1 \) constraint violation measure \( \lVert \max(c_l-c,0,c-c_u)
-!  \rVert_1 \), used by the descent-direction safeguard above.
-
-    pure function constraint_violation(c, c_lb, c_ub) result(v)
-
-    real(wp), dimension(:), intent(in) :: c, c_lb, c_ub
-    real(wp) :: v
-
-    v = sum(max(c_lb-c, 0.0_wp) + max(c-c_ub, 0.0_wp))
-
-    end function constraint_violation
-!*******************************************************************************
-
-!*******************************************************************************
-!>
 !  second-order correction: refine `p` using the true (nonlinear)
 !  constraint residual at `x+p` rather than its linear prediction, and
 !  replace `p` with the corrected step if it improves the merit function
 !  (a standard remedy for the Maratos effect near nonlinear constraints).
 
-    subroutine second_order_correction(problem, linesearch, jac, x, c, p)
+    subroutine second_order_correction(problem, linesearch, jac, x, c, lambda, p)
 
     type(sqpopt_problem_type),    intent(inout) :: problem
     type(sqpopt_linesearch_type), intent(inout) :: linesearch
     type(sqpopt_sparse_matrix),   intent(in)    :: jac
     real(wp), dimension(:),       intent(in)    :: x
     real(wp), dimension(:),       intent(in)    :: c
+    real(wp), dimension(:),       intent(in)    :: lambda
     real(wp), dimension(:),       intent(inout) :: p
 
     real(wp), dimension(size(c)) :: jp, c_p, resid, c_soc
@@ -197,11 +193,11 @@
     p_soc = p + p_corr
 
     call problem%eval_f(x+p, f_p)
-    call linesearch%eval_merit(f_p, c_p, problem%c_lb, problem%c_ub, phi_p)
+    call linesearch%eval_merit(f_p, c_p, problem%c_lb, problem%c_ub, lambda, phi_p)
 
     call problem%eval_f(x+p_soc, f_soc)
     call problem%eval_c(x+p_soc, c_soc)
-    call linesearch%eval_merit(f_soc, c_soc, problem%c_lb, problem%c_ub, phi_soc)
+    call linesearch%eval_merit(f_soc, c_soc, problem%c_lb, problem%c_ub, lambda, phi_soc)
 
     if (phi_soc < phi_p) p = p_soc
 
