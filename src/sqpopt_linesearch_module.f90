@@ -51,14 +51,6 @@
 
     end type sqpopt_linesearch_type
 
-    ! module-level state used to pass context into the fmin callback below,
-    ! since `fmin` requires a plain `function(alpha) result(phi)` interface
-    ! with no way to pass extra context through its argument list:
-    procedure(sqpopt_objective_func),  pointer, save, private :: ls_eval_f => null()
-    procedure(sqpopt_constraint_func), pointer, save, private :: ls_eval_c => null()
-    real(wp), dimension(:), allocatable, save, private :: ls_x, ls_p, ls_c_lb, ls_c_ub
-    real(wp), save, private :: ls_penalty = 1.0_wp
-
     contains
 !*******************************************************************************
 
@@ -186,40 +178,34 @@
     real(wp),                intent(out) :: alpha  !! accepted step length
     integer,                  intent(out) :: istat  !! status code (see [[sqpopt_types_module]])
 
-    ls_eval_f => eval_f
-    ls_eval_c => eval_c
-    ls_x      = x
-    ls_p      = p
-    ls_c_lb   = c_lb
-    ls_c_ub   = c_ub
-    ls_penalty = me%penalty
-
     alpha = fmin(merit_along_direction, 0.0_wp, 1.0_wp, me%tol)
     istat = sqpopt_success
 
+    contains
+
+    !*******************************************************************************
+    !>
+    !  the merit function \( \phi(x + \alpha p) \) along the search direction,
+    !  in the form required by [[fmin]]. Uses the module-level state set by
+    !  [[exact_line_search]] just before calling `fmin`.
+
+        function merit_along_direction(alpha) result(phi)
+
+        real(wp), intent(in) :: alpha
+        real(wp) :: phi
+
+        real(wp), dimension(size(x)) :: x_trial, c_trial
+        real(wp) :: f_trial
+
+        x_trial = x + alpha*p
+        call eval_f(x_trial, f_trial)
+        call eval_c(x_trial, c_trial)
+        phi = f_trial + me%penalty*sum(max(c_lb-c_trial, 0.0_wp) + max(c_trial-c_ub, 0.0_wp))
+
+        end function merit_along_direction
+    !*******************************************************************************
+
     end subroutine exact_line_search
-!*******************************************************************************
-
-!*******************************************************************************
-!>
-!  the merit function \( \phi(x + \alpha p) \) along the search direction,
-!  in the form required by [[fmin]]. Uses the module-level state set by
-!  [[exact_line_search]] just before calling `fmin`.
-
-    function merit_along_direction(alpha) result(phi)
-
-    real(wp), intent(in) :: alpha
-    real(wp) :: phi
-
-    real(wp), dimension(size(ls_x)) :: x_trial, c_trial
-    real(wp) :: f_trial
-
-    x_trial = ls_x + alpha*ls_p
-    call ls_eval_f(x_trial, f_trial)
-    call ls_eval_c(x_trial, c_trial)
-    phi = f_trial + ls_penalty*sum(max(ls_c_lb-c_trial, 0.0_wp) + max(c_trial-ls_c_ub, 0.0_wp))
-
-    end function merit_along_direction
 !*******************************************************************************
 
     end module sqpopt_linesearch_module
