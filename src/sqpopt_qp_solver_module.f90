@@ -42,8 +42,11 @@
 !     \rVert_2 \) (again solved with `LSQR`).
 !  4. \( p = p_n - p_t \) is rescaled if \( \lVert p \rVert_2 \) exceeds
 !     `max_step` (a simple trust-region-style safeguard against the
-!     composite step occasionally overshooting), then clipped
-!     component-wise so that \( x+p \) respects the variable bounds.
+!     composite step occasionally overshooting), then adjusted so that
+!     \( x+p \) respects the variable bounds, using the strategy selected
+!     by `bound_enforcement` (`sqpopt_bounds_scalar`, the default, clips
+!     only the violating components; `sqpopt_bounds_vector` rescales the
+!     whole step uniformly instead, preserving its direction).
 !
 !  This composite-step method (the default, `sqpopt_qp_composite`) does
 !  not enforce the linearized general-constraint bounds exactly, relying
@@ -52,7 +55,9 @@
 !  constraints solved exactly: `sqpopt_qp_dense` (a dense active-set QP,
 !  see [[sqpopt_qp_dense_module]]) and `sqpopt_qp_reduced_hessian` (a
 !  sparse/matrix-free active-set QP, see
-!  [[sqpopt_qp_reduced_hessian_module]]).
+!  [[sqpopt_qp_reduced_hessian_module]]). Both of those enforce variable
+!  bounds exactly as part of the QP solve itself, so `bound_enforcement`
+!  does not apply to them.
 
     module sqpopt_qp_solver_module
 
@@ -72,6 +77,13 @@
     integer, parameter, public :: sqpopt_qp_dense           = 2  !! opt-in dense active-set QP solver (see [[sqpopt_qp_dense_module]])
     integer, parameter, public :: sqpopt_qp_reduced_hessian = 3  !! opt-in sparse (projected-CG) active-set QP solver (see [[sqpopt_qp_reduced_hessian_module]])
 
+    integer, parameter, public :: sqpopt_bounds_vector = 1  !! rescale the *entire* step `p` by the same factor so that
+                                                             !! `x+p` just touches the first bound it would otherwise
+                                                             !! violate, preserving `p`'s direction exactly
+    integer, parameter, public :: sqpopt_bounds_scalar = 2  !! (default) clip only the violating components of `x+p`
+                                                             !! to their bound; the other components of `p` are left
+                                                             !! unchanged
+
     type, public :: sqpopt_qp_solver_type
         !! workspace and options for the QP subproblem solver.
 
@@ -85,6 +97,11 @@
         real(wp) :: active_tol         = 1.0e-6_wp              !! an inequality constraint is considered part of the
                                                                  !! active set if it is within `active_tol` of (or beyond)
                                                                  !! one of its bounds (equality constraints are always active)
+        integer  :: bound_enforcement  = sqpopt_bounds_scalar   !! how `mode==sqpopt_qp_composite` enforces the variable
+                                                                 !! bounds `x_lb<=x+p<=x_ub` on its computed step (see the
+                                                                 !! `sqpopt_bounds_*` constants); not used by `sqpopt_qp_dense`/
+                                                                 !! `sqpopt_qp_reduced_hessian`, which enforce bounds exactly
+                                                                 !! as part of the QP solve itself
         type(sqpopt_dense_qp_type)           :: dense_qp    !! the dense QP solver (used only when `mode==sqpopt_qp_dense`)
         type(sqpopt_reduced_hessian_qp_type) :: sparse_qp   !! the sparse QP solver (used only when `mode==sqpopt_qp_reduced_hessian`)
 
@@ -237,14 +254,52 @@
     !     approximate QP solution and can occasionally overshoot):
     if (norm2(p) > me%max_step) p = p*(me%max_step/norm2(p))
 
-    ! (5) clip the (possibly rescaled) step so that x+p respects the variable bounds:
-    do k = 1, n
-        p(k) = min(max(x(k)+p(k), x_lb(k)), x_ub(k)) - x(k)
-    end do
+    ! (5) enforce the variable bounds x_lb<=x+p<=x_ub on the (possibly
+    !     rescaled) step, using the strategy selected by `me%bound_enforcement`:
+    select case (me%bound_enforcement)
+    case (sqpopt_bounds_vector)
+        call rescale_step_to_bounds(x, x_lb, x_ub, p)
+    case default ! sqpopt_bounds_scalar
+        do k = 1, n
+            p(k) = min(max(x(k)+p(k), x_lb(k)), x_ub(k)) - x(k)
+        end do
+    end select
 
     istat = sqpopt_success
 
     end subroutine solve_composite_step
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  `sqpopt_bounds_vector` bound enforcement: find the largest \( \alpha \in
+!  [0,1] \) such that \( x+\alpha p \) satisfies every variable bound, then
+!  rescale the whole step `p := \alpha p`. Unlike component-wise clipping,
+!  this preserves the step's direction exactly (only its length changes).
+
+    subroutine rescale_step_to_bounds(x, x_lb, x_ub, p)
+
+    real(wp), dimension(:), intent(in)    :: x, x_lb, x_ub
+    real(wp), dimension(:), intent(inout) :: p
+
+    real(wp) :: alpha, alpha_k
+    integer  :: k
+
+    alpha = 1.0_wp
+    do k = 1, size(x)
+        if (p(k) > 0.0_wp .and. x(k)+p(k) > x_ub(k)) then
+            alpha_k = (x_ub(k) - x(k))/p(k)
+            alpha = min(alpha, alpha_k)
+        else if (p(k) < 0.0_wp .and. x(k)+p(k) < x_lb(k)) then
+            alpha_k = (x_lb(k) - x(k))/p(k)
+            alpha = min(alpha, alpha_k)
+        end if
+    end do
+    alpha = max(alpha, 0.0_wp)
+
+    p = alpha*p
+
+    end subroutine rescale_step_to_bounds
 !*******************************************************************************
 
 !*******************************************************************************

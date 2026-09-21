@@ -63,6 +63,7 @@ and [test/test_medium.f90](test/test_medium.f90) for complete worked examples.
 | `hessian_mode` | `sqpopt_hessian_bfgs` | Hessian approximation: `sqpopt_hessian_bfgs` (limited-memory BFGS), `sqpopt_hessian_sr1` (limited-memory SR1), or `sqpopt_hessian_exact` (not yet implemented, falls back to BFGS) |
 | `lbfgs_memory` | `10` | number of `(s,y)` vector pairs retained by the limited-memory Hessian |
 | `linear_solver_mode` | `sqpopt_linsolve_lusol` | sparse linear solver used by the QP subproblem: `sqpopt_linsolve_lusol`, `sqpopt_linsolve_lsqr`, or `sqpopt_linsolve_lsmr` |
+| `qp_solver_mode` | `sqpopt_qp_composite` | QP subproblem algorithm: `sqpopt_qp_composite` (matrix-free composite-step heuristic, does not enforce linearized bounds exactly), `sqpopt_qp_dense` (dense active-set QP, enforces bounds exactly, best for small/moderate problems), or `sqpopt_qp_reduced_hessian` (sparse/matrix-free projected-CG active-set QP, enforces bounds exactly, scales to larger problems) |
 | `linesearch_mode` | `sqpopt_linesearch_armijo` | line search strategy: `sqpopt_linesearch_armijo` (backtracking, as in `slsqp`), `sqpopt_linesearch_exact` (derivative-free 1-D minimization via `fmin`), or `sqpopt_linesearch_watchdog` (Powell's VF13 watchdog technique: relaxed step acceptance with a best-point safety net) |
 | `merit_mode` | `sqpopt_merit_l1` | merit function: `sqpopt_merit_l1` (non-smooth exact penalty) or `sqpopt_merit_augmented_lagrangian` (smooth NPSOL/SNOPT-style augmented Lagrangian) |
 | `ftol`, `xtol`, `ctol` | `1e-8` | convergence tolerances on the objective, variables, and constraint feasibility |
@@ -73,6 +74,10 @@ The QP subproblem solver (`sqpopt_qp_solver_type`) and line search
 (`sqpopt_linesearch_type`) each expose further tuning parameters (e.g.
 `qp_solver%max_step`, a trust-region-style cap on the step norm;
 `qp_solver%active_tol`, the active-set filter tolerance;
+`qp_solver%bound_enforcement` (`sqpopt_qp_composite` mode only), how the
+composite step's bound violations are corrected -- `sqpopt_bounds_scalar`
+(default, clip only the violating components) or `sqpopt_bounds_vector`
+(rescale the whole step uniformly, preserving its direction);
 `linesearch%alpha_min`/`sigma`/`backtrack`, the Armijo parameters) that can
 be set by constructing them directly and passing them to
 `solver%initialize(problem=..., options=..., qp_solver=..., linesearch=...)`.
