@@ -11,7 +11,7 @@
     module sqpopt_iterate_module
 
     use sqpopt_kinds,             only: wp => sqpopt_module_wp
-    use sqpopt_types_module,      only: sqpopt_sparse_matrix, sqpopt_success
+    use sqpopt_types_module,      only: sqpopt_sparse_matrix, sqpopt_success, sqpopt_user_requested_stop, sqpopt_report_func
     use sqpopt_problem_module,    only: sqpopt_problem_type
     use sqpopt_options_module,    only: sqpopt_options_type, sqpopt_hessian_sr1
     use sqpopt_hessian_module,    only: sqpopt_hessian_type
@@ -39,7 +39,7 @@
 !  the first iteration, since no previous point is yet available).
 
     subroutine sqpopt_iterate(problem, options, hessian, qp_solver, linesearch, &
-                               x, lambda, x_prev, gl_prev, converged, istat)
+                               x, lambda, x_prev, gl_prev, iter, report, converged, istat)
 
     type(sqpopt_problem_type),    intent(inout) :: problem     !! problem definition
     type(sqpopt_options_type),    intent(in)    :: options     !! solver options
@@ -50,6 +50,8 @@
     real(wp), dimension(:), intent(inout) :: lambda  !! current Lagrange multipliers, updated on exit `dimension(m)`
     real(wp), dimension(:), allocatable, intent(inout) :: x_prev  !! previous point (unallocated before the 1st call)
     real(wp), dimension(:), allocatable, intent(inout) :: gl_prev !! previous Lagrangian gradient (unallocated before the 1st call)
+    integer,                intent(in)    :: iter      !! major iteration number (starts at 1), passed to `report`
+    procedure(sqpopt_report_func), optional, pointer :: report !! optional user progress-reporting callback (see [[sqpopt_types_module]])
     logical,                 intent(out)   :: converged !! true if `x` (on entry) already satisfies the convergence criteria
     integer,                 intent(out)   :: istat     !! status code (see [[sqpopt_types_module]])
 
@@ -71,6 +73,24 @@
     jac%icol  = problem%jac_icol
     allocate(jac%val(problem%jac_nnz))
     call problem%eval_jac(x, jac%val)
+
+    ! report progress on the current iterate, if the user has supplied a
+    ! callback, before doing any further work this iteration -- this
+    ! reports every major iterate, including the initial guess (iter=1,
+    ! before any step has been taken) and the final, converged point:
+    if (present(report)) then
+        if (associated(report)) then
+            block
+                logical :: user_stop
+                call report(iter, x, f, c, lambda, user_stop)
+                if (user_stop) then
+                    istat     = sqpopt_user_requested_stop
+                    converged = .false.
+                    return
+                end if
+            end block
+        end if
+    end if
 
     ! check convergence at the current point before taking a step:
     call check_convergence(x, g, jac, c, problem%x_lb, problem%x_ub, problem%c_lb, problem%c_ub, &

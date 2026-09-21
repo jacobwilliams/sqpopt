@@ -34,5 +34,26 @@
         real(wp), dimension(:), allocatable :: val   !! nonzero values `dimension(nnz)`
     end type sqpopt_sparse_matrix
 
+    abstract interface
+        subroutine sqpopt_report_func(iter, x, f, c, lambda, user_stop)
+            !! user-supplied callback invoked once per major SQP iteration
+            !! for progress monitoring (see `sqpopt_type%initialize`'s
+            !! `report` argument). Set `user_stop=.true.` to have the
+            !! solver stop after the current iteration
+            !! (`istat=sqpopt_user_requested_stop`).
+            import :: wp
+            implicit none
+            integer,                intent(in)  :: iter      !! major iteration number (starts at 1)
+            real(wp), dimension(:), intent(in)  :: x         !! current optimization variables `dimension(n)`
+            real(wp),               intent(in)  :: f         !! current objective function value
+            real(wp), dimension(:), intent(in)  :: c         !! current constraint values `dimension(m)`
+            real(wp), dimension(:), intent(in)  :: lambda    !! current Lagrange multiplier estimate `dimension(m)`
+            logical,                intent(out) :: user_stop !! set `.true.` to request the solver stop
+        end subroutine sqpopt_report_func
+    end interface
+
+    public :: sqpopt_report_func
+
+
     end module sqpopt_types_module
 !*******************************************************************************

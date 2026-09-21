@@ -55,7 +55,7 @@ program test_medium
     implicit none
 
     real(wp), parameter :: big = 1.0e20_wp !! sentinel value used for "unbounded" sides
-    real(wp), parameter :: sqrt3 = 1.7320508075688772_wp
+    real(wp), parameter :: sqrt3 = sqrt(3.0_wp)
 
     type(sqpopt_type)         :: solver
     type(sqpopt_problem_type) :: problem
