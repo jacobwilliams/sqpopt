@@ -256,7 +256,12 @@ a more rigorous QP solver / trust-region radius control, not another patch.
   constraints are simultaneously active at a corner-point solution. A
   proper QP solve (or at least trust-region radius control that shrinks on
   repeated rejection, rather than a fixed `max_step`) is needed for tight
-  convergence on problems like this.
+  convergence on problems like this. **See §6 for a concrete design
+  (SQOPT's reduced-Hessian active-set method) instead of a vague
+  "proper QP solver".**
+- A **smooth augmented Lagrangian merit function** as an alternative to the
+  current \( \ell_1 \) merit function, to avoid the Maratos effect without
+  needing the ad hoc second-order-correction patch. **See §6.**
 - **`sqpopt_hessian_exact`** mode (user-supplied sparse Hessian of the
   Lagrangian) — currently falls back to BFGS in `sqpopt_iterate_module`.
 - **Full Powell damping** for the BFGS update (currently a simpler
@@ -274,4 +279,114 @@ a more rigorous QP solver / trust-region radius control, not another patch.
   aware -- see the note in §3) are none of them currently exposed on
   `sqpopt_options_type` either; worth revisiting together once there's a
   more rigorous QP solver to tune.
+
+## 6. SNOPT-family design ideas (`references/merit.pdf`, `sqdoc7.pdf`, `sndoc7.pdf`)
+
+Three reference documents on the Stanford SOL group's SNOPT/SQOPT/NPSOL
+family were added to `references/` (read via `pdftotext -layout`, not code
+dependencies -- SNOPT/SQOPT are proprietary and only their PDF manuals /
+papers are available here, not usable/linkable Fortran source):
+
+- `merit.pdf` -- Gill, Murray, Saunders & Wright, *"Some Theoretical
+  Properties of an Augmented Lagrangian Merit Function"* (SOL 86-6R), the
+  paper describing the smooth merit function used in NPSOL/NPSQP (and, in
+  spirit, SNOPT).
+- `sqdoc7.pdf` -- the SQOPT 7 User's Guide (the large-scale sparse
+  active-set QP solver used as SNOPT's QP engine).
+- `sndoc7.pdf` -- the SNOPT User's Guide (large-scale SQP for nonlinear
+  problems, built on SQOPT + the NPSOL-style merit function/line search).
+
+Both ideas below are natural **user-selectable options** (following the
+same `options%..._mode` pattern already used for `hessian_mode`/
+`linesearch_mode`/`linear_solver_mode`), not replacements for the v1
+defaults -- consistent with "most common algorithms first, optional ones
+later".
+
+### 6.1 Smooth augmented Lagrangian merit function (from `merit.pdf`)
+
+NPSOL's `NPSQP` algorithm treats the Lagrange multiplier estimate \(
+\lambda \) as an extra variable (not just a by-product of the QP), and adds
+non-negative slacks \( s \) for the inequality constraints so everything
+can be included smoothly in the linesearch:
+
+$$ L(x,\lambda,s,\rho) = f(x) - \lambda^T\!\left(c(x)-s\right) + \tfrac{1}{2}\rho \lVert c(x)-s \rVert_2^2, \quad s \ge 0 $$
+
+Key mechanics (Section 2-3 of the paper):
+
+- The search direction for \( \lambda \) is \( \xi = \mu - \lambda \) (where
+  \( \mu \) is the QP's own multiplier), so a full step (\( \alpha=1 \))
+  sets \( \lambda \to \mu \) exactly.
+- The slacks are set in closed form each iteration:
+  \( s_i = \max(0, c_i - \lambda_i/\rho) \) (or \( \max(0,c_i) \) if \( \rho=0 \)).
+- The penalty parameter \( \rho \) is increased **only when needed** to
+  guarantee \( \phi'(0,\rho) \le -\tfrac{1}{2}p^THp \) (a closed-form
+  threshold \( \hat\rho \), Lemma 4.3) -- this is a more principled version
+  of our current "`penalty = max(penalty, max|lambda|+1)`" heuristic
+  (Han/Powell rule for the non-smooth \( \ell_1 \) merit function).
+- Because \( L \) is **twice continuously differentiable** (unlike the
+  \( \ell_1 \) merit function's kinks at the constraint boundaries), the
+  line search can use a Wolfe-type test with both a value condition (3.1a)
+  and a *derivative* condition (3.1b) -- and the paper proves this avoids
+  the Maratos effect and allows full steps near the solution, which is
+  **exactly the failure mode our second-order-correction patch was added to
+  work around** for `test_hs71`. A correctly implemented augmented
+  Lagrangian merit function would likely make that patch unnecessary.
+
+**Proposed v2 design**: add `sqpopt_merit_l1` (current, default) and
+`sqpopt_merit_augmented_lagrangian` (new) as a `merit_mode` option on
+`sqpopt_linesearch_type`/`sqpopt_options_type`. The augmented Lagrangian
+mode would need: (a) slack variables `s` (size `m`, only for inequality
+rows), (b) the multiplier `lambda` promoted to real linesearch state
+(already partially true -- we carry `lambda` across iterations, just not
+as a linesearch variable with its own search direction `xi`), and (c) the
+closed-form `rho` update above in place of the current heuristic.
+**Caveat**: the paper's global convergence theory assumes the QP (1.3) is
+solved to KKT optimality, giving a well-defined multiplier `mu` satisfying
+(1.4); our v1 composite-step QP only produces an *approximate* least-squares
+`lambda`, not a true QP multiplier -- so this pairs best with §6.2 (a real
+QP solve), not as a drop-in replacement for the current merit function alone.
+
+### 6.2 Reduced-Hessian active-set QP (from `sqdoc7.pdf`, SQOPT)
+
+SQOPT solves (convex) QPs of the same two-sided-bounds form we already use
+(`l <= (x, Ax) <= u`, i.e. exactly `x_lb<=x<=x_ub` and `c_lb<=c(x)<=c_ub`
+after linearizing `c`), via a **reduced-Hessian active-set / reduced-gradient
+method**. Two things make it a strong architectural fit for `sqpopt`:
+
+- **The Hessian is never formed**: SQOPT requires only a user subroutine
+  `qpHx(x) -> Hx` that returns the Hessian-vector product -- exactly our
+  `sqpopt_hessian_type%hv_product`. A reduced-Hessian method only ever
+  needs `Hv` products restricted to the *current null-space basis* `Z`
+  (i.e. `Z^T H Z v`), which composes naturally with our existing
+  `hv_product`.
+- **The constraint matrix is sparse** (their CSC `Acol`/`indA`/`locA`
+  triplet, vs. our COO `sqpopt_sparse_matrix` -- trivial to convert
+  between, or just build both representations from the same problem data).
+- It uses the **same slack-variable device** as SQOPT's `sndoc7.pdf`
+  algorithm and our own bound handling: general constraints become
+  equalities `Ax - s = 0` with bounds moved onto `s`, unifying variable and
+  constraint bounds into one bounded-variable framework -- this is
+  basically the qpOASES-style "generalized bounds" idea considered (and set
+  aside for complexity) back in the original architecture discussion.
+- SQOPT's **elastic mode** (relaxing bounds with a penalty when a linearized
+  QP subproblem would otherwise be infeasible) is directly relevant to a
+  known soft spot in our own design: our v1 QP heuristic side-steps this by
+  never enforcing bounds exactly inside the QP at all, relying on the outer
+  iteration instead. A proper elastic-mode active-set QP would let us
+  enforce bounds properly *and* always have a feasible subproblem.
+
+**Proposed v2 design**: a new `sqpopt_qp_solver_mode` option,
+`sqpopt_qp_composite` (current v1 heuristic, default) vs.
+`sqpopt_qp_reduced_hessian` (new): a genuine active-set QP working on the
+same `x_lb<=x+p<=x_ub`, `c_lb<=c+Jp<=c_ub` subproblem, using `hv_product`
+for all Hessian-vector products (never forming `H`), `sparse_matvec`/
+`sparse_matvec_transpose` for `J`, and `lusol` (already a dependency, unused
+by the v1 QP path) to factorize the small working-set systems that arise as
+constraints/bounds enter and leave the active set -- this is the concrete
+version of the "rigorous active-set QP solver" already flagged as the
+top-priority backlog item in §5, and (combined with §6.1) is expected to fix
+the `test_hs71` limit-cycle behavior properly, since a real QP solve
+guarantees its solution is a descent direction for a correctly-parameterized
+merit function (the theoretical property Lemma 4.1(a) relies on, and which
+our heuristic composite step cannot guarantee -- see the safeguards in §3).
 
