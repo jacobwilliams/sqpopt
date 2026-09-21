@@ -93,14 +93,14 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 | option | default | description |
 |---|---|---|
 | `max_iter` | `100` | maximum number of major SQP iterations |
-| `print_level` | `0` | amount of diagnostic printing (currently unused) |
+| `print_level` | `0` | amount of diagnostic printing to `stdout` (`0` = silent, `>=1` = one summary line per major iteration) |
 | `hessian_mode` | `sqpopt_hessian_bfgs` | Hessian approximation strategy (see the [Hessian approximation](#hessian-approximation-sqpopt_hessian_type) table below) |
 | `lbfgs_memory` | `10` | number of `(s,y)` vector pairs retained by the limited-memory Hessian |
-| `linear_solver_mode` | `sqpopt_linsolve_lusol` | reserved for future use -- not currently wired to any solver dispatch |
 | `qp_solver_mode` | `sqpopt_qp_composite` | QP subproblem algorithm (see the [QP subproblem solver](#qp-subproblem-solver-sqpopt_qp_solver_type) tables below) |
 | `linesearch_mode` | `sqpopt_linesearch_armijo` | line search strategy (see the [Line search & merit function](#line-search--merit-function-sqpopt_linesearch_type) tables below) |
 | `merit_mode` | `sqpopt_merit_l1` | merit function (see the [Line search & merit function](#line-search--merit-function-sqpopt_linesearch_type) tables below) |
-| `ftol`, `xtol`, `ctol` | `1e-8` | convergence tolerances on the relative change in the objective/variables, and on constraint feasibility |
+| `ftol`, `xtol` | `1e-8` | once feasible, also stop if the objective's and the variables' relative change from the previous iterate are both below these tolerances (a safeguard against looping to `max_iter` on marginal steps when the KKT test in `ktol` never quite converges) |
+| `ctol` | `1e-8` | feasibility tolerance on the constraint violation |
 | `ktol` | `1e-6` | tolerance on the KKT optimality (projected-gradient) test |
 
 `hessian_mode`/`lbfgs_memory`, `qp_solver_mode`, `linesearch_mode`, and
@@ -131,7 +131,6 @@ configure it is via those two `options` fields:
 | `max_step` | `2.0` | trust-region-style cap on \|\|p\|\|₂ applied after every QP solve, regardless of `mode` |
 | `active_tol` | `1e-6` | tolerance used by the composite step (`mode=sqpopt_qp_composite`) to decide whether an inequality constraint is part of the active set |
 | `bound_enforcement` | `sqpopt_bounds_scalar` | how the composite step (`mode=sqpopt_qp_composite` only) corrects a bound violation in its computed step -- see the mode table below; not used by `sqpopt_qp_dense`/`sqpopt_qp_reduced_hessian`, which enforce bounds exactly as part of the QP solve itself |
-| `max_iter`, `linear_solver_mode` | `0`, `sqpopt_linsolve_lusol` | reserved for future use -- not currently wired to any solver dispatch |
 | `dense_qp` | -- | the dense active-set QP solver's own options (used only when `mode==sqpopt_qp_dense`); see table below |
 | `sparse_qp` | -- | the sparse active-set QP solver's own options (used only when `mode==sqpopt_qp_reduced_hessian`); see table below |
 

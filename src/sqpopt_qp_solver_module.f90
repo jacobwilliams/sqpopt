@@ -64,7 +64,7 @@
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
     use sqpopt_types_module,   only: sqpopt_sparse_matrix, sqpopt_success
     use sqpopt_hessian_module, only: sqpopt_hessian_type
-    use sqpopt_linalg_module,  only: sqpopt_linsolve_lusol, sparse_matvec_transpose
+    use sqpopt_linalg_module,  only: sparse_matvec_transpose
     use sqpopt_qp_dense_module, only: sqpopt_dense_qp_type
     use sqpopt_qp_reduced_hessian_module, only: sqpopt_reduced_hessian_qp_type
     use lsqr_module,           only: lsqr_solver_ez
@@ -88,8 +88,6 @@
         !! workspace and options for the QP subproblem solver.
 
         integer  :: mode                = sqpopt_qp_composite  !! which QP algorithm to use (see the `sqpopt_qp_*` constants)
-        integer  :: max_iter           = 0                     !! maximum number of iterations allowed for the QP solver
-        integer  :: linear_solver_mode = sqpopt_linsolve_lusol  !! sparse linear solver used for the KKT system
         real(wp) :: max_step           = 2.0_wp                 !! trust-region-style cap on \( \lVert p \rVert_2 \);
                                                                  !! the step is rescaled if it is exceeded (safeguards
                                                                  !! against the composite step occasionally

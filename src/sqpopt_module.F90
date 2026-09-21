@@ -114,6 +114,7 @@
     integer,                intent(out)   :: istat  !! status code (see [[sqpopt_types_module]])
 
     real(wp), dimension(:), allocatable :: x_prev, gl_prev  !! quasi-Newton state (unallocated until the 2nd iteration)
+    real(wp), allocatable :: f_prev  !! previous objective value, for the `options%ftol` stalled-progress test (unallocated until the 2nd iteration)
     logical :: converged
     integer :: iter_istat, iter
 
@@ -124,7 +125,6 @@
 
     call me%hessian%initialize(me%problem%n, me%options%lbfgs_memory, &
                                 use_sr1=(me%options%hessian_mode == sqpopt_hessian_sr1))
-    me%qp_solver%linear_solver_mode = me%options%linear_solver_mode
     me%qp_solver%mode               = me%options%qp_solver_mode
     me%linesearch%mode              = me%options%linesearch_mode
     me%linesearch%merit_mode        = me%options%merit_mode
@@ -132,7 +132,7 @@
     do iter = 1, me%options%max_iter
         me%iter = iter
         call sqpopt_iterate(me%problem, me%options, me%hessian, me%qp_solver, me%linesearch, &
-                             me%x, me%lambda, x_prev, gl_prev, iter, me%report, converged, iter_istat)
+                             me%x, me%lambda, x_prev, gl_prev, f_prev, iter, me%report, converged, iter_istat)
         if (converged) then
             istat = sqpopt_success
             me%istat = istat

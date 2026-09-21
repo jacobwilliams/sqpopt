@@ -48,11 +48,11 @@ SQP iterations, since its `LSQR`-based null-space projections are
 iterative rather than one-shot direct factorizations).
 
 Deliberately **not yet implemented** (see §5 for the "optional/advanced"
-backlog): `sqpopt_hessian_exact` mode (falls back to BFGS), a **sparse**
-rigorous active-set QP solver (`sqpopt_qp_reduced_hessian`, §6.2 -- the
-**dense** one, §6.4, is now implemented), `ftol`/`xtol` no-progress
-stopping tests, and diagnostic printing (`options%print_level` is
-currently unused).
+backlog): `sqpopt_hessian_exact` mode (falls back to BFGS) and full
+Powell damping for the BFGS update. The dense (§6.4) and sparse (§6.2)
+rigorous active-set QP solvers, and the `ftol`/`xtol` no-progress
+stopping tests and `options%print_level` diagnostic printing, are all
+now implemented.
 
 ## 2. Dependency inventory & reuse strategy
 
@@ -73,11 +73,13 @@ linear algebra trio `LSQR`, `LSMR`, `lusol`, and `fmin`.
   the \\( \\ell_1 \\) merit function along the search direction, instead of a
   hand-written backtracking search.
 - **`lusol`** (`lusol_ez_module.solve`) / **`LSMR`** (`lsmrModule.lsmr_ez`) —
-  wired up in [sqpopt_linalg_module](src/sqpopt_linalg_module.f90)
-  (`solve_sparse_linear_system`, dispatched by `linear_solver_mode`) as
-  general-purpose sparse square-system solvers, for future use by a more
-  rigorous QP solver (not yet called by the v1 composite-step QP solver,
-  which only needs `LSQR`'s rectangular least-squares capability).
+  wired up in [sqpopt_linalg_module](src/sqpopt_linalg_module.f90) as
+  `solve_sparse_linear_system`, a standalone general-purpose sparse
+  square-system solver dispatching on the `sqpopt_linsolve_*` constants,
+  for future use by a more rigorous QP solver (not currently called by
+  any of the three QP solver modes, which each use `LSQR`/dense Cholesky
+  directly; the `linear_solver_mode` option that used to sit on top of
+  it was removed since nothing dispatched through it -- see §5).
 
 `lusol`/`LSQR`/`LSMR` all take/accept 1-based COO `irow`/`icol`/`val`
 triplets, which is exactly the convention used by `sqpopt_sparse_matrix` —
@@ -302,14 +304,10 @@ merit-function/line-search patch, was the actual fix needed.
   Lagrangian) — currently falls back to BFGS in `sqpopt_iterate_module`.
 - **Full Powell damping** for the BFGS update (currently a simpler
   curvature-condition skip rule).
-- **`ftol`/`xtol`** no-progress stopping tests (only the KKT/feasibility
-  test is implemented).
-- **Diagnostic printing** (`options%print_level` is defined but unused).
 - Whether to expose `NumDiff`'s automatic sparsity-pattern detection as a
   convenience path in `sqpopt_problem_module`, or keep sparsity patterns
   strictly user-supplied (current behavior).
-- Default `lbfgs_memory` (currently 10), `linear_solver_mode` (currently
-  `lusol`, though not yet exercised by the v1 QP path), `qp_solver%max_step`
+- Default `lbfgs_memory` (currently 10), `qp_solver%max_step`
   (currently a fixed `2.0`, not problem-scale-aware), and
   `qp_solver%active_tol` (currently a fixed `1e-6`, also not problem-scale-
   aware -- see the note in §3) are none of them currently exposed on
@@ -334,7 +332,7 @@ papers are available here, not usable/linkable Fortran source):
 
 Both ideas below are natural **user-selectable options** (following the
 same `options%..._mode` pattern already used for `hessian_mode`/
-`linesearch_mode`/`linear_solver_mode`), not replacements for the v1
+`linesearch_mode`), not replacements for the v1
 defaults -- consistent with "most common algorithms first, optional ones
 later".
 

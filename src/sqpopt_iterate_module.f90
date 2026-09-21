@@ -33,13 +33,15 @@
 !*******************************************************************************
 !>
 !  perform one major SQP iteration, updating `x` and `lambda` in place.
-!  `x_prev`/`gl_prev` hold the previous point / Lagrangian gradient used
-!  to form the quasi-Newton `(s,y)` pair; they should be passed in
-!  *unallocated* before the first call (the Hessian update is skipped on
-!  the first iteration, since no previous point is yet available).
+!  `x_prev`/`gl_prev`/`f_prev` hold the previous point / Lagrangian
+!  gradient / objective value, used to form the quasi-Newton `(s,y)` pair
+!  and to check `options%ftol`/`xtol`; they should be passed in
+!  *unallocated* before the first call (the Hessian update and the
+!  stalled-progress convergence test are both skipped on the first
+!  iteration, since no previous point is yet available).
 
     subroutine sqpopt_iterate(problem, options, hessian, qp_solver, linesearch, &
-                               x, lambda, x_prev, gl_prev, iter, report, converged, istat)
+                               x, lambda, x_prev, gl_prev, f_prev, iter, report, converged, istat)
 
     type(sqpopt_problem_type),    intent(inout) :: problem     !! problem definition
     type(sqpopt_options_type),    intent(in)    :: options     !! solver options
@@ -50,6 +52,7 @@
     real(wp), dimension(:), intent(inout) :: lambda  !! current Lagrange multipliers, updated on exit `dimension(m)`
     real(wp), dimension(:), allocatable, intent(inout) :: x_prev  !! previous point (unallocated before the 1st call)
     real(wp), dimension(:), allocatable, intent(inout) :: gl_prev !! previous Lagrangian gradient (unallocated before the 1st call)
+    real(wp),               allocatable, intent(inout) :: f_prev  !! previous objective value (unallocated before the 1st call)
     integer,                intent(in)    :: iter      !! major iteration number (starts at 1), passed to `report`
     procedure(sqpopt_report_func), optional, pointer :: report !! optional user progress-reporting callback (see [[sqpopt_types_module]])
     logical,                 intent(out)   :: converged !! true if `x` (on entry) already satisfies the convergence criteria
@@ -92,9 +95,18 @@
         end if
     end if
 
-    ! check convergence at the current point before taking a step:
-    call check_convergence(x, g, jac, c, problem%x_lb, problem%x_ub, problem%c_lb, problem%c_ub, &
-                            lambda, options%ktol, options%ctol, converged, conv_istat)
+    ! check convergence at the current point before taking a step (the
+    ! stalled-progress test also needs `f_prev`/`x_prev`, so is only
+    ! available from the 2nd iteration onward):
+    if (allocated(x_prev)) then
+        call check_convergence(x, g, jac, c, problem%x_lb, problem%x_ub, problem%c_lb, problem%c_ub, &
+                                lambda, options%ktol, options%ctol, converged, conv_istat, &
+                                f=f, f_prev=f_prev, x_prev=x_prev, ftol=options%ftol, xtol=options%xtol)
+    else
+        call check_convergence(x, g, jac, c, problem%x_lb, problem%x_ub, problem%c_lb, problem%c_ub, &
+                                lambda, options%ktol, options%ctol, converged, conv_istat)
+    end if
+    if (options%print_level >= 1) write(*,'(A,I5,A,ES13.5,A,L1)') ' sqpopt iter ', iter, ': f = ', f, ', converged = ', converged
     if (converged) then
         istat = sqpopt_success
         return
@@ -165,9 +177,11 @@
     call linesearch%search(problem%eval_f, problem%eval_c, x, p, f, g, c, jac, new_lambda, &
                             problem%c_lb, problem%c_ub, alpha, x_new, istat)
 
-    ! save the current point/gradient for the next quasi-Newton update:
+    ! save the current point/gradient/objective for the next quasi-Newton
+    ! update and stalled-progress convergence test:
     x_prev  = x
     gl_prev = gl
+    f_prev  = f
 
     ! update the point and multipliers: `x_new` is always well-defined here
     ! (even when `istat==sqpopt_line_search_failed`, e.g. the `alpha_min`
@@ -178,6 +192,9 @@
     ! whether the sufficient-decrease test was satisfied:
     x      = x_new
     lambda = new_lambda
+
+    if (options%print_level >= 1) write(*,'(A,I5,A,ES13.5,A,ES10.2,A,I0)') &
+        ' sqpopt iter ', iter, ': f = ', f, ', alpha = ', alpha, ', qp_istat = ', qp_istat
 
     istat = sqpopt_success
 
