@@ -275,6 +275,12 @@ a more rigorous QP solver / trust-region radius control, not another patch.
   but (like §6.1) does not fully resolve the limit cycle on its own; see
   §6.3 for the full result, including an unrelated control-flow bug fix
   in `sqpopt_iterate_module` found and fixed along the way.
+- A **dense QP solver option** (`sqpopt_qp_dense`, see §6.4), prompted by
+  `slsqp` itself solving `test_hs71` to machine precision in 6 iterations
+  using a dense BFGS + dense active-set QP. Design-in-progress, see
+  [DENSE_QP_PLAN.md](DENSE_QP_PLAN.md) -- recommended as the faster,
+  lower-risk path to validate that a real QP solve is what's needed,
+  *before* investing in §6.2's sparse version.
 - **`sqpopt_hessian_exact`** mode (user-supplied sparse Hessian of the
   Lagrangian) — currently falls back to BFGS in `sqpopt_iterate_module`.
 - **Full Powell damping** for the BFGS update (currently a simpler
@@ -442,6 +448,40 @@ CG active-set method** that gets null-space projections by re-solving a
 small `LSQR` least-squares problem each time, reusing the same technique
 v1's composite step already uses for its tangential step. No code has been
 written yet.
+
+### 6.4 Dense QP solver option (from comparing against `slsqp` directly)
+
+Prompted by adding `test/slsqp_test_71.f90` alongside `test_hs71.f90`
+(same underlying HS71 problem, confirmed by direct comparison): `slsqp`
+converges to machine precision in 6 iterations, where `sqpopt`'s v1
+heuristic only manages a loose limit cycle. `slsqp` does this with an
+entirely **dense** BFGS Hessian + dense active-set-style QP, which
+confirmed (by reading `slsqp_core.f90` directly) that its own
+constraint-Jacobian and Hessian-Cholesky-factor arguments are genuinely
+dense (`dimension(la,n+1)`/packed dense Cholesky factor) -- there is no
+sparse entry point to reuse, consistent with `PLAN.md` §2's note that
+`slsqp` is "algorithmic inspiration only, not linked as a dependency."
+
+**Status: design in progress.** A staged plan for an *opt-in*
+`sqpopt_qp_dense` mode -- forms dense `J`/`H` from the existing sparse/
+matrix-free representations each iteration, and reuses the **same**
+active-set control logic as §6.2/[REDUCED_HESSIAN_QP_PLAN.md](REDUCED_HESSIAN_QP_PLAN.md)
+§6, just with a dense QR/modified-Cholesky backend instead of sparse
+`LSQR`/projected-CG -- has been written up in
+[DENSE_QP_PLAN.md](DENSE_QP_PLAN.md). It also documents a concrete
+finding: `slsqp`'s own dense QP-forming routines (`lsq`/`lsei`/`lsi`/
+`ldp`/`nnls`/`hfti`) are all **private** (same situation as `lbfgsb`'s
+`bmv`, §2) -- only `bvls_module`'s `bvls` is public, and it turns out not
+to compose cleanly with the null-space active-set design (bounds become
+general inequalities, not simple box bounds, after the change of basis
+needed to eliminate equality constraints) -- so this plan writes small,
+new, self-contained dense QR/Cholesky helpers rather than reusing `slsqp`/
+`bvls` internals; `slsqp` stays a dev-dependency only. **Recommended to be
+built and validated *before* the sparse §6.2 plan**: same control logic,
+but a dense one-shot QR/Cholesky backend has no iterative tolerances to
+get right (unlike sparse projected-CG), so it's the faster, lower-risk way
+to confirm that a real QP solve is really what fixes `test_hs71` before
+investing in the larger sparse effort. No code has been written yet.
 
 ### 6.3 Watchdog line search (from `references/vf13`, Powell's VF13 / HSL archive)
 
