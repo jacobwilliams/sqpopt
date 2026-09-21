@@ -1,14 +1,30 @@
 # Design plan: reduced-Hessian active-set QP solver (`sqpopt_qp_reduced_hessian`)
 
-**Status: design only -- no code written yet.** This expands PLAN.md §6.2
-("Reduced-Hessian active-set QP, from `sqdoc7.pdf`/SQOPT") into a concrete,
-buildable design, sized to `sqpopt`'s existing constraints (matrix-free `H`,
-sparse COO `J`, no dense `n x n`/`m x n` arrays, only `LSQR`/`LSMR`/`lusol`
-available as linear-algebra building blocks). It intentionally trades some
-of SQOPT's efficiency for a much smaller implementation footprint, by
-reusing infrastructure `sqpopt` already has instead of building a sparse
-LU-updated basis factorization from scratch (see "Key simplification"
-below).
+**Status: implemented, per this plan, with results below.** This expands
+PLAN.md §6.2 ("Reduced-Hessian active-set QP, from `sqdoc7.pdf`/SQOPT")
+into a concrete, buildable design, sized to `sqpopt`'s existing
+constraints (matrix-free `H`, sparse COO `J`, no dense `n x n`/`m x n`
+arrays, only `LSQR`/`LSMR`/`lusol` available as linear-algebra building
+blocks). It intentionally trades some of SQOPT's efficiency for a much
+smaller implementation footprint, by reusing infrastructure `sqpopt`
+already has instead of building a sparse LU-updated basis factorization
+from scratch (see "Key simplification" below).
+
+**Result**: `test_hs71` with `options%qp_solver_mode =
+sqpopt_qp_reduced_hessian` now reaches `istat=sqpopt_success`, converging
+to within `7e-7` of the known solution -- matching
+[DENSE_QP_PLAN.md](DENSE_QP_PLAN.md)'s dense solver's result, while
+staying fully sparse/matrix-free throughout. As anticipated in §3/§9
+below, it needs noticeably more major SQP iterations to get there than
+the dense solver (`test_hs71`'s shared `max_iter` was raised to `3000` to
+accommodate it -- the dense solver reaches `sqpopt_success` well within
+`300`) -- the price of `LSQR`'s iterative tolerances vs. the dense
+solver's one-shot direct factorizations, exactly the tradeoff this plan
+called out in advance. Implementation deviated from this plan in the same
+way [DENSE_QP_PLAN.md](DENSE_QP_PLAN.md) did: no `w=(p,s)` slack padding
+-- works directly in `p`-space, treating general constraints and variable
+bounds uniformly as `m+n` two-sided rows on `p`. See `PLAN.md` §6.2 for
+the full implementation summary.
 
 ## 1. Goal and scope
 

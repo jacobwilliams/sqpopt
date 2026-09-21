@@ -24,8 +24,9 @@ limited-memory Hessian modes.
 | `sqpopt_options_module` | tolerances, iteration limits, Hessian/linear-solver mode selectors | done |
 | `sqpopt_hessian_module` | limited-memory (L-BFGS/L-SR1) Lagrangian Hessian, matrix-free | done |
 | `sqpopt_linalg_module` | sparse matvec + dispatch to `lusol`/`LSQR`/`LSMR` | done |
-| `sqpopt_qp_solver_module` | QP direction finder: v1 composite-step (default) or dense active-set (§6.4, opt-in) | done |
+| `sqpopt_qp_solver_module` | QP direction finder: v1 composite-step (default), dense active-set (§6.4), or sparse reduced-Hessian active-set (§6.2), all opt-in except the default | done |
 | `sqpopt_qp_dense_module` | opt-in dense active-set QP solver (see §6.4/`DENSE_QP_PLAN.md`) | done |
+| `sqpopt_qp_reduced_hessian_module` | opt-in sparse projected-CG active-set QP solver (see §6.2/`REDUCED_HESSIAN_QP_PLAN.md`) | done |
 | `sqpopt_dense_linalg_module` | dense QR/modified-Cholesky helpers, used only by `sqpopt_qp_dense_module` | done |
 | `sqpopt_linesearch_module` | \( \ell_1 \)/augmented-Lagrangian merit functions + Armijo (default)/exact/watchdog line search | done |
 | `sqpopt_convergence_module` | projected-gradient KKT test + feasibility | done |
@@ -39,7 +40,12 @@ memory operator (only `O(n * lbfgs_memory)` storage, `lbfgs_memory` a
 small constant). The one exception is the *explicitly opt-in*
 `sqpopt_qp_dense` mode (§6.4), which forms dense arrays on purpose for
 users who know their problem is small enough that the tight convergence
-it buys is worth the `O(n^2)`/`O(mn)` memory -- never the default.
+it buys is worth the `O(n^2)`/`O(mn)` memory -- never the default. For
+larger sparse problems where that tradeoff isn't worth it,
+`sqpopt_qp_reduced_hessian` (§6.2) gets the same exact-QP-solve benefit
+while staying fully sparse/matrix-free (at the cost of needing more major
+SQP iterations, since its `LSQR`-based null-space projections are
+iterative rather than one-shot direct factorizations).
 
 Deliberately **not yet implemented** (see §5 for the "optional/advanced"
 backlog): `sqpopt_hessian_exact` mode (falls back to BFGS), a **sparse**
@@ -241,29 +247,35 @@ hitting `max_iter`).
 [test/test_hs71.f90](test/test_hs71.f90) adds a genuinely **nonlinear** test:
 Hock-Schittkowski problem 71 (nonlinear objective, one nonlinear equality and
 one nonlinear inequality constraint, both simultaneously active at the
-solution, plus variable bounds). **This exposed a real v1 limitation**: the
-solver settles into a small, stable oscillation (limit cycle) near the true
+solution, plus variable bounds). **This originally exposed a real v1
+limitation**: with the default `sqpopt_qp_composite` QP solver, the solver
+settles into a small, stable oscillation (limit cycle) near the true
 solution rather than converging tightly to it -- confirmed by running up to
 3000 iterations with no further improvement, so it is not merely slow
 convergence. `istat` ends as `sqpopt_max_iter_reached`, not `sqpopt_success`,
-and the test only checks that the final point is within `0.25` of the known
-solution (it typically gets within ~0.2). This is left as a known limitation
-(see §5) rather than force-fit with more heuristics; fixing it properly needs
-a more rigorous QP solver / trust-region radius control, not another patch.
+for that mode (and for the augmented Lagrangian merit / watchdog line search
+variants, §6.1/§6.3, which only partially help), so those cases use a
+generous `0.5` tolerance rather than requiring `sqpopt_success`. **Both
+real QP solves fix this properly**: with `qp_solver_mode=sqpopt_qp_dense`
+(§6.4) or `sqpopt_qp_reduced_hessian` (§6.2), `test_hs71` now reaches
+`sqpopt_success` and requires it (tight `1e-4` tolerance) -- confirming
+the long-standing hypothesis that a real QP solve, not another
+merit-function/line-search patch, was the actual fix needed.
 
 ## 5. Backlog ("optional/advanced" work, deferred from v1)
 
 - ~~A rigorous **active-set or interior-point QP solver** that enforces
   linearized general-constraint bounds exactly (the current composite-step
-  heuristic relies on outer-iteration convergence instead).~~ **Implemented**
-  as `sqpopt_qp_dense` (see §6.4/[DENSE_QP_PLAN.md](DENSE_QP_PLAN.md)):
-  a real dense active-set QP that finally gets `test_hs71` to
-  `sqpopt_success`. The **sparse** version of the same idea
-  (`sqpopt_qp_reduced_hessian`, §6.2/[REDUCED_HESSIAN_QP_PLAN.md](REDUCED_HESSIAN_QP_PLAN.md))
-  remains unimplemented and is now lower priority for `test_hs71`
-  specifically (already fixed by the dense mode for small problems) but
-  still worthwhile for large sparse problems, where `sqpopt_qp_dense`'s
-  `O(n^2)`/`O(mn)` dense arrays aren't an option.
+  heuristic relies on outer-iteration convergence instead).~~ **Implemented
+  twice**: `sqpopt_qp_dense` (see §6.4/[DENSE_QP_PLAN.md](DENSE_QP_PLAN.md),
+  a dense active-set QP) and `sqpopt_qp_reduced_hessian` (see
+  §6.2/[REDUCED_HESSIAN_QP_PLAN.md](REDUCED_HESSIAN_QP_PLAN.md), a sparse/
+  matrix-free projected-CG active-set QP) -- both get `test_hs71` to
+  `sqpopt_success`. Use `sqpopt_qp_dense` for small-to-moderate problems
+  (fewer major iterations needed, simpler direct linear algebra);
+  `sqpopt_qp_reduced_hessian` for problems too large for `sqpopt_qp_dense`'s
+  `O(n^2)`/`O(mn)` dense arrays (more major iterations needed, due to
+  `LSQR`'s iterative rather than direct null-space projections).
 - ~~A **smooth augmented Lagrangian merit function** as an alternative to the
   current \( \ell_1 \) merit function, to avoid the Maratos effect without
   needing the ad hoc second-order-correction patch.~~ **Implemented** as
@@ -442,6 +454,43 @@ the `test_hs71` limit-cycle behavior properly, since a real QP solve
 guarantees its solution is a descent direction for a correctly-parameterized
 merit function (the theoretical property Lemma 4.1(a) relies on, and which
 our heuristic composite step cannot guarantee -- see the safeguards in §3).
+
+**Status: implemented.** A detailed, staged implementation plan was
+written up in [REDUCED_HESSIAN_QP_PLAN.md](REDUCED_HESSIAN_QP_PLAN.md)
+and then implemented as designed:
+- New [sqpopt_qp_reduced_hessian_module](src/sqpopt_qp_reduced_hessian_module.f90)
+  (`sqpopt_reduced_hessian_qp_type`) -- a **projected-conjugate-gradient**
+  active-set QP (Gould, Hribar & Nocedal 1998). `lusol` ends up unused
+  here: null-space projections are obtained by re-solving a small
+  least-squares problem with `LSQR` each time (`project_null`, exactly
+  the technique v1's own composite step already uses for its tangential
+  step), not by factorizing a maintained basis with `lusol` as the
+  original proposal above suggested -- see REDUCED_HESSIAN_QP_PLAN.md §3
+  for why the maintained-basis approach was judged too large/risky to
+  build from scratch. Works directly in `p`-space (general constraints
+  and bounds unified as `m+n` two-sided rows), the same simplification
+  made in [DENSE_QP_PLAN.md](DENSE_QP_PLAN.md)'s dense sibling (§6.4)
+  rather than the `w=(p,s)` slack padding originally proposed above.
+- Validated in isolation first
+  ([test/test_qp_reduced_hessian.f90](test/test_qp_reduced_hessian.f90)),
+  the exact same 4 hand-verified QPs used for the dense solver's tests --
+  all passed exactly on the first attempt (matching `p` and Lagrange
+  multiplier signs), a good sign the active-set control logic (shared in
+  spirit with the dense solver, see the comparison table in
+  DENSE_QP_PLAN.md §6) transferred correctly to the sparse/LSQR backend.
+- Wired in via the same `mode` field on `sqpopt_qp_solver_type`
+  (`sqpopt_qp_reduced_hessian=3`, alongside `sqpopt_qp_composite=1` and
+  `sqpopt_qp_dense=2`) plus `options%qp_solver_mode`.
+- **Result on `test_hs71`**: also reaches `sqpopt_success`, converging to
+  within `7e-7` -- matching the dense solver's result while staying fully
+  sparse/matrix-free. It needs noticeably more major SQP iterations to
+  get there, though (`test_hs71`'s shared `max_iter` was raised to `3000`
+  to accommodate it; the dense solver succeeds well within `300`) -- the
+  cost of `LSQR`'s iterative tolerances vs. the dense solver's one-shot
+  direct factorizations, precisely the tradeoff the plan called out in
+  advance (§3/§9 there). For problems too large for `sqpopt_qp_dense`'s
+  `O(n^2)`/`O(mn)` dense arrays, this is the mode that scales.
+
 
 **Status: design in progress.** A detailed, staged implementation plan
 (reformulation, algorithm, data structures, and a phased build/validation

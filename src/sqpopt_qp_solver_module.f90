@@ -58,14 +58,16 @@
     use sqpopt_hessian_module, only: sqpopt_hessian_type
     use sqpopt_linalg_module,  only: sqpopt_linsolve_lusol, sparse_matvec_transpose
     use sqpopt_qp_dense_module, only: sqpopt_dense_qp_type
+    use sqpopt_qp_reduced_hessian_module, only: sqpopt_reduced_hessian_qp_type
     use lsqr_module,           only: lsqr_solver_ez
 
     implicit none
 
     private
 
-    integer, parameter, public :: sqpopt_qp_composite = 1  !! v1 composite-step heuristic (default, see module docs)
-    integer, parameter, public :: sqpopt_qp_dense      = 2  !! opt-in dense active-set QP solver (see [[sqpopt_qp_dense_module]], `DENSE_QP_PLAN.md`)
+    integer, parameter, public :: sqpopt_qp_composite       = 1  !! v1 composite-step heuristic (default, see module docs)
+    integer, parameter, public :: sqpopt_qp_dense           = 2  !! opt-in dense active-set QP solver (see [[sqpopt_qp_dense_module]], `DENSE_QP_PLAN.md`)
+    integer, parameter, public :: sqpopt_qp_reduced_hessian = 3  !! opt-in sparse (projected-CG) active-set QP solver (see [[sqpopt_qp_reduced_hessian_module]], `REDUCED_HESSIAN_QP_PLAN.md`)
 
     type, public :: sqpopt_qp_solver_type
         !! workspace and options for the QP subproblem solver.
@@ -80,7 +82,8 @@
         real(wp) :: active_tol         = 1.0e-6_wp              !! an inequality constraint is considered part of the
                                                                  !! active set if it is within `active_tol` of (or beyond)
                                                                  !! one of its bounds (equality constraints are always active)
-        type(sqpopt_dense_qp_type) :: dense_qp   !! the dense QP solver (used only when `mode==sqpopt_qp_dense`)
+        type(sqpopt_dense_qp_type)           :: dense_qp    !! the dense QP solver (used only when `mode==sqpopt_qp_dense`)
+        type(sqpopt_reduced_hessian_qp_type) :: sparse_qp   !! the sparse QP solver (used only when `mode==sqpopt_qp_reduced_hessian`)
 
         contains
 
@@ -120,6 +123,9 @@
         call me%dense_qp%solve(hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
         ! the dense solver enforces bounds/constraints exactly, but still apply the
         ! same trust-region cap as the composite step, for a consistent step-size safeguard:
+        if (norm2(p) > me%max_step) p = p*(me%max_step/norm2(p))
+    case (sqpopt_qp_reduced_hessian)
+        call me%sparse_qp%solve(hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
         if (norm2(p) > me%max_step) p = p*(me%max_step/norm2(p))
     case default
         call solve_composite_step(me, hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
