@@ -432,6 +432,17 @@ guarantees its solution is a descent direction for a correctly-parameterized
 merit function (the theoretical property Lemma 4.1(a) relies on, and which
 our heuristic composite step cannot guarantee -- see the safeguards in §3).
 
+**Status: design in progress.** A detailed, staged implementation plan
+(reformulation, algorithm, data structures, and a phased build/validation
+order) has been written up in
+[REDUCED_HESSIAN_QP_PLAN.md](REDUCED_HESSIAN_QP_PLAN.md) -- notably, it
+avoids porting SQOPT's maintained sparse-LU basis factorization (too large
+an undertaking to build from scratch on `lusol`) in favor of a **projected-
+CG active-set method** that gets null-space projections by re-solving a
+small `LSQR` least-squares problem each time, reusing the same technique
+v1's composite step already uses for its tangential step. No code has been
+written yet.
+
 ### 6.3 Watchdog line search (from `references/vf13`, Powell's VF13 / HSL archive)
 
 `references/vf13` contains the HSL archive package spec (`vf13_Fortran.pdf`)
