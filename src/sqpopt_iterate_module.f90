@@ -58,7 +58,7 @@
     logical,                 intent(out)   :: converged !! true if `x` (on entry) already satisfies the convergence criteria
     integer,                 intent(out)   :: istat     !! status code (see [[sqpopt_types_module]])
 
-    real(wp) :: f
+    real(wp) :: f !! current objective function value
     real(wp), dimension(problem%n) :: g, gl, p, x_new
     real(wp), dimension(problem%m) :: c, new_lambda
     type(sqpopt_sparse_matrix) :: jac
