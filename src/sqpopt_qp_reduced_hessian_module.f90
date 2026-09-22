@@ -297,12 +297,15 @@
     !! (`truncated=.false.`, tests `u+alpha*d_total`, `alpha` in `[0,1]`) and
     !! the "scale only the truncation direction" case (`truncated=.true.`,
     !! tests `u+d_total+alpha*d_extra`, `alpha>=0`).
-    function ratio_alpha(arows, k, u, d_total, d_extra, truncated, bound_val, is_upper) result(a)
-    type(sqpopt_sparse_matrix), intent(in) :: arows
-    integer,                    intent(in) :: k
-    real(wp), dimension(:),     intent(in) :: u, d_total, d_extra
-    logical,                    intent(in) :: truncated, is_upper
-    real(wp),                   intent(in) :: bound_val
+    pure function ratio_alpha(arows, k, u, d_total, d_extra, truncated, bound_val, is_upper) result(a)
+    type(sqpopt_sparse_matrix), intent(in) :: arows !! sparse combined constraint matrix
+    integer,                    intent(in) :: k !! row index in the sparse combined constraint matrix
+    real(wp), dimension(:),     intent(in) :: u !! current solution vector
+    real(wp), dimension(:),     intent(in) :: d_total !! candidate move direction
+    real(wp), dimension(:),     intent(in) :: d_extra !! extra move direction for truncated step
+    logical,                    intent(in) :: truncated !! whether the step is truncated
+    logical,                    intent(in) :: is_upper !! whether the bound is an upper bound
+    real(wp),                   intent(in) :: bound_val !! value of the bound
     real(wp) :: a
     real(wp) :: base_val, rate
     if (truncated) then
@@ -323,12 +326,12 @@
 !  dot product of row `k` of the sparse combined row set `arows` with a
 !  dense vector `v` (`dimension(n)`), i.e. `arows(k,:) . v`.
 
-    function sparse_dot_row(arows, k, v) result(s)
+    pure function sparse_dot_row(arows, k, v) result(s)
 
-    type(sqpopt_sparse_matrix), intent(in) :: arows
-    integer,                    intent(in) :: k
-    real(wp), dimension(:),     intent(in) :: v
-    real(wp) :: s
+    type(sqpopt_sparse_matrix), intent(in) :: arows !! sparse combined constraint matrix
+    integer,                    intent(in) :: k !! row index in the sparse combined constraint matrix
+    real(wp), dimension(:),     intent(in) :: v !! dense vector to be dotted with row `k` of `arows`
+    real(wp) :: s !! result of the dot product of row `k` of `arows` with vector `v`
 
     integer :: j
 
@@ -350,16 +353,19 @@
 
     subroutine project_null(ja, n_active, n, v, out, atol, btol, conlim, itnlim)
 
-    type(sqpopt_sparse_matrix), intent(in)  :: ja
-    integer,                    intent(in)  :: n_active, n
-    real(wp), dimension(:),     intent(in)  :: v
-    real(wp), dimension(:),     intent(out) :: out
-    real(wp),                   intent(in)  :: atol, btol, conlim !! `LSQR` tolerances (see [[sqpopt_reduced_hessian_qp_type]])
-    integer,                    intent(in)  :: itnlim              !! `LSQR` max iterations
+    type(sqpopt_sparse_matrix), intent(in)  :: ja !! active-row matrix (`n_active x n`)
+    integer,                    intent(in)  :: n_active !! number of active rows in `ja`
+    integer,                    intent(in)  :: n !! number of columns in `ja`
+    real(wp), dimension(:),     intent(in)  :: v !! vector to be projected onto the null space of `ja`
+    real(wp), dimension(:),     intent(out) :: out !! projected vector onto the null space of `ja`
+    real(wp),                   intent(in)  :: atol     !! `LSQR` tolerances (see [[sqpopt_reduced_hessian_qp_type]])
+    real(wp),                   intent(in)  :: btol     !! `LSQR` tolerances (see [[sqpopt_reduced_hessian_qp_type]])
+    real(wp),                   intent(in)  :: conlim   !! `LSQR` tolerances (see [[sqpopt_reduced_hessian_qp_type]])
+    integer,                    intent(in)  :: itnlim   !! `LSQR` max iterations
 
     type(lsqr_solver_ez) :: lsqr
-    real(wp), dimension(:), allocatable :: z
-    real(wp), dimension(n) :: jtz
+    real(wp), dimension(:), allocatable :: z !! minimum-norm least-squares solution of `ja^T*z ~ v`
+    real(wp), dimension(n) :: jtz !! `ja^T*z`
     integer :: istop, j
 
     if (n_active == 0) then
@@ -401,15 +407,20 @@
 
     type(sqpopt_hessian_type),  intent(inout) :: hessian
     type(sqpopt_sparse_matrix), intent(in)    :: ja
-    integer,                    intent(in)    :: n_active, n, max_pcg
+    integer,                    intent(in)    :: n_active !! number of active rows in `ja`
+    integer,                    intent(in)    :: n !! number of columns in `ja`
+    integer,                    intent(in)    :: max_pcg !!
     real(wp), dimension(n),     intent(in)    :: hu_g0   !! H*u0+g at the starting point
     real(wp), dimension(n),     intent(in)    :: gproj0  !! project_null(ja,hu_g0) at the starting point
-    real(wp),                   intent(in)    :: opt_tol, curv_tol
-    real(wp),                   intent(in)    :: lsqr_atol, lsqr_btol, lsqr_conlim !! `LSQR` tolerances
-    integer,                    intent(in)    :: lsqr_itnlim                      !! `LSQR` max iterations
+    real(wp),                   intent(in)    :: opt_tol !! optimality tolerance
+    real(wp),                   intent(in)    :: curv_tol !! curvature tolerance
+    real(wp),                   intent(in)    :: lsqr_atol    !! `LSQR` tolerances
+    real(wp),                   intent(in)    :: lsqr_btol    !! `LSQR` tolerances
+    real(wp),                   intent(in)    :: lsqr_conlim  !! `LSQR` tolerances
+    integer,                    intent(in)    :: lsqr_itnlim  !! `LSQR` max iterations
     real(wp), dimension(n),     intent(out)   :: d_total !! accumulated step
     real(wp), dimension(n),     intent(out)   :: d_extra !! truncation direction (only meaningful if truncated)
-    logical,                    intent(out)   :: truncated
+    logical,                    intent(out)   :: truncated !! whether CG was truncated due to negative/zero curvature
 
     real(wp), dimension(n) :: r, gproj, dvec, hd
     real(wp) :: rg_old, rg_new, kappa, alpha, beta
@@ -461,16 +472,18 @@
 
     subroutine build_active_set(arows, row_lb, row_ub, status, mtot, n, ja, rhs_active, orig_idx, n_active)
 
-    type(sqpopt_sparse_matrix), intent(in)  :: arows
-    integer,                    intent(in)  :: mtot, n
-    real(wp), dimension(mtot),  intent(in)  :: row_lb, row_ub
-    integer,  dimension(mtot),  intent(in)  :: status
-    type(sqpopt_sparse_matrix), intent(out) :: ja
-    real(wp), dimension(:), allocatable, intent(out) :: rhs_active
-    integer,  dimension(:), allocatable, intent(out) :: orig_idx
-    integer,                    intent(out) :: n_active
+    type(sqpopt_sparse_matrix), intent(in)  :: arows !! the combined `mtot x n` sparse row set
+    integer,                    intent(in)  :: mtot !! total number of rows in the combined sparse row set
+    integer,                    intent(in)  :: n    !! number of columns in the combined sparse row set
+    real(wp), dimension(mtot),  intent(in)  :: row_lb !! lower bounds for each row
+    real(wp), dimension(mtot),  intent(in)  :: row_ub !! upper bounds for each row
+    integer,  dimension(mtot),  intent(in)  :: status !! status of each row (0 = inactive, -1 = active at lower bound, 1 = active at upper bound)
+    type(sqpopt_sparse_matrix), intent(out) :: ja !! the `n_active x n` sparse sub-matrix of active rows
+    real(wp), dimension(:), allocatable, intent(out) :: rhs_active !! right-hand-side values for the active rows
+    integer,  dimension(:), allocatable, intent(out) :: orig_idx !! mapping of each active row back to its index in `1..mtot`
+    integer,                    intent(out) :: n_active !! number of active rows
 
-    integer, dimension(:), allocatable :: row_map
+    integer, dimension(:), allocatable :: row_map !! mapping of each row in the combined sparse row set to its index in the active set (0 if inactive)
     integer :: k, idx, nnz_a, j
 
     n_active = count(status /= 0)
@@ -517,20 +530,23 @@
 
     subroutine project_onto_active(arows, row_lb, row_ub, status, mtot, n, u, atol, btol, conlim, itnlim)
 
-    type(sqpopt_sparse_matrix), intent(in)    :: arows
-    integer,                    intent(in)    :: mtot, n
-    real(wp), dimension(mtot),  intent(in)    :: row_lb, row_ub
-    integer,  dimension(mtot),  intent(in)    :: status
-    real(wp), dimension(n),     intent(inout) :: u
-    real(wp),                   intent(in)    :: atol, btol, conlim !! `LSQR` tolerances (see [[sqpopt_reduced_hessian_qp_type]])
-    integer,                    intent(in)    :: itnlim              !! `LSQR` max iterations
+    type(sqpopt_sparse_matrix), intent(in)    :: arows ! ! sparse matrix of active rows
+    integer,                    intent(in)    :: mtot   !! total number of rows in the original constraint matrix
+    integer,                    intent(in)    :: n      !! total number of columns in the original constraint matrix
+    real(wp), dimension(mtot),  intent(in)    :: row_lb !! lower bounds for the rows of the original constraint matrix
+    real(wp), dimension(mtot),  intent(in)    :: row_ub !! upper bounds for the rows of the original constraint matrix
+    integer,  dimension(mtot),  intent(in)    :: status !! status of the rows of the original constraint matrix
+    real(wp), dimension(n),     intent(inout) :: u      !! current solution vector
+    real(wp),                   intent(in)    :: atol   !! `LSQR` tolerances (see [[sqpopt_reduced_hessian_qp_type]])
+    real(wp),                   intent(in)    :: btol   !! `LSQR` tolerances (see [[sqpopt_reduced_hessian_qp_type]])
+    real(wp),                   intent(in)    :: conlim !! `LSQR` tolerances (see [[sqpopt_reduced_hessian_qp_type]])
+    integer,                    intent(in)    :: itnlim !! `LSQR` max iterations
 
     type(sqpopt_sparse_matrix) :: ja
+    type(lsqr_solver_ez) :: lsqr
     real(wp), dimension(:), allocatable :: rhs_active, resid, correction
     integer,  dimension(:), allocatable :: orig_idx
-    integer :: n_active, j
-    type(lsqr_solver_ez) :: lsqr
-    integer :: istop
+    integer :: n_active, j, istop
 
     call build_active_set(arows, row_lb, row_ub, status, mtot, n, ja, rhs_active, orig_idx, n_active)
     if (n_active == 0) return
@@ -558,16 +574,17 @@
 
     subroutine sparse_row_value(arows, u, m, is_equality, status, row_lb, row_ub, tol)
 
-    type(sqpopt_sparse_matrix), intent(in)    :: arows
-    real(wp), dimension(:),     intent(in)    :: u
-    integer,                    intent(in)    :: m
-    logical,  dimension(:),     intent(in)    :: is_equality
-    integer,  dimension(:),     intent(inout) :: status
-    real(wp), dimension(:),     intent(in)    :: row_lb, row_ub
-    real(wp),                   intent(in)    :: tol
+    type(sqpopt_sparse_matrix), intent(in)    :: arows !! sparse matrix of the general constraint rows
+    real(wp), dimension(:),     intent(in)    :: u !! current solution vector
+    integer,                    intent(in)    :: m !! number of general constraint rows
+    logical,  dimension(:),     intent(in)    :: is_equality !! indicates whether each general constraint row is an equality constraint
+    integer,  dimension(:),     intent(inout) :: status !! current status of each general constraint row
+    real(wp), dimension(:),     intent(in)    :: row_lb !! lower bounds for the general constraint rows
+    real(wp), dimension(:),     intent(in)    :: row_ub !! upper bounds for the general constraint rows
+    real(wp),                   intent(in)    :: tol !! tolerance for checking constraint violations
 
-    integer :: k
-    real(wp) :: val
+    integer :: k !! loop index for the general constraint rows
+    real(wp) :: val !! value of the current general constraint row at `u`
 
     do k = 1, m
         if (is_equality(k)) cycle

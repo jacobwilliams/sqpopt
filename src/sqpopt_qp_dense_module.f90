@@ -308,14 +308,16 @@
 
     subroutine build_active_set(arows, row_lb, row_ub, status, mtot, n, ja, rhs_active, orig_idx, n_active)
 
-    integer,                            intent(in)  :: mtot, n
-    real(wp), dimension(mtot,n),        intent(in)  :: arows
-    real(wp), dimension(mtot),          intent(in)  :: row_lb, row_ub
-    integer,  dimension(mtot),          intent(in)  :: status
-    real(wp), dimension(:,:), allocatable, intent(out) :: ja
-    real(wp), dimension(:),   allocatable, intent(out) :: rhs_active
-    integer,  dimension(:),   allocatable, intent(out) :: orig_idx
-    integer,                            intent(out) :: n_active
+    integer,                            intent(in)  :: mtot !! total number of rows in the combined constraint matrix
+    integer,                            intent(in)  :: n !! number of columns in the constraint matrix (dimension of the decision variable)
+    real(wp), dimension(mtot,n),        intent(in)  :: arows !! combined constraint matrix (mtot rows, n columns)
+    real(wp), dimension(mtot),          intent(in)  :: row_lb !! lower bounds for each row in the combined constraint matrix
+    real(wp), dimension(mtot),          intent(in)  :: row_ub !! upper bounds for each row in the combined constraint matrix
+    integer,  dimension(mtot),          intent(in)  :: status !! status of each row (0 if inactive, -1 if active at lower bound, 1 if active at upper bound)
+    real(wp), dimension(:,:), allocatable, intent(out) :: ja !! dense matrix of currently-active rows
+    real(wp), dimension(:),   allocatable, intent(out) :: rhs_active !! right-hand-side values for the active rows
+    integer,  dimension(:),   allocatable, intent(out) :: orig_idx !! mapping from active rows to their original indices in 1..mtot
+    integer,                            intent(out) :: n_active !! number of currently-active rows
 
     integer :: k, idx
 
@@ -344,16 +346,18 @@
 
     subroutine project_onto_active(arows, row_lb, row_ub, status, mtot, n, u)
 
-    integer,                     intent(in)    :: mtot, n
-    real(wp), dimension(mtot,n), intent(in)    :: arows
-    real(wp), dimension(mtot),   intent(in)    :: row_lb, row_ub
-    integer,  dimension(mtot),   intent(in)    :: status
-    real(wp), dimension(n),      intent(inout) :: u
+    integer,                     intent(in)    :: mtot !! total number of rows in the combined constraint matrix
+    integer,                     intent(in)    :: n !! number of columns in the combined constraint matrix
+    real(wp), dimension(mtot,n), intent(in)    :: arows !! combined constraint matrix (each row corresponds to a constraint)
+    real(wp), dimension(mtot),   intent(in)    :: row_lb !! lower bounds for each row in the combined constraint matrix
+    real(wp), dimension(mtot),   intent(in)    :: row_ub !! upper bounds for each row in the combined constraint matrix
+    integer,  dimension(mtot),   intent(in)    :: status !! status of each row (0 if inactive, -1 if active at lower bound, 1 if active at upper bound)
+    real(wp), dimension(n),      intent(inout) :: u !! current solution vector, adjusted in place to satisfy active constraints
 
-    real(wp), dimension(:,:), allocatable :: ja
-    real(wp), dimension(:),   allocatable :: rhs_active
-    integer,  dimension(:),   allocatable :: orig_idx
-    integer :: n_active
+    real(wp), dimension(:,:), allocatable :: ja !! active constraint matrix
+    real(wp), dimension(:),   allocatable :: rhs_active !! right-hand side for active constraints
+    integer,  dimension(:),   allocatable :: orig_idx !! original indices of the active constraints
+    integer :: n_active !! number of currently-active rows
 
     call build_active_set(arows, row_lb, row_ub, status, mtot, n, ja, rhs_active, orig_idx, n_active)
     if (n_active == 0) return

@@ -265,11 +265,11 @@
 
     subroutine hessian_solve_small_system(k2, a, b, x, ok)
 
-    integer, intent(in) :: k2
-    real(wp), dimension(k2,k2), intent(inout) :: a
-    real(wp), dimension(k2), intent(inout)    :: b
-    real(wp), dimension(k2), intent(out)      :: x
-    logical, intent(out) :: ok
+    integer, intent(in) :: k2 !! order of the small dense system
+    real(wp), dimension(k2,k2), intent(inout) :: a !! coefficient matrix of the small dense system
+    real(wp), dimension(k2), intent(inout)    :: b !! right-hand side vector of the small dense system
+    real(wp), dimension(k2), intent(out)      :: x !! solution vector of the small dense system
+    logical, intent(out) :: ok !! indicates whether the small system was solved successfully
 
     integer :: i, p, piv
     real(wp) :: fac, amax
@@ -320,9 +320,9 @@
     real(wp), dimension(:), intent(in)  :: v  !! input vector `dimension(n)`
     real(wp), dimension(:), intent(out) :: d  !! result `dimension(n)`
 
-    real(wp), dimension(me%n_history) :: alpha
-    real(wp), dimension(me%n) :: q
-    integer :: i
+    real(wp), dimension(me%n_history) :: alpha !! temporary storage for the two-loop recursion coefficients in L-BFGS
+    real(wp), dimension(me%n) :: q !! temporary vector used in the two-loop recursion
+    integer :: i !! loop index for the two-loop recursion
 
     if (me%use_sr1) then
         call hessian_cg_solve(me, v, d)

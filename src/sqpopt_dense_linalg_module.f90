@@ -108,9 +108,9 @@
 
     subroutine dense_modified_cholesky(a, n, l)
 
-    integer,                  intent(in)  :: n
-    real(wp), dimension(n,n), intent(in)  :: a
-    real(wp), dimension(n,n), intent(out) :: l
+    integer,                  intent(in)  :: n !! order of the matrix `a`
+    real(wp), dimension(n,n), intent(in)  :: a !! symmetric matrix to be factorized
+    real(wp), dimension(n,n), intent(out) :: l !! lower-triangular Cholesky factor of `a`
 
     integer  :: i, j
     real(wp) :: piv
@@ -136,10 +136,10 @@
 
     subroutine dense_solve_cholesky(l, n, b, x)
 
-    integer,                  intent(in)  :: n
-    real(wp), dimension(n,n), intent(in)  :: l
-    real(wp), dimension(n),   intent(in)  :: b
-    real(wp), dimension(n),   intent(out) :: x
+    integer,                  intent(in)  :: n !! order of the matrix `l`
+    real(wp), dimension(n,n), intent(in)  :: l !! lower-triangular Cholesky factor of `a`
+    real(wp), dimension(n),   intent(in)  :: b !! right-hand side vector of the linear system `Ax=b`
+    real(wp), dimension(n),   intent(out) :: x !! solution vector of the linear system `Ax=b`
 
     real(wp), dimension(n) :: y
     integer :: i

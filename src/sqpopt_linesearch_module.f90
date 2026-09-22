@@ -166,8 +166,11 @@
     subroutine augmented_lagrangian_slacks(me, c, c_lb, c_ub, lambda, s)
 
     class(sqpopt_linesearch_type), intent(in)  :: me
-    real(wp), dimension(:), intent(in)  :: c, c_lb, c_ub, lambda
-    real(wp), dimension(:), intent(out) :: s
+    real(wp), dimension(:), intent(in)  :: c !! constraint values at `x` `dimension(m)`
+    real(wp), dimension(:), intent(in)  :: c_lb !! lower bounds on the constraints `dimension(m)`
+    real(wp), dimension(:), intent(in)  :: c_ub !! upper bounds on the constraints `dimension(m)`
+    real(wp), dimension(:), intent(in)  :: lambda !! Lagrange multipliers for the constraints `dimension(m)`
+    real(wp), dimension(:), intent(out) :: s !! closed-form slack that minimizes the augmented Lagrangian merit function
 
     if (me%penalty <= 0.0_wp) then
         s = min(max(c, c_lb), c_ub)
@@ -195,13 +198,16 @@
     subroutine merit_directional_derivative(me, jac, g, p, c, c_lb, c_ub, lambda, dphi0)
 
     class(sqpopt_linesearch_type), intent(in) :: me
-    type(sqpopt_sparse_matrix), intent(in) :: jac     !! constraint Jacobian at `x`, `dimension(m,n)`
-    real(wp), dimension(:), intent(in) :: g           !! objective gradient at `x` `dimension(n)`
-    real(wp), dimension(:), intent(in) :: p           !! search direction `dimension(n)`
-    real(wp), dimension(:), intent(in) :: c, c_lb, c_ub, lambda
-    real(wp), intent(out) :: dphi0
+    type(sqpopt_sparse_matrix), intent(in) :: jac  !! constraint Jacobian at `x`, `dimension(m,n)`
+    real(wp), dimension(:), intent(in) :: g        !! objective gradient at `x` `dimension(n)`
+    real(wp), dimension(:), intent(in) :: p        !! search direction `dimension(n)`
+    real(wp), dimension(:), intent(in) :: c        !! constraint values at `x` `dimension(m)`
+    real(wp), dimension(:), intent(in) :: c_lb     !! lower bounds on the constraints `dimension(m)`
+    real(wp), dimension(:), intent(in) :: c_ub     !! upper bounds on the constraints `dimension(m)`
+    real(wp), dimension(:), intent(in) :: lambda   !! Lagrange multipliers for the constraints `dimension(m)`
+    real(wp), intent(out) :: dphi0 !! directional derivative of the merit function along `p`
 
-    real(wp), dimension(size(c)) :: s
+    real(wp), dimension(size(c)) :: s !! slack variables for the augmented Lagrangian
     real(wp), dimension(size(g)) :: jtlam, jtr
 
     select case (me%merit_mode)
@@ -270,7 +276,7 @@
 
     real(wp), dimension(:), intent(in) :: x, p !! current point and search direction, `dimension(n)`
     real(wp),                intent(in) :: step_limit !! `sqpopt_linesearch_type%major_step_limit`
-    real(wp) :: alpha0
+    real(wp) :: alpha0 !! initial trial step length
 
     real(wp) :: rmax
     integer  :: k
@@ -309,17 +315,23 @@
     class(sqpopt_linesearch_type), intent(inout) :: me
     procedure(sqpopt_objective_func)  :: eval_f
     procedure(sqpopt_constraint_func) :: eval_c
-    real(wp), dimension(:), intent(in)  :: x, p, g, c, lambda, c_lb, c_ub
-    type(sqpopt_sparse_matrix), intent(in) :: jac
-    real(wp),                intent(in)  :: f
-    real(wp),                intent(out) :: alpha
-    real(wp), dimension(:), intent(out) :: x_new
-    integer,                  intent(out) :: istat
+    real(wp), dimension(:), intent(in) :: x !! current point `x`
+    real(wp), dimension(:), intent(in) :: p !! search direction `p`
+    real(wp), dimension(:), intent(in) :: g !! gradient of the objective at `x`
+    real(wp), dimension(:), intent(in) :: c !! constraint values at `x`
+    real(wp), dimension(:), intent(in) :: lambda !! Lagrange multipliers at `x`
+    real(wp), dimension(:), intent(in) :: c_lb   !! lower bounds on the constraints
+    real(wp), dimension(:), intent(in) :: c_ub   !! upper bounds on the constraints
+    type(sqpopt_sparse_matrix), intent(in) :: jac    !! constraint Jacobian at `x` (`dimension(m,n)`)
+    real(wp),                   intent(in)  :: f     !! objective function value at `x`
+    real(wp),                   intent(out) :: alpha !! step length along `p`
+    real(wp), dimension(:),     intent(out) :: x_new !! new point `x + alpha*p`
+    integer,                    intent(out) :: istat !! status of the line search (success or failure)
 
-    real(wp), dimension(size(x)) :: x_trial
-    real(wp), dimension(size(c)) :: c_trial
-    real(wp) :: phi0, dphi0, phi_trial, f_trial
-    integer :: it
+    real(wp), dimension(size(x)) :: x_trial !! trial point `x + alpha*p`
+    real(wp), dimension(size(c)) :: c_trial !! constraint values at the trial point
+    real(wp) :: phi0, dphi0, phi_trial, f_trial !! merit function values and directional derivative
+    integer :: it !! iteration counter for the line search loop
 
     call me%eval_merit(f, c, c_lb, c_ub, lambda, phi0)
     call me%directional_derivative(jac, g, p, c, c_lb, c_ub, lambda, dphi0)
@@ -381,8 +393,8 @@
 
         function merit_along_direction(alpha) result(phi)
 
-        real(wp), intent(in) :: alpha
-        real(wp) :: phi
+        real(wp), intent(in) :: alpha !! step length along the search direction
+        real(wp) :: phi !! merit function value at the trial point
 
         real(wp), dimension(size(x)) :: x_trial
         real(wp), dimension(size(c_lb)) :: c_trial
@@ -417,18 +429,24 @@
     class(sqpopt_linesearch_type), intent(inout) :: me
     procedure(sqpopt_objective_func)  :: eval_f
     procedure(sqpopt_constraint_func) :: eval_c
-    real(wp), dimension(:), intent(in)  :: x, p, g, c, lambda, c_lb, c_ub
-    type(sqpopt_sparse_matrix), intent(in) :: jac
-    real(wp),                intent(in)  :: f
-    real(wp),                intent(out) :: alpha
-    real(wp), dimension(:), intent(out) :: x_new
-    integer,                  intent(out) :: istat
+    real(wp), dimension(:), intent(in)  :: x !! current point in the search space
+    real(wp), dimension(:), intent(in)  :: p !! search direction
+    real(wp), dimension(:), intent(in)  :: g !! gradient of the objective function at `x`
+    real(wp), dimension(:), intent(in)  :: c !! constraint function values at `x`
+    real(wp), dimension(:), intent(in)  :: lambda !! Lagrange multipliers at `x`
+    real(wp), dimension(:), intent(in)  :: c_lb !! lower bounds on the constraints
+    real(wp), dimension(:), intent(in)  :: c_ub !! upper bounds on the constraints
+    type(sqpopt_sparse_matrix), intent(in)  :: jac !! Jacobian of the constraints at `x`
+    real(wp),                   intent(in)  :: f !! objective function value at `x`
+    real(wp),                   intent(out) :: alpha !! step length found by the line search
+    real(wp), dimension(:),     intent(out) :: x_new !! new point after the line search
+    integer,                    intent(out) :: istat !! status of the line search (0 if successful)
 
-    real(wp), dimension(size(x)) :: x_trial
-    real(wp), dimension(size(c)) :: c_trial
-    real(wp) :: phi0, dphi0, phi_trial, f_trial, alpha0
-    logical :: standard_ok, relaxed_used
-    integer :: it
+    real(wp), dimension(size(x)) :: x_trial !! trial point during the line search
+    real(wp), dimension(size(c)) :: c_trial !! constraint values at the trial point
+    real(wp) :: phi0, dphi0, phi_trial, f_trial, alpha0 !! merit function values, directional derivative, trial objective, initial step length
+    logical :: standard_ok, relaxed_used !! flags indicating if standard or relaxed line search succeeded
+    integer :: it !! iteration counter for the line search loop
 
     call me%eval_merit(f, c, c_lb, c_ub, lambda, phi0)
     call me%directional_derivative(jac, g, p, c, c_lb, c_ub, lambda, dphi0)

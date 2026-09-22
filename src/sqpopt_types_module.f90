@@ -16,7 +16,7 @@
     private
 
     ! solver status/exit codes:
-    integer, parameter, public :: sqpopt_success             = 0   !! converged successfully
+    integer, parameter, public :: sqpopt_success              = 0  !! converged successfully
     integer, parameter, public :: sqpopt_max_iter_reached     = 1  !! stopped: maximum number of iterations reached
     integer, parameter, public :: sqpopt_infeasible           = 2  !! stopped: problem appears to be infeasible
     integer, parameter, public :: sqpopt_line_search_failed   = 3  !! stopped: line search failed to find an acceptable step
@@ -53,7 +53,6 @@
     end interface
 
     public :: sqpopt_report_func
-
 
     end module sqpopt_types_module
 !*******************************************************************************

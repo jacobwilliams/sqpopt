@@ -6,7 +6,7 @@
 
     module sqpopt_options_module
 
-    use sqpopt_kinds,          only: wp => sqpopt_module_wp
+    use sqpopt_kinds,             only: wp => sqpopt_module_wp
     use sqpopt_linesearch_module, only: sqpopt_linesearch_armijo, sqpopt_merit_l1
     use sqpopt_qp_solver_module,  only: sqpopt_qp_composite
 

@@ -275,13 +275,16 @@
 !  rescale the whole step `p := \alpha p`. Unlike component-wise clipping,
 !  this preserves the step's direction exactly (only its length changes).
 
-    subroutine rescale_step_to_bounds(x, x_lb, x_ub, p)
+    pure subroutine rescale_step_to_bounds(x, x_lb, x_ub, p)
 
-    real(wp), dimension(:), intent(in)    :: x, x_lb, x_ub
-    real(wp), dimension(:), intent(inout) :: p
+    real(wp), dimension(:), intent(in)    :: x    !! current solution vector
+    real(wp), dimension(:), intent(in)    :: x_lb !! lower bounds for the variables
+    real(wp), dimension(:), intent(in)    :: x_ub !! upper bounds for the variables
+    real(wp), dimension(:), intent(inout) :: p    !! proposed step direction (will be rescaled if necessary)
 
-    real(wp) :: alpha, alpha_k
-    integer  :: k
+    real(wp) :: alpha    !! scaling factor for the step
+    real(wp) :: alpha_k  !! candidate scaling factor for the current variable
+    integer  :: k !! loop index
 
     alpha = 1.0_wp
     do k = 1, size(x)
@@ -306,7 +309,7 @@
 !  `active_rows` (renumbered `1..size(active_rows)`), used to restrict the
 !  multiplier estimate and null-space projection to the active set.
 
-    subroutine select_active_rows(jac, active_rows, jac_a)
+    pure subroutine select_active_rows(jac, active_rows, jac_a)
 
     type(sqpopt_sparse_matrix), intent(in)  :: jac         !! full constraint Jacobian, `dimension(m,n)`
     integer, dimension(:),      intent(in)  :: active_rows !! original row indices to keep, `dimension(m_active)`
