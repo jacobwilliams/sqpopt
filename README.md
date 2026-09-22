@@ -1,11 +1,11 @@
 
-![Modern Fortran SQP OPTimizer](media/logo.png)
-Modern Fortran SQP OPTimizer
+![Modern Fortran SQP OPTimizer](media/logo-small.png)
 
-### Goals
+Modern Fortran **SQP** **OPT**imizer. A modular and extensible framework for solving large-scale nonlinear optimization problems. A work in progress.
 
-A modern Fortran implementation of a Sequential Quadratic Programming (SQP)
-optimizer, for problems of the form:
+### Overview
+
+SQPOPT is a modern Fortran implementation of a Sequential Quadratic Programming (SQP) optimizer, for problems of the form:
 
 ```
 minimize    f(x)
@@ -20,7 +20,7 @@ Hessian of the Lagrangian is approximated by a matrix-free limited-memory
 quasi-Newton operator -- no dense `n x n` or `m x n` array is ever formed,
 so the library scales to large, sparse problems.
 
-Features include:
+#### Features include:
 - SQP method: minimizes a nonlinear objective function subject to nonlinear equality and inequality constraints, and bounds.
 - Modern Fortran implementation
 - Modular architecture -- problem definition, options, Hessian approximation, QP subproblem solver, line search, and convergence checking are each their own module, so alternative algorithms can be developed and swapped in independently
@@ -202,7 +202,7 @@ configure it is via those two `options` fields:
 See [PLAN.md](PLAN.md) for the full architecture write-up, algorithm
 details, and backlog of future work.
 
-### to Build
+### Developing
 
 Use the `pixi` environment and FPM:
 
@@ -212,4 +212,10 @@ fpm build --profile release
 fpm test --profile release
 ```
 
+### See Also
+
+ * [SNOPT](https://ccom.ucsd.edu/~optimizers/solvers/snopt/)
+ * [VF13AD](https://www.hsl.rl.ac.uk/archive/)
+ * [SLSQP](https://github.com/jacobwilliams/slsqp)
+ * [PSQP](https://github.com/jacobwilliams/psqp)
 
