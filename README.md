@@ -204,7 +204,7 @@ details, and backlog of future work.
 
 ### Developing
 
-Use the `pixi` environment and FPM:
+Use the `pixi` environment and the Fortran Package Manager (FPM):
 
 ```
 pixi shell
@@ -212,10 +212,26 @@ fpm build --profile release
 fpm test --profile release
 ```
 
-### See Also
+### Dependencis of this package
 
- * [SNOPT](https://ccom.ucsd.edu/~optimizers/solvers/snopt/)
- * [VF13AD](https://www.hsl.rl.ac.uk/archive/)
- * [SLSQP](https://github.com/jacobwilliams/slsqp)
- * [PSQP](https://github.com/jacobwilliams/psqp)
+This package depends on the following external libraries (which will be automatically fetched and built by FPM):
 
+* [LSQR](https://github.com/jacobwilliams/LSQR) -- iterative solver for sparse linear systems and least-squares problems
+* [LSMR](https://github.com/jacobwilliams/LSMR) -- iterative solver for sparse linear systems and least-squares problems, similar to LSQR but with improved numerical stability
+* [lusol](https://github.com/jacobwilliams/lusol) -- sparse LU factorization library
+* [fmin](https://github.com/jacobwilliams/fmin.git) -- derivative-free minimization routine used for exact line search
+
+
+### Other Fortran SQP Solvers
+
+ * [SNOPT](https://ccom.ucsd.edu/~optimizers/solvers/snopt/) -- Large-scale SQP solver developed by Philip Gill, Walter Murray, and Michael Saunders. A commercial product.
+ * [VF13AD](https://www.hsl.rl.ac.uk/archive/) -- Classic SQP method from the HSL Archive.
+ * [SLSQP](https://github.com/jacobwilliams/slsqp) -- Originally by Dieter Kraft, one of the optimization methods in SciPy.
+ * [PSQP](https://github.com/jacobwilliams/psqp) -- Another SQP code, originally by Ladislav Luksan.
+
+### References
+
+ * Gill, P. E., Murray, W., Saunders, M. A. (2002). SNOPT: An SQP Algorithm for Large-Scale Constrained Optimization, SIAM Journal on Optimization, 12(4), 979-1006.
+ * Kraft, D. (1988). A software package for sequential quadratic programming. Forschungsbericht Deutsche Forschungs- und Versuchsanstalt für Luft- und Raumfahrt.
+ * Nocedal, J., & Wright, S. J. (2006). Numerical Optimization. Springer.
+ * Fletcher, R., & Leyffer, S. (2002). Nonlinear programming without a penalty function. Mathematical Programming, 91(2), 239-269.
