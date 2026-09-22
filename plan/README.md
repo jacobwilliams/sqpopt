@@ -1,0 +1,1 @@
+Various documents used for planning and creating this library.
