@@ -1,6 +1,6 @@
 # Design plan: trust-region globalization option
 
-**Status: design only, not yet implemented.**
+**Status: implemented, per this plan, with results below.**
 
 ## 1. Motivation
 
@@ -238,3 +238,50 @@ form problems with `trust_region%enabled=.true.` set:
   `sqpopt_linesearch_filter`, see `plan/PLAN.md` §7 -- still no QP mode
   distinguishes "infeasible QP" as its own `istat`, so this remains a
   larger, separate follow-on project either way).
+
+## 9. Implementation results
+
+Implemented essentially as designed in §3-6, with two refinements made
+during implementation:
+
+- **`second_order_correction` was extracted out of `sqpopt_iterate_module`
+  into a new shared module, `sqpopt_soc_module.f90`**, so both the
+  line-search path (`sqpopt_iterate_module`) and the new trust-region path
+  (`sqpopt_trust_region_module`) can call the same implementation --
+  avoiding either duplicating it or creating a circular module dependency.
+- **The `max_retries`-exhaustion fallback accepts the *last* (smallest-
+  radius) rejected trial point outright**, rather than truly leaving `x`
+  frozen, resolving the "Open questions" note in §8 in favor of the
+  fallback option (for the same reason `sqpopt_linesearch_armijo`'s
+  `alpha_min` floor is always accepted anyway: never leave a major
+  iteration with literally zero progress, which risks an identical,
+  wasted retry sequence on the very next iteration).
+- The `lambda` (pre-QP-solve multiplier estimate) argument originally
+  sketched for `trust_region_step` turned out to be unused in practice --
+  `eval_merit`'s `ared`/`phi0`/`phi_trial` are all computed with the QP's
+  own `new_lambda` (matching how the line-search path already uses
+  `new_lambda`, not the old `lambda`, for its own merit/SOC calls) -- so
+  it was dropped from the final signature.
+- `filter_acceptable`/`filter_add`/the filter-init logic in
+  `sqpopt_linesearch_module` were exposed as public type-bound procedures
+  (`filter_test`/`filter_record`/`filter_prepare`) so
+  `sqpopt_trust_region_module` can reuse the *same* filter (and its
+  persistent state) that `sqpopt_linesearch_filter`'s line-search
+  adaptation uses, rather than a second, disconnected implementation.
+- New optional `trust_region` argument on `sqpopt_type%initialize`,
+  alongside `problem`/`options`/`hessian`/`qp_solver`/`linesearch`, exactly
+  as planned; no new `sqpopt_options_type` field was needed (consistent
+  with `qp_solver`/`linesearch` themselves not being config-duplicated
+  onto `options` either).
+- **Validated** with two new tests in `test/test_basic.f90`
+  (`test_trust_region_mode` -- merit-ratio acceptance;
+  `test_trust_region_filter_mode` -- filter acceptance, the literal
+  Fletcher & Leyffer combination) on the same inequality-constrained
+  problem used by several other mode tests; both converge to the known
+  solution. The full existing 27-test suite (trust region disabled by
+  default) passes unchanged, confirming this feature is additive.
+  **Not yet done**: a `test_hs71`-scale validation of trust region (the
+  harder nonlinear benchmark used to validate the dense/reduced-Hessian
+  QP solvers and the filter line search) -- left as follow-up work,
+  since `run_hs71` in `test/test_hs71.f90` would need a signature change
+  to accept a `trust_region` argument.
