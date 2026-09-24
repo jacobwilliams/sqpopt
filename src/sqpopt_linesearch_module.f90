@@ -80,6 +80,8 @@
 
     private
 
+    public :: l1_violation, filter_penalty_estimate
+
     integer, parameter, public :: sqpopt_linesearch_armijo   = 1  !! backtracking Armijo-type line search (default)
     integer, parameter, public :: sqpopt_linesearch_exact    = 2  !! (approximate) exact 1-D minimization of the merit function, via [[fmin]]
     integer, parameter, public :: sqpopt_linesearch_watchdog = 3  !! Powell's watchdog technique (relaxed acceptance + backtracking, see module docs)
@@ -143,9 +145,12 @@
 
         contains
 
-        procedure, public :: eval_merit             => eval_merit_function
+        procedure, public :: eval_merit              => eval_merit_function
         procedure, public :: directional_derivative  => merit_directional_derivative
         procedure, public :: search                  => line_search
+        procedure, public :: filter_prepare          => filter_prepare_state
+        procedure, public :: filter_test             => filter_acceptable
+        procedure, public :: filter_record           => filter_add
 
     end type sqpopt_linesearch_type
 
@@ -612,12 +617,7 @@
     h0 = l1_violation(c, c_lb, c_ub)
     both_feasible = h0 <= me%filter_feas_tol
 
-    if (.not. me%filter_ready) then
-        me%filter_u = max(me%filter_ubd, me%filter_tt*h0)
-        if (allocated(me%filter_f)) deallocate(me%filter_f, me%filter_h, me%filter_q, me%filter_mu)
-        allocate(me%filter_f(0), me%filter_h(0), me%filter_q(0), me%filter_mu(0))
-        me%filter_ready = .true.
-    end if
+    call me%filter_prepare(h0)
 
     mu = filter_penalty_estimate(lambda)
 
@@ -656,6 +656,29 @@
     istat = sqpopt_line_search_failed
 
     end subroutine filter_line_search
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  initialize the filter (empty list) and its upper bound `filter_u`
+!  (§3.2) the first time it is used, given the constraint violation `h0`
+!  at the starting point; a no-op on every subsequent call. Shared by
+!  [[filter_line_search]] and `sqpopt_trust_region_module`'s filter-based
+!  acceptance test, so both start from the same, single filter.
+
+    subroutine filter_prepare_state(me, h0)
+
+    class(sqpopt_linesearch_type), intent(inout) :: me
+    real(wp),                      intent(in)    :: h0
+
+    if (me%filter_ready) return
+
+    me%filter_u = max(me%filter_ubd, me%filter_tt*h0)
+    if (allocated(me%filter_f)) deallocate(me%filter_f, me%filter_h, me%filter_q, me%filter_mu)
+    allocate(me%filter_f(0), me%filter_h(0), me%filter_q(0), me%filter_mu(0))
+    me%filter_ready = .true.
+
+    end subroutine filter_prepare_state
 !*******************************************************************************
 
 !*******************************************************************************

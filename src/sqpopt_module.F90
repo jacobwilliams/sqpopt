@@ -23,6 +23,7 @@
     use sqpopt_hessian_module,    only: sqpopt_hessian_type
     use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type
     use sqpopt_linesearch_module, only: sqpopt_linesearch_type
+    use sqpopt_trust_region_module, only: sqpopt_trust_region_type
     use sqpopt_iterate_module,    only: sqpopt_iterate
 
     implicit none
@@ -39,6 +40,7 @@
         type(sqpopt_hessian_type)    :: hessian      !! Hessian of the Lagrangian approximation
         type(sqpopt_qp_solver_type)  :: qp_solver    !! QP subproblem solver
         type(sqpopt_linesearch_type) :: linesearch   !! merit function / line search
+        type(sqpopt_trust_region_type) :: trust_region !! trust-region globalization (opt-in alternative to `linesearch`)
 
         real(wp), dimension(:), allocatable :: x       !! current/final optimization variables
         real(wp), dimension(:), allocatable :: lambda  !! current/final Lagrange multipliers
@@ -68,7 +70,7 @@
 !>
 !  initialize (or reinitialize) an [[sqpopt_type]] solver instance.
 
-    subroutine sqpopt_initialize(me, problem, options, hessian, qp_solver, linesearch, report)
+    subroutine sqpopt_initialize(me, problem, options, hessian, qp_solver, linesearch, trust_region, report)
 
     class(sqpopt_type), intent(inout) :: me
     type(sqpopt_problem_type),optional,intent(in)    :: problem      !! the nonlinear program to be solved
@@ -76,6 +78,9 @@
     type(sqpopt_hessian_type),optional,intent(in)    :: hessian      !! Hessian of the Lagrangian approximation
     type(sqpopt_qp_solver_type),optional,intent(in)  :: qp_solver    !! QP subproblem solver
     type(sqpopt_linesearch_type),optional,intent(in) :: linesearch   !! merit function / line search
+    type(sqpopt_trust_region_type),optional,intent(in) :: trust_region !! trust-region globalization (opt-in
+                                                                        !! alternative to `linesearch`, see
+                                                                        !! [[sqpopt_trust_region_module]])
     procedure(sqpopt_report_func), optional, pointer :: report      !! optional user progress-reporting callback,
                                                                      !! called once per major iteration with the
                                                                      !! current iterate; set its `user_stop` output
@@ -88,6 +93,7 @@
     if (present(hessian))    then; me%hessian = hessian; else; me%hessian = sqpopt_hessian_type(); end if
     if (present(qp_solver))  then; me%qp_solver = qp_solver; else; me%qp_solver = sqpopt_qp_solver_type(); end if
     if (present(linesearch)) then; me%linesearch = linesearch; else; me%linesearch = sqpopt_linesearch_type(); end if
+    if (present(trust_region)) then; me%trust_region = trust_region; else; me%trust_region = sqpopt_trust_region_type(); end if
     me%report => null()
     if (present(report)) then
         if (associated(report)) me%report => report
@@ -131,7 +137,7 @@
 
     do iter = 1, me%options%max_iter
         me%iter = iter
-        call sqpopt_iterate(me%problem, me%options, me%hessian, me%qp_solver, me%linesearch, &
+        call sqpopt_iterate(me%problem, me%options, me%hessian, me%qp_solver, me%linesearch, me%trust_region, &
                              me%x, me%lambda, x_prev, gl_prev, f_prev, iter, me%report, converged, iter_istat)
         if (converged) then
             istat = sqpopt_success
