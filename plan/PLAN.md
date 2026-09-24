@@ -313,15 +313,17 @@ merit-function/line-search patch, was the actual fix needed.
   aware -- see the note in §3) are none of them currently exposed on
   `sqpopt_options_type` either; worth revisiting together once there's a
   more rigorous QP solver to tune.
-- A **trust-region globalization option**, as an alternative to the
+- ~~A **trust-region globalization option**, as an alternative to the
   current line-search-only approach: adaptively re-solves the QP with a
   radius-tightened box around `x` (ratio-test/filter-based accept/reject
   of the radius itself) instead of only backtracking `alpha` along one
-  fixed QP step. Design-in-progress, see
-  [TRUST_REGION_PLAN.md](TRUST_REGION_PLAN.md) -- notably, this is also
-  what unlocks the *literal* Fletcher & Leyffer filter-SQP combination
-  (trust region + filter acceptance, §7), of which
-  `sqpopt_linesearch_filter` is currently only a line-search adaptation.
+  fixed QP step.~~ **Implemented**, see
+  [TRUST_REGION_PLAN.md](TRUST_REGION_PLAN.md) -- also unlocks the
+  *literal* Fletcher & Leyffer filter-SQP combination (trust region +
+  filter acceptance, §7), of which `sqpopt_linesearch_filter` on its own
+  is only a line-search adaptation. New `sqpopt_trust_region_module.f90`
+  (`sqpopt_trust_region_type`, disabled by default), wired via a new
+  optional `trust_region` argument on `sqpopt_type%initialize`.
 
 ## 6. SNOPT-family design ideas (`references/merit.pdf`, `sqdoc7.pdf`, `sndoc7.pdf`)
 

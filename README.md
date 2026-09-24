@@ -58,12 +58,13 @@ and [test/test_medium.f90](test/test_medium.f90) for complete worked examples.
 ### Configuration
 
 `solver%initialize(problem=..., options=..., hessian=..., qp_solver=...,
-linesearch=..., report=...)` accepts one instance of each sub-component,
-all optional (defaults are used for anything omitted). `sqpopt_options_type`
-covers the most commonly-tuned, algorithm-*selecting* settings and is
-copied down into the other components' `mode`-like fields at the start of
-every `solve()` call; the other types (`sqpopt_hessian_type`,
-`sqpopt_qp_solver_type`, `sqpopt_linesearch_type`) expose further
+linesearch=..., trust_region=..., report=...)` accepts one instance of
+each sub-component, all optional (defaults are used for anything
+omitted). `sqpopt_options_type` covers the most commonly-tuned,
+algorithm-*selecting* settings and is copied down into the other
+components' `mode`-like fields at the start of every `solve()` call; the
+other types (`sqpopt_hessian_type`, `sqpopt_qp_solver_type`,
+`sqpopt_linesearch_type`, `sqpopt_trust_region_type`) expose further
 algorithm-specific tuning parameters and are configured by constructing
 them directly, e.g.:
 
@@ -203,6 +204,36 @@ configure it is via those two `options` fields:
 |---|---|
 | `sqpopt_merit_l1` | (default) non-smooth \( \ell_1 \) exact penalty function (as in `slsqp`) |
 | `sqpopt_merit_augmented_lagrangian` | smooth augmented Lagrangian merit function (Gill, Murray, Saunders & Wright; the merit function used in NPSOL and, in spirit, SNOPT) -- twice continuously differentiable, which avoids the Maratos effect without needing a second-order correction |
+
+#### Trust-region globalization (`sqpopt_trust_region_type`)
+
+An opt-in *alternative* to the line search above (disabled by default):
+instead of solving the QP once and searching for a step length `alpha`
+along the resulting `p`, the QP is re-solved as needed with a shrinking
+trust-region radius (enforced by temporarily tightening the variable
+bounds passed to whichever `qp_solver_mode` is selected -- no QP solver
+changes needed) until a step is accepted or the retries are exhausted.
+See `plan/TRUST_REGION_PLAN.md` for the full design.
+
+| option | default | description |
+|---|---|---|
+| `enabled` | `.false.` | if `.true.`, use trust-region radius management instead of `linesearch%search` for every major iteration |
+| `radius0` | `1.0` | initial trust-region radius |
+| `radius_min` | `1e-8` | below this, a major iteration's retries give up and accept the last (smallest-radius) trial point anyway |
+| `radius_max` | `1e3` | ceiling on the radius |
+| `eta1` | `0.1` | ratio threshold to accept a step (merit-ratio acceptance only -- see below) |
+| `eta2` | `0.75` | ratio threshold to also grow the radius (merit-ratio acceptance only) |
+| `shrink_factor` | `0.5` | `radius *= shrink_factor` on a rejected step |
+| `expand_factor` | `2.0` | `radius *= expand_factor` on an accepted step that used the full radius |
+| `max_retries` | `20` | maximum QP re-solves (with a shrinking radius) per major iteration |
+
+When enabled, `linesearch%mode` is reinterpreted as *which acceptance
+test* to use, not which line search to run (there is no `alpha` to
+search): `sqpopt_linesearch_filter` reuses the filter's own `(f,h)`
+domination test -- this combination is the *literal* Fletcher & Leyffer
+filter-SQP algorithm -- while `armijo`/`exact`/`watchdog` all collapse to
+the same classical trust-region-SQP ratio test on the merit function
+selected by `merit_mode`.
 
 See [plan/PLAN.md](plan/PLAN.md) for the full architecture write-up, algorithm
 details, and backlog of future work.
