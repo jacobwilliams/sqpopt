@@ -16,7 +16,7 @@
     use sqpopt_options_module,    only: sqpopt_options_type, sqpopt_hessian_sr1
     use sqpopt_hessian_module,    only: sqpopt_hessian_type
     use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type
-    use sqpopt_linesearch_module, only: sqpopt_linesearch_type
+    use sqpopt_linesearch_module, only: sqpopt_linesearch_type, sqpopt_linesearch_filter
     use sqpopt_linalg_module,     only: sparse_matvec_transpose, sparse_matvec
     use sqpopt_convergence_module, only: check_convergence
     use lsqr_module,              only: lsqr_solver_ez
@@ -177,12 +177,18 @@
     ! (or, in `sqpopt_linesearch_filter` mode, to find a point acceptable
     ! to the filter -- that mode needs the QP's own predicted decrease in
     ! `f`, `q = -(g^Tp + 0.5*p^THp)`, computed here since only this routine
-    ! has access to `hessian`):
+    ! has access to `hessian`; skipped for the other modes, which ignore
+    ! `q`, since `hv_product` isn't free):
     block
-        real(wp), dimension(problem%n) :: hp
         real(wp) :: q
-        call hessian%hv_product(p, hp)
-        q = -(dot_product(g, p) + 0.5_wp*dot_product(p, hp))
+        q = 0.0_wp
+        if (linesearch%mode == sqpopt_linesearch_filter) then
+            block
+                real(wp), dimension(problem%n) :: hp
+                call hessian%hv_product(p, hp)
+                q = -(dot_product(g, p) + 0.5_wp*dot_product(p, hp))
+            end block
+        end if
         call linesearch%search(problem%eval_f, problem%eval_c, x, p, f, g, c, jac, new_lambda, &
                                 problem%c_lb, problem%c_ub, q, alpha, x_new, istat)
     end block
