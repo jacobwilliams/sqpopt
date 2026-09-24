@@ -183,6 +183,10 @@ configure it is via those two `options` fields:
 | `tol` | `1e-4` | desired tolerance on the minimizer (`sqpopt_linesearch_exact` mode) |
 | `watchdog_relaxed_len` | `2` | number of relaxed steps tolerated before requiring a new best point (`sqpopt_linesearch_watchdog` mode) |
 | `watchdog_cooldown_len` | `10` | number of iterations relaxed acceptance is disabled for after a backtrack (`sqpopt_linesearch_watchdog` mode) |
+| `filter_beta` | `0.99` | envelope constant \( \beta \) in the filter's sufficient-reduction test (`sqpopt_linesearch_filter` mode) |
+| `filter_alpha1`, `filter_alpha2` | `0.25`, `1e-4` | envelope constants weighting the QP-predicted decrease `q` and \( h\mu \) respectively (`sqpopt_linesearch_filter` mode) |
+| `filter_ubd`, `filter_tt` | `100.0`, `1.25` | set the initial upper bound on the constraint violation, \( u=\max(\texttt{filter\_ubd}, \texttt{filter\_tt}\cdot h(x_0)) \) (`sqpopt_linesearch_filter` mode) |
+| `filter_feas_tol` | `1e-8` | below this constraint violation a point is treated as feasible; if both the current and trial points are feasible, plain descent in `f` is also required (`sqpopt_linesearch_filter` mode) |
 
 **`mode` values (`linesearch%mode` / `options%linesearch_mode`):**
 
@@ -191,6 +195,7 @@ configure it is via those two `options` fields:
 | `sqpopt_linesearch_armijo` | (default) standard backtracking line search with an Armijo-type sufficient-decrease test on the merit function (as used by default in `slsqp`) |
 | `sqpopt_linesearch_exact` | (approximately) minimizes the merit function along the search direction using the derivative-free `fmin` routine |
 | `sqpopt_linesearch_watchdog` | Powell's watchdog technique: tracks the best point found so far and, for a short window after a genuine improvement, relaxes the sufficient-decrease test (accepting the full step outright) rather than stalling near a curved/simultaneously-active constraint boundary (the Maratos effect); backtracks to the best point and disables relaxed acceptance for `watchdog_cooldown_len` iterations if the window is used up without a new best point |
+| `sqpopt_linesearch_filter` | Fletcher & Leyffer's filter method (*"Nonlinear programming without a penalty function"*, Math. Program. 91 (2002)) adapted to a backtracking line search: dispenses with the merit function/`penalty` parameter entirely, instead accepting a trial point if its `(f, h)` pair -- objective value and \( \ell_1 \) constraint violation -- is not dominated by any previously-accepted iterate's `(f, h)` pair (the "filter"); ignores `merit_mode`/`penalty` entirely (see [[sqpopt_linesearch_module]] for what's included/omitted relative to the original trust-region algorithm) |
 
 **`merit_mode` values (`linesearch%merit_mode` / `options%merit_mode`):**
 
@@ -199,7 +204,7 @@ configure it is via those two `options` fields:
 | `sqpopt_merit_l1` | (default) non-smooth \( \ell_1 \) exact penalty function (as in `slsqp`) |
 | `sqpopt_merit_augmented_lagrangian` | smooth augmented Lagrangian merit function (Gill, Murray, Saunders & Wright; the merit function used in NPSOL and, in spirit, SNOPT) -- twice continuously differentiable, which avoids the Maratos effect without needing a second-order correction |
 
-See [PLAN.md](PLAN.md) for the full architecture write-up, algorithm
+See [plan/PLAN.md](plan/PLAN.md) for the full architecture write-up, algorithm
 details, and backlog of future work.
 
 ### Developing

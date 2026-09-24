@@ -173,9 +173,19 @@
         call second_order_correction(problem, linesearch, jac, x, c, new_lambda, p)
     end if
 
-    ! line search along `p` to (approximately) minimize the merit function:
-    call linesearch%search(problem%eval_f, problem%eval_c, x, p, f, g, c, jac, new_lambda, &
-                            problem%c_lb, problem%c_ub, alpha, x_new, istat)
+    ! line search along `p` to (approximately) minimize the merit function
+    ! (or, in `sqpopt_linesearch_filter` mode, to find a point acceptable
+    ! to the filter -- that mode needs the QP's own predicted decrease in
+    ! `f`, `q = -(g^Tp + 0.5*p^THp)`, computed here since only this routine
+    ! has access to `hessian`):
+    block
+        real(wp), dimension(problem%n) :: hp
+        real(wp) :: q
+        call hessian%hv_product(p, hp)
+        q = -(dot_product(g, p) + 0.5_wp*dot_product(p, hp))
+        call linesearch%search(problem%eval_f, problem%eval_c, x, p, f, g, c, jac, new_lambda, &
+                                problem%c_lb, problem%c_ub, q, alpha, x_new, istat)
+    end block
 
     ! save the current point/gradient/objective for the next quasi-Newton
     ! update and stalled-progress convergence test:
