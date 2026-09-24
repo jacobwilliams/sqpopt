@@ -40,8 +40,24 @@
 !    disables relaxed acceptance for `watchdog_cooldown_len` iterations.
 !    This targets the same failure mode as the second-order correction and
 !    the augmented Lagrangian merit function, via a different mechanism.
+!  * `sqpopt_linesearch_filter` -- a line-search adaptation of Fletcher &
+!    Leyffer's **filter** method (*"Nonlinear programming without a penalty
+!    function"*, Math. Program. 91 (2002), see `references/fletcher.pdf`):
+!    dispenses with the merit function/`penalty` parameter entirely and
+!    instead accepts a trial point `x+alpha*p` if the pair `(f,h)` of
+!    objective value and \( \ell_1 \) constraint violation is not
+!    dominated by any `(f,h)` pair from a previously-accepted iterate (the
+!    "filter"), using the paper's sufficient-reduction envelope (their eqs.
+!    3-4) to exclude points arbitrarily close to the filter. The original
+!    paper's algorithm is trust-region-based, with an explicit feasibility
+!    restoration phase for infeasible QPs and NW/SE filter corner rules;
+!    this port instead backtracks `alpha` (like the other three modes)
+!    until an acceptable point is found, and omits the restoration phase
+!    and corner rules (the paper itself notes the corner rules can be
+!    dispensed with -- §3.6). See [[filter_line_search]] for details.
 !
-!  All three modes start each search from an initial trial step length
+!  All three of the merit-function-based modes start each search from an
+!  initial trial step length
 !  \( \alpha_0 \le 1 \) (see [[initial_step_length]]) rather than always
 !  `1`, capped by `major_step_limit` (SNOPT's "Major step limit" option)
 !  so that no variable can change by more than a factor of
@@ -64,9 +80,12 @@
 
     private
 
+    public :: l1_violation, filter_penalty_estimate
+
     integer, parameter, public :: sqpopt_linesearch_armijo   = 1  !! backtracking Armijo-type line search (default)
     integer, parameter, public :: sqpopt_linesearch_exact    = 2  !! (approximate) exact 1-D minimization of the merit function, via [[fmin]]
     integer, parameter, public :: sqpopt_linesearch_watchdog = 3  !! Powell's watchdog technique (relaxed acceptance + backtracking, see module docs)
+    integer, parameter, public :: sqpopt_linesearch_filter   = 4  !! Fletcher & Leyffer's filter method (no merit function/penalty parameter, see module docs)
 
     integer, parameter, public :: sqpopt_merit_l1                   = 1  !! non-smooth \( \ell_1 \) exact penalty merit function (default)
     integer, parameter, public :: sqpopt_merit_augmented_lagrangian = 2  !! smooth augmented Lagrangian merit function (NPSOL/SNOPT-style)
@@ -99,6 +118,24 @@
         integer  :: watchdog_relaxed_len    = 2     !! number of relaxed steps tolerated before requiring a new best point (`sqpopt_linesearch_watchdog` mode)
         integer  :: watchdog_cooldown_len   = 10    !! number of iterations relaxed acceptance is disabled for after a backtrack (`sqpopt_linesearch_watchdog` mode)
 
+        real(wp) :: filter_beta     = 0.99_wp    !! envelope constant \( \beta \) in the filter's sufficient-reduction test, eq. (3) (`sqpopt_linesearch_filter` mode)
+        real(wp) :: filter_alpha1   = 0.25_wp    !! envelope constant \( \alpha_1 \) (weight on the QP-predicted decrease `q`), eq. (4) (`sqpopt_linesearch_filter` mode)
+        real(wp) :: filter_alpha2   = 1.0e-4_wp  !! envelope constant \( \alpha_2 \) (weight on \( h \mu \)), eq. (4) (`sqpopt_linesearch_filter` mode)
+        real(wp) :: filter_ubd      = 100.0_wp   !! default floor on the upper bound `u` on the constraint violation, §3.2 (`sqpopt_linesearch_filter` mode)
+        real(wp) :: filter_tt       = 1.25_wp    !! multiplier on the initial constraint violation used to set `u`, §3.2 (`sqpopt_linesearch_filter` mode)
+        real(wp) :: filter_feas_tol = 1.0e-8_wp  !! below this constraint violation, a trial point is treated as "feasible": if both the
+                                                  !! current point and the trial point are feasible, plain sufficient decrease in `f` is
+                                                  !! also required (the filter test alone is vacuous when `h` stays at/near zero, e.g. for
+                                                  !! problems with no nonlinear constraints) (`sqpopt_linesearch_filter` mode)
+
+        ! internal state for `sqpopt_linesearch_filter` mode (not user options -- persists across major iterations):
+        logical  :: filter_ready = .false.  !! whether the filter/upper-bound below has been initialized
+        real(wp) :: filter_u     = 0.0_wp    !! current upper bound `u` on the constraint violation, §3.2
+        real(wp), dimension(:), allocatable :: filter_f  !! objective values of the filter's `(f,h,q,mu)` entries
+        real(wp), dimension(:), allocatable :: filter_h  !! constraint-violation values of the filter's entries
+        real(wp), dimension(:), allocatable :: filter_q  !! QP-predicted objective decrease at each entry, used by eq. (4)
+        real(wp), dimension(:), allocatable :: filter_mu !! penalty-parameter estimate at each entry, used by eq. (4)
+
         ! internal state for `sqpopt_linesearch_watchdog` mode (not user options -- persists across major iterations):
         logical  :: watchdog_ready               = .false. !! whether the best-point tracking below has been initialized
         integer  :: watchdog_relaxed_remaining   = 0        !! iterations left in the current relaxed window
@@ -108,9 +145,12 @@
 
         contains
 
-        procedure, public :: eval_merit             => eval_merit_function
+        procedure, public :: eval_merit              => eval_merit_function
         procedure, public :: directional_derivative  => merit_directional_derivative
         procedure, public :: search                  => line_search
+        procedure, public :: filter_prepare          => filter_prepare_state
+        procedure, public :: filter_test             => filter_acceptable
+        procedure, public :: filter_record           => filter_add
 
     end type sqpopt_linesearch_type
 
@@ -228,7 +268,7 @@
 !  perform a line search along the direction `p` to find an accepted step
 !  length `alpha`, dispatching to the strategy selected by `me%mode`.
 
-    subroutine line_search(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, alpha, x_new, istat)
+    subroutine line_search(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, q, alpha, x_new, istat)
 
     class(sqpopt_linesearch_type), intent(inout) :: me
     procedure(sqpopt_objective_func)  :: eval_f  !! evaluates \( f(x) \)
@@ -244,6 +284,9 @@
                                                   !! (only used by `sqpopt_merit_augmented_lagrangian`)
     real(wp), dimension(:), intent(in)  :: c_lb   !! constraint lower bounds `dimension(m)`
     real(wp), dimension(:), intent(in)  :: c_ub   !! constraint upper bounds `dimension(m)`
+    real(wp),                intent(in)  :: q      !! the QP's predicted decrease in `f` along `p`,
+                                                    !! \( q = -\left(g^Tp + \tfrac{1}{2}p^THp\right) \)
+                                                    !! (only used by `sqpopt_linesearch_filter`)
     real(wp),                intent(out) :: alpha  !! accepted step length
     real(wp), dimension(:), intent(out) :: x_new   !! the accepted new point `dimension(n)` (normally
                                                     !! `x + alpha*p`, except `sqpopt_linesearch_watchdog`
@@ -255,6 +298,8 @@
         call exact_line_search(me, eval_f, eval_c, x, p, lambda, c_lb, c_ub, alpha, x_new, istat)
     case (sqpopt_linesearch_watchdog)
         call watchdog_line_search(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, alpha, x_new, istat)
+    case (sqpopt_linesearch_filter)
+        call filter_line_search(me, eval_f, eval_c, x, p, f, c, lambda, c_lb, c_ub, q, alpha, x_new, istat)
     case default
         call armijo_line_search(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, alpha, x_new, istat)
     end select
@@ -535,6 +580,207 @@
     end block
 
     end subroutine watchdog_line_search
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  Fletcher & Leyffer's filter method (see the module-level documentation
+!  and `references/fletcher.pdf`), adapted to a backtracking line search:
+!  a trial point `x+alpha*p` is accepted if its `(f,h)` pair -- objective
+!  value and \( \ell_1 \) constraint violation \( h = \lVert
+!  \max(c_l-c,0,c-c_u) \rVert_1 \) -- is not dominated by any prior
+!  accepted iterate's `(f,h)` pair (the "filter"), using the paper's
+!  eqs. (3)-(4) sufficient-reduction envelope so that points arbitrarily
+!  close to an existing filter entry are excluded (see [[filter_acceptable]]).
+!  No merit function or penalty parameter is used. If no trial `alpha`
+!  is accepted before `alpha_min`, that floor is accepted anyway (as in
+!  [[armijo_line_search]]) and still recorded in the filter.
+
+    subroutine filter_line_search(me, eval_f, eval_c, x, p, f, c, lambda, c_lb, c_ub, q, alpha, x_new, istat)
+
+    class(sqpopt_linesearch_type), intent(inout) :: me
+    procedure(sqpopt_objective_func)  :: eval_f
+    procedure(sqpopt_constraint_func) :: eval_c
+    real(wp), dimension(:), intent(in)  :: x, p, c, lambda, c_lb, c_ub
+    real(wp),                intent(in)  :: f      !! objective function value at `x`
+    real(wp),                intent(in)  :: q      !! the QP's predicted decrease in `f` along `p`
+    real(wp),                intent(out) :: alpha
+    real(wp), dimension(:), intent(out) :: x_new
+    integer,                  intent(out) :: istat
+
+    real(wp), dimension(size(x)) :: x_trial
+    real(wp), dimension(size(c)) :: c_trial
+    real(wp) :: f_trial, h_trial, h0, mu, alpha0
+    logical :: both_feasible, accept
+    integer :: it
+
+    h0 = l1_violation(c, c_lb, c_ub)
+    both_feasible = h0 <= me%filter_feas_tol
+
+    call me%filter_prepare(h0)
+
+    mu = filter_penalty_estimate(lambda)
+
+    alpha0 = initial_step_length(x, p, me%major_step_limit)
+    alpha = alpha0
+    do it = 1, me%max_ls_iter
+        x_trial = x + alpha*p
+        call eval_f(x_trial, f_trial)
+        call eval_c(x_trial, c_trial)
+        h_trial = l1_violation(c_trial, c_lb, c_ub)
+
+        accept = filter_acceptable(me, f_trial, h_trial)
+        if (accept .and. both_feasible .and. h_trial <= me%filter_feas_tol) then
+            ! both the current and trial points are essentially feasible, so
+            ! h stays at/near zero and the filter test alone is vacuous (see
+            ! the module docs) -- also require plain descent in `f`:
+            accept = f_trial < f
+        end if
+
+        if (accept) then
+            call filter_add(me, f_trial, h_trial, q, mu)
+            x_new = x_trial
+            istat = sqpopt_success
+            return
+        end if
+        if (alpha <= me%alpha_min) exit
+        alpha = max(me%backtrack*alpha, me%alpha_min)
+    end do
+
+    ! backtracking reached the floor without an acceptable point; accept
+    ! `alpha_min` anyway (as in [[armijo_line_search]]) and still record it
+    ! in the filter so later iterations don't keep proposing the same point:
+    alpha = me%alpha_min
+    x_new = x_trial
+    call filter_add(me, f_trial, h_trial, q, mu)
+    istat = sqpopt_line_search_failed
+
+    end subroutine filter_line_search
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  initialize the filter (empty list) and its upper bound `filter_u`
+!  (§3.2) the first time it is used, given the constraint violation `h0`
+!  at the starting point; a no-op on every subsequent call. Shared by
+!  [[filter_line_search]] and `sqpopt_trust_region_module`'s filter-based
+!  acceptance test, so both start from the same, single filter.
+
+    subroutine filter_prepare_state(me, h0)
+
+    class(sqpopt_linesearch_type), intent(inout) :: me
+    real(wp),                      intent(in)    :: h0
+
+    if (me%filter_ready) return
+
+    me%filter_u = max(me%filter_ubd, me%filter_tt*h0)
+    if (allocated(me%filter_f)) deallocate(me%filter_f, me%filter_h, me%filter_q, me%filter_mu)
+    allocate(me%filter_f(0), me%filter_h(0), me%filter_q(0), me%filter_mu(0))
+    me%filter_ready = .true.
+
+    end subroutine filter_prepare_state
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the \( \ell_1 \) constraint violation \( h(x) = \lVert \max(c_l-c,0,c-c_u)
+!  \rVert_1 \) used by `sqpopt_linesearch_filter` (the same measure used,
+!  with a `penalty` multiplier, by the `sqpopt_merit_l1` merit function).
+
+    pure function l1_violation(c, c_lb, c_ub) result(h)
+
+    real(wp), dimension(:), intent(in) :: c, c_lb, c_ub
+    real(wp) :: h
+
+    h = sum(max(c_lb-c, 0.0_wp) + max(c-c_ub, 0.0_wp))
+
+    end function l1_violation
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  an estimate of the filter's penalty parameter \( \mu \) for the current
+!  iterate (Fletcher & Leyffer, \u00a73.5): the least power of ten larger than
+!  \( \lVert \lambda \rVert_\infty \), clipped to \( [10^{-6},10^6] \).
+
+    pure function filter_penalty_estimate(lambda) result(mu)
+
+    real(wp), dimension(:), intent(in) :: lambda
+    real(wp) :: mu, lam_inf
+
+    lam_inf = 0.0_wp
+    if (size(lambda) > 0) lam_inf = maxval(abs(lambda))
+
+    if (lam_inf <= 0.0_wp) then
+        mu = 1.0e-6_wp
+    else
+        mu = min(max(10.0_wp**ceiling(log10(lam_inf)), 1.0e-6_wp), 1.0e6_wp)
+    end if
+
+    end function filter_penalty_estimate
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  whether the pair `(f_trial,h_trial)` is acceptable to the current
+!  filter: not exceeding the upper bound `filter_u` on the constraint
+!  violation (\u00a73.2), and, for every existing filter entry `l`, satisfying
+!  the sufficient-reduction envelope (eqs. 3-4):
+!  $$ h_{trial} \le \beta h^{(l)} \quad \text{or} \quad
+!  f_{trial} \le f^{(l)} - \max\!\left(\alpha_1 q^{(l)}, \alpha_2 h^{(l)}
+!  \mu^{(l)}\right) $$
+
+    function filter_acceptable(me, f_trial, h_trial) result(ok)
+
+    class(sqpopt_linesearch_type), intent(in) :: me
+    real(wp),                      intent(in) :: f_trial, h_trial
+    logical :: ok
+
+    integer :: l
+
+    ok = h_trial <= me%filter_u
+    if (.not. ok) return
+
+    do l = 1, size(me%filter_f)
+        if (.not. (h_trial <= me%filter_beta*me%filter_h(l) .or. &
+                   f_trial <= me%filter_f(l) - max(me%filter_alpha1*me%filter_q(l), &
+                                                    me%filter_alpha2*me%filter_h(l)*me%filter_mu(l)))) then
+            ok = .false.
+            return
+        end if
+    end do
+
+    end function filter_acceptable
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  add `(f_new,h_new,q_new,mu_new)` to the filter, first removing any
+!  existing entries that it dominates (an entry `l` is dominated by the
+!  new point if `f_new<=f^(l)` and `h_new<=h^(l)`).
+
+    subroutine filter_add(me, f_new, h_new, q_new, mu_new)
+
+    class(sqpopt_linesearch_type), intent(inout) :: me
+    real(wp),                      intent(in)    :: f_new, h_new, q_new, mu_new
+
+    logical, dimension(:), allocatable :: keep
+
+    if (size(me%filter_f) > 0) then
+        allocate(keep(size(me%filter_f)))
+        keep = .not. (f_new <= me%filter_f .and. h_new <= me%filter_h)
+        me%filter_f  = pack(me%filter_f,  keep)
+        me%filter_h  = pack(me%filter_h,  keep)
+        me%filter_q  = pack(me%filter_q,  keep)
+        me%filter_mu = pack(me%filter_mu, keep)
+    end if
+
+    me%filter_f  = [me%filter_f,  f_new]
+    me%filter_h  = [me%filter_h,  h_new]
+    me%filter_q  = [me%filter_q,  q_new]
+    me%filter_mu = [me%filter_mu, mu_new]
+
+    end subroutine filter_add
 !*******************************************************************************
 
     end module sqpopt_linesearch_module

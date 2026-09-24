@@ -67,10 +67,13 @@ program test_medium
     real(wp), parameter :: fexpect = 17.4307808_wp
     real(wp) :: fsol
     integer :: istat
+    integer :: n_evals
 
     write(*,*) '----------------------------'
     write(*,*) 'test_medium'
     write(*,*) '----------------------------'
+
+    n_evals = 0
 
     ! equality constraints (1,2) first, then the inequalities (3,4,5):
     call problem%set_problem_size(n=10, m_eq=2, m_ineq=3)
@@ -105,6 +108,7 @@ program test_medium
     print '(A,F12.7)',   'test_medium: f       = ', fsol
     print '(A,F12.7)',   'test_medium: f_true  = ', fexpect
     print '(A,I0)',      'test_medium: istat   = ', istat
+    print '(A,I0)',      'test_medium: n_evals = ', n_evals
 
     if (istat /= sqpopt_success) error stop 'test_medium FAILED: did not converge'
     if (maxval(abs(xsol-xexpect)) > 1.0e-3_wp) error stop 'test_medium FAILED: wrong solution'
@@ -115,6 +119,7 @@ program test_medium
     subroutine obj(x, f)
     real(wp), dimension(:), intent(in)  :: x
     real(wp),                intent(out) :: f
+    n_evals = n_evals + 1
     f = (x(1)-1.0_wp)**2 + (x(2)-2.0_wp)**2 + (x(3)-2.0_wp)**2 &
       + (x(4)-3.0_wp)**2 + (x(5)-3.0_wp)**2 &
       + (x(6)-3.0_wp)**2 + (x(7)-3.0_wp)**2 &
@@ -125,6 +130,7 @@ program test_medium
     subroutine grad(x, g)
     real(wp), dimension(:), intent(in)  :: x
     real(wp), dimension(:), intent(out) :: g
+    n_evals = n_evals + 1
     g(1)  = 2.0_wp*(x(1)-1.0_wp)
     g(2)  = 2.0_wp*(x(2)-2.0_wp)
     g(3)  = 2.0_wp*(x(3)-2.0_wp)
@@ -140,6 +146,7 @@ program test_medium
     subroutine cons(x, c)
     real(wp), dimension(:), intent(in)  :: x
     real(wp), dimension(:), intent(out) :: c
+    n_evals = n_evals + 1
     c(1) = x(1)**2 + x(2)**2 + x(3)**2
     c(2) = x(4)*x(5)
     c(3) = x(6)**2 + x(7)**2
@@ -150,6 +157,7 @@ program test_medium
     subroutine jacv(x, jac_val)
     real(wp), dimension(:), intent(in)  :: x
     real(wp), dimension(:), intent(out) :: jac_val
+    n_evals = n_evals + 1
     ! order matches set_jacobian_sparsity: rows [1,1,1,2,2,3,3,4,4,5]
     jac_val(1)  = 2.0_wp*x(1)
     jac_val(2)  = 2.0_wp*x(2)

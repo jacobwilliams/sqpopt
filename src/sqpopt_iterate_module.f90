@@ -16,10 +16,11 @@
     use sqpopt_options_module,    only: sqpopt_options_type, sqpopt_hessian_sr1
     use sqpopt_hessian_module,    only: sqpopt_hessian_type
     use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type
-    use sqpopt_linesearch_module, only: sqpopt_linesearch_type
-    use sqpopt_linalg_module,     only: sparse_matvec_transpose, sparse_matvec
+    use sqpopt_linesearch_module, only: sqpopt_linesearch_type, sqpopt_linesearch_filter
+    use sqpopt_linalg_module,     only: sparse_matvec_transpose
     use sqpopt_convergence_module, only: check_convergence
-    use lsqr_module,              only: lsqr_solver_ez
+    use sqpopt_soc_module,        only: second_order_correction
+    use sqpopt_trust_region_module, only: sqpopt_trust_region_type
 
     implicit none
 
@@ -40,7 +41,7 @@
 !  stalled-progress convergence test are both skipped on the first
 !  iteration, since no previous point is yet available).
 
-    subroutine sqpopt_iterate(problem, options, hessian, qp_solver, linesearch, &
+    subroutine sqpopt_iterate(problem, options, hessian, qp_solver, linesearch, trust_region, &
                                x, lambda, x_prev, gl_prev, f_prev, iter, report, converged, istat)
 
     type(sqpopt_problem_type),    intent(inout) :: problem     !! problem definition
@@ -48,6 +49,8 @@
     type(sqpopt_hessian_type),    intent(inout) :: hessian     !! Hessian of the Lagrangian approximation
     type(sqpopt_qp_solver_type),  intent(inout) :: qp_solver   !! QP subproblem solver
     type(sqpopt_linesearch_type), intent(inout) :: linesearch  !! merit function / line search
+    type(sqpopt_trust_region_type), intent(inout) :: trust_region !! trust-region globalization (used instead of
+                                                                   !! `linesearch` when `trust_region%enabled`)
     real(wp), dimension(:), intent(inout) :: x       !! current point, updated on exit `dimension(n)`
     real(wp), dimension(:), intent(inout) :: lambda  !! current Lagrange multipliers, updated on exit `dimension(m)`
     real(wp), dimension(:), allocatable, intent(inout) :: x_prev  !! previous point (unallocated before the 1st call)
@@ -131,51 +134,79 @@
         end if
     end if
 
-    ! solve the linearized QP subproblem for the search direction and multipliers:
-    call qp_solver%solve(hessian, jac, x, g, c, problem%x_lb, problem%x_ub, &
-                          problem%c_lb, problem%c_ub, p, new_lambda, qp_istat)
+    if (trust_region%enabled) then
 
-    ! update the merit function's penalty parameter so that it dominates the
-    ! current multiplier estimates (as in `slsqp`): for `sqpopt_merit_l1` this
-    ! is required for the exact penalty function's minimizer to coincide with
-    ! the true constrained optimum (Han/Powell); for
-    ! `sqpopt_merit_augmented_lagrangian` the same rule is used as a simple
-    ! (if not exactly optimal) substitute for the theoretically-correct
-    ! closed-form threshold, which would require tracking the QP's own
-    ! multiplier separately from `lambda`. Without a large-enough penalty,
-    ! the merit function can prefer a "compromise" infeasible point over
-    ! the true solution:
-    if (size(new_lambda) > 0) linesearch%penalty = max(linesearch%penalty, maxval(abs(new_lambda)) + 1.0_wp)
+        ! trust-region globalization: re-solves the QP as needed with a
+        ! shrinking radius and its own accept/reject test (merit-ratio or
+        ! filter, depending on `linesearch%mode`) instead of a line search
+        ! along one fixed `p` -- see [[sqpopt_trust_region_module]]:
+        call trust_region%step(problem, hessian, qp_solver, linesearch, x, g, f, c, jac, x_new, new_lambda, alpha, istat)
 
-    ! safeguard (as in `slsqp`): if `p` is not a descent direction for the
-    ! merit function (the linearized QP solve is not always guaranteed to
-    ! produce one), reset the Hessian approximation to the identity and
-    ! recompute `p` once from scratch:
-    block
-        real(wp) :: dphi0
-        call linesearch%directional_derivative(jac, g, p, c, problem%c_lb, problem%c_ub, new_lambda, dphi0)
-        if (dphi0 >= 0.0_wp) then
-            call hessian%reset()
-            call qp_solver%solve(hessian, jac, x, g, c, problem%x_lb, problem%x_ub, &
-                                  problem%c_lb, problem%c_ub, p, new_lambda, istat)
-            if (istat /= sqpopt_success) return
+    else
+
+        ! solve the linearized QP subproblem for the search direction and multipliers:
+        call qp_solver%solve(hessian, jac, x, g, c, problem%x_lb, problem%x_ub, &
+                              problem%c_lb, problem%c_ub, p, new_lambda, qp_istat)
+
+        ! update the merit function's penalty parameter so that it dominates the
+        ! current multiplier estimates (as in `slsqp`): for `sqpopt_merit_l1` this
+        ! is required for the exact penalty function's minimizer to coincide with
+        ! the true constrained optimum (Han/Powell); for
+        ! `sqpopt_merit_augmented_lagrangian` the same rule is used as a simple
+        ! (if not exactly optimal) substitute for the theoretically-correct
+        ! closed-form threshold, which would require tracking the QP's own
+        ! multiplier separately from `lambda`. Without a large-enough penalty,
+        ! the merit function can prefer a "compromise" infeasible point over
+        ! the true solution:
+        if (size(new_lambda) > 0) linesearch%penalty = max(linesearch%penalty, maxval(abs(new_lambda)) + 1.0_wp)
+
+        ! safeguard (as in `slsqp`): if `p` is not a descent direction for the
+        ! merit function (the linearized QP solve is not always guaranteed to
+        ! produce one), reset the Hessian approximation to the identity and
+        ! recompute `p` once from scratch:
+        block
+            real(wp) :: dphi0
+            call linesearch%directional_derivative(jac, g, p, c, problem%c_lb, problem%c_ub, new_lambda, dphi0)
+            if (dphi0 >= 0.0_wp) then
+                call hessian%reset()
+                call qp_solver%solve(hessian, jac, x, g, c, problem%x_lb, problem%x_ub, &
+                                      problem%c_lb, problem%c_ub, p, new_lambda, istat)
+                if (istat /= sqpopt_success) return
+            end if
+        end block
+
+        ! second-order correction (SOC): for strongly nonlinear constraints, the
+        ! full step `p` can be rejected by the merit function even when it is a
+        ! genuinely good step, because the *linearized* constraint prediction
+        ! differs from the true (nonlinear) constraint value at `x+p` (the
+        ! "Maratos effect"). Correct for this by solving for an additional small
+        ! step that accounts for the true constraint residual at `x+p`, and use
+        ! the corrected step if it has a better merit function value:
+        if (problem%m > 0) then
+            call second_order_correction(problem, linesearch, jac, x, c, new_lambda, p)
         end if
-    end block
 
-    ! second-order correction (SOC): for strongly nonlinear constraints, the
-    ! full step `p` can be rejected by the merit function even when it is a
-    ! genuinely good step, because the *linearized* constraint prediction
-    ! differs from the true (nonlinear) constraint value at `x+p` (the
-    ! "Maratos effect"). Correct for this by solving for an additional small
-    ! step that accounts for the true constraint residual at `x+p`, and use
-    ! the corrected step if it has a better merit function value:
-    if (problem%m > 0) then
-        call second_order_correction(problem, linesearch, jac, x, c, new_lambda, p)
+        ! line search along `p` to (approximately) minimize the merit function
+        ! (or, in `sqpopt_linesearch_filter` mode, to find a point acceptable
+        ! to the filter -- that mode needs the QP's own predicted decrease in
+        ! `f`, `q = -(g^Tp + 0.5*p^THp)`, computed here since only this routine
+        ! has access to `hessian`; skipped for the other modes, which ignore
+        ! `q`, since `hv_product` isn't free):
+        block
+            real(wp) :: q
+            q = 0.0_wp
+            if (linesearch%mode == sqpopt_linesearch_filter) then
+                block
+                    real(wp), dimension(problem%n) :: hp
+                    call hessian%hv_product(p, hp)
+                    q = -(dot_product(g, p) + 0.5_wp*dot_product(p, hp))
+                end block
+            end if
+            call linesearch%search(problem%eval_f, problem%eval_c, x, p, f, g, c, jac, new_lambda, &
+                                    problem%c_lb, problem%c_ub, q, alpha, x_new, istat)
+        end block
+
     end if
-
-    ! line search along `p` to (approximately) minimize the merit function:
-    call linesearch%search(problem%eval_f, problem%eval_c, x, p, f, g, c, jac, new_lambda, &
-                            problem%c_lb, problem%c_ub, alpha, x_new, istat)
 
     ! save the current point/gradient/objective for the next quasi-Newton
     ! update and stalled-progress convergence test:
@@ -199,49 +230,6 @@
     istat = sqpopt_success
 
     end subroutine sqpopt_iterate
-!*******************************************************************************
-
-!*******************************************************************************
-!>
-!  second-order correction: refine `p` using the true (nonlinear)
-!  constraint residual at `x+p` rather than its linear prediction, and
-!  replace `p` with the corrected step if it improves the merit function
-!  (a standard remedy for the Maratos effect near nonlinear constraints).
-
-    subroutine second_order_correction(problem, linesearch, jac, x, c, lambda, p)
-
-    type(sqpopt_problem_type),    intent(inout) :: problem
-    type(sqpopt_linesearch_type), intent(inout) :: linesearch
-    type(sqpopt_sparse_matrix),   intent(in)    :: jac
-    real(wp), dimension(:),       intent(in)    :: x
-    real(wp), dimension(:),       intent(in)    :: c
-    real(wp), dimension(:),       intent(in)    :: lambda
-    real(wp), dimension(:),       intent(inout) :: p
-
-    real(wp), dimension(size(c)) :: jp, c_p, resid, c_soc
-    real(wp), dimension(size(p)) :: p_corr, p_soc
-    real(wp) :: f_p, f_soc, phi_p, phi_soc
-    type(lsqr_solver_ez) :: lsqr
-    integer :: istop
-
-    call sparse_matvec(jac, p, jp)
-    call problem%eval_c(x+p, c_p)
-    resid = c_p - (c+jp)  !! nonlinear residual left uncorrected by the linear model
-
-    call lsqr%initialize(problem%m, problem%n, jac%val, jac%irow, jac%icol)
-    call lsqr%solve(-resid, 0.0_wp, p_corr, istop)
-    p_soc = p + p_corr
-
-    call problem%eval_f(x+p, f_p)
-    call linesearch%eval_merit(f_p, c_p, problem%c_lb, problem%c_ub, lambda, phi_p)
-
-    call problem%eval_f(x+p_soc, f_soc)
-    call problem%eval_c(x+p_soc, c_soc)
-    call linesearch%eval_merit(f_soc, c_soc, problem%c_lb, problem%c_ub, lambda, phi_soc)
-
-    if (phi_soc < phi_p) p = p_soc
-
-    end subroutine second_order_correction
 !*******************************************************************************
 
     end module sqpopt_iterate_module

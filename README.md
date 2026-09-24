@@ -58,12 +58,13 @@ and [test/test_medium.f90](test/test_medium.f90) for complete worked examples.
 ### Configuration
 
 `solver%initialize(problem=..., options=..., hessian=..., qp_solver=...,
-linesearch=..., report=...)` accepts one instance of each sub-component,
-all optional (defaults are used for anything omitted). `sqpopt_options_type`
-covers the most commonly-tuned, algorithm-*selecting* settings and is
-copied down into the other components' `mode`-like fields at the start of
-every `solve()` call; the other types (`sqpopt_hessian_type`,
-`sqpopt_qp_solver_type`, `sqpopt_linesearch_type`) expose further
+linesearch=..., trust_region=..., report=...)` accepts one instance of
+each sub-component, all optional (defaults are used for anything
+omitted). `sqpopt_options_type` covers the most commonly-tuned,
+algorithm-*selecting* settings and is copied down into the other
+components' `mode`-like fields at the start of every `solve()` call; the
+other types (`sqpopt_hessian_type`, `sqpopt_qp_solver_type`,
+`sqpopt_linesearch_type`, `sqpopt_trust_region_type`) expose further
 algorithm-specific tuning parameters and are configured by constructing
 them directly, e.g.:
 
@@ -183,6 +184,10 @@ configure it is via those two `options` fields:
 | `tol` | `1e-4` | desired tolerance on the minimizer (`sqpopt_linesearch_exact` mode) |
 | `watchdog_relaxed_len` | `2` | number of relaxed steps tolerated before requiring a new best point (`sqpopt_linesearch_watchdog` mode) |
 | `watchdog_cooldown_len` | `10` | number of iterations relaxed acceptance is disabled for after a backtrack (`sqpopt_linesearch_watchdog` mode) |
+| `filter_beta` | `0.99` | envelope constant \( \beta \) in the filter's sufficient-reduction test (`sqpopt_linesearch_filter` mode) |
+| `filter_alpha1`, `filter_alpha2` | `0.25`, `1e-4` | envelope constants weighting the QP-predicted decrease `q` and \( h\mu \) respectively (`sqpopt_linesearch_filter` mode) |
+| `filter_ubd`, `filter_tt` | `100.0`, `1.25` | set the initial upper bound on the constraint violation, \( u=\max(\texttt{filter\_ubd}, \texttt{filter\_tt}\cdot h(x_0)) \) (`sqpopt_linesearch_filter` mode) |
+| `filter_feas_tol` | `1e-8` | below this constraint violation a point is treated as feasible; if both the current and trial points are feasible, plain descent in `f` is also required (`sqpopt_linesearch_filter` mode) |
 
 **`mode` values (`linesearch%mode` / `options%linesearch_mode`):**
 
@@ -191,6 +196,7 @@ configure it is via those two `options` fields:
 | `sqpopt_linesearch_armijo` | (default) standard backtracking line search with an Armijo-type sufficient-decrease test on the merit function (as used by default in `slsqp`) |
 | `sqpopt_linesearch_exact` | (approximately) minimizes the merit function along the search direction using the derivative-free `fmin` routine |
 | `sqpopt_linesearch_watchdog` | Powell's watchdog technique: tracks the best point found so far and, for a short window after a genuine improvement, relaxes the sufficient-decrease test (accepting the full step outright) rather than stalling near a curved/simultaneously-active constraint boundary (the Maratos effect); backtracks to the best point and disables relaxed acceptance for `watchdog_cooldown_len` iterations if the window is used up without a new best point |
+| `sqpopt_linesearch_filter` | Fletcher & Leyffer's filter method (*"Nonlinear programming without a penalty function"*, Math. Program. 91 (2002)) adapted to a backtracking line search: dispenses with the merit function/`penalty` parameter entirely, instead accepting a trial point if its `(f, h)` pair -- objective value and \( \ell_1 \) constraint violation -- is not dominated by any previously-accepted iterate's `(f, h)` pair (the "filter"); ignores `merit_mode`/`penalty` entirely (see [[sqpopt_linesearch_module]] for what's included/omitted relative to the original trust-region algorithm) |
 
 **`merit_mode` values (`linesearch%merit_mode` / `options%merit_mode`):**
 
@@ -199,7 +205,37 @@ configure it is via those two `options` fields:
 | `sqpopt_merit_l1` | (default) non-smooth \( \ell_1 \) exact penalty function (as in `slsqp`) |
 | `sqpopt_merit_augmented_lagrangian` | smooth augmented Lagrangian merit function (Gill, Murray, Saunders & Wright; the merit function used in NPSOL and, in spirit, SNOPT) -- twice continuously differentiable, which avoids the Maratos effect without needing a second-order correction |
 
-See [PLAN.md](PLAN.md) for the full architecture write-up, algorithm
+#### Trust-region globalization (`sqpopt_trust_region_type`)
+
+An opt-in *alternative* to the line search above (disabled by default):
+instead of solving the QP once and searching for a step length `alpha`
+along the resulting `p`, the QP is re-solved as needed with a shrinking
+trust-region radius (enforced by temporarily tightening the variable
+bounds passed to whichever `qp_solver_mode` is selected -- no QP solver
+changes needed) until a step is accepted or the retries are exhausted.
+See `plan/TRUST_REGION_PLAN.md` for the full design.
+
+| option | default | description |
+|---|---|---|
+| `enabled` | `.false.` | if `.true.`, use trust-region radius management instead of `linesearch%search` for every major iteration |
+| `radius0` | `1.0` | initial trust-region radius |
+| `radius_min` | `1e-8` | below this, a major iteration's retries give up and accept the last (smallest-radius) trial point anyway |
+| `radius_max` | `1e3` | ceiling on the radius |
+| `eta1` | `0.1` | ratio threshold to accept a step (merit-ratio acceptance only -- see below) |
+| `eta2` | `0.75` | ratio threshold to also grow the radius (merit-ratio acceptance only) |
+| `shrink_factor` | `0.5` | `radius *= shrink_factor` on a rejected step |
+| `expand_factor` | `2.0` | `radius *= expand_factor` on an accepted step that used the full radius |
+| `max_retries` | `20` | maximum QP re-solves (with a shrinking radius) per major iteration |
+
+When enabled, `linesearch%mode` is reinterpreted as *which acceptance
+test* to use, not which line search to run (there is no `alpha` to
+search): `sqpopt_linesearch_filter` reuses the filter's own `(f,h)`
+domination test -- this combination is the *literal* Fletcher & Leyffer
+filter-SQP algorithm -- while `armijo`/`exact`/`watchdog` all collapse to
+the same classical trust-region-SQP ratio test on the merit function
+selected by `merit_mode`.
+
+See [plan/PLAN.md](plan/PLAN.md) for the full architecture write-up, algorithm
 details, and backlog of future work.
 
 ### Developing

@@ -54,7 +54,7 @@ program test_hs71
     use sqpopt_problem_module, only: sqpopt_problem_type
     use sqpopt_options_module, only: sqpopt_options_type
     use sqpopt_linesearch_module, only: sqpopt_merit_l1, sqpopt_merit_augmented_lagrangian, &
-                                        sqpopt_linesearch_armijo, sqpopt_linesearch_watchdog
+                                        sqpopt_linesearch_armijo, sqpopt_linesearch_watchdog, sqpopt_linesearch_filter
     use sqpopt_qp_solver_module, only: sqpopt_qp_composite, sqpopt_qp_dense, sqpopt_qp_reduced_hessian, sqpopt_qp_solver_type
     use sqpopt_types_module,   only: sqpopt_success
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
@@ -81,6 +81,11 @@ program test_hs71
     ! kept as a *tuned-example* case, not a new library-wide default:
     call run_hs71('rh, tuned LSQR (atol=btol=5e-10)', sqpopt_merit_l1, sqpopt_linesearch_armijo, sqpopt_qp_reduced_hessian, &
                   lsqr_atol=5.0e-10_wp, lsqr_btol=5.0e-10_wp)
+    ! filter method (Fletcher & Leyffer, no merit function/penalty parameter
+    ! at all) paired with a real active-set QP solve -- also reaches
+    ! sqpopt_success tightly, confirming the filter line search is a viable
+    ! drop-in alternative globalization strategy alongside the merit-based ones:
+    call run_hs71('filter + dense QP',      sqpopt_merit_l1,                   sqpopt_linesearch_filter,  sqpopt_qp_dense)
 
     contains
 
@@ -143,9 +148,17 @@ program test_hs71
     print '(A,I0)',     'i_jac   = ', i_jac
 
     if (qp_mode == sqpopt_qp_dense .or. qp_mode == sqpopt_qp_reduced_hessian) then
-        ! a real QP solve should converge tightly (see DENSE_QP_PLAN.md/REDUCED_HESSIAN_QP_PLAN.md):
+        ! a real QP solve should converge tightly (see DENSE_QP_PLAN.md/REDUCED_HESSIAN_QP_PLAN.md);
+        ! the filter line search's endgame is coarser than the Armijo/watchdog
+        ! merit-based ones (it lacks the original paper's SOC-integrated-into-
+        ! filter/corner-rule refinements, deliberately out of scope here -- see
+        ! sqpopt_linesearch_module's docs), so it gets a looser (but still tight) tolerance:
         if (istat /= sqpopt_success) error stop 'test_hs71 FAILED: '//label//' did not reach sqpopt_success'
-        if (maxval(abs(xsol-xexpect)) > 1.0e-4_wp) error stop 'test_hs71 FAILED: '//label//' wrong solution'
+        if (linesearch_mode == sqpopt_linesearch_filter) then
+            if (maxval(abs(xsol-xexpect)) > 5.0e-4_wp) error stop 'test_hs71 FAILED: '//label//' wrong solution'
+        else
+            if (maxval(abs(xsol-xexpect)) > 1.0e-4_wp) error stop 'test_hs71 FAILED: '//label//' wrong solution'
+        end if
     else
         ! v1's composite-step QP only achieves loose convergence on this
         ! problem (see the note above), so a generous tolerance is used here:

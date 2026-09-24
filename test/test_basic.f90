@@ -4,8 +4,9 @@ program test_basic
     use sqpopt_problem_module, only: sqpopt_problem_type
     use sqpopt_options_module, only: sqpopt_options_type, sqpopt_hessian_sr1
     use sqpopt_linesearch_module, only: sqpopt_linesearch_exact, sqpopt_linesearch_watchdog, sqpopt_merit_augmented_lagrangian, &
-                                         sqpopt_linesearch_type
+                                         sqpopt_linesearch_type, sqpopt_linesearch_filter
     use sqpopt_qp_solver_module, only: sqpopt_qp_dense, sqpopt_qp_reduced_hessian, sqpopt_qp_solver_type, sqpopt_bounds_vector
+    use sqpopt_trust_region_module, only: sqpopt_trust_region_type
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
 
     implicit none
@@ -28,6 +29,10 @@ program test_basic
     call test_vector_bound_enforcement()
     call test_major_step_limit()
     call test_print_level_and_stalled_progress()
+    call test_filter_linesearch_mode()
+    call test_filter_linesearch_mode_equality()
+    call test_trust_region_mode()
+    call test_trust_region_filter_mode()
 
     contains
 
@@ -267,6 +272,149 @@ program test_basic
     print *, 'test_watchdog_linesearch_mode PASSED'
 
     end subroutine test_watchdog_linesearch_mode
+
+    !> same problem as `test_inequality_constrained`, but using Fletcher &
+    !! Leyffer's filter method (no merit function/penalty parameter).
+    subroutine test_filter_linesearch_mode()
+
+    type(sqpopt_type)         :: solver
+    type(sqpopt_problem_type) :: problem
+    type(sqpopt_options_type) :: options
+    real(wp) :: x0(2), xsol(2), lam(1)
+    real(wp), parameter :: xexpect(2) = [1.0_wp, 2.0_wp]
+    integer :: istat
+
+    call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
+    call problem%set_bounds(x_lb=[0.0_wp,0.0_wp], x_ub=[big,big], c_lb=[-big], c_ub=[3.0_wp])
+    call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
+    call problem%set_functions(f=obj1, g=grad1, c=cons1, jac=jacv1)
+
+    options%max_iter        = 100
+    options%linesearch_mode = sqpopt_linesearch_filter
+    x0 = [0.0_wp, 0.0_wp]
+
+    call solver%initialize(problem=problem, options=options)
+    call solver%solve(x0, istat)
+    call solver%get_solution(xsol, lam)
+
+    print '(A,2F12.6)', 'test_filter_linesearch_mode: x      = ', xsol
+    print '(A,2F12.6)', 'test_filter_linesearch_mode: x_true = ', xexpect
+    print '(A,I0)',     'test_filter_linesearch_mode: istat  = ', istat
+
+    if (maxval(abs(xsol-xexpect)) > 1.0e-3_wp) error stop 'test_filter_linesearch_mode FAILED'
+    print *, 'test_filter_linesearch_mode PASSED'
+
+    end subroutine test_filter_linesearch_mode
+
+    !> same problem as `test_equality_constrained`, with the filter line
+    !! search: exercises the "always feasible" fallback (h stays near zero
+    !! throughout, since `x0` starts feasible and the problem has only one
+    !! equality constraint), which needs the plain-descent-in-f safeguard
+    !! described in the module docs (otherwise the filter test alone would
+    !! accept any h<=ctol point regardless of f).
+    subroutine test_filter_linesearch_mode_equality()
+
+    type(sqpopt_type)         :: solver
+    type(sqpopt_problem_type) :: problem
+    type(sqpopt_options_type) :: options
+    real(wp) :: x0(2), xsol(2), lam(1)
+    real(wp), parameter :: xexpect(2) = [1.5_wp, 2.5_wp]
+    integer :: istat
+
+    call problem%set_problem_size(n=2, m_eq=1, m_ineq=0)
+    call problem%set_bounds(x_lb=[-big,-big], x_ub=[big,big], c_lb=[4.0_wp], c_ub=[4.0_wp])
+    call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
+    call problem%set_functions(f=obj1, g=grad1, c=cons1, jac=jacv1)
+
+    options%max_iter        = 100
+    options%linesearch_mode = sqpopt_linesearch_filter
+    x0 = [4.0_wp, 0.0_wp] !! feasible starting point (satisfies x1+x2=4)
+
+    call solver%initialize(problem=problem, options=options)
+    call solver%solve(x0, istat)
+    call solver%get_solution(xsol, lam)
+
+    print '(A,2F12.6)', 'test_filter_linesearch_mode_equality: x      = ', xsol
+    print '(A,2F12.6)', 'test_filter_linesearch_mode_equality: x_true = ', xexpect
+    print '(A,I0)',     'test_filter_linesearch_mode_equality: istat  = ', istat
+
+    if (maxval(abs(xsol-xexpect)) > 1.0e-3_wp) error stop 'test_filter_linesearch_mode_equality FAILED'
+    print *, 'test_filter_linesearch_mode_equality PASSED'
+
+    end subroutine test_filter_linesearch_mode_equality
+
+    !> same problem as `test_inequality_constrained`, with trust-region
+    !! globalization enabled instead of a line search (classical merit-
+    !! ratio acceptance, since `linesearch%mode` defaults to
+    !! `sqpopt_linesearch_armijo`, not `sqpopt_linesearch_filter`).
+    subroutine test_trust_region_mode()
+
+    type(sqpopt_type)             :: solver
+    type(sqpopt_problem_type)     :: problem
+    type(sqpopt_options_type)     :: options
+    type(sqpopt_trust_region_type) :: trust_region
+    real(wp) :: x0(2), xsol(2), lam(1)
+    real(wp), parameter :: xexpect(2) = [1.0_wp, 2.0_wp]
+    integer :: istat
+
+    call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
+    call problem%set_bounds(x_lb=[0.0_wp,0.0_wp], x_ub=[big,big], c_lb=[-big], c_ub=[3.0_wp])
+    call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
+    call problem%set_functions(f=obj1, g=grad1, c=cons1, jac=jacv1)
+
+    options%max_iter        = 100
+    trust_region%enabled    = .true.
+    x0 = [0.0_wp, 0.0_wp]
+
+    call solver%initialize(problem=problem, options=options, trust_region=trust_region)
+    call solver%solve(x0, istat)
+    call solver%get_solution(xsol, lam)
+
+    print '(A,2F12.6)', 'test_trust_region_mode: x      = ', xsol
+    print '(A,2F12.6)', 'test_trust_region_mode: x_true = ', xexpect
+    print '(A,I0)',     'test_trust_region_mode: istat  = ', istat
+
+    if (maxval(abs(xsol-xexpect)) > 1.0e-3_wp) error stop 'test_trust_region_mode FAILED'
+    print *, 'test_trust_region_mode PASSED'
+
+    end subroutine test_trust_region_mode
+
+    !> same problem, with trust-region globalization AND filter-based
+    !! acceptance (`linesearch%mode = sqpopt_linesearch_filter`) -- the
+    !! *literal* Fletcher & Leyffer filter-SQP combination (see
+    !! `plan/TRUST_REGION_PLAN.md` and `sqpopt_trust_region_module`'s docs).
+    subroutine test_trust_region_filter_mode()
+
+    type(sqpopt_type)             :: solver
+    type(sqpopt_problem_type)     :: problem
+    type(sqpopt_options_type)     :: options
+    type(sqpopt_trust_region_type) :: trust_region
+    real(wp) :: x0(2), xsol(2), lam(1)
+    real(wp), parameter :: xexpect(2) = [1.0_wp, 2.0_wp]
+    integer :: istat
+
+    call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
+    call problem%set_bounds(x_lb=[0.0_wp,0.0_wp], x_ub=[big,big], c_lb=[-big], c_ub=[3.0_wp])
+    call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
+    call problem%set_functions(f=obj1, g=grad1, c=cons1, jac=jacv1)
+
+    options%max_iter        = 100
+    options%linesearch_mode = sqpopt_linesearch_filter
+    trust_region%enabled    = .true.
+    x0 = [0.0_wp, 0.0_wp]
+
+    call solver%initialize(problem=problem, options=options, trust_region=trust_region)
+    call solver%solve(x0, istat)
+    call solver%get_solution(xsol, lam)
+
+    print '(A,2F12.6)', 'test_trust_region_filter_mode: x      = ', xsol
+    print '(A,2F12.6)', 'test_trust_region_filter_mode: x_true = ', xexpect
+    print '(A,I0)',     'test_trust_region_filter_mode: istat  = ', istat
+
+    if (maxval(abs(xsol-xexpect)) > 1.0e-3_wp) error stop 'test_trust_region_filter_mode FAILED'
+    print *, 'test_trust_region_filter_mode PASSED'
+
+    end subroutine test_trust_region_filter_mode
 
     !> same problem as `test_inequality_constrained`, but using the smooth
     !! augmented Lagrangian merit function instead of the default l1 one.

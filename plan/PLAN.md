@@ -313,6 +313,17 @@ merit-function/line-search patch, was the actual fix needed.
   aware -- see the note in §3) are none of them currently exposed on
   `sqpopt_options_type` either; worth revisiting together once there's a
   more rigorous QP solver to tune.
+- ~~A **trust-region globalization option**, as an alternative to the
+  current line-search-only approach: adaptively re-solves the QP with a
+  radius-tightened box around `x` (ratio-test/filter-based accept/reject
+  of the radius itself) instead of only backtracking `alpha` along one
+  fixed QP step.~~ **Implemented**, see
+  [TRUST_REGION_PLAN.md](TRUST_REGION_PLAN.md) -- also unlocks the
+  *literal* Fletcher & Leyffer filter-SQP combination (trust region +
+  filter acceptance, §7), of which `sqpopt_linesearch_filter` on its own
+  is only a line-search adaptation. New `sqpopt_trust_region_module.f90`
+  (`sqpopt_trust_region_type`, disabled by default), wired via a new
+  optional `trust_region` argument on `sqpopt_type%initialize`.
 
 ## 6. SNOPT-family design ideas (`references/merit.pdf`, `sqdoc7.pdf`, `sndoc7.pdf`)
 
@@ -678,4 +689,95 @@ consistent with the recurring conclusion across §6.1 and this section that
 a real QP solve (§6.2) is needed for `sqpopt_qp_solver_module`'s composite
 step to have the guaranteed-descent property these line-search techniques
 assume.
+
+## 7. Filter method (Fletcher & Leyffer, from `references/fletcher.pdf`)
+
+`references/fletcher.pdf` is Fletcher & Leyffer, *"Nonlinear programming
+without a penalty function"* (Math. Program. 91 (2002)) -- the paper that
+introduced the **filter** concept as a globalization strategy for SQP that
+dispenses with a merit function/penalty parameter entirely. Instead of
+combining the objective `f` and constraint violation `h(c(x))` into a
+single scalar via a penalty parameter (with the well-known difficulties of
+choosing that parameter -- too small and the penalty function may not have
+a local minimum at the solution, too large and it damps out the objective
+near a curved constraint boundary), a trial point is accepted if its
+`(f,h)` pair is not *dominated* by any previously-accepted iterate's
+`(f,h)` pair: i.e. it is better than every prior accepted point in *at
+least one* of the two objectives, akin to a Pareto/multi-objective
+acceptance test (the "filter"). A sufficient-reduction envelope (their
+eqs. 3-4, using each filter entry's own QP-predicted objective decrease
+`q` and an estimated penalty-parameter scale `mu`) excludes points that
+are only trivially better than an existing entry, preventing cycling.
+
+The paper's full algorithm (their Algorithm 3) is **trust-region**-based:
+an \( \ell_\infty \)-norm-bounded QP subproblem, with a rejected step
+handled by shrinking the trust-region radius, and an infeasible QP
+triggering a whole separate **feasibility restoration phase** (a nested
+SQP-like iteration minimizing `h(c(x))` with its own "phase I filter"),
+plus North-West/South-East filter corner rules (which the paper itself
+notes, §3.6, can later be dispensed with). `sqpopt` is a **line-search**
+SQP, not trust-region, so a literal port isn't a good fit -- the natural
+line-search analogue of "shrink the trust-region radius and retry" is
+"backtrack `alpha` and retry" (this is essentially what IPOPT's filter
+line-search method, Wächter & Biegler 2005, does relative to the original
+trust-region filter-SQP).
+
+**Status: implemented**, as `sqpopt_linesearch_filter` in
+[sqpopt_linesearch_module](src/sqpopt_linesearch_module.f90) -- a scoped
+port that keeps the core filter concept (domination test + eqs. 3-4
+sufficient-reduction envelope + the §3.2 upper bound on `h`) but, matching
+the paper's own permission to simplify (§3.6), omits the NW/SE corner
+rules, and omits the restoration phase entirely (infeasible-QP handling is
+left to the existing outer SQP machinery/`istat` codes, same as every
+other line-search mode -- none of `sqpopt`'s three QP solver modes
+currently distinguish "infeasible QP" from other failure modes as a
+trigger for a dedicated restoration phase; this would be a substantial
+follow-on project, not a line-search-module change). Design notes:
+
+- The filter stores four parallel arrays (`filter_f`/`filter_h`/
+  `filter_q`/`filter_mu`), one entry appended per accepted iterate,
+  dominated entries removed on each acceptance -- directly mirroring the
+  paper's "later on four" scalars-per-entry design (§2).
+- `q` (the QP's predicted decrease in `f`, \( q=-(g^Tp+\tfrac12 p^THp)
+  \)) needs the Hessian, which `sqpopt_linesearch_module` doesn't have
+  access to -- computed in `sqpopt_iterate_module` (which does) via
+  `hessian%hv_product(p,hp)` and threaded through as a new argument to
+  `linesearch%search`/`line_search`. `mu` (the per-entry penalty-parameter
+  estimate, §3.5: least power of ten larger than \( \lVert\lambda
+  \rVert_\infty\), clipped to \( [10^{-6},10^6] \)) needs no new plumbing
+  since `lambda` was already passed to `line_search`.
+- **Found via testing, an important edge case not obvious from the paper
+  (which assumes `m>0` throughout)**: if `h` stays at/near zero for both
+  the current and every trial point (an unconstrained problem, or simply
+  an already-fully-feasible run of iterates), the domination test alone
+  is *vacuous* -- eq. (3) (`h_trial <= beta*h_l`) is trivially satisfied
+  whenever `h_trial` and `h_l` are both ~0, regardless of `f`, so *every*
+  point would be "accepted" with no globalization on `f` at all. Fixed
+  with an explicit fallback (`filter_feas_tol`, default `1e-8`): when both
+  the current and trial point are below this violation threshold, plain
+  monotonic descent in `f` is also required. Verified with a dedicated
+  test (`test_filter_linesearch_mode_equality` in `test/test_basic.f90`,
+  a feasible-starting-point equality-constrained problem where `h`stays
+  ~0 throughout) that this fallback is actually exercised and needed.
+- SOC (`second_order_correction` in `sqpopt_iterate_module`) and the
+  "is `p` a descent direction" safeguard both needed **zero** changes: they
+  already operate purely on `linesearch%eval_merit`/`merit_mode`, which is
+  completely independent of `linesearch%mode` -- the filter mode just
+  never uses the resulting merit *value* as its own acceptance test, but
+  is happy to let those two mechanisms keep using it internally as a
+  ranking/safeguard heuristic on `p` before the filter-based line search
+  ever runs.
+- **Result on `test_hs71`** (paired with `sqpopt_qp_dense`, the same real
+  active-set QP the other two `sqpopt_success`-reaching modes use):
+  reaches `sqpopt_success`, x-error `~1.9e-4` -- looser than the Armijo/
+  watchdog+dense-QP combination's `~1e-6`-`3e-5` (needs a relaxed `5e-4`
+  tolerance in `test_hs71.f90`'s check, vs `1e-4` for the others) and
+  needs substantially more function evaluations (`i_obj~3200` vs
+  `~26-160` for the other dense/reduced-Hessian runs) -- consistent with
+  the filter method's more permissive, non-monotone acceptance test
+  producing a noisier endgame without the paper's own SOC-integrated-
+  into-filter refinement (§3.1, which this port omits, reusing the
+  existing merit-based SOC instead -- see above). Still a genuine, useful,
+  independent globalization strategy, just not (yet) tuned to match the
+  other modes' precision on this particular hard benchmark.
 
