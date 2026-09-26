@@ -7,7 +7,8 @@
 !  the last `max_history` step/gradient-change vector pairs \( (s,y) \)
 !  are kept (`max_history` is a small constant, independent of `n`), and
 !  Hessian(-inverse)-vector products are formed matrix-free using the
-!  standard two-loop recursion. Supports (damped) BFGS and SR1 updates.
+!  standard two-loop recursion. Supports BFGS (with a curvature-condition
+!  skip rule) and SR1 updates.
 
     module sqpopt_hessian_module
 
@@ -29,8 +30,6 @@
         real(wp), dimension(:,:), allocatable :: s     !! stored step vectors `dimension(n,max_history)`
         real(wp), dimension(:,:), allocatable :: y     !! stored Lagrangian gradient-change vectors `dimension(n,max_history)`
         real(wp), dimension(:),   allocatable :: rho   !! `1/(y^T s)` for each stored pair `dimension(max_history)` (BFGS)
-        real(wp), dimension(:,:), allocatable :: w     !! cached `y-B*s` vectors `dimension(n,max_history)` (SR1)
-        real(wp), dimension(:),   allocatable :: denom !! cached `w^T s` values `dimension(max_history)` (SR1)
         real(wp) :: gamma = 1.0_wp  !! scaling of the initial Hessian \( H_0 = \gamma I \)
 
         contains
@@ -69,11 +68,8 @@
     if (allocated(me%s))     deallocate(me%s)
     if (allocated(me%y))     deallocate(me%y)
     if (allocated(me%rho))   deallocate(me%rho)
-    if (allocated(me%w))     deallocate(me%w)
-    if (allocated(me%denom)) deallocate(me%denom)
     allocate(me%s(n,max_history), me%y(n,max_history))
     allocate(me%rho(max_history))
-    allocate(me%w(n,max_history), me%denom(max_history))
 
     end subroutine hessian_initialize
 !*******************************************************************************
@@ -142,8 +138,6 @@
     if (abs(denom) < 1.0e-8_wp*max(norm2(w)*norm2(s), 1.0e-12_wp)) return
 
     call hessian_push_pair(me, s, y)
-    me%w(:,me%n_history)   = w
-    me%denom(me%n_history) = denom
 
     sty = dot_product(s, y)
     yty = dot_product(y, y)
@@ -168,8 +162,6 @@
         me%s(:,1:me%max_history-1)     = me%s(:,2:me%max_history)
         me%y(:,1:me%max_history-1)     = me%y(:,2:me%max_history)
         me%rho(1:me%max_history-1)     = me%rho(2:me%max_history)
-        me%w(:,1:me%max_history-1)     = me%w(:,2:me%max_history)
-        me%denom(1:me%max_history-1)   = me%denom(2:me%max_history)
     else
         me%n_history = me%n_history + 1
     end if
@@ -183,8 +175,10 @@
 !>
 !  compute the matrix-free Hessian-vector product \( h_v = H v \), used
 !  by the QP subproblem solver in place of an explicit dense matrix.
-!  Uses the compact-representation BFGS product, or the (mathematically
-!  equivalent) sequential rank-1 SR1 product, depending on `use_sr1`.
+!  Uses the compact representation of either the BFGS or the SR1
+!  matrix (Byrd, Nocedal & Schnabel, 1994), depending on `use_sr1`. Both
+!  are rebuilt from the stored `(s,y)` pairs and the *current* scaling
+!  `gamma` on every call, so the product is always consistent with them.
 
     subroutine hessian_vector_product(me, v, hv)
 
@@ -202,10 +196,34 @@
 
     if (me%use_sr1) then
 
-        hv = v/me%gamma
-        do i = 1, k
-            hv = hv + me%w(:,i)*(dot_product(me%w(:,i), v)/me%denom(i))
-        end do
+        ! compact SR1 representation (Byrd, Nocedal & Schnabel, 1994):
+        ! B*v = theta*v + Psi * M^{-1} * Psi^T v, with Psi = Y - theta*S
+        ! and M = D + L + L^T - theta*S^T S:
+        theta = 1.0_wp/me%gamma
+        if (k == 0) then
+            hv = theta*v
+            return
+        end if
+        allocate(mid(k,k), rhs(k), sol(k))
+        block
+            integer :: p, q
+            do p = 1, k
+                rhs(p) = dot_product(me%y(:,p) - theta*me%s(:,p), v)
+                do q = 1, k
+                    ! s_max(p,q)^T y_min(p,q) covers D (p==q) and L + L^T (p/=q):
+                    mid(p,q) = dot_product(me%s(:,max(p,q)), me%y(:,min(p,q))) &
+                               - theta*dot_product(me%s(:,p), me%s(:,q))
+                end do
+            end do
+        end block
+        call hessian_solve_small_system(k, mid, rhs, sol, ok)
+        hv = theta*v
+        if (ok) then
+            do i = 1, k
+                hv = hv + (me%y(:,i) - theta*me%s(:,i))*sol(i)
+            end do
+        end if
+        deallocate(mid, rhs, sol)
 
     else
 
@@ -233,8 +251,10 @@
             end do
             do p = 1, k
                 do q = 1, p-1
-                    mid(k+p,q) = dot_product(me%s(:,p), me%y(:,q))      !! L (strictly lower)
-                    mid(q,k+p) = mid(k+p,q)                             !! L^T (strictly upper)
+                    ! L(p,q) = s_p^T y_q for p>q goes in the upper-right block,
+                    ! and L^T in the lower-left block:
+                    mid(p,k+q) = dot_product(me%s(:,p), me%y(:,q))      !! L (upper-right block)
+                    mid(k+q,p) = mid(p,k+q)                             !! L^T (lower-left block)
                 end do
                 mid(k+p,k+p) = -dot_product(me%s(:,p), me%y(:,p))       !! -D (diagonal)
             end do

@@ -48,13 +48,15 @@
 !     only the violating components; `sqpopt_bounds_vector` rescales the
 !     whole step uniformly instead, preserving its direction).
 !
-!  This composite-step method (the default, `sqpopt_qp_composite`) does
-!  not enforce the linearized general-constraint bounds exactly, relying
-!  on the outer major SQP iterations to converge to feasibility instead;
-!  two other modes are available for problems that need the linearized
-!  constraints solved exactly: `sqpopt_qp_dense` (a dense active-set QP,
-!  see [[sqpopt_qp_dense_module]]) and `sqpopt_qp_reduced_hessian` (a
-!  sparse/matrix-free active-set QP, see
+!  This composite-step method (`sqpopt_qp_composite`) does not enforce
+!  the linearized general-constraint bounds exactly, relying on the outer
+!  major SQP iterations to converge to feasibility instead, and its
+!  least-squares multiplier estimates are not true QP multipliers. It is
+!  kept as a legacy/experimental option; the default (`sqpopt_qp_auto`)
+!  selects one of the two genuine active-set QP solvers based on the
+!  problem size: `sqpopt_qp_dense` (a dense active-set QP, see
+!  [[sqpopt_qp_dense_module]]) when `n <= auto_dense_max_n`, else
+!  `sqpopt_qp_reduced_hessian` (a sparse/matrix-free active-set QP, see
 !  [[sqpopt_qp_reduced_hessian_module]]). Both of those enforce variable
 !  bounds exactly as part of the QP solve itself, so `bound_enforcement`
 !  does not apply to them.
@@ -73,7 +75,9 @@
 
     private
 
-    integer, parameter, public :: sqpopt_qp_composite       = 1  !! composite-step heuristic (default, see module docs)
+    integer, parameter, public :: sqpopt_qp_auto            = 0  !! (default) `sqpopt_qp_dense` if `n <= auto_dense_max_n`,
+                                                                  !! else `sqpopt_qp_reduced_hessian`
+    integer, parameter, public :: sqpopt_qp_composite       = 1  !! composite-step heuristic (legacy/experimental, see module docs)
     integer, parameter, public :: sqpopt_qp_dense           = 2  !! opt-in dense active-set QP solver (see [[sqpopt_qp_dense_module]])
     integer, parameter, public :: sqpopt_qp_reduced_hessian = 3  !! opt-in sparse (projected-CG) active-set QP solver (see [[sqpopt_qp_reduced_hessian_module]])
 
@@ -87,7 +91,10 @@
     type, public :: sqpopt_qp_solver_type
         !! workspace and options for the QP subproblem solver.
 
-        integer  :: mode                = sqpopt_qp_composite  !! which QP algorithm to use (see the `sqpopt_qp_*` constants)
+        integer  :: mode                = sqpopt_qp_auto       !! which QP algorithm to use (see the `sqpopt_qp_*` constants)
+        integer  :: auto_dense_max_n    = 200                  !! `mode==sqpopt_qp_auto` uses the dense QP solver for problems
+                                                                 !! with at most this many variables, and the sparse
+                                                                 !! reduced-Hessian QP solver for larger ones
         real(wp) :: max_step           = 2.0_wp                 !! trust-region-style cap on \( \lVert p \rVert_2 \);
                                                                  !! the step is rescaled if it is exceeded (safeguards
                                                                  !! against the composite step occasionally
@@ -137,7 +144,7 @@
     real(wp), dimension(:),     intent(out)   :: lambda  !! Lagrange multipliers for the linearized constraints `dimension(m)`
     integer,                    intent(out)   :: istat   !! status code (see [[sqpopt_types_module]])
 
-    select case (me%mode)
+    select case (resolved_mode(me, size(g)))
     case (sqpopt_qp_dense)
         call me%dense_qp%solve(hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
         ! the dense solver enforces bounds/constraints exactly, but still apply the
@@ -151,6 +158,25 @@
     end select
 
     end subroutine solve_qp_subproblem
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the QP algorithm actually used for a problem with `n` variables:
+!  `me%mode`, with `sqpopt_qp_auto` resolved to a specific solver.
+
+    pure integer function resolved_mode(me, n)
+
+    class(sqpopt_qp_solver_type), intent(in) :: me
+    integer,                      intent(in) :: n !! number of variables
+
+    if (me%mode == sqpopt_qp_auto) then
+        resolved_mode = merge(sqpopt_qp_dense, sqpopt_qp_reduced_hessian, n <= me%auto_dense_max_n)
+    else
+        resolved_mode = me%mode
+    end if
+
+    end function resolved_mode
 !*******************************************************************************
 
 !*******************************************************************************
@@ -198,9 +224,45 @@
             active(k) = (c_ub(k)-c_lb(k) <= me%active_tol) .or. &
                         (c(k)-c_lb(k) <= me%active_tol) .or. (c_ub(k)-c(k) <= me%active_tol)
         end do
-        active_rows = pack([(k, k=1,m)], active)
-        m_active = size(active_rows)
-        lambda = 0.0_wp
+
+        ! a satisfied inequality constraint that is only *at* its bound stays
+        ! in the active set only if its multiplier estimate has the correct
+        ! sign (`lambda>=0` at a lower bound, `lambda<=0` at an upper bound,
+        ! for the Lagrangian `f - lambda^T c`); otherwise the objective can be
+        ! decreased by moving off the bound, so the row is released and the
+        ! estimate recomputed (at most one row is released per pass):
+        do
+            active_rows = pack([(k, k=1,m)], active)
+            m_active = size(active_rows)
+            lambda = 0.0_wp
+            if (m_active == 0) exit
+            call select_active_rows(jac, active_rows, jac_a)
+            if (allocated(lambda_active)) deallocate(lambda_active)
+            allocate(lambda_active(m_active))
+            call lsqr%initialize(n, m_active, jac_a%val, jac_a%icol, jac_a%irow)
+            call lsqr%solve(g, 0.0_wp, lambda_active, istop)
+            lambda(active_rows) = lambda_active
+            block
+                integer :: worst
+                real(wp) :: worst_val, wrong
+                worst = 0
+                worst_val = me%active_tol
+                do k = 1, m
+                    if (.not. active(k)) cycle
+                    if (c_ub(k)-c_lb(k) <= me%active_tol) cycle          ! equality
+                    if (c(k) < c_lb(k) - me%active_tol .or. c(k) > c_ub(k) + me%active_tol) cycle ! violated
+                    wrong = 0.0_wp
+                    if (c(k)-c_lb(k) <= me%active_tol) wrong = -lambda(k)  ! at lower bound: needs lambda>=0
+                    if (c_ub(k)-c(k) <= me%active_tol) wrong = max(wrong, lambda(k)) ! at upper bound: needs lambda<=0
+                    if (wrong > worst_val) then
+                        worst_val = wrong
+                        worst = k
+                    end if
+                end do
+                if (worst == 0) exit
+                active(worst) = .false.
+            end block
+        end do
 
         if (m_active == 0) then
 
@@ -210,15 +272,12 @@
 
         else
 
-            call select_active_rows(jac, active_rows, jac_a)
-            allocate(lambda_active(m_active), z(m_active))
+            allocate(z(m_active))
 
             ! (1) Lagrange multiplier estimate: least-squares solve of J_A^T*lambda = g,
             !     i.e. A*lambda = g with A = J_A^T (an n x m_active matrix, stored by
-            !     transposing the (irow,icol) pattern of the active-set sub-Jacobian):
-            call lsqr%initialize(n, m_active, jac_a%val, jac_a%icol, jac_a%irow)
-            call lsqr%solve(g, 0.0_wp, lambda_active, istop)
-            lambda(active_rows) = lambda_active
+            !     transposing the (irow,icol) pattern of the active-set sub-Jacobian)
+            !     -- already computed above, while settling the active set.
 
             ! (2) normal step: minimum-norm solution of J*p_n = viol, where `viol`
             !     is the change in c(x) needed to satisfy the linearized bounds

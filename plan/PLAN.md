@@ -1,5 +1,14 @@
 # sqpopt Implementation Plan
 
+> **Note (2026-09-25):** this is the historical design log. The current
+> plan, including corrections to some conclusions below, is in
+> [ROADMAP.md](ROADMAP.md). In particular, the v1 composite step is no
+> longer the default (`sqpopt_qp_auto` is). The §3 "fundamental
+> mismatch" between active-set QPs and the limited-memory Hessian is not
+> fundamental (ROADMAP F1). Several results quoted below predate the
+> fixes to the L-BFGS forward product and the quasi-Newton `y` vector
+> (ROADMAP B1/B2).
+
 This document lays out the plan for turning the current `sqpopt` skeleton into a
 working, sparse-native Sequential Quadratic Programming (SQP) solver for the
 general problem:

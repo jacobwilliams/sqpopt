@@ -50,7 +50,29 @@ call problem%set_functions(f=obj, g=grad, c=cons, jac=jacv)
 call solver%initialize(problem=problem, options=options)
 call solver%solve(x0, istat)
 call solver%get_solution(x, lambda)
+print *, solver%status_message()   ! e.g. 'converged successfully'
 ```
+
+Before iterating, `solve` validates the problem definition and options
+(returning `istat=sqpopt_invalid_input`, with the reason in
+`status_message()`, if anything is wrong), and moves `x0` inside the
+variable bounds, so the user functions are never evaluated outside them.
+Every call to `solve` starts from the configuration given to `initialize`:
+no state (penalty parameter, filter, Hessian, ...) carries over from a
+previous solve.
+
+#### Status codes (`istat`, from `sqpopt_types_module`)
+
+| value | meaning |
+|---|---|
+| `sqpopt_success` (`0`) | the KKT conditions are satisfied to within `ktol`/`ctol` |
+| `sqpopt_max_iter_reached` (`1`) | `max_iter` major iterations were performed |
+| `sqpopt_infeasible` (`2`) | the constraints are violated at a point that is stationary for the constraint violation: the problem appears to be (locally) infeasible |
+| `sqpopt_line_search_failed` (`3`) | `max_consecutive_failures` consecutive iterations failed to find an acceptable step |
+| `sqpopt_qp_solve_failed` (`4`) | `max_consecutive_failures` consecutive QP subproblem solves failed |
+| `sqpopt_user_requested_stop` (`5`) | the `report` callback asked the solver to stop |
+| `sqpopt_invalid_input` (`6`) | the problem definition or options are invalid (see `status_message()`) |
+| `sqpopt_stalled` (`7`) | feasible, but the objective and variables have stopped changing (see `ftol`/`xtol`) before the KKT test was satisfied; usually an acceptable, if less precise, solution |
 
 See [test/test_basic.f90](test/test_basic.f90), [test/test_hs71.f90](test/test_hs71.f90),
 and [test/test_medium.f90](test/test_medium.f90) for complete worked examples.
@@ -84,7 +106,7 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 | method | description |
 |---|---|
 | `set_problem_size(n, m_eq, m_ineq)` | number of variables `n`, equality constraints `m_eq`, and inequality constraints `m_ineq` (total `m = m_eq + m_ineq`) |
-| `set_bounds(x_lb, x_ub, c_lb, c_ub)` | variable bounds and constraint bounds; use `c_lb(i)==c_ub(i)` for an equality constraint, and a large sentinel value (e.g. `1e20`) for a one-sided/absent bound |
+| `set_bounds(x_lb, x_ub, c_lb, c_ub)` | variable bounds and constraint bounds; use `c_lb(i)==c_ub(i)` for an equality constraint, and any value with magnitude `>= sqpopt_infinity` (`1e20`; `huge(1.0_wp)` is fine) for a one-sided/absent bound |
 | `set_jacobian_sparsity(nnz, irow, icol)` | fixed 1-based COO sparsity pattern of the constraint Jacobian |
 | `set_hessian_sparsity(nnz, irow, icol)` | fixed 1-based COO sparsity pattern of the Lagrangian Hessian (only needed for `sqpopt_hessian_exact`, which is not yet implemented) |
 | `set_functions(f, g, c, jac, hess)` | attach the user-supplied callbacks: `f`/`g` evaluate the objective and its gradient; `c`/`jac` evaluate the constraints and the Jacobian's nonzero values; `hess` (optional) evaluates the Hessian's nonzero values (only used by `sqpopt_hessian_exact`) |
@@ -97,12 +119,13 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 | `print_level` | `0` | amount of diagnostic printing to `stdout` (`0` = silent, `>=1` = one summary line per major iteration) |
 | `hessian_mode` | `sqpopt_hessian_bfgs` | Hessian approximation strategy (see the [Hessian approximation](#hessian-approximation-sqpopt_hessian_type) table below) |
 | `lbfgs_memory` | `10` | number of `(s,y)` vector pairs retained by the limited-memory Hessian |
-| `qp_solver_mode` | `sqpopt_qp_composite` | QP subproblem algorithm (see the [QP subproblem solver](#qp-subproblem-solver-sqpopt_qp_solver_type) tables below) |
+| `qp_solver_mode` | `sqpopt_qp_auto` | QP subproblem algorithm (see the [QP subproblem solver](#qp-subproblem-solver-sqpopt_qp_solver_type) tables below) |
 | `linesearch_mode` | `sqpopt_linesearch_armijo` | line search strategy (see the [Line search & merit function](#line-search--merit-function-sqpopt_linesearch_type) tables below) |
 | `merit_mode` | `sqpopt_merit_l1` | merit function (see the [Line search & merit function](#line-search--merit-function-sqpopt_linesearch_type) tables below) |
-| `ftol`, `xtol` | `1e-8` | once feasible, also stop if the objective's and the variables' relative change from the previous iterate are both below these tolerances (a safeguard against looping to `max_iter` on marginal steps when the KKT test in `ktol` never quite converges) |
+| `max_consecutive_failures` | `5` | stop (with `sqpopt_line_search_failed` or `sqpopt_qp_solve_failed`) after this many consecutive major iterations whose QP solve or line search/trust-region step failed |
+| `ftol`, `xtol` | `1e-8` | once feasible, also stop (with `istat=sqpopt_stalled`) if the objective's and the variables' relative change from the previous iterate are both below these tolerances (a safeguard against looping to `max_iter` on marginal steps when the KKT test in `ktol` never quite converges) |
 | `ctol` | `1e-8` | feasibility tolerance on the constraint violation |
-| `ktol` | `1e-6` | tolerance on the KKT optimality (projected-gradient) test |
+| `ktol` | `1e-6` | tolerance on the KKT optimality test: stationarity of the projected Lagrangian gradient, plus the sign and complementarity of the constraint multipliers (scaled up only when the average multiplier magnitude exceeds 100, as in IPOPT) |
 
 `hessian_mode`/`lbfgs_memory`, `qp_solver_mode`, `linesearch_mode`, and
 `merit_mode` are copied onto the corresponding sub-component (`hessian`,
@@ -121,14 +144,15 @@ configure it is via those two `options` fields:
 
 | option | default | description |
 |---|---|---|
-| `hessian_mode` (`sqpopt_options_type`) | `sqpopt_hessian_bfgs` | `sqpopt_hessian_bfgs` (limited-memory damped BFGS), `sqpopt_hessian_sr1` (limited-memory symmetric rank-1), or `sqpopt_hessian_exact` (not yet implemented, falls back to BFGS) |
+| `hessian_mode` (`sqpopt_options_type`) | `sqpopt_hessian_bfgs` | `sqpopt_hessian_bfgs` (limited-memory BFGS, skipping updates that fail the curvature condition), `sqpopt_hessian_sr1` (limited-memory symmetric rank-1), or `sqpopt_hessian_exact` (not yet implemented, falls back to BFGS) |
 | `lbfgs_memory` (`sqpopt_options_type`) | `10` | number of `(s,y)` vector pairs retained, independent of the problem size `n` |
 
 #### QP subproblem solver (`sqpopt_qp_solver_type`)
 
 | option | default | description |
 |---|---|---|
-| `mode` | `sqpopt_qp_composite` | which QP algorithm to use (overwritten from `options%qp_solver_mode` at the start of `solve()`) -- see the mode table below |
+| `mode` | `sqpopt_qp_auto` | which QP algorithm to use (overwritten from `options%qp_solver_mode` at the start of `solve()`) -- see the mode table below |
+| `auto_dense_max_n` | `200` | `mode=sqpopt_qp_auto` uses `sqpopt_qp_dense` for problems with at most this many variables, else `sqpopt_qp_reduced_hessian` |
 | `max_step` | `2.0` | trust-region-style cap on \|\|p\|\|₂ applied after every QP solve, regardless of `mode` |
 | `active_tol` | `1e-6` | tolerance used by the composite step (`mode=sqpopt_qp_composite`) to decide whether an inequality constraint is part of the active set |
 | `bound_enforcement` | `sqpopt_bounds_scalar` | how the composite step (`mode=sqpopt_qp_composite` only) corrects a bound violation in its computed step -- see the mode table below; not used by `sqpopt_qp_dense`/`sqpopt_qp_reduced_hessian`, which enforce bounds exactly as part of the QP solve itself |
@@ -139,7 +163,8 @@ configure it is via those two `options` fields:
 
 | value | description |
 |---|---|
-| `sqpopt_qp_composite` | (default) matrix-free composite-step heuristic (multiplier estimate + normal step + tangential step, all via `LSQR`); does not enforce the linearized general-constraint bounds exactly, relying on the outer major iterations to converge to feasibility |
+| `sqpopt_qp_auto` | (default) `sqpopt_qp_dense` if `n <= auto_dense_max_n`, else `sqpopt_qp_reduced_hessian` |
+| `sqpopt_qp_composite` | *legacy/experimental* matrix-free composite-step heuristic (multiplier estimate + normal step + tangential step, all via `LSQR`); does not enforce the linearized general-constraint bounds exactly, and its least-squares multipliers are not true QP multipliers, so it can fail on harder problems (e.g. HS71) and cannot detect infeasibility |
 | `sqpopt_qp_dense` | dense active-set QP (Householder QR null-space + modified Cholesky reduced-Hessian solve); enforces bounds/constraints exactly; forms `O(n^2)`/`O(mn)` dense arrays each call, so best for small-to-moderate problems |
 | `sqpopt_qp_reduced_hessian` | sparse/matrix-free active-set QP (projected conjugate gradients, `LSQR`-based null-space projections); enforces bounds/constraints exactly; needs more major iterations than `sqpopt_qp_dense` (an `LSQR`-iterative-tolerance cost) but never forms a dense array, so it scales to larger problems |
 
@@ -157,6 +182,7 @@ configure it is via those two `options` fields:
 | `max_iter` | `100` | maximum number of active-set changes (add/drop a row) allowed per QP solve |
 | `active_tol` | `1e-8` | tolerance used to detect an (in)active/equality row |
 | `opt_tol` | `1e-8` | tolerance on the reduced-gradient stationarity test |
+| `feas_tol` | `1e-6` | if the QP step still violates a linearized constraint/bound by more than `feas_tol*max(1,\|bound\|)`, the linearization is reported as inconsistent and a feasibility-restoration step is taken instead |
 
 **Sparse (projected-CG) active-set QP options (`qp_solver%sparse_qp`, used when `mode==sqpopt_qp_reduced_hessian`):**
 
@@ -166,6 +192,7 @@ configure it is via those two `options` fields:
 | `max_pcg_iter` | `0` | maximum projected-CG iterations per active-set face (`<=0` means "use `n`") |
 | `active_tol` | `1e-8` | tolerance used to detect an (in)active/equality row |
 | `opt_tol` | `1e-8` | tolerance on the projected-residual stationarity test |
+| `feas_tol` | `1e-6` | as for the dense solver: tolerance for reporting inconsistent linearized constraints |
 | `lsqr_atol`, `lsqr_btol`, `lsqr_conlim` | `0.0` | `LSQR` relative error tolerances in `A`/`b`, and the upper limit on `cond(Abar)` (`0` means "let `LSQR` use its own machine-precision-based default", which is tighter than usually necessary); loosening these is the main lever for trading QP-solve accuracy for speed in this mode |
 | `lsqr_itnlim` | `100` | `LSQR` maximum iterations per solve |
 
@@ -248,7 +275,7 @@ fpm build --profile release
 fpm test --profile release
 ```
 
-### Dependencis of this package
+### Dependencies of this package
 
 This package depends on the following external libraries (which will be automatically fetched and built by FPM):
 

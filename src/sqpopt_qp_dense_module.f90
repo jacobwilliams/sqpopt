@@ -36,7 +36,7 @@
     module sqpopt_qp_dense_module
 
     use sqpopt_kinds,              only: wp => sqpopt_module_wp
-    use sqpopt_types_module,       only: sqpopt_sparse_matrix, sqpopt_success, sqpopt_qp_solve_failed
+    use sqpopt_types_module,       only: sqpopt_sparse_matrix, sqpopt_success, sqpopt_qp_solve_failed, sqpopt_infeasible
     use sqpopt_hessian_module,     only: sqpopt_hessian_type
     use sqpopt_dense_linalg_module, only: dense_null_space, dense_modified_cholesky, dense_solve_cholesky
 
@@ -50,6 +50,9 @@
         integer  :: max_iter   = 100       !! maximum number of active-set changes allowed per QP solve
         real(wp) :: active_tol = 1.0e-8_wp !! tolerance used to detect an (in)active/equality row
         real(wp) :: opt_tol    = 1.0e-8_wp !! tolerance on the reduced-gradient stationarity test
+        real(wp) :: feas_tol   = 1.0e-6_wp !! if the final QP step still violates a linearized constraint or bound
+                                           !! by more than `feas_tol*max(1,|bound|)`, the linearized constraints
+                                           !! are reported as inconsistent (`istat=sqpopt_infeasible`)
 
         contains
 
@@ -85,7 +88,7 @@
     real(wp), dimension(:),   allocatable :: row_lb, row_ub, u, hu_g, rg, d, dz, coeff
     real(wp), dimension(:,:), allocatable :: ja, gram, l_fac
     real(wp), dimension(:),   allocatable :: rhs_active
-    integer,  dimension(:),   allocatable :: orig_idx
+    integer,  dimension(:),   allocatable :: orig_idx, coeff_idx
     logical,  dimension(:),   allocatable :: is_equality
     integer,  dimension(:),   allocatable :: status
     real(wp) :: alpha, rate, alpha_k, worst, val
@@ -161,7 +164,7 @@
 
     ! ---- phase 2: active-set iterations ----
     istat = sqpopt_qp_solve_failed
-    allocate(coeff(0))  !! defined once optimality is reached; harmless placeholder until then
+    allocate(coeff(0), coeff_idx(0))  !! defined once optimality is reached; harmless placeholder until then
 
     do it = 1, max(me%max_iter, 10*(mtot+1))
 
@@ -255,6 +258,7 @@
                 if (allocated(coeff)) deallocate(coeff)
                 allocate(coeff(n_active))
                 coeff = coeff_local
+                coeff_idx = orig_idx  !! the working set these multipliers belong to
             end block
 
             worst = me%active_tol
@@ -288,11 +292,28 @@
     end do
 
     p = u
+
+    ! multipliers from the last working set they were computed for (if the
+    ! iteration limit was hit, that may not be the final working set):
     lambda = 0.0_wp
-    do idx = 1, size(orig_idx)
-        k = orig_idx(idx)
+    do idx = 1, size(coeff_idx)
+        k = coeff_idx(idx)
         if (k <= m) lambda(k) = coeff(idx)
     end do
+
+    ! the active-set iterations only keep rows that start out satisfied
+    ! from becoming violated, so a remaining violation means no feasible
+    ! point for the linearized constraints was found:
+    if (istat == sqpopt_success) then
+        do k = 1, mtot
+            val = dot_product(arows(k,:), u)
+            if (val < row_lb(k) - me%feas_tol*max(1.0_wp, abs(row_lb(k))) .or. &
+                val > row_ub(k) + me%feas_tol*max(1.0_wp, abs(row_ub(k)))) then
+                istat = sqpopt_infeasible
+                exit
+            end if
+        end do
+    end if
 
     end subroutine solve_dense_qp
 !*******************************************************************************

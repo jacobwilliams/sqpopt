@@ -5,7 +5,9 @@ program test_basic
     use sqpopt_options_module, only: sqpopt_options_type, sqpopt_hessian_sr1
     use sqpopt_linesearch_module, only: sqpopt_linesearch_exact, sqpopt_linesearch_watchdog, sqpopt_merit_augmented_lagrangian, &
                                          sqpopt_linesearch_type, sqpopt_linesearch_filter
-    use sqpopt_qp_solver_module, only: sqpopt_qp_dense, sqpopt_qp_reduced_hessian, sqpopt_qp_solver_type, sqpopt_bounds_vector
+    use sqpopt_qp_solver_module, only: sqpopt_qp_dense, sqpopt_qp_reduced_hessian, sqpopt_qp_solver_type, sqpopt_bounds_vector, &
+                                        sqpopt_qp_composite
+    use sqpopt_types_module,   only: sqpopt_success, sqpopt_stalled
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
 
@@ -535,6 +537,7 @@ program test_basic
     call problem%set_functions(f=obj1, g=grad1, c=cons1, jac=jacv1)
 
     options%max_iter = 100
+    options%qp_solver_mode = sqpopt_qp_composite  !! `bound_enforcement` only applies to the composite step
     qp_solver%bound_enforcement = sqpopt_bounds_vector
     x0 = [0.0_wp, 0.0_wp]
 
@@ -590,9 +593,11 @@ program test_basic
 
     !> same problem as `test_equality_constrained`, but with `print_level=1`
     !! (confirms the per-iteration diagnostic printing doesn't break anything)
-    !! and a `ktol` tight enough that it's very unlikely to ever be met exactly,
-    !! relying instead on the `ftol`/`xtol` stalled-progress criterion to reach
-    !! `sqpopt_success` once the iterates stop moving.
+    !! and a very tight `ktol`, using the composite step. On this quadratic
+    !! problem the KKT residual can reach exactly zero, so the run may end
+    !! either on the KKT test (`sqpopt_success`) or on the `ftol`/`xtol`
+    !! stalled-progress test (`sqpopt_stalled`); both are accepted here (the
+    !! stalled-progress test itself is unit-tested in `test_convergence`).
     subroutine test_print_level_and_stalled_progress()
 
     type(sqpopt_type)         :: solver
@@ -609,7 +614,8 @@ program test_basic
 
     options%max_iter    = 100
     options%print_level = 1
-    options%ktol         = 1.0e-15_wp !! essentially unreachable
+    options%ktol         = 1.0e-15_wp
+    options%qp_solver_mode = sqpopt_qp_composite
     options%ftol         = 1.0e-8_wp
     options%xtol         = 1.0e-8_wp
     x0 = [0.0_wp, 0.0_wp]
@@ -622,7 +628,7 @@ program test_basic
     print '(A,2F12.6)', 'test_print_level_and_stalled_progress: x_true = ', xexpect
     print '(A,I0)',     'test_print_level_and_stalled_progress: istat  = ', istat
 
-    if (istat /= 0) error stop 'test_print_level_and_stalled_progress FAILED: istat'
+    if (istat /= sqpopt_success .and. istat /= sqpopt_stalled) error stop 'test_print_level_and_stalled_progress FAILED: istat'
     if (maxval(abs(xsol-xexpect)) > 1.0e-3_wp) error stop 'test_print_level_and_stalled_progress FAILED: wrong x'
     print *, 'test_print_level_and_stalled_progress PASSED'
 

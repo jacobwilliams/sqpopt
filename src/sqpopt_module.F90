@@ -16,13 +16,15 @@
     module sqpopt_module
 
     use sqpopt_kinds,             only: wp => sqpopt_module_wp
-    use sqpopt_types_module,      only: sqpopt_success, sqpopt_error, sqpopt_max_iter_reached, &
-                                         sqpopt_user_requested_stop, sqpopt_report_func
+    use sqpopt_types_module,      only: sqpopt_success, sqpopt_max_iter_reached, &
+                                         sqpopt_user_requested_stop, sqpopt_report_func, &
+                                         sqpopt_invalid_input, sqpopt_status_message
     use sqpopt_problem_module,    only: sqpopt_problem_type
-    use sqpopt_options_module,    only: sqpopt_options_type, sqpopt_hessian_sr1
+    use sqpopt_options_module,    only: sqpopt_options_type, sqpopt_hessian_bfgs, sqpopt_hessian_sr1, sqpopt_hessian_exact
     use sqpopt_hessian_module,    only: sqpopt_hessian_type
-    use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type
-    use sqpopt_linesearch_module, only: sqpopt_linesearch_type
+    use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type, sqpopt_qp_auto, sqpopt_qp_reduced_hessian
+    use sqpopt_linesearch_module, only: sqpopt_linesearch_type, sqpopt_linesearch_armijo, sqpopt_linesearch_filter, &
+                                         sqpopt_merit_l1, sqpopt_merit_augmented_lagrangian
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
     use sqpopt_iterate_module,    only: sqpopt_iterate
 
@@ -41,6 +43,9 @@
         type(sqpopt_qp_solver_type)  :: qp_solver    !! QP subproblem solver
         type(sqpopt_linesearch_type) :: linesearch   !! merit function / line search
         type(sqpopt_trust_region_type) :: trust_region !! trust-region globalization (opt-in alternative to `linesearch`)
+        type(sqpopt_linesearch_type)   :: linesearch0   !! `linesearch` as given to `initialize`: restored at the start of
+                                                        !! every `solve`, so no state (penalty, filter, watchdog) carries over
+        type(sqpopt_trust_region_type) :: trust_region0 !! `trust_region` as given to `initialize` (same reason)
 
         real(wp), dimension(:), allocatable :: x       !! current/final optimization variables
         real(wp), dimension(:), allocatable :: lambda  !! current/final Lagrange multipliers
@@ -51,6 +56,7 @@
 
         integer :: iter  = 0  !! number of major iterations performed
         integer :: istat = 0  !! solver status code (see [[sqpopt_types_module]])
+        character(len=:), allocatable :: message !! description of the final status (see `status_message`)
 
         contains
 
@@ -60,6 +66,7 @@
         procedure, public :: solve        => sqpopt_solve
         procedure, public :: get_solution => sqpopt_get_solution
         procedure, public :: destroy      => sqpopt_destroy
+        procedure, public :: status_message => sqpopt_get_status_message
 
     end type sqpopt_type
 
@@ -94,6 +101,8 @@
     if (present(qp_solver))  then; me%qp_solver = qp_solver; else; me%qp_solver = sqpopt_qp_solver_type(); end if
     if (present(linesearch)) then; me%linesearch = linesearch; else; me%linesearch = sqpopt_linesearch_type(); end if
     if (present(trust_region)) then; me%trust_region = trust_region; else; me%trust_region = sqpopt_trust_region_type(); end if
+    me%linesearch0   = me%linesearch
+    me%trust_region0 = me%trust_region
     me%report => null()
     if (present(report)) then
         if (associated(report)) me%report => report
@@ -103,6 +112,7 @@
     if (allocated(me%lambda)) deallocate(me%lambda)
     me%iter  = 0
     me%istat = 0
+    me%message = ''
 
     end subroutine sqpopt_initialize
 !*******************************************************************************
@@ -121,40 +131,141 @@
 
     real(wp), dimension(:), allocatable :: x_prev, gl_prev  !! quasi-Newton state (unallocated until the 2nd iteration)
     real(wp), allocatable :: f_prev  !! previous objective value, for the `options%ftol` stalled-progress test (unallocated until the 2nd iteration)
-    logical :: converged
-    integer :: iter_istat, iter
+    logical :: done
+    integer :: iter_istat, iter, n_fail
+    character(len=:), allocatable :: msg
 
     me%x = x0
     if (allocated(me%lambda)) deallocate(me%lambda)
-    allocate(me%lambda(me%problem%m))
+    allocate(me%lambda(max(me%problem%m,0)))
     me%lambda = 0.0_wp
+    me%iter = 0
 
+    ! check the inputs before doing anything else:
+    call me%problem%validate(istat, msg)
+    if (istat == sqpopt_success) call validate_options(me%options, istat, msg)
+    if (istat == sqpopt_success .and. size(x0) /= me%problem%n) then
+        istat = sqpopt_invalid_input
+        msg   = 'x0 must have size n'
+    end if
+    if (istat /= sqpopt_success) then
+        call finish(istat, msg)
+        return
+    end if
+
+    ! start from a point that satisfies the variable bounds, so the user
+    ! functions are never evaluated outside them:
+    me%x = min(max(x0, me%problem%x_lb), me%problem%x_ub)
+
+    ! start every solve from the components exactly as configured (no
+    ! state from a previous solve carries over):
+    me%linesearch   = me%linesearch0
+    me%trust_region = me%trust_region0
     call me%hessian%initialize(me%problem%n, me%options%lbfgs_memory, &
                                 use_sr1=(me%options%hessian_mode == sqpopt_hessian_sr1))
     me%qp_solver%mode               = me%options%qp_solver_mode
     me%linesearch%mode              = me%options%linesearch_mode
     me%linesearch%merit_mode        = me%options%merit_mode
 
+    n_fail = 0
     do iter = 1, me%options%max_iter
         me%iter = iter
         call sqpopt_iterate(me%problem, me%options, me%hessian, me%qp_solver, me%linesearch, me%trust_region, &
-                             me%x, me%lambda, x_prev, gl_prev, f_prev, iter, me%report, converged, iter_istat)
-        if (converged) then
-            istat = sqpopt_success
-            me%istat = istat
+                             me%x, me%lambda, x_prev, gl_prev, f_prev, iter, me%report, done, iter_istat)
+        if (done) then
+            ! converged, stalled, infeasible, or user stop:
+            call finish(iter_istat)
             return
         end if
-        if (iter_istat == sqpopt_user_requested_stop) then
-            istat    = sqpopt_user_requested_stop
-            me%istat = istat
-            return
+        if (iter_istat == sqpopt_success) then
+            n_fail = 0
+        else
+            ! a failed QP solve or line search: tolerate a few in a row, since
+            ! the next iteration's re-linearization and Hessian update often
+            ! recover, but don't loop until `max_iter` on a stuck iteration:
+            n_fail = n_fail + 1
+            if (n_fail >= me%options%max_consecutive_failures) then
+                call finish(iter_istat)
+                return
+            end if
         end if
     end do
 
-    istat    = sqpopt_max_iter_reached
-    me%istat = istat
+    call finish(sqpopt_max_iter_reached)
+
+    contains
+
+        subroutine finish(stat, detail)
+        !! set the final status (and its message) on both `istat` and `me`
+        integer, intent(in) :: stat
+        character(len=*), intent(in), optional :: detail !! extra detail appended to the status message
+        istat    = stat
+        me%istat = stat
+        me%message = sqpopt_status_message(stat)
+        if (present(detail)) then
+            if (len(detail) > 0) me%message = me%message//': '//detail
+        end if
+        end subroutine finish
 
     end subroutine sqpopt_solve
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  check the options for invalid values.
+
+    subroutine validate_options(options, istat, msg)
+
+    type(sqpopt_options_type),     intent(in)  :: options
+    integer,                       intent(out) :: istat !! `sqpopt_success` or `sqpopt_invalid_input`
+    character(len=:), allocatable, intent(out) :: msg   !! description of the problem found (empty if none)
+
+    istat = sqpopt_invalid_input
+    msg   = ''
+
+    if (options%max_iter < 0) then
+        msg = 'options%max_iter must be >= 0'
+    else if (options%lbfgs_memory < 1) then
+        msg = 'options%lbfgs_memory must be >= 1'
+    else if (options%max_consecutive_failures < 1) then
+        msg = 'options%max_consecutive_failures must be >= 1'
+    else if (options%hessian_mode < sqpopt_hessian_bfgs .or. options%hessian_mode > sqpopt_hessian_exact) then
+        msg = 'options%hessian_mode is not a valid sqpopt_hessian_* value'
+    else if (options%qp_solver_mode < sqpopt_qp_auto .or. options%qp_solver_mode > sqpopt_qp_reduced_hessian) then
+        msg = 'options%qp_solver_mode is not a valid sqpopt_qp_* value'
+    else if (options%linesearch_mode < sqpopt_linesearch_armijo .or. &
+             options%linesearch_mode > sqpopt_linesearch_filter) then
+        msg = 'options%linesearch_mode is not a valid sqpopt_linesearch_* value'
+    else if (options%merit_mode < sqpopt_merit_l1 .or. options%merit_mode > sqpopt_merit_augmented_lagrangian) then
+        msg = 'options%merit_mode is not a valid sqpopt_merit_* value'
+    else if (.not. (options%ktol > 0.0_wp .and. options%ctol > 0.0_wp)) then
+        msg = 'options%ktol and options%ctol must be > 0'
+    else if (.not. (options%ftol >= 0.0_wp .and. options%xtol >= 0.0_wp)) then
+        msg = 'options%ftol and options%xtol must be >= 0'
+    else
+        istat = sqpopt_success
+    end if
+
+    end subroutine validate_options
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  a description of the status of the last `solve` (including, for
+!  `sqpopt_invalid_input`, what was invalid).
+
+    function sqpopt_get_status_message(me) result(msg)
+
+    class(sqpopt_type), intent(in) :: me
+    character(len=:), allocatable :: msg
+
+    if (allocated(me%message)) then
+        msg = me%message
+    else
+        msg = ''
+    end if
+
+    end function sqpopt_get_status_message
 !*******************************************************************************
 
 !*******************************************************************************

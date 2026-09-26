@@ -1,0 +1,140 @@
+program test_input_validation
+
+    !! Regression test: invalid problem definitions and options are
+    !! rejected up front with `sqpopt_invalid_input` (and a message saying
+    !! what is wrong), rather than crashing or silently misbehaving. Also
+    !! checks that a starting point outside the variable bounds is moved
+    !! inside them before any function is evaluated.
+
+    use sqpopt_module,         only: sqpopt_type
+    use sqpopt_problem_module, only: sqpopt_problem_type
+    use sqpopt_options_module, only: sqpopt_options_type
+    use sqpopt_types_module,   only: sqpopt_invalid_input, sqpopt_success
+    use sqpopt_kinds,          only: wp => sqpopt_module_wp
+
+    implicit none
+
+    type(sqpopt_problem_type) :: problem
+    type(sqpopt_options_type) :: options
+    logical :: outside_bounds  !! set if a function is ever evaluated outside the variable bounds
+
+    write(*,*) '----------------------------'
+    write(*,*) 'test_input_validation'
+    write(*,*) '----------------------------'
+
+    ! problem size never set:
+    problem = sqpopt_problem_type()
+    call expect_invalid('problem size not set', problem, sqpopt_options_type(), [0.0_wp, 0.0_wp])
+
+    ! functions never set:
+    problem = sqpopt_problem_type()
+    call problem%set_problem_size(n=2, m_eq=1, m_ineq=0)
+    call problem%set_bounds([-1.0_wp,-1.0_wp], [1.0_wp,1.0_wp], [1.0_wp], [1.0_wp])
+    call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
+    call expect_invalid('functions not set', problem, sqpopt_options_type(), [0.0_wp, 0.0_wp])
+
+    ! lower bound above upper bound:
+    call valid_problem(problem)
+    call problem%set_bounds([-1.0_wp, 2.0_wp], [1.0_wp,1.0_wp], [1.0_wp], [1.0_wp])
+    call expect_invalid('x_lb > x_ub', problem, sqpopt_options_type(), [0.0_wp, 0.0_wp])
+
+    ! Jacobian index out of range:
+    call valid_problem(problem)
+    call problem%set_jacobian_sparsity(nnz=2, irow=[1,2], icol=[1,2])
+    call expect_invalid('Jacobian row index > m', problem, sqpopt_options_type(), [0.0_wp, 0.0_wp])
+
+    ! wrong-size starting point:
+    call valid_problem(problem)
+    call expect_invalid('size(x0) /= n', problem, sqpopt_options_type(), [0.0_wp, 0.0_wp, 0.0_wp])
+
+    ! invalid options:
+    call valid_problem(problem)
+    options = sqpopt_options_type()
+    options%lbfgs_memory = 0
+    call expect_invalid('lbfgs_memory = 0', problem, options, [0.0_wp, 0.0_wp])
+    options = sqpopt_options_type()
+    options%qp_solver_mode = 99
+    call expect_invalid('qp_solver_mode = 99', problem, options, [0.0_wp, 0.0_wp])
+    options = sqpopt_options_type()
+    options%ktol = 0.0_wp
+    call expect_invalid('ktol = 0', problem, options, [0.0_wp, 0.0_wp])
+
+    ! a valid problem, started outside the bounds [-2,2]: x0 is projected
+    ! onto the bounds before anything is evaluated:
+    block
+        type(sqpopt_type) :: solver
+        real(wp) :: xsol(2), lam(1)
+        integer :: istat
+        call valid_problem(problem)
+        outside_bounds = .false.
+        call solver%initialize(problem=problem)
+        call solver%solve([5.0_wp, -0.5_wp], istat)
+        call solver%get_solution(xsol, lam)
+        print '(A,2F10.6,A,I0)', 'x0 outside the bounds: x=', xsol, '  istat=', istat
+        if (istat /= sqpopt_success) error stop 'test_input_validation FAILED: valid problem did not converge'
+        if (maxval(abs(xsol + 1.0_wp/sqrt(2.0_wp))) > 1.0e-6_wp) &
+            error stop 'test_input_validation FAILED: valid problem converged to the wrong point'
+        if (outside_bounds) error stop 'test_input_validation FAILED: a function was evaluated outside the bounds'
+    end block
+
+    print '(A)', 'test_input_validation PASSED'
+
+    contains
+
+    subroutine expect_invalid(label, problem, options, x0)
+    character(len=*),          intent(in) :: label
+    type(sqpopt_problem_type), intent(in) :: problem
+    type(sqpopt_options_type), intent(in) :: options
+    real(wp), dimension(:),    intent(in) :: x0
+    type(sqpopt_type) :: solver
+    integer :: istat
+    call solver%initialize(problem=problem, options=options)
+    call solver%solve(x0, istat)
+    print '(A,A,I0,2A)', label, ': istat=', istat, '  ', solver%status_message()
+    if (istat /= sqpopt_invalid_input) error stop 'test_input_validation FAILED: '//label
+    end subroutine expect_invalid
+
+    !> minimize x1 + x2 s.t. x1^2 + x2^2 = 1, -2 <= x <= 2
+    !! (solution x = -(1,1)/sqrt(2))
+    subroutine valid_problem(problem)
+    type(sqpopt_problem_type), intent(out) :: problem
+    call problem%set_problem_size(n=2, m_eq=1, m_ineq=0)
+    call problem%set_bounds([-2.0_wp,-2.0_wp], [2.0_wp,2.0_wp], [1.0_wp], [1.0_wp])
+    call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
+    call problem%set_functions(f=obj, g=grad, c=cons, jac=jacv)
+    end subroutine valid_problem
+
+    subroutine note_bounds(x)
+    real(wp), dimension(:), intent(in) :: x
+    if (any(abs(x) > 2.0_wp)) outside_bounds = .true.
+    end subroutine note_bounds
+
+    subroutine obj(x, f)
+    real(wp), dimension(:), intent(in)  :: x
+    real(wp),               intent(out) :: f
+    call note_bounds(x)
+    f = x(1) + x(2)
+    end subroutine obj
+
+    subroutine grad(x, g)
+    real(wp), dimension(:), intent(in)  :: x
+    real(wp), dimension(:), intent(out) :: g
+    call note_bounds(x)
+    g = 1.0_wp
+    end subroutine grad
+
+    subroutine cons(x, c)
+    real(wp), dimension(:), intent(in)  :: x
+    real(wp), dimension(:), intent(out) :: c
+    call note_bounds(x)
+    c(1) = x(1)**2 + x(2)**2
+    end subroutine cons
+
+    subroutine jacv(x, jac_val)
+    real(wp), dimension(:), intent(in)  :: x
+    real(wp), dimension(:), intent(out) :: jac_val
+    call note_bounds(x)
+    jac_val = 2.0_wp*x
+    end subroutine jacv
+
+end program test_input_validation

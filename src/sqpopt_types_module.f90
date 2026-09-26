@@ -22,7 +22,17 @@
     integer, parameter, public :: sqpopt_line_search_failed   = 3  !! stopped: line search failed to find an acceptable step
     integer, parameter, public :: sqpopt_qp_solve_failed      = 4  !! stopped: QP subproblem solver failed
     integer, parameter, public :: sqpopt_user_requested_stop  = 5  !! stopped: user requested stop
+    integer, parameter, public :: sqpopt_invalid_input        = 6  !! stopped: the problem definition or options are invalid
+    integer, parameter, public :: sqpopt_stalled              = 7  !! stopped: the point is feasible but the objective and variables
+                                                                    !! have stopped changing (see `ftol`/`xtol`) before the KKT test
+                                                                    !! was satisfied -- usually an acceptable, if imprecise, solution
     integer, parameter, public :: sqpopt_error                = -1 !! stopped: an unspecified error occurred
+
+    real(wp), parameter, public :: sqpopt_infinity = 1.0e20_wp !! any bound with magnitude `>= sqpopt_infinity` is treated
+                                                                !! as absent (bounds are clamped to `[-sqpopt_infinity,
+                                                                !! sqpopt_infinity]` so that e.g. `-huge(1.0_wp)` is safe to use)
+
+    public :: sqpopt_status_message
 
     type, public :: sqpopt_sparse_matrix
         !! a sparse matrix stored in coordinate (COO) format
@@ -53,6 +63,34 @@
     end interface
 
     public :: sqpopt_report_func
+
+    contains
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  a human-readable description of a solver status code.
+
+    pure function sqpopt_status_message(istat) result(msg)
+
+    integer, intent(in) :: istat !! status code (one of the `sqpopt_*` status parameters)
+    character(len=:), allocatable :: msg
+
+    select case (istat)
+    case (sqpopt_success);             msg = 'converged successfully'
+    case (sqpopt_max_iter_reached);    msg = 'maximum number of iterations reached'
+    case (sqpopt_infeasible);          msg = 'problem appears to be (locally) infeasible'
+    case (sqpopt_line_search_failed);  msg = 'line search failed to find an acceptable step'
+    case (sqpopt_qp_solve_failed);     msg = 'QP subproblem solver failed'
+    case (sqpopt_user_requested_stop); msg = 'user requested stop'
+    case (sqpopt_invalid_input);       msg = 'invalid problem definition or options'
+    case (sqpopt_stalled);             msg = 'feasible, but no further progress is being made'
+    case (sqpopt_error);               msg = 'an unspecified error occurred'
+    case default;                      msg = 'unknown status code'
+    end select
+
+    end function sqpopt_status_message
+!*******************************************************************************
 
     end module sqpopt_types_module
 !*******************************************************************************

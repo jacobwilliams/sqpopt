@@ -28,7 +28,7 @@
     module sqpopt_qp_reduced_hessian_module
 
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
-    use sqpopt_types_module,   only: sqpopt_sparse_matrix, sqpopt_success, sqpopt_qp_solve_failed
+    use sqpopt_types_module,   only: sqpopt_sparse_matrix, sqpopt_success, sqpopt_qp_solve_failed, sqpopt_infeasible
     use sqpopt_hessian_module, only: sqpopt_hessian_type
     use lsqr_module,           only: lsqr_solver_ez
 
@@ -43,6 +43,9 @@
         integer  :: max_pcg_iter = 0        !! maximum projected-CG iterations per active-set face (`<=0` => use `n`)
         real(wp) :: active_tol   = 1.0e-8_wp !! tolerance used to detect an (in)active/equality row
         real(wp) :: opt_tol      = 1.0e-8_wp !! tolerance on the projected-residual stationarity test
+        real(wp) :: feas_tol     = 1.0e-6_wp !! if the final QP step still violates a linearized constraint or bound
+                                             !! by more than `feas_tol*max(1,|bound|)`, the linearized constraints
+                                             !! are reported as inconsistent (`istat=sqpopt_infeasible`)
 
         ! `LSQR` settings, used for every `project_null`/`project_onto_active`/multiplier
         ! solve in this module (see [[lsqr_module]] for the precise meaning of each --
@@ -91,7 +94,7 @@
     logical,  dimension(:), allocatable :: is_equality
     integer,  dimension(:), allocatable :: status
     type(sqpopt_sparse_matrix) :: ja
-    integer,  dimension(:), allocatable :: orig_idx
+    integer,  dimension(:), allocatable :: orig_idx, coeff_idx
     real(wp), dimension(:), allocatable :: rhs_active
     real(wp) :: alpha, rate, alpha_k, worst, val, alpha_cap
     integer  :: blocking, blocking_side, worst_idx, idx
@@ -152,7 +155,7 @@
 
     ! ---- phase 2: active-set iterations ----
     istat = sqpopt_qp_solve_failed
-    allocate(coeff(0))
+    allocate(coeff(0), coeff_idx(0))
 
     do it = 1, max(me%max_iter, 10*(mtot+1))
 
@@ -253,6 +256,7 @@
                 if (allocated(coeff)) deallocate(coeff)
                 allocate(coeff(n_active))
                 coeff = coeff_local
+                coeff_idx = orig_idx  !! the working set these multipliers belong to
             end block
 
             worst = me%active_tol
@@ -284,11 +288,28 @@
     end do
 
     p = u
+
+    ! multipliers from the last working set they were computed for (if the
+    ! iteration limit was hit, that may not be the final working set):
     lambda = 0.0_wp
-    do idx = 1, size(orig_idx)
-        k = orig_idx(idx)
+    do idx = 1, size(coeff_idx)
+        k = coeff_idx(idx)
         if (k <= m) lambda(k) = coeff(idx)
     end do
+
+    ! the active-set iterations only keep rows that start out satisfied
+    ! from becoming violated, so a remaining violation means no feasible
+    ! point for the linearized constraints was found:
+    if (istat == sqpopt_success) then
+        do k = 1, mtot
+            val = sparse_dot_row(arows, k, u)
+            if (val < row_lb(k) - me%feas_tol*max(1.0_wp, abs(row_lb(k))) .or. &
+                val > row_ub(k) + me%feas_tol*max(1.0_wp, abs(row_ub(k)))) then
+                istat = sqpopt_infeasible
+                exit
+            end if
+        end do
+    end if
 
     contains
 

@@ -43,6 +43,73 @@ evaluations `i_obj` and max x-error):
 | filter + dense QP | 3203, 1.9e-4 | 166, 2e-7 | **22, 2e-7** |
 | composite (default) | 21960, 0.35 (max_iter) | unchanged | **diverges, 4.6** |
 
+## Phase 0 status: done (2026-09-25)
+
+B1–B7, B9, B10, and B16 are fixed. The short-term part of F1 is also
+done: the new `sqpopt_qp_auto` default picks the dense QP for `n ≤ 200`
+and the reduced-Hessian QP otherwise, and composite is demoted to
+legacy. All of the §6 regression tests exist except the random-QP fuzz
+test, which moves to Phase 1 with B11. The whole suite passes under
+`-fcheck=all -ffpe-trap=invalid,zero,overflow`.
+
+What changed, and where:
+- **B1, B4:** [sqpopt_hessian_module.f90](../src/sqpopt_hessian_module.f90).
+  The BFGS `L`/`Lᵀ` blocks are fixed. SR1 now uses the compact L-SR1 form
+  (the cached `w`/`denom` arrays are removed).
+- **B2, B6, B7:** [sqpopt_iterate_module.f90](../src/sqpopt_iterate_module.f90)
+  and [sqpopt_module.F90](../src/sqpopt_module.F90).
+  - `y` now uses consistent multipliers.
+  - `sqpopt_iterate` returns `done` + `istat`.
+  - `solve` stops after `options%max_consecutive_failures` (default 5)
+    failed iterations in a row.
+  - The stalled-progress exit returns the new code `sqpopt_stalled` (7).
+- **B3:** [sqpopt_convergence_module.f90](../src/sqpopt_convergence_module.f90).
+  Adds the multiplier sign and complementarity test, with IPOPT-style
+  multiplier scaling of the tolerances (`s_max=100`). An earlier
+  `ktol·max(1,‖λ‖∞)` scaling let a diverging λ mask a non-KKT point, so
+  it was not used. Also adds a local-infeasibility test: the projected
+  `Jᵀr_c` must be ≤ `ktol·‖r_c‖`, which is relative to `‖r_c‖` so that
+  nearly feasible points don't trigger it.
+- **B5, B16:** `sqpopt_infinity` (1e20) and `sqpopt_problem_type%validate`.
+  Bounds are clamped, and the problem and options are checked, returning
+  `sqpopt_invalid_input` (6) with a message. `x0` is projected onto the
+  bounds. Added `sqpopt_status_message` and `solver%status_message()`.
+- **B9:** `initialize` keeps pristine copies of the line-search and
+  trust-region objects, and `solve` restores them.
+- **B10:** both active-set QPs keep the multipliers paired with the
+  working set they were computed for. They also report
+  `sqpopt_infeasible` when the final step violates a linearized row
+  (`feas_tol`, default 1e-6).
+- **Infeasible linearizations:** these now trigger a Gauss–Newton
+  feasibility-restoration step
+  ([sqpopt_restoration_module.f90](../src/sqpopt_restoration_module.f90)).
+  This is a lightweight precursor to F2.
+- **Composite QP:** now releases active rows whose multiplier has the
+  wrong sign.
+
+Results: every HS71 variant reaches `sqpopt_success` in 22–31 objective
+evaluations with 2e-7 error. The exception is the tuned-LSQR variant,
+which ends as `sqpopt_stalled` at 5e-6 error. `test_medium` went from 83
+to 65 evaluations.
+
+**New findings during Phase 0** (added to later phases):
+- **Degenerate attraction (Phase 1, with F2/B11).** On
+  `min x₁+x₂` s.t. `x₁²+x₂²=1` in the box `[-1,1]²`, starting from a
+  box corner, the dense and reduced-Hessian modes converge to a point
+  where the circle is tangent to a bound: (0,−1) or (−1,0). LICQ fails
+  there and λ diverges, so they now honestly report `sqpopt_stalled`
+  rather than a false success, but they still don't reach the optimum
+  (−0.707, −0.707). An elastic-mode QP or multiplier safeguarding should
+  fix this. The case is worth adding to the benchmark suite.
+- **Composite can't detect infeasibility.** It ends with
+  `sqpopt_line_search_failed`, not `sqpopt_infeasible`, on infeasible
+  problems (`test_infeasible` allows for this). It is legacy, so this is
+  low priority. Consider removing the composite mode entirely after F1.
+- **`REAL32` builds fail inside the `LSMR` dependency** (`Real constant
+  overflows its kind` in `lsmrModule.f90`), which nothing in sqpopt
+  calls. Add this to the dependency-trim decision (§8.4) and to the CI
+  precision matrix.
+
 ## 2. Bugs: correctness (fix first)
 
 | # | Issue | Where | Evidence |

@@ -28,7 +28,8 @@
 
     module sqpopt_problem_module
 
-    use sqpopt_kinds, only: wp => sqpopt_module_wp
+    use sqpopt_kinds,        only: wp => sqpopt_module_wp
+    use sqpopt_types_module, only: sqpopt_success, sqpopt_invalid_input, sqpopt_infinity
 
     implicit none
 
@@ -76,6 +77,7 @@
         procedure, public :: set_jacobian_sparsity !! set the (fixed) sparsity pattern of the constraint Jacobian
         procedure, public :: set_hessian_sparsity  !! set the (fixed) sparsity pattern of the Lagrangian Hessian
         procedure, public :: set_functions         !! attach the user-supplied evaluation procedures
+        procedure, public :: validate              !! check the problem definition and normalize infinite bounds
 
     end type sqpopt_problem_type
 
@@ -178,6 +180,97 @@
     me%c_ub = c_ub
 
     end subroutine set_bounds
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  check that the problem is completely and consistently defined, and
+!  normalize the bounds: any bound with magnitude `>= sqpopt_infinity` is
+!  clamped to `+/-sqpopt_infinity`, so that e.g. `-huge(1.0_wp)` may be
+!  used for an absent bound without overflowing expressions like
+!  `x_ub-x_lb`. Returns `istat=sqpopt_invalid_input` (and a description in
+!  `msg`) on the first problem found, else `sqpopt_success`.
+
+    subroutine validate(me, istat, msg)
+
+    class(sqpopt_problem_type), intent(inout) :: me
+    integer,                       intent(out) :: istat !! `sqpopt_success` or `sqpopt_invalid_input`
+    character(len=:), allocatable, intent(out) :: msg   !! description of the problem found (empty if none)
+
+    istat = sqpopt_invalid_input
+    msg   = ''
+
+    if (me%n <= 0) then
+        msg = 'the number of variables n must be > 0 (call set_problem_size)'; return
+    end if
+    if (me%m < 0 .or. me%m_eq < 0 .or. me%m_ineq < 0) then
+        msg = 'the number of constraints must be >= 0'; return
+    end if
+    if (.not. (allocated(me%x_lb) .and. allocated(me%x_ub) .and. allocated(me%c_lb) .and. allocated(me%c_ub))) then
+        msg = 'the bounds have not been set (call set_bounds)'; return
+    end if
+    if (size(me%x_lb) /= me%n .or. size(me%x_ub) /= me%n) then
+        msg = 'the variable bounds x_lb/x_ub must have size n'; return
+    end if
+    if (size(me%c_lb) /= me%m .or. size(me%c_ub) /= me%m) then
+        msg = 'the constraint bounds c_lb/c_ub must have size m'; return
+    end if
+
+    me%x_lb = max(me%x_lb, -sqpopt_infinity)
+    me%x_ub = min(me%x_ub,  sqpopt_infinity)
+    me%c_lb = max(me%c_lb, -sqpopt_infinity)
+    me%c_ub = min(me%c_ub,  sqpopt_infinity)
+
+    if (any(me%x_lb /= me%x_lb) .or. any(me%x_ub /= me%x_ub) .or. &
+        any(me%c_lb /= me%c_lb) .or. any(me%c_ub /= me%c_ub)) then
+        msg = 'a bound is NaN'; return
+    end if
+    if (any(me%x_lb > me%x_ub)) then
+        msg = 'a variable lower bound exceeds its upper bound'; return
+    end if
+    if (any(me%c_lb > me%c_ub)) then
+        msg = 'a constraint lower bound exceeds its upper bound'; return
+    end if
+    if (any(me%x_lb >= sqpopt_infinity) .or. any(me%x_ub <= -sqpopt_infinity) .or. &
+        any(me%c_lb >= sqpopt_infinity) .or. any(me%c_ub <= -sqpopt_infinity)) then
+        msg = 'a lower bound is +infinity or an upper bound is -infinity'; return
+    end if
+
+    if (me%m > 0) then
+        if (.not. (allocated(me%jac_irow) .and. allocated(me%jac_icol))) then
+            msg = 'the Jacobian sparsity pattern has not been set (call set_jacobian_sparsity)'; return
+        end if
+    end if
+    if (me%jac_nnz < 0) then
+        msg = 'the number of Jacobian nonzeros must be >= 0'; return
+    end if
+    if (me%jac_nnz > 0) then
+        if (.not. (allocated(me%jac_irow) .and. allocated(me%jac_icol))) then
+            msg = 'the Jacobian sparsity pattern has not been set (call set_jacobian_sparsity)'; return
+        end if
+        if (size(me%jac_irow) /= me%jac_nnz .or. size(me%jac_icol) /= me%jac_nnz) then
+            msg = 'the Jacobian sparsity pattern arrays must have size jac_nnz'; return
+        end if
+        if (any(me%jac_irow < 1) .or. any(me%jac_irow > me%m)) then
+            msg = 'a Jacobian row index is outside 1..m'; return
+        end if
+        if (any(me%jac_icol < 1) .or. any(me%jac_icol > me%n)) then
+            msg = 'a Jacobian column index is outside 1..n'; return
+        end if
+    else
+        ! make sure the (possibly empty) pattern arrays exist, so they can be copied safely:
+        if (.not. allocated(me%jac_irow)) allocate(me%jac_irow(0))
+        if (.not. allocated(me%jac_icol)) allocate(me%jac_icol(0))
+    end if
+
+    if (.not. (associated(me%eval_f) .and. associated(me%eval_g) .and. &
+               associated(me%eval_c) .and. associated(me%eval_jac))) then
+        msg = 'the problem functions have not been set (call set_functions)'; return
+    end if
+
+    istat = sqpopt_success
+
+    end subroutine validate
 !*******************************************************************************
 
 !*******************************************************************************
