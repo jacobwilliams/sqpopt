@@ -402,7 +402,8 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <tbody>
 <tr><td><code>ktol</code></td><td><code>1e-6</code></td><td>tolerance on the KKT optimality test: stationarity of the projected Lagrangian gradient, plus the sign and complementarity of the constraint multipliers (scaled up only when the average multiplier magnitude exceeds 100, as in IPOPT)</td></tr>
 <tr><td><code>ctol</code></td><td><code>1e-8</code></td><td>feasibility tolerance on the constraint violation</td></tr>
-<tr><td><code>ftol</code>, <code>xtol</code></td><td><code>1e-8</code></td><td>once feasible, also stop (with <code>sqpopt_stalled</code>) if the relative change in both the objective and the variables from the previous iterate is below these tolerances. This guards against looping to <code>max_iter</code> on marginal steps when the KKT test never quite converges.</td></tr>
+<tr><td><code>ftol</code>, <code>xtol</code></td><td><code>1e-8</code></td><td>once feasible, also stop (with <code>sqpopt_stalled</code>) if the relative change in both the objective and the variables from the previous iterate is below these tolerances for <code>stall_iter</code> consecutive iterations. This guards against looping to <code>max_iter</code> on marginal steps when the KKT test never quite converges.</td></tr>
+<tr><td><code>stall_iter</code></td><td><code>3</code></td><td>number of consecutive iterations the <code>ftol</code>/<code>xtol</code> stalled-progress test must hold before stopping. A single negligible step (e.g. a short line-search step on a badly scaled problem) is not treated as a stall.</td></tr>
 <tr><td><code>acceptable_ktol</code>, <code>acceptable_ctol</code>, <code>acceptable_iter</code></td><td><code>1e-4</code>, <code>1e-6</code>, <code>15</code></td><td>if the KKT test with these looser tolerances holds for <code>acceptable_iter</code> consecutive iterations, stop with <code>sqpopt_acceptable</code> (<code>acceptable_iter = 0</code> disables this)</td></tr>
 <tr><td><code>max_iter</code></td><td><code>100</code></td><td>maximum number of major SQP iterations</td></tr>
 <tr><td><code>max_evals</code></td><td><code>0</code></td><td>stop after this many objective evaluations (<code>0</code> = no limit)</td></tr>
@@ -663,18 +664,18 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <div class="table-wrap"><table class="bench">
 <thead><tr><th>line search / merit / penalty</th><th class="num">solved</th><th class="num">local</th><th class="num">failed</th><th class="num"><code>f</code> evals (solved)</th></tr></thead>
 <tbody>
-<tr class="best"><td><strong>filter</strong> (default, with interpolation)</td><td class="num"><strong>275</strong></td><td class="num">30</td><td class="num"><strong>0</strong></td><td class="num"><strong>9,486</strong></td></tr>
-<tr><td>filter, without interpolation</td><td class="num">274</td><td class="num">31</td><td class="num">0</td><td class="num">9,676</td></tr>
-<tr><td>Armijo / \( \ell_1 \) / multipliers</td><td class="num">270</td><td class="num">31</td><td class="num">4</td><td class="num">27,718</td></tr>
-<tr><td>Armijo / \( \ell_1 \) / model (Byrd&ndash;Nocedal)</td><td class="num">272</td><td class="num">31</td><td class="num">2</td><td class="num">30,325</td></tr>
-<tr><td>Armijo / augmented Lagrangian / multipliers</td><td class="num">271</td><td class="num">32</td><td class="num">2</td><td class="num">10,093</td></tr>
-<tr><td>Armijo / augmented Lagrangian / multipliers, interpolation + non-monotone (10)</td><td class="num">274</td><td class="num">30</td><td class="num">1</td><td class="num">10,533</td></tr>
-<tr><td>Armijo / augmented Lagrangian / model (GMSW)</td><td class="num">266</td><td class="num">33</td><td class="num">6</td><td class="num">12,922</td></tr>
-<tr><td>watchdog / \( \ell_1 \) / model</td><td class="num">272</td><td class="num">31</td><td class="num">2</td><td class="num">33,457</td></tr>
+<tr class="best"><td><strong>filter</strong> (default, with interpolation)</td><td class="num"><strong>276</strong></td><td class="num">29</td><td class="num"><strong>0</strong></td><td class="num"><strong>9,780</strong></td></tr>
+<tr><td>filter, without interpolation</td><td class="num">275</td><td class="num">30</td><td class="num">0</td><td class="num">10,018</td></tr>
+<tr><td>Armijo / \( \ell_1 \) / multipliers</td><td class="num">270</td><td class="num">29</td><td class="num">6</td><td class="num">28,262</td></tr>
+<tr><td>Armijo / \( \ell_1 \) / model (Byrd&ndash;Nocedal)</td><td class="num">272</td><td class="num">29</td><td class="num">4</td><td class="num">38,466</td></tr>
+<tr><td>Armijo / augmented Lagrangian / multipliers</td><td class="num">271</td><td class="num">32</td><td class="num">2</td><td class="num">10,354</td></tr>
+<tr><td>Armijo / augmented Lagrangian / multipliers, interpolation + non-monotone (10)</td><td class="num">274</td><td class="num">30</td><td class="num">1</td><td class="num">11,057</td></tr>
+<tr><td>Armijo / augmented Lagrangian / model (GMSW)</td><td class="num">267</td><td class="num">32</td><td class="num">6</td><td class="num">13,563</td></tr>
+<tr><td>watchdog / \( \ell_1 \) / model</td><td class="num">272</td><td class="num">30</td><td class="num">3</td><td class="num">42,866</td></tr>
 </tbody>
 </table></div>
 
-<p class="small">The merit-function rows are without interpolation, except where noted. With interpolation, Armijo / \( \ell_1 \) / multipliers needs 17,384 <code>f</code> evaluations instead of 27,718, but fails on one more problem. Analytic derivatives are used throughout, except for the 16 problems for which the collection provides none (they are solved with finite-difference derivatives, as the collection intends); the analytic derivatives that were wrong in the original collection are fixed in <code>test/schittkowski_problems.f90</code>.</p>
+<p class="small">The merit-function rows are without interpolation, except where noted. With interpolation, Armijo / \( \ell_1 \) / multipliers needs 17,682 <code>f</code> evaluations instead of 28,262, but fails on one more problem. Analytic derivatives are used throughout, except for the 16 problems for which the collection provides none (they are solved with finite-difference derivatives, as the collection intends); the analytic derivatives that were wrong in the original collection are fixed in <code>test/schittkowski_problems.f90</code>.</p>
 
 <p>A scalable benchmark (function evaluations and run time on a nonlinear optimal-control problem and a constrained chained-Rosenbrock problem, at sizes that exercise both QP solvers) is in <code>example/benchmark.f90</code>:</p>
 

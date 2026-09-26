@@ -13,7 +13,7 @@
     use sqpopt_kinds,             only: wp => sqpopt_module_wp
     use sqpopt_types_module,      only: sqpopt_sparse_matrix, sqpopt_success, sqpopt_user_requested_stop, sqpopt_report_func, &
                                          sqpopt_infeasible, sqpopt_function_error, sqpopt_all_finite, sqpopt_unbounded, &
-                                         sqpopt_acceptable, sqpopt_infinity
+                                         sqpopt_acceptable, sqpopt_infinity, sqpopt_stalled
     use sqpopt_problem_module,    only: sqpopt_problem_type
     use sqpopt_options_module,    only: sqpopt_options_type, sqpopt_hessian_sr1
     use sqpopt_hessian_module,    only: sqpopt_hessian_type
@@ -78,7 +78,8 @@
 !  "no change") is skipped on the next iteration.
 
     subroutine sqpopt_iterate(problem, options, hessian, qp_solver, linesearch, trust_region, &
-                               x, lambda, x_prev, gl_prev, f_prev, viol_prev, jac, n_acceptable, iter, report, done, &
+                               x, lambda, x_prev, gl_prev, f_prev, viol_prev, jac, n_acceptable, n_stalled, iter, report, &
+                               done, &
                                istat, info)
 
     type(sqpopt_problem_type),    intent(inout) :: problem     !! problem definition
@@ -97,6 +98,8 @@
     type(sqpopt_sparse_matrix),          intent(inout) :: jac     !! workspace for the constraint Jacobian: its sparsity
                                                                   !! structure is set on the first call (when `jac%val` is
                                                                   !! unallocated) and reused, and its values are updated
+    integer,                intent(inout) :: n_stalled    !! number of consecutive iterations (so far) at which the
+                                                          !! stalled-progress test has held (`0` before the 1st call)
     integer,                intent(inout) :: n_acceptable !! number of consecutive iterations (so far) at which the
                                                           !! acceptable-level test has held (`0` before the 1st call)
     integer,                intent(in)    :: iter      !! major iteration number (starts at 1), passed to `report`
@@ -182,6 +185,19 @@
                             lambda, options%ktol, options%ctol, done, istat, &
                             f=f, f_prev=f_prev, x_prev=x_prev, ftol=options%ftol, xtol=options%xtol, &
                             kkt_error=info%kkt, feas_error=info%feas, viol_prev=viol_prev)
+    ! the stalled-progress test must hold for `stall_iter` consecutive
+    ! iterations: a single negligible step (e.g. a short line-search step on a
+    ! badly scaled problem) is not a stall, and stopping on it made results
+    ! depend on last-bit differences between platforms
+    if (done .and. istat == sqpopt_stalled) then
+        n_stalled = n_stalled + 1
+        if (n_stalled < options%stall_iter) then
+            done  = .false.
+            istat = sqpopt_success
+        end if
+    else
+        n_stalled = 0
+    end if
     if (done) return
 
     ! unbounded: the objective is below its limit at a feasible point:

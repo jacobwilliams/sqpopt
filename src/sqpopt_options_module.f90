@@ -59,6 +59,9 @@
                                                 !! `istat=sqpopt_acceptable`
         real(wp) :: acceptable_ctol = 1.0e-6_wp !! looser "acceptable" feasibility tolerance (see `acceptable_ktol`)
         integer  :: acceptable_iter = 15        !! consecutive acceptable iterations needed (`0` disables the test)
+        integer  :: stall_iter = 3              !! the stalled-progress test (`ftol`/`xtol`) must hold for this many
+                                                !! consecutive iterations before the solver stops with
+                                                !! `sqpopt_stalled` (a single negligible step isn't a stall)
 
         integer  :: max_evals       = 0         !! stop (`istat=sqpopt_max_evals_reached`) after this many evaluations
                                                 !! of the objective function (`0` = no limit)

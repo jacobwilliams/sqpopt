@@ -58,10 +58,10 @@ program test_hs_suite
 
     !> problems not (yet) solved by `sqpopt` with the default options -- the
     !! regression baseline (see the program documentation). As of 2026-09-26:
-    !! 275 of the 305 problems solved, 30 local solutions, 0 failures.
+    !! 276 of the 305 problems solved, 29 local solutions, 0 failures.
     integer, dimension(*), parameter :: known_unsolved = [ &
           2,  16,  25,  33,  38,  54,  55,  57,  59,  87,  97,  98, 105, 109, 202, &
-        213, 236, 239, 265, 272, 283, 287, 304, 305, 312, 327, 338, 340, 362, 373 ]
+        213, 236, 239, 265, 272, 283, 287, 304, 305, 312, 327, 338, 340, 362 ]
 
     type :: problem_context
         !! the user data passed to the problem functions
@@ -131,9 +131,17 @@ program test_hs_suite
     call write_report(report_file, real(t1-t0, dp)/real(rate, dp))
     write(*,'(A)') 'report written to: '//report_file
 
-    if (n_improved > 0) write(*,'(I0,A)') n_improved, ' problem(s) in known_unsolved are now solved: update the list'
+    if (n_improved > 0) then
+        write(*,'(I0,A)') n_improved, ' problem(s) in known_unsolved are now solved: update the list'
+        write(*,'(A,*(1X,I0))') '   now solved: TP', pack(rec%id, rec%outcome == 'solved' .and. &
+                                                       [(any(known_unsolved == rec(k)%id), k=1,hs_n_problems)])
+    end if
     if (n_regressions > 0) then
         write(*,'(I0,A)') n_regressions, ' problem(s) not in known_unsolved were not solved'
+        do k = 1, hs_n_problems
+            if (rec(k)%regression) write(*,'(A,I0,A,A,A,I0,A,A)') '   TP', rec(k)%id, ': ', trim(rec(k)%outcome), &
+                ' (istat=', rec(k)%istat, ') ', sqpopt_status_message(rec(k)%istat)
+        end do
         error stop 'test_hs_suite FAILED'
     end if
     print '(A)', 'test_hs_suite PASSED'
