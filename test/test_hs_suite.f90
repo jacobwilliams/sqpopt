@@ -35,10 +35,24 @@ program test_hs_suite
     !!
     !! **Report:** the results are also written as a Markdown report (summary,
     !! efficiency vs. NLPQLP, termination statuses, and a per-problem table)
-    !! to `test/hs_suite_results.md`, or to the file given as the first
+    !! to `test/hs_suite_results.md`, or to the file given as a (positional)
     !! command-line argument:
     !!
     !!    fpm test test_hs_suite --profile release -- results.md
+    !!
+    !! **Configuration:** the globalization can be changed from the command
+    !! line, for comparisons (see `tools/hs_performance_table.sh`):
+    !!
+    !! * `--linesearch=filter|armijo|watchdog|exact` (`options%linesearch_mode`)
+    !! * `--merit=l1|al` (`options%merit_mode`)
+    !! * `--penalty=multipliers|model` (`options%penalty_update`)
+    !! * `--no-interpolate` (`linesearch%interpolate = .false.`)
+    !! * `--nonmonotone=N` (`linesearch%nonmonotone_len = N`)
+    !!
+    !! If any of these options is given, the regression test is skipped (the
+    !! baseline is for the defaults). The last line printed before the
+    !! regression test is a machine-readable summary:
+    !! `summary: solved=... local=... failed=... nf=... ng=...`.
 
     use, intrinsic :: ieee_arithmetic, only: ieee_set_halting_mode, ieee_all, ieee_is_finite
     use, intrinsic :: iso_fortran_env, only: dp => real64, int64, compiler_version
@@ -46,7 +60,10 @@ program test_hs_suite
     use sqpopt_module,         only: sqpopt_type
     use sqpopt_problem_module, only: sqpopt_problem_type
     use sqpopt_options_module, only: sqpopt_options_type
-    use sqpopt_linesearch_module, only: sqpopt_linesearch_type
+    use sqpopt_linesearch_module, only: sqpopt_linesearch_type, sqpopt_linesearch_armijo, sqpopt_linesearch_exact, &
+                                        sqpopt_linesearch_watchdog, sqpopt_linesearch_filter, sqpopt_merit_l1, &
+                                        sqpopt_merit_augmented_lagrangian, sqpopt_penalty_multipliers, &
+                                        sqpopt_penalty_model
     use sqpopt_types_module,   only: sqpopt_results_type, sqpopt_success, sqpopt_stalled, sqpopt_acceptable, &
                                      sqpopt_status_message
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
@@ -92,9 +109,17 @@ program test_hs_suite
     character(len=6) :: outcome
     integer(int64) :: t0, t1, rate
     character(len=:), allocatable :: report_file
-    integer :: arg_len
+
+    ! the configuration (see the program documentation):
+    integer :: cfg_linesearch  = sqpopt_linesearch_filter
+    integer :: cfg_merit       = sqpopt_merit_l1
+    integer :: cfg_penalty     = sqpopt_penalty_multipliers
+    logical :: cfg_interpolate = .true.
+    integer :: cfg_nonmonotone = 0
+    logical :: cfg_default     = .true.   !! whether every setting is the default (then the regression test runs)
 
     call ieee_set_halting_mode(ieee_all, .false.)  ! (trial points may produce NaN/Inf, which the solver handles)
+    call parse_arguments()
 
     write(*,*) '----------------------------'
     write(*,*) 'test_hs_suite'
@@ -121,15 +146,15 @@ program test_hs_suite
     write(*,'(A,2(I0,A))') '                               NLPQLP ', sum_nlpqlp_nf, ' f, ', sum_nlpqlp_ndf, ' g'
     write(*,'(A,F0.2,A)') 'time: ', real(t1-t0, dp)/real(rate, dp), ' s'
 
-    call get_command_argument(1, length=arg_len)
-    if (arg_len > 0) then
-        allocate(character(len=arg_len) :: report_file)
-        call get_command_argument(1, report_file)
-    else
-        report_file = default_report_file
-    end if
     call write_report(report_file, real(t1-t0, dp)/real(rate, dp))
     write(*,'(A)') 'report written to: '//report_file
+    write(*,'(5(A,I0))') 'summary: solved=', n_solved, ' local=', n_local, ' failed=', n_failed, &
+                         ' nf=', sum_nf, ' ng=', sum_ng
+
+    if (.not. cfg_default) then
+        print '(A)', 'test_hs_suite: non-default configuration, regression test skipped'
+        stop
+    end if
 
     if (n_improved > 0) then
         write(*,'(I0,A)') n_improved, ' problem(s) in known_unsolved are now solved: update the list'
@@ -147,6 +172,42 @@ program test_hs_suite
     print '(A)', 'test_hs_suite PASSED'
 
     contains
+
+    subroutine parse_arguments()
+    !! the report file (positional) and the configuration options (see the
+    !! program documentation)
+    integer :: i, n, ios
+    character(len=256) :: arg
+    report_file = default_report_file
+    do i = 1, command_argument_count()
+        call get_command_argument(i, arg)
+        if (arg(1:2) /= '--') then
+            report_file = trim(arg)
+            cycle
+        end if
+        cfg_default = .false.
+        select case (trim(arg))
+        case ('--linesearch=filter');   cfg_linesearch = sqpopt_linesearch_filter
+        case ('--linesearch=armijo');   cfg_linesearch = sqpopt_linesearch_armijo
+        case ('--linesearch=watchdog'); cfg_linesearch = sqpopt_linesearch_watchdog
+        case ('--linesearch=exact');    cfg_linesearch = sqpopt_linesearch_exact
+        case ('--merit=l1');            cfg_merit = sqpopt_merit_l1
+        case ('--merit=al');            cfg_merit = sqpopt_merit_augmented_lagrangian
+        case ('--penalty=multipliers'); cfg_penalty = sqpopt_penalty_multipliers
+        case ('--penalty=model');       cfg_penalty = sqpopt_penalty_model
+        case ('--no-interpolate');      cfg_interpolate = .false.
+        case default
+            if (arg(1:14) == '--nonmonotone=') then
+                read(arg(15:), *, iostat=ios) n
+                if (ios /= 0 .or. n < 0) error stop 'test_hs_suite: bad --nonmonotone value'
+                cfg_nonmonotone = n
+            else
+                write(*,'(A)') 'test_hs_suite: unknown option: '//trim(arg)
+                error stop 1
+            end if
+        end select
+    end do
+    end subroutine parse_arguments
 
     subroutine run_problem(id, k)
     !! solve problem `id` (the `k`-th in the collection) and report the outcome
@@ -181,7 +242,12 @@ program test_hs_suite
     call problem%set_bounds(real(p%x_lb, wp), real(p%x_ub, wp), real(p%c_lb, wp), real(p%c_ub, wp))
     call problem%set_jacobian_sparsity(nnz, irow, icol)
     call problem%set_functions(f=obj, g=grad, c=cons, jac=jacv, data=ctx)
-    options%max_iter = 1000
+    options%max_iter        = 1000
+    options%linesearch_mode = cfg_linesearch
+    options%merit_mode      = cfg_merit
+    options%penalty_update  = cfg_penalty
+    linesearch%interpolate     = cfg_interpolate
+    linesearch%nonmonotone_len = cfg_nonmonotone
 
     call solver%initialize(problem=problem, options=options, linesearch=linesearch)
     call solver%solve(real(p%x0, wp), istat)
