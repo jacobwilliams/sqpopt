@@ -522,6 +522,12 @@
         prob%x_lb(i) = merge(xl(i), -hs_infinity, lxl(i))
         prob%x_ub(i) = merge(xu(i),  hs_infinity, lxu(i))
     end do
+    ! (a few problems -- TP358, 369, 376, 379, 383 -- clip x to XL/XU inside
+    ! their function evaluations, also on a side declared unbounded, where
+    ! XL/XU were never set: make that side really unbounded, or e.g. TP379's
+    ! objective would be constant, with every x clipped to 0)
+    where (.not. lxl(1:n_)) xl(1:n_) = -hs_infinity
+    where (.not. lxu(1:n_)) xu(1:n_) =  hs_infinity
     allocate(prob%c_lb(prob%m), prob%c_ub(prob%m))
     prob%c_lb = 0.0_dp
     prob%c_ub = hs_infinity

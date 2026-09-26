@@ -15,8 +15,9 @@
 !  Author of the original Fortran 77 code: K. Schittkowski
 !  (https://klaus-schittkowski.de/test_probs_src.zip, file `PROB.FOR`).
 !
-!  This file was generated from `PROB.FOR` by `tools/convert_schittkowski.py`
-!  (do not edit it by hand), by a mechanical conversion:
+!  This file was originally generated from `PROB.FOR` by
+!  `tools/convert_schittkowski.py`, and is now maintained directly (it has
+!  fixes the original doesn't, see below). The conversion was mechanical:
 !
 !  * fixed-form source to free form (comments, continuation lines);
 !  * every routine placed in this module (so they have explicit
@@ -29,9 +30,20 @@
 !    becomes `TPnnn_SHARED(MODE,IENTRY)`, which jumps to the code at entry
 !    point `IENTRY`, and each entry point a one-line wrapper around it.
 !
-!  The problems' code is otherwise unchanged. It still communicates through
-!  the original COMMON blocks, and keeps its original implicit typing --
-!  which is why this module has no `implicit none` and no module variables
+!  The problems' code is otherwise unchanged, except for fixes to analytic
+!  derivatives that were wrong in the original (each marked `!! FIXED:`,
+!  and checked against finite differences): the gradients of TP15, 25, 67,
+!  105, 114, 212, 244, 246, 247, 287, 303/304/305, 308, 310, and 380, and
+!  the Jacobians of TP264 and 372. The objectives and constraints are
+!  unchanged (even where they look unintended, e.g. TP105's penalty
+!  branch), since the reference solutions are for them as written. Some
+!  problems (TP332, 348, 356, 357, 362, 364, 365, 366, 369, 370, 371, 377,
+!  378, 391, 392, 393) have no analytic derivatives at all, as in the
+!  original: they are meant to be solved with numerical derivatives.
+!
+!  The code still communicates through the original COMMON blocks, and
+!  keeps its original implicit typing -- which is why this module has no
+!  `implicit none` and no module variables
 !  (a module variable would be host-associated into routines that rely on
 !  implicitly typed locals). Use the modern interface in
 !  [[hs_problems_module]] instead of calling these routines directly.
@@ -829,7 +841,8 @@
 2     FX=(X(2)-X(1)**2)**2+0.01*(1.D0-X(1))**2
       RETURN
 3     GF(2)=2.0*(X(2)-X(1)**2)
-      GF(1)=-2.D-2*(X(1)*(GF(2)-1.D0)+1.D0)
+      !! FIXED: was -2.D-2*(X(1)*(GF(2)-1.D0)+1.D0), not the derivative of FX
+      GF(1)=-2.D0*X(1)*GF(2)-2.D-2*(1.D0-X(1))
       RETURN
 4     IF (INDEX1(1)) G(1)=X(1)*X(2)-1.D0
       IF (INDEX1(2)) G(2)=X(2)**2+X(1)
@@ -1432,7 +1445,9 @@
 3     CONTINUE
       DO I=1,99
       V1=2.D0/3.D0
-      U(I)=25.D0-(50.D0*DLOG(0.01D0*DBLE(I)))**V1
+      !! FIXED: was 25.D0-(50.D0*DLOG(...))**V1 (NaN: a fractional power of a
+      !! negative number), not the objective's U(I)
+      U(I)=25.D0+(-50.D0*DLOG(0.01D0*DBLE(I)))**V1
       V2=U(I)-X(2)
       IF (V2.LE.0) GOTO 9
       V22=-V2**X(3)/X(1)
@@ -4285,7 +4300,8 @@
       Y(6)=(X(2)+Y(3))*RX
       DY(6,1)=(X(1)*DY(3,1)-X(2)-Y(3))*RX**2
       DY(6,2)=(1.D0+DY(3,2))*RX
-      DY(6,3)=DY(3,1)*RX
+      !! FIXED: was DY(3,1)*RX (Y(6)=(X(2)+Y(3))/X(1))
+      DY(6,3)=DY(3,3)*RX
       V1=0.01D0*X(1)*(13.167D0-2.D0*0.6667D0*Y(6))
       V2=(112.D0+(13.167D0-0.6667D0*Y(6))*Y(6))*0.01D0
       Y2C=X(1)*V2
@@ -7753,26 +7769,47 @@
       END DO
       END DO
       DO I=1,235
+      !! FIXED: the objective clamps each exponent at -10 (DMAX1), so where it
+      !! is clamped its derivative is that of the clamped term
       V0=X(6)**2
       V2=Y(I)-X(3)
+      IF (-V2**2/(2.D0*V0) .GE. -1.0D1) THEN
       V1=DEXP(-V2**2/(2.D0*V0))
       DA(I,1)=V1/X(6)
       DA(I,3)=X(1)*V2/X(6)**3*V1
       DA(I,6)=X(1)/V0*(V2**2/V0-1.D0)*V1
+      ELSE
+      V1=DEXP(-1.0D1)
+      DA(I,1)=V1/X(6)
+      DA(I,6)=-X(1)/V0*V1
+      END IF
       V3=X(7)**2
       V4=Y(I)-X(4)
+      IF (-V4**2/(2.D0*V3) .GE. -1.0D1) THEN
       V5=DEXP(-V4**2/(2.D0*V3))
       DB(I,2)=V5/X(7)
       DB(I,4)=X(2)*V4/X(7)**3*V5
       DB(I,7)=X(2)/V3*(V4**2/V3-1.D0)*V5
+      ELSE
+      V5=DEXP(-1.0D1)
+      DB(I,2)=V5/X(7)
+      DB(I,7)=-X(2)/V3*V5
+      END IF
       V7=X(8)**2
       V9=Y(I)-X(5)
-      V8=DEXP(-V9**2/(2.D0*V7))
       V10=1.D0-X(1)-X(2)
+      IF (-V9**2/(2.D0*V7) .GE. -1.0D1) THEN
+      V8=DEXP(-V9**2/(2.D0*V7))
       DC(I,1)=-V8/X(8)
       DC(I,2)=DC(I,1)
       DC(I,5)=V10*V9/X(8)**3*V8
       DC(I,8)=V10/V7*(V9**2/V7-1.D0)*V8
+      ELSE
+      V8=DEXP(-1.0D1)
+      DC(I,1)=-V8/X(8)
+      DC(I,2)=DC(I,1)
+      DC(I,8)=-V10/V7*V8
+      END IF
       END DO
       DO J=1,8
       T1=0.D0
@@ -7782,7 +7819,17 @@
       GF(J)=-T1
       END DO
       RETURN
-70    DO I=1,8
+70    CONTINUE
+      !! FIXED: the gradient of this (penalty) branch was never computed. (Its
+      !! objective resets SUM in the loop, so it is (X(8)-5)**2+2090 -- kept.)
+      IF (MODE.EQ.3) THEN
+      DO I=1,8
+      GF(I)=0.D0
+      END DO
+      GF(8)=2.D0*(X(8)-5.D0)
+      RETURN
+      END IF
+      DO I=1,8
       SUM=0.D0
       SUM=SUM+(X(I)-5.D0)**2
       END DO
@@ -8876,11 +8923,12 @@
       GG(J,I)=0.D0
       END DO
       END DO
-      GF(1)=5.04D0*1.0D-4
-      GF(2)=0.035D0*1.0D-4
-      GF(3)=10.D0*1.0D-4
+      !! FIXED: were scaled by 1.0D-4, unlike FX
+      GF(1)=5.04D0
+      GF(2)=0.035D0
+      GF(3)=10.D0
       GF(4)=0.0D0
-      GF(5)=3.36D0*1.0D-4
+      GF(5)=3.36D0
       GF(6)=0.D0
       GF(7)=0.0D0
       GF(8)=0.D0
@@ -10245,8 +10293,9 @@
     &*((X(1)-2.D+0)**2+X(2)**2-1.D+0))*(4.D+0+((X(1)-2.D+0)**2&
     &+X(2)**2-1.D+0)+(X(1)-X(2))*2.D+0*(X(1)-2.D+0))
       GF(2)=32.D+0*(X(1)+X(2))+2.D+0*(4.D+0*(X(1)+X(2))+(X(1)-X(2))&
-    &*((X(1)-2.D+0)**2+X(2)**2-1.D+0))*(4.D+0-(X(1)-2.D+0)**2&
-    &+X(2)**2-1.D+0+(X(1)-X(2))*2.D+0*X(2))
+    &*((X(1)-2.D+0)**2+X(2)**2-1.D+0))*(4.D+0-((X(1)-2.D+0)**2&
+    &+X(2)**2-1.D+0)+(X(1)-X(2))*2.D+0*X(2))
+      !! FIXED: GF(2) was missing the parentheses around ((X(1)-2)**2+X(2)**2-1)
 4     RETURN
       END
 !
@@ -12085,7 +12134,8 @@
 3     DO I=1,3
       GF(I)=0.D+0
       END DO
-      DO I=1,10
+      !! FIXED: was DO I=1,10, but FX sums only the first 8 residuals
+      DO I=1,8
       ZI=0.1D+0*DBLE(I)
       YI=DEXP(-ZI)-5.D+0*DEXP(-1.D+1*ZI)
       DF(I,1)=-ZI*DEXP(-X(1)*ZI)
@@ -12224,8 +12274,9 @@
       IF (MODE.EQ.3) GOTO 3
       FX=F(1)**2+F(2)**2+F(3)**2
       RETURN
-3     DF(1,1)=-10.D+0*(X(1)+X(2))
-      DF(1,2)=-10.D+0*(X(1)+X(2))
+      !! FIXED: were -10.D+0*(X(1)+X(2)); F(1)=10*(X(3)-((X(1)+X(2))/2)**2)
+3     DF(1,1)=-5.D+0*(X(1)+X(2))
+      DF(1,2)=-5.D+0*(X(1)+X(2))
       DO I=1,3
       GF(I)=0.D+0
       DO J=1,3
@@ -12290,14 +12341,16 @@
       RETURN
 3     XPI=DASIN(1.D+0)*2.D+0
       THETA=1.D+0/(2.D+0*XPI)*DATAN(X(2)/X(1))
-      DTHETA(1)=-X(2)/((1.D+0+(X(2)/X(1))**2)*X(1)**2)
-      DTHETA(2)=1.D+0/((1.D+0+(X(2)/X(1))**2)*X(1))
+      !! FIXED: THETA includes a 1/(2*pi) factor, which DTHETA was missing, and
+      !! GF(1), GF(2) had the wrong sign on the -10*THETA term
+      DTHETA(1)=-X(2)/((1.D+0+(X(2)/X(1))**2)*X(1)**2)/(2.D+0*XPI)
+      DTHETA(2)=1.D+0/((1.D+0+(X(2)/X(1))**2)*X(1))/(2.D+0*XPI)
       DTHETA(3)=0.D+0
       IF (X(1).LT.0.D+0) THETA=THETA+0.5D+0
-      GF(1)=1.D+2*(2.D+1*(X(3)-1.D+1*THETA)*DTHETA(1)+&
+      GF(1)=1.D+2*(-2.D+1*(X(3)-1.D+1*THETA)*DTHETA(1)+&
     &2.D+0*(DSQRT(X(1)**2+X(2)**2)-1.D+0)/(DSQRT(X(1)**2&
     &+X(2)**2))*X(1))
-      GF(2)=1.D+2*(2.D+1*(X(3)-1.D+1*THETA)*DTHETA(2)+&
+      GF(2)=1.D+2*(-2.D+1*(X(3)-1.D+1*THETA)*DTHETA(2)+&
     &2.D+0*(DSQRT(X(1)**2+X(2)**2)-1.D+0)/(DSQRT(X(1)**2&
     &+X(2)**2))*X(2))
       GF(3)=1.D+2*(2.D+0*(X(3)-1.D+1*THETA))+2.D+0*X(3)
@@ -13337,7 +13390,8 @@
       GG(2,1)=0.1D+1-0.2D+1*X(1)
       GG(2,2)=-0.4D+1*X(2)
       GG(2,3)=-0.2D+1*X(3)
-      GG(2,4)=-0.1D+1-0.4D+1*X(4)
+      !! FIXED: was -0.1D+1-0.4D+1*X(4); G(2) has +X(4)
+      GG(2,4)=0.1D+1-0.4D+1*X(4)
 10    IF (.NOT.INDEX2(3)) GOTO 11
       GG(3,1)=-0.2D+1-0.4D+1*X(1)
       GG(3,2)=0.1D+1-0.2D+1*X(2)
@@ -14669,7 +14723,8 @@
     &.198D+2*(X(I+15)-.1D+1)
       GF(I+5)=GF(I+5)*1.0d-5
       GF(I+10)=.36D+3*X(I+10)*(X(I+10)**2-X(I+15))+.2D+1*(X(I+10)-.1D+1)
-      GF(I+10)=GF(I+10)
+      !! FIXED: was GF(I+10)=GF(I+10), missing FX's 1.0D-5 scale
+      GF(I+10)=GF(I+10)*1.0d-5
       GF(I+15)=-.18D+3*(X(I+10)**2-X(I+15))+.202D+2*(X(I+15)-.1D+1)+&
     &.198D+2*(X(I+5)-.1D+1)
       GF(I+15)=GF(I+15)*1.0d-5
@@ -15141,7 +15196,12 @@
       FX=FX+X(I)**2
       END DO
       RETURN
-3     DO I=1,N
+      !! FIXED: POM (a local, not saved) was used without being computed here
+3     POM=.0D+0
+      DO I=1,N
+      POM=POM+.5D+0*DBLE(I)*X(I)
+      END DO
+      DO I=1,N
       GF(I)=.2D+1*X(I)+POM*DBLE(I)+.2D+1*DBLE(I)*POM**3
       END DO
 4     RETURN
@@ -15325,10 +15385,11 @@
       RETURN
 3     DF(1,1)=2.D+0*X(1)+X(2)
       DF(1,2)=2.D+0*X(2)+X(1)
-      DF(2,1)=2.D+0*DSIN(X(1))*DCOS(X(1))
+      !! FIXED: were the derivatives of F(2)**2 and F(3)**2, not of F(2), F(3)
+      DF(2,1)=DCOS(X(1))
       DF(2,2)=0.D+0
       DF(3,1)=0.D+0
-      DF(3,2)=-2.D+0*DCOS(X(2))*DSIN(X(2))
+      DF(3,2)=-DSIN(X(2))
       GF(1)=0.D+0
       GF(2)=0.D+0
       DO I=1,3
@@ -15428,8 +15489,9 @@
 3     A=X(1)*X(2)
       B=.1D+1-X(1)
       C=B-X(2)*(B**5)
-      GF(1)=2.D+0*A*B*C*(X(2)-1.D+0-5.D+0*X(2)*(B**4))
-      GF(2)=2.D+0*A*B*C*(X(1)-(B**5))
+      !! FIXED: were missing the product-rule terms; FX=(A*B*C)**2
+      GF(1)=2.D+0*A*B*C*(X(2)*B*C-A*C+A*B*(5.D+0*X(2)*(B**4)-1.D+0))
+      GF(2)=2.D+0*A*B*C*(X(1)*B*C-A*B*(B**5))
 4     RETURN
       END
 !
@@ -20068,7 +20130,8 @@
 5     DO I=1,6
       IF (.NOT.INDEX2(I+6)) GOTO 51
       GG(I+6,2)=-DEXP(DBLE(I*2-7)*X(3))
-      GG(I+6,3)=-X(2)*DBLE(I*2-7)*GG(I+6,2)
+      !! FIXED: was -X(2)*..., the wrong sign (GG(I+6,2) is already negative)
+      GG(I+6,3)=X(2)*DBLE(I*2-7)*GG(I+6,2)
 51    CONTINUE
       END DO
       DO I=1,6
@@ -21110,7 +21173,8 @@
 3     DO I=1,11
       TEMP=X(I)
       IF(X(I).LT.0.1D-14) TEMP=0.1D-14
-      GF(I)=1.0D5*FX*(A(I)/TEMP)
+      !! FIXED: was 1.0D5*FX*(A(I)/TEMP): FX already includes the 1.0D5
+      GF(I)=FX*(A(I)/TEMP)
       END DO
       GF(12)=0.D+0
       RETURN

@@ -14,11 +14,15 @@ program test_hs_suite
     !!   solution;
     !! * **failed**: anything else.
     !!
-    !! The collection's README warns that some problems' gradients are
-    !! missing or wrong, so each problem's derivatives are first checked
-    !! against central differences at the starting point and at a nearby
-    !! point; where they don't match, this harness supplies central-difference
-    !! derivatives instead (marked `fd` in the table).
+    !! Each problem's derivatives are first checked against finite
+    !! differences (see [[check_derivatives]]); where they don't match, this
+    !! harness supplies finite-difference derivatives instead (marked `fd` in
+    !! the table). That is now only the 16 problems that have no analytic
+    !! derivatives at all (TP332, 348, 356, 357, 362, 364, 365, 366, 369,
+    !! 370, 371, 377, 378, 391, 392, 393): the collection intends them to be
+    !! solved with numerical derivatives. The analytic derivatives that were
+    !! wrong in the original collection (18 problems) are fixed in
+    !! [[schittkowski_problems_module]].
     !!
     !! Evaluation counts are shown next to those of Schittkowski's NLPQLP on
     !! the same problems (from the collection's `TEST.DAT`; its gradients
@@ -54,11 +58,10 @@ program test_hs_suite
 
     !> problems not (yet) solved by `sqpopt` with the default options -- the
     !! regression baseline (see the program documentation). As of 2026-09-26:
-    !! 274 of the 305 problems solved, 31 local solutions, 0 failures.
+    !! 275 of the 305 problems solved, 30 local solutions, 0 failures.
     integer, dimension(*), parameter :: known_unsolved = [ &
           2,  16,  25,  33,  38,  54,  55,  57,  59,  87,  97,  98, 105, 109, 202, &
-        213, 236, 239, 265, 272, 283, 287, 304, 305, 312, 327, 338, 340, 362, 373, &
-        379 ]
+        213, 236, 239, 265, 272, 283, 287, 304, 305, 312, 327, 338, 340, 362, 373 ]
 
     type :: problem_context
         !! the user data passed to the problem functions
@@ -392,79 +395,134 @@ program test_hs_suite
     end function median
 
     subroutine check_derivatives(ctx)
-    !! compare the problem's gradient and Jacobian with central differences
-    !! at the starting point and at a nearby point, and switch to central
-    !! differences for whichever doesn't match
+    !! compare the problem's gradient and Jacobian with finite differences at
+    !! the starting point and at a nearby point, and switch to finite
+    !! differences for whichever doesn't match. Each is compared at three
+    !! difference steps (`h`, `h/100`, `10h`), and only counts as a mismatch
+    !! if even the closest of the three disagrees (by more than 1e-3,
+    !! relatively): finite differences of badly scaled functions can be
+    !! inaccurate at any one step (e.g. TP376, 383), but a wrong derivative
+    !! disagrees at all of them.
     type(problem_context), intent(inout) :: ctx
-    real(dp), dimension(ctx%n) :: x, g, gd
-    real(dp), dimension(ctx%m,ctx%n) :: jac, jd
-    integer :: t, j_
+    real(dp), dimension(ctx%n) :: x, g
+    real(dp), dimension(ctx%n,3) :: gd
+    real(dp), dimension(ctx%m,ctx%n) :: jac
+    real(dp), dimension(ctx%m,ctx%n,3) :: jd
+    real(dp), dimension(3), parameter :: hf = [1.0_dp, 1.0e-2_dp, 1.0e1_dp]
+    integer :: t, j_, k
     do t = 1, 2
         x = p%x0
         if (t == 2) x = x + 0.01_dp*max(1.0_dp, abs(x))*[(sin(real(3*t+j_, dp)), j_=1,ctx%n)]
         x = min(max(x, p%x_lb), p%x_ub)
         call hs_g(ctx%id, x, g)
-        call fd_gradient(ctx%id, x, gd)
+        do k = 1, 3
+            call fd_gradient(ctx%id, x, gd(:,k), hf(k))
+        end do
         if (mismatch(g, gd)) ctx%fd_g = .true.
         if (ctx%m > 0) then
             call hs_jac(ctx%id, x, jac)
-            call fd_jacobian(ctx%id, x, jd)
-            if (mismatch(reshape(jac, [size(jac)]), reshape(jd, [size(jd)]))) ctx%fd_jac = .true.
+            do k = 1, 3
+                call fd_jacobian(ctx%id, x, jd(:,:,k), hf(k))
+            end do
+            if (mismatch(reshape(jac, [size(jac)]), reshape(jd, [size(jac), 3]))) ctx%fd_jac = .true.
         end if
     end do
     end subroutine check_derivatives
 
     logical function mismatch(a, b)
-    !! whether analytic values `a` differ from finite-difference values `b`
-    !! by more than finite-difference error. A non-finite analytic value
-    !! where the finite difference is finite is a mismatch (e.g. TP25's
-    !! gradient, which takes a fractional power of a negative number); a
-    !! non-finite finite difference is skipped.
-    real(dp), dimension(:), intent(in) :: a, b
-    integer :: q
+    !! whether analytic values `a` differ from the finite-difference values
+    !! `b(:,k)` (at three steps `k`) by more than 1e-3 (relatively) at every
+    !! step. A non-finite analytic value where a finite difference is finite
+    !! is a mismatch (e.g. the original TP25's gradient took a fractional
+    !! power of a negative number); non-finite finite differences are skipped.
+    real(dp), dimension(:),   intent(in) :: a
+    real(dp), dimension(:,:), intent(in) :: b
+    integer :: q, k
+    real(dp) :: best
     mismatch = .false.
     do q = 1, size(a)
-        if (.not. ieee_is_finite(b(q))) cycle
-        if (.not. ieee_is_finite(a(q))) then
-            mismatch = .true.
-            cycle
-        end if
-        if (abs(a(q) - b(q)) > 1.0e-4_dp*max(1.0_dp, abs(a(q)), abs(b(q)))) mismatch = .true.
+        best = huge(1.0_dp)
+        do k = 1, size(b,2)
+            if (.not. ieee_is_finite(b(q,k))) cycle
+            if (.not. ieee_is_finite(a(q))) then
+                best = huge(1.0_dp)
+                exit
+            end if
+            best = min(best, abs(a(q) - b(q,k))/max(1.0_dp, abs(a(q)), abs(b(q,k))))
+        end do
+        if (all(.not. ieee_is_finite(b(q,:)))) cycle
+        if (best > 1.0e-3_dp) mismatch = .true.
     end do
     end function mismatch
 
-    subroutine fd_gradient(id, x, g)
-    !! central-difference gradient of problem `id`'s objective
+    subroutine fd_gradient(id, x, g, hfac)
+    !! finite-difference gradient of problem `id`'s objective (see [[fd_step]])
     integer,                intent(in)  :: id
     real(dp), dimension(:), intent(in)  :: x
     real(dp), dimension(:), intent(out) :: g
+    real(dp), optional,     intent(in)  :: hfac !! factor on the default difference step
     real(dp), dimension(size(x)) :: xp
-    real(dp) :: fp, fm, h
-    integer :: j
+    real(dp) :: f0, f1, f2, h
+    integer :: j, side
+    call hs_f(id, x, f0)
     do j = 1, size(x)
-        h = epsilon(1.0_dp)**(1.0_dp/3.0_dp)*max(1.0_dp, abs(x(j)))
-        xp = x; xp(j) = x(j) + h; call hs_f(id, xp, fp)
-        xp(j) = x(j) - h;         call hs_f(id, xp, fm)
-        g(j) = (fp - fm)/(2.0_dp*h)
+        call fd_step(x, j, h, side, hfac)
+        xp = x; xp(j) = x(j) + h;          call hs_f(id, xp, f1)
+        xp(j) = x(j) + merge(-h, 2*h, side == 0); call hs_f(id, xp, f2)
+        if (side == 0) then
+            g(j) = (f1 - f2)/(2.0_dp*h)
+        else
+            g(j) = (-3.0_dp*f0 + 4.0_dp*f1 - f2)/(2.0_dp*h)
+        end if
     end do
     end subroutine fd_gradient
 
-    subroutine fd_jacobian(id, x, jac)
-    !! central-difference Jacobian of problem `id`'s constraints
+    subroutine fd_jacobian(id, x, jac, hfac)
+    !! finite-difference Jacobian of problem `id`'s constraints (see [[fd_step]])
     integer,                  intent(in)  :: id
     real(dp), dimension(:),   intent(in)  :: x
     real(dp), dimension(:,:), intent(out) :: jac
+    real(dp), optional,       intent(in)  :: hfac !! factor on the default difference step
     real(dp), dimension(size(x)) :: xp
-    real(dp), dimension(size(jac,1)) :: cp, cm
+    real(dp), dimension(size(jac,1)) :: c0, c1, c2
     real(dp) :: h
-    integer :: j
+    integer :: j, side
+    call hs_c(id, x, c0)
     do j = 1, size(x)
-        h = epsilon(1.0_dp)**(1.0_dp/3.0_dp)*max(1.0_dp, abs(x(j)))
-        xp = x; xp(j) = x(j) + h; call hs_c(id, xp, cp)
-        xp(j) = x(j) - h;         call hs_c(id, xp, cm)
-        jac(:,j) = (cp - cm)/(2.0_dp*h)
+        call fd_step(x, j, h, side, hfac)
+        xp = x; xp(j) = x(j) + h;          call hs_c(id, xp, c1)
+        xp(j) = x(j) + merge(-h, 2*h, side == 0); call hs_c(id, xp, c2)
+        if (side == 0) then
+            jac(:,j) = (c1 - c2)/(2.0_dp*h)
+        else
+            jac(:,j) = (-3.0_dp*c0 + 4.0_dp*c1 - c2)/(2.0_dp*h)
+        end if
     end do
     end subroutine fd_jacobian
+
+    subroutine fd_step(x, j, h, side, hfac)
+    !! the step for differencing along `x(j)`: central (`side=0`, points
+    !! `x(j)+h` and `x(j)-h`), or, if that would cross one of the problem's
+    !! variable bounds, a second-order one-sided difference into the
+    !! interior (`side=1`, points `x(j)+h` and `x(j)+2h`, with `h<0` at an
+    !! upper bound). Some problems' functions have a kink at a bound (e.g.
+    !! TP358 clips `x` to its bounds), where a central difference would
+    !! average across it (TP331, 358, 376, 383 start on such a bound).
+    real(dp), dimension(:), intent(in)  :: x
+    integer,                intent(in)  :: j
+    real(dp),               intent(out) :: h
+    integer,                intent(out) :: side
+    real(dp), optional,     intent(in)  :: hfac
+    h = epsilon(1.0_dp)**(1.0_dp/3.0_dp)*max(1.0_dp, abs(x(j)))
+    if (present(hfac)) h = hfac*h
+    side = 0
+    if (x(j) - h < p%x_lb(j)) then
+        side = 1
+    else if (x(j) + h > p%x_ub(j)) then
+        side = 1
+        h = -h
+    end if
+    end subroutine fd_step
 
     ! ---- the problem functions for `sqpopt` (the problem is identified by the user data) ----
 
