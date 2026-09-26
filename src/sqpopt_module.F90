@@ -144,6 +144,7 @@
 
     real(wp), dimension(:), allocatable :: x_prev, gl_prev  !! quasi-Newton state (unallocated until the 2nd iteration)
     real(wp), allocatable :: f_prev  !! previous objective value, for the `options%ftol` stalled-progress test (unallocated until the 2nd iteration)
+    real(wp), allocatable :: viol_prev !! previous constraint violation, for the infeasibility test (unallocated until the 2nd iteration)
     type(sqpopt_sparse_matrix) :: jac !! Jacobian workspace (structure set once, values updated each iteration)
     type(sqpopt_iter_info) :: info
     logical :: done, valid
@@ -208,7 +209,7 @@
     do iter = 1, me%options%max_iter
         me%results%iterations = iter
         call sqpopt_iterate(me%problem, me%options, me%hessian, me%qp_solver, me%linesearch, me%trust_region, &
-                             me%x, me%lambda, x_prev, gl_prev, f_prev, jac, n_acceptable, iter, me%report, &
+                             me%x, me%lambda, x_prev, gl_prev, f_prev, viol_prev, jac, n_acceptable, iter, me%report, &
                              done, iter_istat, info)
         if (me%options%print_level >= 1) call print_iteration(iter, info, iter_istat)
         if (done) then

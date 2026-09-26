@@ -22,8 +22,12 @@
 !    `n <= auto_dense_max_n`, else `sqpopt_qp_reduced_hessian`.
 !
 !  Both enforce the variable bounds and the linearized constraints exactly
-!  as part of the QP solve. The step is then capped at `max_step` (a
-!  trust-region-style safeguard).
+!  as part of the QP solve. The step length is then capped at
+!  `max_step*step_scale` (a trust-region-style safeguard), where the major
+!  iterations adapt `step_scale` like a trust radius: it doubles after a
+!  capped step that the line search accepted in full, and halves (down to
+!  1) after a shortened one. So the cap starts at `max_step`, but a
+!  solution far away is still reached in a few iterations.
 
     module sqpopt_qp_solver_module
 
@@ -50,8 +54,13 @@
         integer  :: auto_dense_max_n    = 200                  !! `mode==sqpopt_qp_auto` uses the dense QP solver for problems
                                                                  !! with at most this many variables, and the sparse
                                                                  !! reduced-Hessian QP solver for larger ones
-        real(wp) :: max_step           = 2.0_wp                 !! trust-region-style cap on \( \lVert p \rVert_2 \);
-                                                                 !! the step is rescaled if it is exceeded
+        real(wp) :: max_step           = 2.0_wp                 !! initial trust-region-style cap on \( \lVert p \rVert_2 \):
+                                                                 !! `p` is rescaled if it is longer than `max_step*step_scale`
+        real(wp) :: step_scale         = 1.0_wp                 !! the adaptive factor on `max_step` (internal state,
+                                                                 !! see the module docs; reset on each `solve`)
+        logical  :: capped             = .false.                !! whether the last step was capped (output)
+        integer  :: n_short            = 0                      !! consecutive very short line-search steps (internal
+                                                                 !! state, see [[sqpopt_iterate_module]])
         integer :: n_iter = 0 !! number of active-set iterations taken by the last QP solve (output)
         type(sqpopt_dense_qp_type)           :: dense_qp    !! the dense QP solver (used only when `mode==sqpopt_qp_dense`)
         type(sqpopt_reduced_hessian_qp_type) :: sparse_qp   !! the sparse QP solver (used only when `mode==sqpopt_qp_reduced_hessian`)
@@ -98,7 +107,8 @@
     end select
 
     ! trust-region-style safeguard on the step length:
-    if (norm2(p) > me%max_step) p = p*(me%max_step/norm2(p))
+    me%capped = norm2(p) > me%max_step*me%step_scale
+    if (me%capped) p = p*(me%max_step*me%step_scale/norm2(p))
 
     ! the active-set solvers only satisfy the bounds to within their own
     ! tolerances, so make sure `x+p` (and hence every `x+alpha*p`,

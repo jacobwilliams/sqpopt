@@ -69,7 +69,7 @@
 
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
     use sqpopt_types_module,   only: sqpopt_success, sqpopt_line_search_failed, sqpopt_sparse_matrix, sqpopt_all_finite
-    use sqpopt_linalg_module,  only: sparse_matvec_transpose
+    use sqpopt_linalg_module,  only: sparse_matvec, sparse_matvec_transpose
     use fmin_module,           only: fmin
 
     implicit none
@@ -254,7 +254,13 @@
 !  the descent-direction safeguard in [[sqpopt_iterate_module]]. Dispatches
 !  on `me%merit_mode`:
 !
-!  * `sqpopt_merit_l1`: \( D(\phi;p) = g^Tp - \mu \lVert \text{viol}(x) \rVert_1 \)
+!  * `sqpopt_merit_l1`: \( D(\phi;p) = g^Tp + \mu \, D(\lVert \text{viol}(c + \alpha Jp)
+!    \rVert_1; \alpha=0^+) \), the exact one-sided derivative of the
+!    linearized violation. For a step that satisfies the linearized
+!    constraints this is the usual \( g^Tp - \mu \lVert \text{viol}(x)
+!    \rVert_1 \); for one that doesn't (e.g. shortened by the step-length
+!    cap, or an elastic step), that formula would overstate the decrease,
+!    so that no step length could pass the sufficient-decrease test.
 !  * `sqpopt_merit_augmented_lagrangian`: \( D(\phi;p) = (g - J^T\lambda +
 !    \rho J^T(c-s))^Tp \), holding \( \lambda \) and `s` fixed at their
 !    current values (a simplification of the full NPSQP theory, which
@@ -283,7 +289,25 @@
         call sparse_matvec_transpose(jac, c-s, jtr)
         dphi0 = dot_product(g - jtlam + me%penalty*jtr, p)
     case default
-        dphi0 = dot_product(g, p) - me%penalty*sum(max(c_lb-c, 0.0_wp) + max(c-c_ub, 0.0_wp))
+        block
+            real(wp), dimension(size(c)) :: jp
+            real(wp) :: rate
+            integer :: i
+            call sparse_matvec(jac, p, jp)
+            rate = 0.0_wp
+            do i = 1, size(c)
+                if (c(i) < c_lb(i)) then
+                    rate = rate - jp(i)
+                else if (c(i) > c_ub(i)) then
+                    rate = rate + jp(i)
+                else if (c(i) == c_lb(i) .and. jp(i) < 0.0_wp) then
+                    rate = rate - jp(i)
+                else if (c(i) == c_ub(i) .and. jp(i) > 0.0_wp) then
+                    rate = rate + jp(i)
+                end if
+            end do
+            dphi0 = dot_product(g, p) + me%penalty*rate
+        end block
     end select
 
     end subroutine merit_directional_derivative

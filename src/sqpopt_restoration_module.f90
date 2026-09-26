@@ -41,8 +41,15 @@
 !  the module-level documentation), with a backtracking Armijo search on
 !  \( \tfrac12 \lVert r_c \rVert_2^2 \). If no decrease is found, `x_new=x`
 !  and `istat=sqpopt_line_search_failed`.
+!
+!  If `direction` is present, it is searched along instead of the
+!  Gauss-Newton direction (for when that can't make progress: at a point
+!  that is stationary for the violation, a decrease may still be possible
+!  to second order, e.g. along the QP's elastic step where `J=0`). Along a
+!  direction without first-order decrease, any decrease of the violation
+!  is accepted.
 
-    subroutine restoration_step(problem, jac, x, c, max_step, x_new, alpha, istat)
+    subroutine restoration_step(problem, jac, x, c, max_step, x_new, alpha, istat, direction)
 
     type(sqpopt_problem_type),  intent(inout) :: problem  !! problem definition
     type(sqpopt_sparse_matrix), intent(in)    :: jac      !! constraint Jacobian at `x`, `dimension(m,n)`
@@ -52,6 +59,7 @@
     real(wp), dimension(:),     intent(out)   :: x_new    !! new point `dimension(n)`
     real(wp),                   intent(out)   :: alpha    !! accepted step length (`0` if none)
     integer,                    intent(out)   :: istat    !! status code (see [[sqpopt_types_module]])
+    real(wp), dimension(:), optional, intent(in) :: direction !! search direction to use instead of Gauss-Newton `dimension(n)`
 
     real(wp), parameter :: sigma     = 1.0e-4_wp !! Armijo sufficient-decrease parameter
     real(wp), parameter :: backtrack = 0.5_wp    !! step-length reduction factor
@@ -68,8 +76,12 @@
 
     ! Gauss-Newton step: minimum-norm solution of J*p = -r_c, then made to
     ! respect the variable bounds and the step-length cap:
-    call lsqr%initialize(problem%m, problem%n, jac%val, jac%irow, jac%icol)
-    call lsqr%solve(-rc, 0.0_wp, p, istop)
+    if (present(direction)) then
+        p = direction
+    else
+        call lsqr%initialize(problem%m, problem%n, jac%val, jac%irow, jac%icol)
+        call lsqr%solve(-rc, 0.0_wp, p, istop)
+    end if
     p = min(max(x+p, problem%x_lb), problem%x_ub) - x
     if (norm2(p) > max_step) p = p*(max_step/norm2(p))
 
@@ -85,7 +97,8 @@
     end block
 
     alpha = 1.0_wp
-    if (dh0 < 0.0_wp) then
+    if (present(direction)) dh0 = min(dh0, 0.0_wp)   ! (then any decrease is accepted)
+    if (dh0 < 0.0_wp .or. present(direction)) then
         do it = 1, max_ls
             x_trial = x + alpha*p
             call problem%c(x_trial, c_trial)
@@ -95,7 +108,7 @@
             else
                 h_trial = huge(1.0_wp)  ! a non-finite trial point is always rejected
             end if
-            if (h_trial <= h0 + sigma*alpha*dh0) then
+            if (h_trial <= h0 + sigma*alpha*dh0 .and. h_trial < h0) then
                 x_new = x_trial
                 istat = sqpopt_success
                 return

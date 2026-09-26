@@ -559,6 +559,55 @@ method, kept for comparison and as a fallback).
   swap each), at ~1.5 CG iterations per face. The dense option could be
   made much cheaper by updating its factors between faces, as SQOPT does.
 
+**HS suite bugs fixed (2026-09-26).** The Schittkowski/HS benchmark
+(`test/test_hs_suite.f90`, 305 problems) went from 246 solved / 27 local /
+32 failed to **269 / 32 / 4** with the default options, with fewer
+evaluations on the problems solved both before and after (13,581 →
+12,990 `f`):
+- **ℓ1 merit slope overstated for non-QP steps** (the main one). The
+  directional derivative was `gᵀp − μ‖viol‖₁`, exact only for a step that
+  satisfies the linearized constraints. For a step shortened by the
+  `max_step` cap it overstates the decrease, so no step length passes the
+  Armijo test: every line search failed from the start point (TP59, 74,
+  75, 83, 87, 109, 116, 236–239, 373, 392: all 176 `f` / 1 `g`). Now the
+  exact one-sided derivative of `‖viol(c + αJp)‖₁` at `α = 0⁺`.
+- **Absolute step cap.** `max_step = 2` made problems whose solution is
+  far away (TP74/75 at `x ≈ 1000`) walk there in steps of 2 (700 `f`).
+  The cap now adapts like a trust radius (`qp_solver%step_scale`:
+  doubled after a capped step accepted in full, halved back toward 1
+  after a shortened one): TP74 now takes 31 `f` (NLPQLP 10). A cap
+  relative to `‖x‖` (SNOPT-style) was tried first, but the larger early
+  steps raised the ℓ1 penalty and made TP26/27/375 crawl.
+- **False infeasibility at a stationary point of the violation** (TP316–
+  321, TP61). At a start with `J = 0` (a maximum of the violation), the
+  linearization is inconsistent and the Gauss-Newton restoration step is
+  zero, so the infeasibility test fired at iteration 2. Now (a) if the
+  restoration step can't decrease the violation, the QP's elastic step
+  is tried as the restoration direction (any decrease accepted), and (b)
+  the infeasibility test also requires that the violation has stopped
+  decreasing (by < 1% since the previous iterate, `viol_prev`), so a
+  point that is stationary for the violation but not a minimum of it
+  (TP61, just after a restoration step) isn't a stopping point.
+- **Crawling line searches**: after 3 consecutive steps with `α < 0.01`
+  the quasi-Newton Hessian is reset (as after a failed step). This fixed
+  TP375 (which the adaptive cap had sent into a crawl) and TP61.
+- **Harness**: a non-finite analytic derivative where the finite
+  difference is finite now counts as a mismatch (TP25's gradient takes a
+  fractional power of a negative number, a bug in the original code).
+  TP25 then stops at its start, a flat plateau (every term underflows),
+  as NLPQLP does.
+
+**Remaining**: TP116, 332, 335, 355 hit `max_iter` crawling along the
+constraints with a large ℓ1 penalty (8e7 on TP116), and 32 problems end
+at other local solutions. **The filter line search solves all four**
+(and TP61 in 12 `f` instead of ~7,400): with `linesearch_mode =
+sqpopt_linesearch_filter` the suite solves **273 / 32 local / 0 failed**
+with 10,593 `f` (vs 28,555 with ℓ1), and the scalable benchmark is as
+fast or faster. The augmented-Lagrangian merit solves 270 (2 new
+failures). So the ℓ1 penalty's monotone growth is now the main weakness:
+either make the filter the default, or do F4 (a penalty that can
+decrease).
+
 ## 2. Bugs: correctness (fix first)
 
 | # | Issue | Where | Evidence |

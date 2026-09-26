@@ -78,7 +78,8 @@
 !  "no change") is skipped on the next iteration.
 
     subroutine sqpopt_iterate(problem, options, hessian, qp_solver, linesearch, trust_region, &
-                               x, lambda, x_prev, gl_prev, f_prev, jac, n_acceptable, iter, report, done, istat, info)
+                               x, lambda, x_prev, gl_prev, f_prev, viol_prev, jac, n_acceptable, iter, report, done, &
+                               istat, info)
 
     type(sqpopt_problem_type),    intent(inout) :: problem     !! problem definition
     type(sqpopt_options_type),    intent(in)    :: options     !! solver options
@@ -92,6 +93,7 @@
     real(wp), dimension(:), allocatable, intent(inout) :: x_prev  !! previous point (unallocated before the 1st call)
     real(wp), dimension(:), allocatable, intent(inout) :: gl_prev !! previous Lagrangian gradient (unallocated before the 1st call)
     real(wp),               allocatable, intent(inout) :: f_prev  !! previous objective value (unallocated before the 1st call)
+    real(wp),               allocatable, intent(inout) :: viol_prev !! previous constraint violation (unallocated before the 1st call)
     type(sqpopt_sparse_matrix),          intent(inout) :: jac     !! workspace for the constraint Jacobian: its sparsity
                                                                   !! structure is set on the first call (when `jac%val` is
                                                                   !! unallocated) and reused, and its values are updated
@@ -179,7 +181,7 @@
     call check_convergence(x, g, jac, c, problem%x_lb, problem%x_ub, problem%c_lb, problem%c_ub, &
                             lambda, options%ktol, options%ctol, done, istat, &
                             f=f, f_prev=f_prev, x_prev=x_prev, ftol=options%ftol, xtol=options%xtol, &
-                            kkt_error=info%kkt, feas_error=info%feas)
+                            kkt_error=info%kkt, feas_error=info%feas, viol_prev=viol_prev)
     if (done) return
 
     ! unbounded: the objective is below its limit at a feasible point:
@@ -271,7 +273,15 @@
             ! be trusted: take a step toward feasibility instead, keeping the
             ! current multipliers (see [[sqpopt_restoration_module]]):
             new_lambda = lambda
-            call restoration_step(problem, jac, x, c, qp_solver%max_step, x_new, alpha, step_istat)
+            call restoration_step(problem, jac, x, c, qp_solver%max_step*qp_solver%step_scale, x_new, alpha, step_istat)
+            if (step_istat /= sqpopt_success .and. norm2(p) > 0.0_wp) then
+                ! no first-order decrease of the violation is possible from `x`
+                ! (it is stationary for the violation, e.g. `J=0` at a maximum
+                ! of it): try the QP's elastic step instead, along which the
+                ! violation may still decrease to second order. If this fails
+                ! too, the next iteration's infeasibility test stops at `x`.
+                call restoration_step(problem, jac, x, c, qp_solver%max_step*qp_solver%step_scale, x_new, alpha, step_istat, direction=p)
+            end if
 
         else
 
@@ -288,6 +298,25 @@
                                         problem%c_lb, problem%c_ub, alpha, x_new, step_istat)
             end if
 
+            ! adapt the step-length cap like a trust radius (see [[sqpopt_qp_solver_module]]):
+            if (step_istat == sqpopt_success .and. qp_solver%capped .and. alpha >= 1.0_wp) then
+                qp_solver%step_scale = min(2.0_wp*qp_solver%step_scale, 1.0e10_wp)
+            else if (alpha < 1.0_wp) then
+                qp_solver%step_scale = max(1.0_wp, 0.5_wp*qp_solver%step_scale)
+            end if
+            ! a run of very short steps means the quasi-Newton model is poor
+            ! (e.g. the search is crawling along a curved constraint): start
+            ! it afresh, as after a failed step
+            if (step_istat == sqpopt_success .and. alpha < 1.0e-2_wp) then
+                qp_solver%n_short = qp_solver%n_short + 1
+            else
+                qp_solver%n_short = 0
+            end if
+            if (qp_solver%n_short >= 3) then
+                call hessian%reset()
+                qp_solver%n_short = 0
+            end if
+
             if (step_istat /= sqpopt_success .and. linesearch%mode == sqpopt_linesearch_filter) then
                 ! the filter line search failed (no acceptable step length): as
                 ! in Wächter & Biegler's method, add the current point to the
@@ -300,7 +329,7 @@
                     if (theta > 0.0_wp) then
                         restore    = .true.
                         new_lambda = lambda
-                        call restoration_step(problem, jac, x, c, qp_solver%max_step, x_new, alpha, step_istat)
+                        call restoration_step(problem, jac, x, c, qp_solver%max_step*qp_solver%step_scale, x_new, alpha, step_istat)
                     end if
                 end block
             end if
@@ -322,6 +351,8 @@
     ! y = grad L(x_new, lambda_new) - grad L(x, lambda_new):
     x_prev = x
     f_prev = f
+    viol_prev = 0.0_wp
+    if (problem%m > 0) viol_prev = maxval(max(problem%c_lb-c, 0.0_wp) + max(c-problem%c_ub, 0.0_wp))
     block
         real(wp), dimension(problem%n) :: jtlam
         call sparse_matvec_transpose(jac, new_lambda, jtlam)

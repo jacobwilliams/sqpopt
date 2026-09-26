@@ -212,7 +212,7 @@ matrix); `solve()` always (re)initializes it from `options%lbfgs_memory`/
 |---|---|---|
 | `mode` | `sqpopt_qp_auto` | which QP algorithm to use (overwritten from `options%qp_solver_mode` at the start of `solve()`) -- see the mode table below |
 | `auto_dense_max_n` | `200` | `mode=sqpopt_qp_auto` uses `sqpopt_qp_dense` for problems with at most this many variables, else `sqpopt_qp_reduced_hessian` |
-| `max_step` | `2.0` | trust-region-style cap on \|\|p\|\|₂ applied after every QP solve, regardless of `mode` |
+| `max_step` | `2.0` | initial trust-region-style cap on \|\|p\|\|₂, applied after every QP solve regardless of `mode`; the cap adapts like a trust radius (it doubles after a capped step that the line search accepts in full, and halves back toward `max_step` after a shortened one), so solutions far from the start are still reached in a few iterations |
 | `dense_qp` | -- | the dense active-set QP solver's own options (used only when `mode==sqpopt_qp_dense`); see table below |
 | `sparse_qp` | -- | the sparse active-set QP solver's own options (used only when `mode==sqpopt_qp_reduced_hessian`); see table below |
 

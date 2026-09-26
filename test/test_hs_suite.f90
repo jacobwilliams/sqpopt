@@ -53,12 +53,11 @@ program test_hs_suite
 
     !> problems not (yet) solved by `sqpopt` with the default options -- the
     !! regression baseline (see the program documentation). As of 2026-09-26:
-    !! 246 of the 305 problems solved, 27 local solutions, 32 failures.
+    !! 269 of the 305 problems solved, 32 local solutions, 4 failures.
     integer, dimension(*), parameter :: known_unsolved = [ &
-          2,  16,  25,  33,  38,  54,  55,  57,  59,  61,  64,  67,  72,  74,  75, &
-         83,  87,  97,  98, 105, 106, 109, 114, 116, 202, 213, 220, 236, 238, 239, &
-        259, 265, 272, 283, 287, 304, 305, 312, 316, 317, 318, 319, 320, 321, 327, &
-        332, 335, 338, 340, 351, 355, 362, 369, 372, 373, 379, 380, 391, 392 ]
+          2,  16,  25,  33,  38,  54,  55,  57,  59,  87,  97,  98, 105, 109, 116, &
+        202, 213, 236, 239, 259, 265, 272, 283, 287, 304, 305, 312, 327, 332, 335, &
+        338, 340, 355, 362, 373, 379 ]
 
     type :: problem_context
         !! the user data passed to the problem functions
@@ -415,12 +414,19 @@ program test_hs_suite
 
     logical function mismatch(a, b)
     !! whether analytic values `a` differ from finite-difference values `b`
-    !! by more than finite-difference error (non-finite values are skipped)
+    !! by more than finite-difference error. A non-finite analytic value
+    !! where the finite difference is finite is a mismatch (e.g. TP25's
+    !! gradient, which takes a fractional power of a negative number); a
+    !! non-finite finite difference is skipped.
     real(dp), dimension(:), intent(in) :: a, b
     integer :: q
     mismatch = .false.
     do q = 1, size(a)
-        if (.not. (ieee_is_finite(a(q)) .and. ieee_is_finite(b(q)))) cycle
+        if (.not. ieee_is_finite(b(q))) cycle
+        if (.not. ieee_is_finite(a(q))) then
+            mismatch = .true.
+            cycle
+        end if
         if (abs(a(q) - b(q)) > 1.0e-4_dp*max(1.0_dp, abs(a(q)), abs(b(q)))) mismatch = .true.
     end do
     end function mismatch

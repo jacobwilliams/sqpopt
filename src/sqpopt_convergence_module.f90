@@ -55,12 +55,18 @@
 !    \( \tfrac12 \lVert r_c \rVert_2^2 \) (\( r_c \) the signed violation of
 !    each constraint's bounds) subject to the variable bounds, i.e. the
 !    projected gradient \( J^T r_c \) is below `ktol*|r_c|`. So no
-!    first-order progress toward feasibility is possible from here.
+!    first-order progress toward feasibility is possible from here. If
+!    `viol_prev` (the violation at `x_prev`) is supplied, the violation
+!    must also have stopped decreasing (by less than 1% since `x_prev`): a
+!    point can be stationary for the violation without being a minimum of
+!    it (e.g. `J=0` at a maximum, or where the linearization is
+!    degenerate), and the solver can still make progress from there to
+!    second order, so it only stops once it has failed to.
 !
 !  `converged` is true in all three cases (i.e. it means "stop here").
 
     subroutine check_convergence(x, g, jac, c, x_lb, x_ub, c_lb, c_ub, lambda, ktol, ctol, converged, istat, &
-                                  f, f_prev, x_prev, ftol, xtol, kkt_error, feas_error)
+                                  f, f_prev, x_prev, ftol, xtol, kkt_error, feas_error, viol_prev)
 
     real(wp), dimension(:),     intent(in)  :: x         !! current point `dimension(n)`
     real(wp), dimension(:),     intent(in)  :: g         !! objective gradient at `x` `dimension(n)`
@@ -86,6 +92,9 @@
                                                                       !! complementarity residuals, divided by their scaling
                                                                       !! (so it is directly comparable to `ktol`)
     real(wp),                     optional, intent(out) :: feas_error !! the largest violation of a constraint or variable bound
+    real(wp),                     optional, intent(in)  :: viol_prev  !! the largest constraint violation at `x_prev`
+                                                                      !! (enables the no-progress condition of the
+                                                                      !! infeasibility test)
 
     real(wp), parameter :: s_max = 100.0_wp !! multiplier-scaling threshold (see above)
 
@@ -147,6 +156,9 @@
     end if
 
     if (c_viol > ctol .and. present(x_prev)) then
+        if (present(viol_prev)) then
+            if (c_viol < 0.99_wp*viol_prev) return   ! (still making progress toward feasibility)
+        end if
         ! infeasible: is `x` stationary for the (squared, l2) constraint
         ! violation, subject to the variable bounds? Then no first-order
         ! progress toward feasibility is possible from here. The gradient
