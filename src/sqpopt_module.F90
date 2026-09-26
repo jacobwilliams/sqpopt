@@ -29,7 +29,8 @@
                                          sqpopt_qp_reduced_hessian
     use sqpopt_qp_reduced_hessian_module, only: sqpopt_null_space_lu, sqpopt_null_space_lsqr
     use sqpopt_linesearch_module, only: sqpopt_linesearch_type, sqpopt_linesearch_armijo, sqpopt_linesearch_filter, &
-                                         sqpopt_merit_l1, sqpopt_merit_augmented_lagrangian
+                                         sqpopt_merit_l1, sqpopt_merit_augmented_lagrangian, &
+                                         sqpopt_penalty_multipliers, sqpopt_penalty_model
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
     use sqpopt_iterate_module,    only: sqpopt_iterate, sqpopt_evaluate_point, sqpopt_iter_info
 
@@ -201,6 +202,7 @@
     me%qp_solver%mode        = me%options%qp_solver_mode
     me%linesearch%mode       = me%options%linesearch_mode
     me%linesearch%merit_mode = me%options%merit_mode
+    me%linesearch%penalty_update = me%options%penalty_update
 
     if (me%options%print_level >= 1) call print_header()
 
@@ -391,6 +393,9 @@
     end if
     if (o%merit_mode < sqpopt_merit_l1 .or. o%merit_mode > sqpopt_merit_augmented_lagrangian) then
         msg = 'options%merit_mode is not a valid sqpopt_merit_* value'; return
+    end if
+    if (all(o%penalty_update /= [sqpopt_penalty_multipliers, sqpopt_penalty_model])) then
+        msg = 'options%penalty_update is not a valid sqpopt_penalty_* value'; return
     end if
     if (.not. (o%ktol > 0.0_wp .and. o%ctol > 0.0_wp)) then
         msg = 'options%ktol and options%ctol must be > 0'; return

@@ -7,7 +7,7 @@
     module sqpopt_options_module
 
     use sqpopt_kinds,             only: wp => sqpopt_module_wp
-    use sqpopt_linesearch_module, only: sqpopt_linesearch_armijo, sqpopt_merit_l1
+    use sqpopt_linesearch_module, only: sqpopt_linesearch_filter, sqpopt_merit_l1, sqpopt_penalty_multipliers
     use sqpopt_qp_solver_module,  only: sqpopt_qp_auto
     use sqpopt_types_module,      only: sqpopt_infinity
     use, intrinsic :: iso_fortran_env, only: output_unit
@@ -33,10 +33,12 @@
                                                    !! Hessian approximation (independent of the problem size `n`)
         integer  :: qp_solver_mode = sqpopt_qp_auto !! QP subproblem algorithm to use
                                                      !! (see [[sqpopt_qp_solver_module]])
-        integer  :: linesearch_mode = sqpopt_linesearch_armijo !! line search strategy to use
+        integer  :: linesearch_mode = sqpopt_linesearch_filter !! line search strategy to use
                                                                 !! (see [[sqpopt_linesearch_module]])
         integer  :: merit_mode = sqpopt_merit_l1 !! merit function to use
                                                   !! (see [[sqpopt_linesearch_module]])
+        integer  :: penalty_update = sqpopt_penalty_multipliers !! how the merit function's penalty parameter is
+                                                                 !! updated (see [[update_penalty_parameter]])
         integer  :: max_consecutive_failures = 5 !! stop (with the failing component's status code, e.g.
                                                   !! `sqpopt_line_search_failed` or `sqpopt_qp_solve_failed`)
                                                   !! after this many consecutive major iterations in which the

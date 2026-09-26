@@ -21,10 +21,12 @@ program test_hs71
     !! (a corner point); every run below is required to reach
     !! `sqpopt_success` tightly.
     !!
-    !! Run seven ways, to compare the available merit functions, line
-    !! searches, and QP solvers on this problem: the defaults
-    !! (`sqpopt_merit_l1`, Armijo line search, and `sqpopt_qp_auto`, which
-    !! picks the dense QP solver for a problem this small),
+    !! Run nine ways, to compare the available merit functions, penalty
+    !! updates, line searches, and QP solvers on this problem: the \(\ell_1\)
+    !! merit with the Armijo line search and `sqpopt_qp_auto` (which picks
+    !! the dense QP solver for a problem this small), the model-based penalty
+    !! updates (`sqpopt_penalty_model`: Byrd-Nocedal for \(\ell_1\), and
+    !! Gill-Murray-Saunders-Wright for the augmented Lagrangian),
     !! `sqpopt_merit_augmented_lagrangian` (see PLAN.md section 6.1),
     !! `sqpopt_linesearch_watchdog` (Powell's VF13 watchdog technique, see
     !! PLAN.md section 6.3), `sqpopt_qp_dense` and
@@ -39,7 +41,8 @@ program test_hs71
     use sqpopt_problem_module, only: sqpopt_problem_type
     use sqpopt_options_module, only: sqpopt_options_type
     use sqpopt_linesearch_module, only: sqpopt_merit_l1, sqpopt_merit_augmented_lagrangian, &
-                                        sqpopt_linesearch_armijo, sqpopt_linesearch_watchdog, sqpopt_linesearch_filter
+                                        sqpopt_linesearch_armijo, sqpopt_linesearch_watchdog, sqpopt_linesearch_filter, &
+                                        sqpopt_penalty_multipliers, sqpopt_penalty_model
     use sqpopt_qp_solver_module, only: sqpopt_qp_auto, sqpopt_qp_dense, sqpopt_qp_reduced_hessian, sqpopt_qp_solver_type
     use sqpopt_types_module,   only: sqpopt_success, sqpopt_results_type
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
@@ -55,8 +58,12 @@ program test_hs71
     write(*,*) 'test_hs71'
     write(*,*) '----------------------------'
 
-    call run_hs71('defaults',               sqpopt_merit_l1,                   sqpopt_linesearch_armijo,   sqpopt_qp_auto)
+    call run_hs71('l1 + Armijo',            sqpopt_merit_l1,                   sqpopt_linesearch_armijo,   sqpopt_qp_auto)
     call run_hs71('augmented Lagrangian',   sqpopt_merit_augmented_lagrangian, sqpopt_linesearch_armijo,   sqpopt_qp_auto)
+    call run_hs71('l1, Byrd-Nocedal penalty', sqpopt_merit_l1,                 sqpopt_linesearch_armijo,   sqpopt_qp_auto, &
+                  penalty_update=sqpopt_penalty_model)
+    call run_hs71('AL, GMSW penalty',       sqpopt_merit_augmented_lagrangian, sqpopt_linesearch_armijo,   sqpopt_qp_auto, &
+                  penalty_update=sqpopt_penalty_model)
     call run_hs71('watchdog',               sqpopt_merit_l1,                   sqpopt_linesearch_watchdog, sqpopt_qp_auto)
     call run_hs71('dense QP',               sqpopt_merit_l1,                   sqpopt_linesearch_armijo,   sqpopt_qp_dense)
     call run_hs71('reduced-Hessian QP',     sqpopt_merit_l1,                   sqpopt_linesearch_armijo,   sqpopt_qp_reduced_hessian)
@@ -73,7 +80,7 @@ program test_hs71
 
     contains
 
-    subroutine run_hs71(label, merit_mode, linesearch_mode, qp_mode, lsqr_atol, lsqr_btol, lsqr_itnlim)
+    subroutine run_hs71(label, merit_mode, linesearch_mode, qp_mode, lsqr_atol, lsqr_btol, lsqr_itnlim, penalty_update)
 
     character(len=*), intent(in) :: label
     integer,           intent(in) :: merit_mode
@@ -81,6 +88,7 @@ program test_hs71
     integer,           intent(in) :: qp_mode
     real(wp), intent(in), optional :: lsqr_atol, lsqr_btol !! LSQR tuning (sqpopt_qp_reduced_hessian mode only)
     integer,  intent(in), optional :: lsqr_itnlim          !! LSQR tuning (sqpopt_qp_reduced_hessian mode only)
+    integer,  intent(in), optional :: penalty_update       !! penalty update rule (default `sqpopt_penalty_multipliers`)
 
     type(sqpopt_type)         :: solver
     type(sqpopt_problem_type) :: problem
@@ -108,6 +116,8 @@ program test_hs71
     options%max_iter        = 3000
     options%merit_mode      = merit_mode
     options%linesearch_mode = linesearch_mode
+    options%penalty_update  = sqpopt_penalty_multipliers
+    if (present(penalty_update)) options%penalty_update = penalty_update
     options%qp_solver_mode  = qp_mode
     qp_solver%mode          = qp_mode
     if (present(lsqr_atol))   qp_solver%sparse_qp%lsqr_atol   = lsqr_atol

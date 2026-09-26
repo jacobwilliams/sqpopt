@@ -608,6 +608,35 @@ failures). So the ℓ1 penalty's monotone growth is now the main weakness:
 either make the filter the default, or do F4 (a penalty that can
 decrease).
 
+**F4 done, and the filter is now the default (2026-09-26).** New option
+`penalty_update`: `sqpopt_penalty_multipliers` (the old rule, still the
+default for the merit-function line searches) or `sqpopt_penalty_model`,
+each merit's principled rule (`update_penalty_parameter` in the line
+search module):
+- **ℓ1: Byrd–Nocedal model reduction** (N&W eq. 18.36): the penalty only
+  increases to `(gᵀp + ½max(pᵀHp,0)) / ((1−ρ)Δv)`, with `Δv` the
+  linearized violation reduction, instead of tracking `‖λ‖∞`.
+- **Augmented Lagrangian: Gill–Murray–Saunders–Wright.** A joint step: the
+  multipliers move from `λ₀` toward the QP's, and the slacks from the
+  merit's minimizer `s₀` toward the QP's linearized constraint values
+  `clip(c+Jp)`, so that `r = c−s` changes by `d = Jp − q` (`= −r₀` for a
+  consistent QP). `ρ̂ = (A + ½pᵀHp)/(−B)` with `A = gᵀp − ξᵀr₀ − λ₀ᵀd`,
+  `B = r₀ᵀd`; `ρ` increases to `max(ρ̂, 2ρ)` when below it, and decreases
+  to `max(ρ̂, ρ_f, √(ρ·max(ρ̂, ρ_f)))` when above 4× that, with the floor
+  `ρ_f` doubling after each decrease. The new multipliers are those
+  along the step. (A first version kept the slacks' closed-form
+  minimizer at each trial point: with a small `ρ` that `r` measures
+  `λ/ρ`, not the violation, `rᵀJp` could be positive, and no penalty
+  gave descent — 6 line-search failures on HS.)
+
+HS results for every combination (the README has the table): the filter
+solves 273 / 32 local / 0 failed with 10,593 `f`; the best merit-function
+variants 270–271. GMSW solves 266 (265–267 with the decreases disabled
+or with the QP's multipliers after the step), so the classical rule is
+not worse in practice here. **The filter line search is now the default**
+(`options%linesearch_mode`), which also avoids the merit functions'
+penalty growth; the scalable benchmark is as fast or faster.
+
 ## 2. Bugs: correctness (fix first)
 
 | # | Issue | Where | Evidence |
@@ -725,7 +754,8 @@ decrease).
 - **F3: Powell-damped BFGS.** It is cheap once B1 is fixed (one
   `hv_product` gives `sᵀBs`). Keep the skip rule as a fallback. This is
   needed on non-convex problems, where skipped updates leave `H` stale.
-- **F4: a principled merit and penalty.** Implement the full
+- **F4: a principled merit and penalty.** *(Done 2026-09-26; see "Phase 4
+  status".)* Implement the full
   Gill–Murray–Saunders–Wright augmented Lagrangian: joint `(x, λ, s)`
   step, the `ρ̂` threshold from Lemma 4.3, and allowing ρ to decrease.
   Real-QP multipliers now make this possible (PLAN.md §6.1's caveat is

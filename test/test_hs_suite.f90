@@ -53,11 +53,11 @@ program test_hs_suite
 
     !> problems not (yet) solved by `sqpopt` with the default options -- the
     !! regression baseline (see the program documentation). As of 2026-09-26:
-    !! 269 of the 305 problems solved, 32 local solutions, 4 failures.
+    !! 273 of the 305 problems solved, 32 local solutions, 0 failures.
     integer, dimension(*), parameter :: known_unsolved = [ &
-          2,  16,  25,  33,  38,  54,  55,  57,  59,  87,  97,  98, 105, 109, 116, &
-        202, 213, 236, 239, 259, 265, 272, 283, 287, 304, 305, 312, 327, 332, 335, &
-        338, 340, 355, 362, 373, 379 ]
+          2,  16,  25,  33,  38,  54,  55,  57,  59,  87,  97,  98, 105, 109, 202, &
+        213, 236, 239, 259, 265, 272, 283, 287, 304, 305, 312, 327, 338, 340, 362, &
+        373, 379 ]
 
     type :: problem_context
         !! the user data passed to the problem functions

@@ -247,7 +247,7 @@
 
         if (.not. restore) then
 
-            call update_penalty(linesearch, new_lambda)
+            call update_penalty()
 
             ! safeguard (as in `slsqp`): if `p` is not a descent direction for the
             ! merit function (the linearized QP solve is not always guaranteed to
@@ -261,7 +261,7 @@
                     call qp_solver%solve(hessian, jac, x, g, c, problem%x_lb, problem%x_ub, &
                                           problem%c_lb, problem%c_ub, p, new_lambda, qp_istat)
                     restore = qp_istat == sqpopt_infeasible
-                    if (.not. restore) call update_penalty(linesearch, new_lambda)
+                    if (.not. restore) call update_penalty()
                 end if
             end block
 
@@ -273,6 +273,7 @@
             ! be trusted: take a step toward feasibility instead, keeping the
             ! current multipliers (see [[sqpopt_restoration_module]]):
             new_lambda = lambda
+            linesearch%joint_active = .false.
             call restoration_step(problem, jac, x, c, qp_solver%max_step*qp_solver%step_scale, x_new, alpha, step_istat)
             if (step_istat /= sqpopt_success .and. norm2(p) > 0.0_wp) then
                 ! no first-order decrease of the violation is possible from `x`
@@ -297,6 +298,10 @@
                 call linesearch%search(eval_f_cached, eval_c_cached, x, p, f, g, c, jac, new_lambda, &
                                         problem%c_lb, problem%c_ub, alpha, x_new, step_istat)
             end if
+
+            ! with the augmented Lagrangian's joint step, the new multipliers are
+            ! those along the step, not the QP's (see [[update_penalty_parameter]]):
+            if (linesearch%joint_active) new_lambda = lambda + alpha*(new_lambda - lambda)
 
             ! adapt the step-length cap like a trust radius (see [[sqpopt_qp_solver_module]]):
             if (step_istat == sqpopt_success .and. qp_solver%capped .and. alpha >= 1.0_wp) then
@@ -423,6 +428,15 @@
         call soc_step(jac, x, p_trial, c, c_trial, problem%c_lb, problem%c_ub, problem%x_lb, problem%x_ub, p_soc, ok)
         end subroutine soc
 
+        subroutine update_penalty()
+        !! update the merit function's penalty parameter for the QP step `p`
+        !! and multipliers `new_lambda` (see [[update_penalty_parameter]])
+        real(wp), dimension(problem%n) :: hp
+        call hessian%hv_product(p, hp)
+        call linesearch%update_penalty(jac, g, p, dot_product(p, hp), c, problem%c_lb, problem%c_ub, &
+                                       lambda, new_lambda)
+        end subroutine update_penalty
+
     end subroutine sqpopt_iterate
 !*******************************************************************************
 
@@ -478,28 +492,6 @@
     end subroutine sqpopt_evaluate_point
 !*******************************************************************************
 
-!*******************************************************************************
-!>
-!  update the merit function's penalty parameter so that it dominates the
-!  current multiplier estimates (as in `slsqp`): for `sqpopt_merit_l1` this
-!  is required for the exact penalty function's minimizer to coincide with
-!  the true constrained optimum (Han/Powell); for
-!  `sqpopt_merit_augmented_lagrangian` the same rule is used as a simple
-!  (if not exactly optimal) substitute for the theoretically-correct
-!  closed-form threshold, which would require tracking the QP's own
-!  multiplier separately from `lambda`. Without a large-enough penalty,
-!  the merit function can prefer a "compromise" infeasible point over
-!  the true solution.
-
-    subroutine update_penalty(linesearch, lambda)
-
-    type(sqpopt_linesearch_type), intent(inout) :: linesearch !! merit function / line search
-    real(wp), dimension(:),       intent(in)    :: lambda     !! current multiplier estimates `dimension(m)`
-
-    if (size(lambda) > 0) linesearch%penalty = max(linesearch%penalty, maxval(abs(lambda)) + 1.0_wp)
-
-    end subroutine update_penalty
-!*******************************************************************************
 
     end module sqpopt_iterate_module
 !*******************************************************************************

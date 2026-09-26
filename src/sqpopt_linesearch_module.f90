@@ -5,7 +5,8 @@
 !  Merit function evaluation and line search used to globalize the SQP
 !  iterations (ensures progress towards both optimality and feasibility).
 !
-!  Two merit functions are available (`sqpopt_linesearch_type%merit_mode`):
+!  Two merit functions are available (`sqpopt_linesearch_type%merit_mode`,
+!  used by the `armijo`, `exact`, and `watchdog` line searches):
 !
 !  * `sqpopt_merit_l1` (**default**) -- the standard non-smooth \( \ell_1 \)
 !    exact penalty function (as in `slsqp`).
@@ -17,13 +18,20 @@
 !    which is the reason SNOPT-family solvers do not need a second-order
 !    correction (see [[sqpopt_soc_module]]) to avoid the Maratos effect.
 !
-!  Three line search strategies are available (`sqpopt_linesearch_type%mode`):
+!  Their penalty parameter is updated by one of two rules
+!  (`penalty_update`, see [[update_penalty_parameter]]):
+!  `sqpopt_penalty_multipliers` (**default**; keeps it above the multiplier
+!  estimates, never decreasing) or `sqpopt_penalty_model` (each merit's own
+!  principled rule: Byrd-Nocedal model reduction for \( \ell_1 \), and for
+!  the augmented Lagrangian the Gill-Murray-Saunders-Wright rule, with a
+!  joint step in the variables, multipliers, and slacks, and a penalty
+!  that can decrease).
 !
-!  * `sqpopt_linesearch_armijo` (**default**) -- a standard backtracking
-!    line search with an Armijo-type sufficient-decrease test on the merit
-!    function (as used by default in `slsqp`). An exact line search is
-!    usually overkill (it requires many more function evaluations for a
-!    marginal benefit), so this is the recommended/default mode.
+!  Four line search strategies are available (`sqpopt_linesearch_type%mode`):
+!
+!  * `sqpopt_linesearch_armijo` -- a standard backtracking line search
+!    with an Armijo-type sufficient-decrease test on the merit function (as
+!    used by default in `slsqp`).
 !  * `sqpopt_linesearch_exact` -- (approximately) minimizes the merit
 !    function along the search direction using the derivative-free [[fmin]]
 !    routine (from the `fmin` dependency), rather than a hand-written
@@ -40,7 +48,7 @@
 !    disables relaxed acceptance for `watchdog_cooldown_len` iterations.
 !    This targets the same failure mode as the second-order correction and
 !    the augmented Lagrangian merit function, via a different mechanism.
-!  * `sqpopt_linesearch_filter` -- a **filter** line search (Fletcher &
+!  * `sqpopt_linesearch_filter` (**default**) -- a **filter** line search (Fletcher &
 !    Leyffer, *"Nonlinear programming without a penalty function"*, Math.
 !    Program. 91 (2002)), with the globally convergent line-search rules of
 !    Wächter & Biegler (*"Line search filter methods for nonlinear
@@ -52,6 +60,10 @@
 !    *switching condition* decides whether a step must reduce the objective
 !    (an Armijo test, "f-type" step) or may trade objective for feasibility;
 !    only non-f-type steps enlarge the filter. See [[filter_line_search]].
+!    It is the default: on the Hock-Schittkowski test set (see
+!    `test/test_hs_suite.f90`) it solves the most problems, with the
+!    fewest function evaluations, of all the line search / merit function /
+!    penalty combinations (and it has no penalty parameter to tune).
 !
 !  All three of the merit-function-based modes start each search from an
 !  initial trial step length
@@ -78,13 +90,21 @@
 
     public :: l1_violation
 
-    integer, parameter, public :: sqpopt_linesearch_armijo   = 1  !! backtracking Armijo-type line search (default)
+    integer, parameter, public :: sqpopt_linesearch_armijo   = 1  !! backtracking Armijo-type line search on a merit function
     integer, parameter, public :: sqpopt_linesearch_exact    = 2  !! (approximate) exact 1-D minimization of the merit function, via [[fmin]]
     integer, parameter, public :: sqpopt_linesearch_watchdog = 3  !! Powell's watchdog technique (relaxed acceptance + backtracking, see module docs)
-    integer, parameter, public :: sqpopt_linesearch_filter   = 4  !! Fletcher & Leyffer's filter method (no merit function/penalty parameter, see module docs)
+    integer, parameter, public :: sqpopt_linesearch_filter   = 4  !! (default) Fletcher & Leyffer's filter method (no merit
+                                                                  !! function/penalty parameter, see module docs)
 
     integer, parameter, public :: sqpopt_merit_l1                   = 1  !! non-smooth \( \ell_1 \) exact penalty merit function (default)
     integer, parameter, public :: sqpopt_merit_augmented_lagrangian = 2  !! smooth augmented Lagrangian merit function (NPSOL/SNOPT-style)
+
+    integer, parameter, public :: sqpopt_penalty_multipliers = 1  !! (default) penalty kept above the multipliers,
+                                                                  !! \( \mu \ge \lVert\lambda\rVert_\infty + 1 \); never decreases
+    integer, parameter, public :: sqpopt_penalty_model       = 2  !! each merit function's own principled rule (see
+                                                                  !! [[update_penalty_parameter]]): Byrd-Nocedal
+                                                                  !! model reduction (`sqpopt_merit_l1`), or
+                                                                  !! Gill-Murray-Saunders-Wright (`sqpopt_merit_augmented_lagrangian`)
 
     abstract interface
         subroutine sqpopt_ls_objective_func(x, f)
@@ -119,11 +139,16 @@
     type, public :: sqpopt_linesearch_type
         !! options and state for the merit function and line search.
 
-        integer  :: mode        = sqpopt_linesearch_armijo !! line search strategy to use
+        integer  :: mode        = sqpopt_linesearch_filter !! line search strategy to use
         integer  :: merit_mode  = sqpopt_merit_l1           !! merit function to use
         real(wp) :: penalty     = 1.0_wp    !! current penalty parameter used in the merit function
                                             !! (called \( \mu \) for `sqpopt_merit_l1`, \( \rho \) for
                                             !! `sqpopt_merit_augmented_lagrangian`)
+        integer  :: penalty_update = sqpopt_penalty_multipliers !! how the penalty parameter is updated (see the
+                                                                 !! `sqpopt_penalty_*` constants)
+        real(wp) :: penalty_rho = 0.1_wp    !! `sqpopt_penalty_model` with `sqpopt_merit_l1`: the fraction \( \rho \)
+                                            !! of the linearized violation reduction the penalty must credit
+                                            !! (Nocedal & Wright eq. 18.36), \( 0 < \rho < 1 \)
         real(wp) :: tol         = 1.0e-4_wp !! desired tolerance on the minimizer (`sqpopt_linesearch_exact` mode)
         real(wp) :: sigma       = 0.1_wp    !! Armijo sufficient-decrease parameter, \( 0 < \sigma < 1 \) (`sqpopt_linesearch_armijo` mode)
         real(wp) :: backtrack   = 0.5_wp    !! step-length reduction factor at each backtracking step (`sqpopt_linesearch_armijo` mode)
@@ -155,6 +180,15 @@
         real(wp) :: filter_theta_min_fact = 1.0e-4_wp !! \( \theta_{min} = \) this \( \times \max(1,\theta_0) \): below it, f-type steps are allowed
         real(wp) :: filter_gamma_alpha    = 0.05_wp   !! safety factor \( \gamma_\alpha \) in the minimum step length before restoration
 
+        ! internal state for `sqpopt_penalty_model` with `sqpopt_merit_augmented_lagrangian` (not user
+        ! options): the joint step in the multipliers, and the floor limiting how often the penalty decreases
+        logical  :: joint_active  = .false.  !! whether the merit's multipliers move along the step (see
+                                             !! [[update_penalty_parameter]])
+        real(wp), dimension(:), allocatable :: lambda0 !! the multipliers at the start of the step `dimension(m)`
+        real(wp), dimension(:), allocatable :: s0      !! the slacks at the start of the step `dimension(m)`
+        real(wp), dimension(:), allocatable :: q       !! the slacks' change per unit step `dimension(m)`
+        real(wp) :: penalty_floor = 1.0e-2_wp !! the penalty can only decrease above this, which doubles each time
+
         ! internal state for the filter (not user options -- persists across major iterations):
         logical  :: filter_ready = .false.        !! whether the filter below has been initialized
         real(wp) :: filter_theta_max = 0.0_wp     !! \( \theta_{max} \)
@@ -173,6 +207,7 @@
 
         procedure, public :: eval_merit              => eval_merit_function
         procedure, public :: directional_derivative  => merit_directional_derivative
+        procedure, public :: update_penalty          => update_penalty_parameter
         procedure, public :: search                  => line_search
         procedure, public :: filter_prepare          => filter_prepare_state
         procedure, public :: filter_accept           => filter_step_acceptable
@@ -194,8 +229,13 @@
 !    $$ \phi(x,\lambda,\rho) = f(x) - \lambda^T\!\left(c(x)-s\right) + \tfrac{1}{2}\rho \lVert c(x)-s \rVert_2^2 $$
 !    where the slack `s` is the closed-form minimizer of \( \phi \) subject
 !    to \( c_l \le s \le c_u \) (see [[augmented_lagrangian_slacks]]).
+!    With the joint step (`joint_active`), the multipliers and the slacks
+!    are those at step length `alpha` along it, \( \lambda_0 +
+!    \alpha(\lambda - \lambda_0) \) and \( s_0 + \alpha q \) (`alpha=0` if
+!    absent), instead of the slacks' closed-form minimizer (see
+!    [[update_penalty_parameter]]).
 
-    subroutine eval_merit_function(me, f, c, c_lb, c_ub, lambda, phi)
+    subroutine eval_merit_function(me, f, c, c_lb, c_ub, lambda, phi, alpha)
 
     class(sqpopt_linesearch_type), intent(inout) :: me
     real(wp),                intent(in)  :: f      !! objective function value
@@ -205,14 +245,27 @@
     real(wp), dimension(:), intent(in)  :: lambda !! Lagrange multiplier estimate `dimension(m)`
                                                   !! (only used by `sqpopt_merit_augmented_lagrangian`)
     real(wp),                intent(out) :: phi    !! value of the merit function
+    real(wp), optional,      intent(in)  :: alpha  !! step length along the joint step (see above)
 
-    real(wp), dimension(size(c)) :: s, r
+    real(wp), dimension(size(c)) :: s, r, lam
 
     select case (me%merit_mode)
     case (sqpopt_merit_augmented_lagrangian)
-        call augmented_lagrangian_slacks(me, c, c_lb, c_ub, lambda, s)
+        if (me%joint_active) then
+            ! (the multipliers and the slacks both move along the step)
+            if (present(alpha)) then
+                lam = me%lambda0 + alpha*(lambda - me%lambda0)
+                s   = me%s0 + alpha*me%q
+            else
+                lam = me%lambda0
+                s   = me%s0
+            end if
+        else
+            lam = lambda
+            call augmented_lagrangian_slacks(me, c, c_lb, c_ub, lam, s)
+        end if
         r   = c - s
-        phi = f - dot_product(lambda, r) + 0.5_wp*me%penalty*dot_product(r, r)
+        phi = f - dot_product(lam, r) + 0.5_wp*me%penalty*dot_product(r, r)
     case default
         phi = f + me%penalty*sum(max(c_lb-c, 0.0_wp) + max(c-c_ub, 0.0_wp))
     end select
@@ -263,9 +316,10 @@
 !    so that no step length could pass the sufficient-decrease test.
 !  * `sqpopt_merit_augmented_lagrangian`: \( D(\phi;p) = (g - J^T\lambda +
 !    \rho J^T(c-s))^Tp \), holding \( \lambda \) and `s` fixed at their
-!    current values (a simplification of the full NPSQP theory, which
-!    differentiates along a joint `(x,lambda,s)` step; adequate since
-!    `sqpopt` only updates `lambda` once per major iteration).
+!    current values; with the joint step (`joint_active`, see
+!    [[update_penalty_parameter]]), where \( r = c-s \) changes by
+!    \( d = Jp - q \) and \( \lambda \) by \( \xi \) per unit step, it is
+!    \( g^Tp - \xi^Tr_0 - \lambda_0^Td + \rho\, r_0^Td \).
 
     subroutine merit_directional_derivative(me, jac, g, p, c, c_lb, c_ub, lambda, dphi0)
 
@@ -284,10 +338,23 @@
 
     select case (me%merit_mode)
     case (sqpopt_merit_augmented_lagrangian)
-        call augmented_lagrangian_slacks(me, c, c_lb, c_ub, lambda, s)
-        call sparse_matvec_transpose(jac, lambda, jtlam)
-        call sparse_matvec_transpose(jac, c-s, jtr)
-        dphi0 = dot_product(g - jtlam + me%penalty*jtr, p)
+        if (me%joint_active) then
+            ! (the multipliers and the slacks move too: by `xi = lambda - lambda0`
+            ! and `q` per unit step, so `r = c-s` changes by `d = Jp - q`)
+            block
+                real(wp), dimension(size(c)) :: jp, d
+                call sparse_matvec(jac, p, jp)
+                d = jp - me%q
+                s = c - me%s0     ! (= r0)
+                dphi0 = dot_product(g, p) - dot_product(lambda - me%lambda0, s) - dot_product(me%lambda0, d) &
+                        + me%penalty*dot_product(s, d)
+            end block
+        else
+            call augmented_lagrangian_slacks(me, c, c_lb, c_ub, lambda, s)
+            call sparse_matvec_transpose(jac, lambda, jtlam)
+            call sparse_matvec_transpose(jac, c-s, jtr)
+            dphi0 = dot_product(g - jtlam + me%penalty*jtr, p)
+        end if
     case default
         block
             real(wp), dimension(size(c)) :: jp
@@ -311,6 +378,107 @@
     end select
 
     end subroutine merit_directional_derivative
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  update the merit function's penalty parameter after the QP solve, for
+!  the step `p` (with \( p^THp \) = `php`), according to `penalty_update`:
+!
+!  * `sqpopt_penalty_multipliers`: \( \mu \ge \lVert\lambda_{QP}\rVert_\infty + 1 \)
+!    (Han/Powell, as in `slsqp`), which never decreases. Simple, but at a
+!    degenerate point, where the multipliers are huge, the penalty becomes
+!    huge too, and the line search then only accepts tiny steps.
+!  * `sqpopt_penalty_model`, with `sqpopt_merit_l1`: Byrd-Nocedal's
+!    model-reduction rule (Nocedal & Wright, *Numerical Optimization*,
+!    eq. 18.36): the penalty only increases if the step's predicted merit
+!    reduction would not credit at least a fraction `penalty_rho` of the
+!    linearized violation reduction \( \Delta v = v(c) - v(c+Jp) \):
+!    $$ \mu \ge \frac{g^Tp + \tfrac12 \max(p^THp, 0)}{(1-\rho)\,\Delta v} $$
+!    This depends on the step itself rather than on the multiplier
+!    estimates, so it stays moderate at degenerate points.
+!  * `sqpopt_penalty_model`, with `sqpopt_merit_augmented_lagrangian`:
+!    Gill, Murray, Saunders & Wright (SOL 86-6R; NPSOL). The line search
+!    moves the multipliers and the slacks too (`joint_active`): from the
+!    current \( \lambda_0 \) toward the QP's \( \lambda_{QP} \)
+!    (\( \xi = \lambda_{QP}-\lambda_0 \)), and from the merit's minimizer
+!    \( s_0 \) toward the QP's linearized constraint values
+!    (\( q = \text{clip}(c+Jp) - s_0 \)). The penalty is set so that the
+!    merit's slope is at most \( -\tfrac12 p^THp \): with
+!    \( r = c-s_0 \) and \( d = Jp-q \) (\( = -r \) for a consistent QP),
+!    the slope is \( A + \rho B \), \( A = g^Tp - \xi^Tr - \lambda_0^Td \),
+!    \( B = r^Td \), so (if \( B<0 \)) \( \hat\rho = (A + \tfrac12
+!    p^THp)/(-B) \). If \( \rho < \hat\rho \), \( \rho \) increases to
+!    \( \max(\hat\rho, 2\rho) \); if \( \rho > 4\max(\hat\rho, \rho_f) \), it
+!    *decreases* to \( \max(\hat\rho, \rho_f, \sqrt{\rho\max(\hat\rho,\rho_f)}) \),
+!    where the floor \( \rho_f \) doubles after each decrease, so that it
+!    can only decrease finitely often (as the theory requires).
+
+    subroutine update_penalty_parameter(me, jac, g, p, php, c, c_lb, c_ub, lambda, lambda_qp)
+
+    class(sqpopt_linesearch_type), intent(inout) :: me
+    type(sqpopt_sparse_matrix), intent(in) :: jac       !! constraint Jacobian at `x`, `dimension(m,n)`
+    real(wp), dimension(:),     intent(in) :: g         !! objective gradient at `x` `dimension(n)`
+    real(wp), dimension(:),     intent(in) :: p         !! the step `dimension(n)`
+    real(wp),                   intent(in) :: php       !! \( p^THp \)
+    real(wp), dimension(:),     intent(in) :: c         !! constraint values at `x` `dimension(m)`
+    real(wp), dimension(:),     intent(in) :: c_lb      !! constraint lower bounds `dimension(m)`
+    real(wp), dimension(:),     intent(in) :: c_ub      !! constraint upper bounds `dimension(m)`
+    real(wp), dimension(:),     intent(in) :: lambda    !! the current multipliers `dimension(m)`
+    real(wp), dimension(:),     intent(in) :: lambda_qp !! the QP's multipliers `dimension(m)`
+
+    real(wp), dimension(size(c)) :: jp, s, r
+    real(wp) :: dv, req, a, b, rho_hat, target
+
+    me%joint_active = .false.
+    if (size(c) == 0) return
+
+    select case (me%penalty_update)
+
+    case (sqpopt_penalty_model)
+
+        call sparse_matvec(jac, p, jp)
+
+        select case (me%merit_mode)
+
+        case (sqpopt_merit_augmented_lagrangian)
+            ! the joint step: the slacks start at the merit's minimizer (resetting
+            ! them can only decrease the merit) and move toward the QP's
+            ! linearized constraint values, so that `r = c-s` decreases like
+            ! the violation (`d = Jp - q = -r0` if the QP is consistent):
+            me%joint_active = .true.
+            me%lambda0 = lambda
+            call augmented_lagrangian_slacks(me, c, c_lb, c_ub, lambda, s)
+            me%s0 = s
+            me%q  = min(max(c + jp, c_lb), c_ub) - s
+            r = c - s
+            a = dot_product(g, p) - dot_product(lambda_qp - lambda, r) - dot_product(lambda, jp - me%q)
+            b = dot_product(r, jp - me%q)
+            if (b < -tiny(1.0_wp)) then
+                rho_hat = (a + 0.5_wp*max(php, 0.0_wp))/(-b)
+                target  = max(rho_hat, me%penalty_floor)
+                if (me%penalty < rho_hat) then
+                    me%penalty = max(rho_hat, 2.0_wp*me%penalty)
+                else if (me%penalty > 4.0_wp*target) then
+                    me%penalty = max(target, sqrt(me%penalty*target))
+                    me%penalty_floor = 2.0_wp*me%penalty_floor
+                end if
+            end if
+
+        case default   ! (l1)
+            dv = l1_violation(c, c_lb, c_ub) - l1_violation(c + jp, c_lb, c_ub)
+            if (dv > 0.0_wp) then
+                req = (dot_product(g, p) + 0.5_wp*max(php, 0.0_wp))/((1.0_wp - me%penalty_rho)*dv)
+                if (me%penalty < req) me%penalty = 1.1_wp*req
+            end if
+
+        end select
+
+    case default   ! (sqpopt_penalty_multipliers)
+        me%penalty = max(me%penalty, maxval(abs(lambda_qp)) + 1.0_wp)
+    end select
+
+    end subroutine update_penalty_parameter
 !*******************************************************************************
 
 !*******************************************************************************
@@ -442,7 +610,7 @@
 !  evaluate `f`, `c`, and the merit function at a trial point; `ok` is
 !  false (and `phi_trial=huge`) if any value is not finite.
 
-    subroutine eval_trial(me, eval_f, eval_c, x_trial, c_lb, c_ub, lambda, c_trial, phi_trial, ok)
+    subroutine eval_trial(me, eval_f, eval_c, x_trial, c_lb, c_ub, lambda, c_trial, phi_trial, ok, alpha)
 
     class(sqpopt_linesearch_type), intent(inout) :: me
     procedure(sqpopt_ls_objective_func)  :: eval_f
@@ -454,12 +622,17 @@
     real(wp), dimension(:), intent(out) :: c_trial   !! constraint values at `x_trial` `dimension(m)`
     real(wp),               intent(out) :: phi_trial !! merit function value at `x_trial`
     logical,                intent(out) :: ok        !! true if everything is finite
+    real(wp), optional,     intent(in)  :: alpha     !! step length (for the joint step, see [[eval_merit_function]])
 
     real(wp) :: f_trial
 
     call eval_fc(eval_f, eval_c, x_trial, f_trial, c_trial, ok)
     if (ok) then
-        call me%eval_merit(f_trial, c_trial, c_lb, c_ub, lambda, phi_trial)
+        if (present(alpha)) then
+            call me%eval_merit(f_trial, c_trial, c_lb, c_ub, lambda, phi_trial, alpha)
+        else
+            call me%eval_merit(f_trial, c_trial, c_lb, c_ub, lambda, phi_trial, 1.0_wp)
+        end if
         ok = sqpopt_all_finite([phi_trial])
     end if
     if (.not. ok) phi_trial = huge(1.0_wp)
@@ -517,7 +690,7 @@
     do it = 1, me%max_ls_iter
 
         x_trial = x + alpha*p
-        call eval_trial(me, eval_f, eval_c, x_trial, c_lb, c_ub, lambda, c_trial, phi_trial, ok)
+        call eval_trial(me, eval_f, eval_c, x_trial, c_lb, c_ub, lambda, c_trial, phi_trial, ok, alpha)
         if (ok .and. phi_trial <= phi0 + me%sigma*alpha*slope + slack) then
             accepted = .true.
             exit
@@ -531,7 +704,7 @@
                 call soc(alpha*p, c_trial, p_soc, soc_ok)
                 if (soc_ok) then
                     x_trial = x + p_soc
-                    call eval_trial(me, eval_f, eval_c, x_trial, c_lb, c_ub, lambda, c_trial, phi_trial, ok)
+                    call eval_trial(me, eval_f, eval_c, x_trial, c_lb, c_ub, lambda, c_trial, phi_trial, ok, alpha)
                     if (ok .and. phi_trial <= phi0 + me%sigma*alpha*slope + slack) then
                         accepted = .true.
                         exit
@@ -642,12 +815,12 @@
     x_new  = x + alpha*p
 
     if (present(soc) .and. alpha < alpha0*(1.0_wp - sqrt(me%tol))) then
-        call eval_trial(me, eval_f, eval_c, x + alpha0*p, c_lb, c_ub, lambda, c_full, phi_full, ok)
+        call eval_trial(me, eval_f, eval_c, x + alpha0*p, c_lb, c_ub, lambda, c_full, phi_full, ok, alpha0)
         if (ok) then
             if (l1_violation(c_full, c_lb, c_ub) >= l1_violation(c, c_lb, c_ub)) then
                 call soc(alpha0*p, c_full, p_soc, soc_ok)
                 if (soc_ok) then
-                    call eval_trial(me, eval_f, eval_c, x + p_soc, c_lb, c_ub, lambda, c_soc, phi_soc, ok)
+                    call eval_trial(me, eval_f, eval_c, x + p_soc, c_lb, c_ub, lambda, c_soc, phi_soc, ok, alpha0)
                     if (ok .and. phi_soc < phi) then
                         phi   = phi_soc
                         alpha = alpha0
@@ -682,7 +855,7 @@
         real(wp), dimension(size(c_lb)) :: c_trial
         logical :: ok
 
-        call eval_trial(me, eval_f, eval_c, x + alpha*p, c_lb, c_ub, lambda, c_trial, phi, ok)
+        call eval_trial(me, eval_f, eval_c, x + alpha*p, c_lb, c_ub, lambda, c_trial, phi, ok, alpha)
 
         end function merit_along_direction
     !*******************************************************************************
@@ -752,7 +925,7 @@
         ! major step limit like the initial standard-search step:
         alpha = alpha0
         x_new = x + alpha*p
-        call eval_trial(me, eval_f, eval_c, x_new, c_lb, c_ub, lambda, c_trial, phi_trial, ok)
+        call eval_trial(me, eval_f, eval_c, x_new, c_lb, c_ub, lambda, c_trial, phi_trial, ok, alpha0)
         relaxed_used = ok
     end if
 

@@ -171,8 +171,9 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 | `hessian_mode` | `sqpopt_hessian_bfgs` | Hessian approximation strategy (see the [Hessian approximation](#hessian-approximation-sqpopt_hessian_type) table below) |
 | `lbfgs_memory` | `10` | number of `(s,y)` vector pairs retained by the limited-memory Hessian |
 | `qp_solver_mode` | `sqpopt_qp_auto` | QP subproblem algorithm (see the [QP subproblem solver](#qp-subproblem-solver-sqpopt_qp_solver_type) tables below) |
-| `linesearch_mode` | `sqpopt_linesearch_armijo` | line search strategy (see the [Line search & merit function](#line-search--merit-function-sqpopt_linesearch_type) tables below) |
-| `merit_mode` | `sqpopt_merit_l1` | merit function (see the [Line search & merit function](#line-search--merit-function-sqpopt_linesearch_type) tables below) |
+| `linesearch_mode` | `sqpopt_linesearch_filter` | line search strategy (see the [Line search & merit function](#line-search--merit-function-sqpopt_linesearch_type) tables below) |
+| `merit_mode` | `sqpopt_merit_l1` | merit function, for the merit-function line searches (see the [Line search & merit function](#line-search--merit-function-sqpopt_linesearch_type) tables below) |
+| `penalty_update` | `sqpopt_penalty_multipliers` | how the merit function's penalty parameter is updated (see the tables below) |
 | `max_consecutive_failures` | `5` | stop (with `sqpopt_line_search_failed` or `sqpopt_qp_solve_failed`) after this many consecutive major iterations whose QP solve or line search/trust-region step failed |
 | `ftol`, `xtol` | `1e-8` | once feasible, also stop (with `istat=sqpopt_stalled`) if the objective's and the variables' relative change from the previous iterate are both below these tolerances (a safeguard against looping to `max_iter` on marginal steps when the KKT test in `ktol` never quite converges) |
 | `ctol` | `1e-8` | feasibility tolerance on the constraint violation |
@@ -184,9 +185,10 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 | `hessian_scale0` | `1` | the initial Hessian approximation is `hessian_scale0` times the identity |
 | `ktol` | `1e-6` | tolerance on the KKT optimality test: stationarity of the projected Lagrangian gradient, plus the sign and complementarity of the constraint multipliers (scaled up only when the average multiplier magnitude exceeds 100, as in IPOPT) |
 
-`hessian_mode`/`lbfgs_memory`, `qp_solver_mode`, `linesearch_mode`, and
-`merit_mode` are copied onto the corresponding sub-component (`hessian`,
-`qp_solver%mode`, `linesearch%mode`, `linesearch%merit_mode`) at the start
+`hessian_mode`/`lbfgs_memory`, `qp_solver_mode`, `linesearch_mode`,
+`merit_mode`, and `penalty_update` are copied onto the corresponding
+sub-component (`hessian`, `qp_solver%mode`, `linesearch%mode`,
+`linesearch%merit_mode`, `linesearch%penalty_update`) at the start
 of every `solve()` call, so setting them via `options` and via a directly-
 constructed sub-component are equivalent -- everything else in the tables
 below (tolerances, step limits, etc.) must be set on the sub-component
@@ -287,9 +289,11 @@ exactly, and share the same robustness features:
 
 | option | default | description |
 |---|---|---|
-| `mode` | `sqpopt_linesearch_armijo` | line search strategy (overwritten from `options%linesearch_mode` at the start of `solve()`) -- see the mode table below |
+| `mode` | `sqpopt_linesearch_filter` | line search strategy (overwritten from `options%linesearch_mode` at the start of `solve()`) -- see the mode table below |
 | `merit_mode` | `sqpopt_merit_l1` | merit function (overwritten from `options%merit_mode` at the start of `solve()`) -- see the mode table below |
 | `penalty` | `1.0` | current penalty parameter used in the merit function (\( \mu \) for `sqpopt_merit_l1`, \( \rho \) for `sqpopt_merit_augmented_lagrangian`) |
+| `penalty_update` | `sqpopt_penalty_multipliers` | how the penalty is updated (overwritten from `options%penalty_update` at the start of `solve()`) -- see the table below |
+| `penalty_rho` | `0.1` | `sqpopt_penalty_model` with `sqpopt_merit_l1`: the fraction of the linearized violation reduction the penalty must credit |
 | `major_step_limit` | `2.0` | caps the *initial* trial step length (before any backtracking), used by all three modes, so that no variable changes by more than this factor relative to \( \max(1,\lvert x_j\rvert) \) (SNOPT's "Major step limit" option); guards against divergence from a QP step that is technically feasible but unreasonably large |
 | `sigma` | `0.1` | Armijo sufficient-decrease parameter, \( 0<\sigma<1 \) (`sqpopt_linesearch_armijo`/`sqpopt_linesearch_watchdog` modes) |
 | `backtrack` | `0.5` | step-length reduction factor at each backtracking step (`sqpopt_linesearch_armijo`/`sqpopt_linesearch_watchdog` modes) |
@@ -308,10 +312,10 @@ exactly, and share the same robustness features:
 
 | value | description |
 |---|---|
-| `sqpopt_linesearch_armijo` | (default) standard backtracking line search with an Armijo-type sufficient-decrease test on the merit function (as used by default in `slsqp`) |
+| `sqpopt_linesearch_armijo` | standard backtracking line search with an Armijo-type sufficient-decrease test on the merit function (as used by default in `slsqp`) |
 | `sqpopt_linesearch_exact` | (approximately) minimizes the merit function along the search direction using the derivative-free `fmin` routine |
 | `sqpopt_linesearch_watchdog` | Powell's watchdog technique: tracks the best point found so far and, for a short window after a genuine improvement, relaxes the sufficient-decrease test (accepting the full step outright) rather than stalling near a curved/simultaneously-active constraint boundary (the Maratos effect); backtracks to the best point and disables relaxed acceptance for `watchdog_cooldown_len` iterations if the window is used up without a new best point |
-| `sqpopt_linesearch_filter` | filter line search (Fletcher & Leyffer's filter, with the globally convergent line-search rules of Wächter & Biegler, as in IPOPT): no merit function or penalty parameter; a trial point is judged by its (violation, objective) pair, which must not be dominated by the filter; a switching condition decides whether the step must reduce the objective (Armijo) or may trade it for feasibility, and only the latter steps enlarge the filter; if no acceptable step is found, a feasibility-restoration step is taken. Ignores `merit_mode`/`penalty` |
+| `sqpopt_linesearch_filter` | (default) filter line search (Fletcher & Leyffer's filter, with the globally convergent line-search rules of Wächter & Biegler, as in IPOPT): no merit function or penalty parameter; a trial point is judged by its (violation, objective) pair, which must not be dominated by the filter; a switching condition decides whether the step must reduce the objective (Armijo) or may trade it for feasibility, and only the latter steps enlarge the filter; if no acceptable step is found, a feasibility-restoration step is taken. Ignores `merit_mode`/`penalty` |
 
 **`merit_mode` values (`linesearch%merit_mode` / `options%merit_mode`):**
 
@@ -319,6 +323,24 @@ exactly, and share the same robustness features:
 |---|---|
 | `sqpopt_merit_l1` | (default) non-smooth \( \ell_1 \) exact penalty function (as in `slsqp`) |
 | `sqpopt_merit_augmented_lagrangian` | smooth augmented Lagrangian merit function (Gill, Murray, Saunders & Wright; the merit function used in NPSOL and, in spirit, SNOPT) -- twice continuously differentiable, which helps avoid the Maratos effect |
+
+**`penalty_update` values (`linesearch%penalty_update` / `options%penalty_update`):**
+
+| value | description |
+|---|---|
+| `sqpopt_penalty_multipliers` | (default) keep the penalty above the multiplier estimates, \( \mu \ge \lVert\lambda\rVert_\infty + 1 \) (Han/Powell, as in `slsqp`); it never decreases, so it can grow very large at degenerate points |
+| `sqpopt_penalty_model` | each merit function's principled rule. `sqpopt_merit_l1`: Byrd-Nocedal model reduction -- the penalty only increases as needed for the step's predicted merit reduction to credit a fraction `penalty_rho` of its linearized violation reduction. `sqpopt_merit_augmented_lagrangian`: Gill-Murray-Saunders-Wright -- the line search moves the multipliers (toward the QP's) and the slacks (toward the QP's linearized constraint values) along with the variables, the penalty is set just large enough for the merit's slope to be at most \( -\tfrac12 p^THp \), and it can also decrease (a limited number of times) |
+
+On the Hock-Schittkowski test set (`test/test_hs_suite.f90`, 305 problems):
+
+| line search / merit / penalty | solved | local | failed | `f` evaluations (solved) |
+|---|--:|--:|--:|--:|
+| **filter** (default) | **273** | 32 | **0** | **10,593** |
+| Armijo / \( \ell_1 \) / multipliers | 269 | 32 | 4 | 28,555 |
+| Armijo / \( \ell_1 \) / model (Byrd-Nocedal) | 271 | 32 | 2 | 31,154 |
+| Armijo / augmented Lagrangian / multipliers | 270 | 33 | 2 | 10,960 |
+| Armijo / augmented Lagrangian / model (GMSW) | 266 | 34 | 5 | 14,198 |
+| watchdog / \( \ell_1 \) / model | 271 | 32 | 2 | 34,286 |
 
 **Second-order correction.** In every line search, and in the trust
 region, when the first (full) trial step
