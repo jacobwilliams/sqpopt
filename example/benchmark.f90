@@ -42,8 +42,10 @@ program benchmark
 
     call run_control(50)
     call run_control(150)
+    call run_control(500)
     call run_rosenbrock(40)
     call run_rosenbrock(300)
+    call run_rosenbrock(2000)
 
     contains
 

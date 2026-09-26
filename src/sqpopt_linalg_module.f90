@@ -14,7 +14,7 @@
 
     use sqpopt_kinds, only: wp => sqpopt_module_wp
     use sqpopt_types_module, only: sqpopt_sparse_matrix
-    use lusol,               only: lu1fac
+    use lusol,               only: lu1fac, lu6sol, lu8rpc
     use lusol_precision,     only: ip, rp
 
     implicit none
@@ -24,6 +24,22 @@
     public :: sparse_matvec
     public :: sparse_matvec_transpose
     public :: independent_columns
+
+    type, public :: sqpopt_lu_type
+        !! sparse LU factors of a square matrix (`LUSOL`), for repeated solves
+        !! with it and its transpose. See [[sqpopt_lu_type(type):factorize(bound)]].
+        private
+        integer(ip) :: n = 0
+        integer(ip) :: lena = 0
+        integer(ip) :: luparm(30) = 0
+        real(rp)    :: parmlu(30) = 0.0_rp
+        real(rp),    dimension(:), allocatable :: a
+        integer(ip), dimension(:), allocatable :: indc, indr, p, q, lenc, lenr, locc, locr
+        contains
+        procedure, public :: factorize => lu_factorize
+        procedure, public :: solve     => lu_solve
+        procedure, public :: replace_column => lu_replace_column
+    end type sqpopt_lu_type
 
     contains
 !*******************************************************************************
@@ -157,6 +173,139 @@
     end if
 
     end subroutine independent_columns
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  factorize the square `n x n` sparse matrix `A` (COO triplets, no
+!  duplicate `(irow,icol)` pairs) with `LUSOL`'s `lu1fac` (threshold rook
+!  pivoting, for stability). `istat` is `0` on success, `1` if `A` appears
+!  to be singular (see [[independent_columns]] for the test), or else
+!  `lu1fac`'s `inform` code; the factors can only be used if it is `0`.
+
+    subroutine lu_factorize(me, n, irow, icol, val, rel_tol, istat)
+
+    class(sqpopt_lu_type),  intent(inout) :: me
+    integer,                intent(in)    :: n       !! order of `A`
+    integer,  dimension(:), intent(in)    :: irow    !! row indices of the nonzeros of `A`
+    integer,  dimension(:), intent(in)    :: icol    !! column indices of the nonzeros of `A`
+    real(wp), dimension(:), intent(in)    :: val     !! the nonzeros of `A`
+    real(wp),               intent(in)    :: rel_tol !! relative singularity tolerance (e.g. `1e-10`)
+    integer,                intent(out)   :: istat   !! status (0 = success)
+
+    integer(ip) :: nelem, inform, attempt
+    integer(ip), dimension(:), allocatable :: iploc, iqloc, ipinv, iqinv
+    real(rp),    dimension(:), allocatable :: w
+
+    me%n  = n
+    nelem = size(val)
+    istat = 0
+    if (n == 0) return
+    me%lena = 1 + max(10*nelem, 20*me%n, 10000_ip)   ! (with room for column replacements)
+    if (allocated(me%p)) deallocate(me%p, me%q, me%lenc, me%lenr, me%locc, me%locr)
+    allocate(me%p(n), me%q(n), me%lenc(n), me%lenr(n), me%locc(n), me%locr(n), &
+             iploc(n), iqloc(n), ipinv(n), iqinv(n), w(n))
+
+    do attempt = 1, 3   ! (enlarging the workspace if `lu1fac` asks for it)
+        if (allocated(me%a)) deallocate(me%a, me%indc, me%indr)
+        allocate(me%a(me%lena), me%indc(me%lena), me%indr(me%lena))
+        me%a(1:nelem)    = real(val, rp)
+        me%indc(1:nelem) = irow
+        me%indr(1:nelem) = icol
+
+        me%luparm = 0
+        me%luparm(1) = 6      ! nout
+        me%luparm(2) = -1     ! lprint: no output
+        me%luparm(3) = 5      ! maxcol
+        me%luparm(6) = 1      ! TRP: threshold rook pivoting
+        me%luparm(8) = 1      ! keepLU
+        me%parmlu = 0.0_rp
+        me%parmlu(1) = 10.0_rp                      ! Ltol1
+        me%parmlu(2) = 10.0_rp                      ! Ltol2
+        me%parmlu(3) = epsilon(1.0_rp)**0.8_rp      ! small
+        me%parmlu(4) = epsilon(1.0_rp)**0.67_rp     ! Utol1
+        me%parmlu(5) = real(rel_tol, rp)            ! Utol2
+        me%parmlu(6) = 3.0_rp                       ! Uspace
+        me%parmlu(7) = 0.3_rp                       ! dens1
+        me%parmlu(8) = 0.5_rp                       ! dens2
+
+        call lu1fac(me%n, me%n, nelem, me%lena, me%luparm, me%parmlu, me%a, me%indc, me%indr, &
+                    me%p, me%q, me%lenc, me%lenr, me%locc, me%locr, iploc, iqloc, ipinv, iqinv, w, inform)
+        if (inform /= 7) exit
+        me%lena = max(2*me%lena, me%luparm(13) + 1)
+    end do
+    istat = int(inform)
+
+    end subroutine lu_factorize
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  solve \( A x = b \) (or \( A^T x = b \) if `transpose`) with the factors
+!  from [[sqpopt_lu_type(type):factorize(bound)]].
+
+    subroutine lu_solve(me, b, x, transpose)
+
+    class(sqpopt_lu_type),  intent(inout) :: me
+    real(wp), dimension(:), intent(in)    :: b         !! right-hand side `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: x         !! solution `dimension(n)`
+    logical,                intent(in)    :: transpose !! solve with \( A^T \) instead of \( A \)
+
+    real(rp), dimension(me%n) :: v, w
+    integer(ip) :: inform
+
+    if (me%n == 0) return
+    if (transpose) then
+        w = real(b, rp)   ! (mode 6: `v` solves `A'v = w`; `w` is destroyed)
+        call lu6sol(6_ip, me%n, me%n, v, w, me%lena, me%luparm, me%parmlu, me%a, me%indc, me%indr, &
+                    me%p, me%q, me%lenc, me%lenr, me%locc, me%locr, inform)
+        x = real(v, wp)
+    else
+        v = real(b, rp)   ! (mode 5: `w` solves `A w = v`; `v` is altered)
+        call lu6sol(5_ip, me%n, me%n, v, w, me%lena, me%luparm, me%parmlu, me%a, me%indc, me%indr, &
+                    me%p, me%q, me%lenc, me%lenr, me%locc, me%locr, inform)
+        x = real(w, wp)
+    end if
+
+    end subroutine lu_solve
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  update the factors when column `jrep` of the matrix is replaced by the
+!  sparse column (`irow`, `val`), with `LUSOL`'s `lu8rpc` (a Bartels-Golub
+!  update). `istat` is `0` on success; otherwise (the new matrix appears to
+!  be singular, the update seemed unstable, or the factors ran out of
+!  storage) the factors can no longer be used, and the matrix should be
+!  factorized again.
+
+    subroutine lu_replace_column(me, jrep, irow, val, istat)
+
+    class(sqpopt_lu_type),  intent(inout) :: me
+    integer,                intent(in)    :: jrep  !! the column to replace
+    integer,  dimension(:), intent(in)    :: irow  !! row indices of the nonzeros of the new column
+    real(wp), dimension(:), intent(in)    :: val   !! the nonzeros of the new column
+    integer,                intent(out)   :: istat !! status (0 = success)
+
+    real(rp), dimension(me%n) :: v, w
+    real(rp)    :: diag, vnorm
+    integer(ip) :: inform, nrank0
+    integer :: k
+
+    v = 0.0_rp
+    do k = 1, size(val)
+        v(irow(k)) = v(irow(k)) + real(val(k), rp)
+    end do
+    nrank0 = me%luparm(16)
+    call lu8rpc(1_ip, 1_ip, me%n, me%n, int(jrep, ip), v, w, me%lena, me%luparm, me%parmlu, &
+                me%a, me%indc, me%indr, me%p, me%q, me%lenc, me%lenr, me%locc, me%locr, inform, diag, vnorm)
+    if (inform == 0 .and. me%luparm(16) == nrank0) then
+        istat = 0
+    else
+        istat = max(1, int(abs(inform)))
+    end if
+
+    end subroutine lu_replace_column
 !*******************************************************************************
 
     end module sqpopt_linalg_module

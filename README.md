@@ -222,7 +222,7 @@ matrix); `solve()` always (re)initializes it from `options%lbfgs_memory`/
 |---|---|
 | `sqpopt_qp_auto` | (default) `sqpopt_qp_dense` if `n <= auto_dense_max_n`, else `sqpopt_qp_reduced_hessian` |
 | `sqpopt_qp_dense` | dense active-set QP (Householder QR null space, Cholesky of the reduced Hessian); forms `O(n^2)`/`O(mn)` dense arrays each call, so best for small-to-moderate problems |
-| `sqpopt_qp_reduced_hessian` | sparse/matrix-free active-set QP (projected conjugate gradients, `LSQR`-based null-space projections, active bounds handled by fixing variables); never forms a dense array, so it scales to larger problems |
+| `sqpopt_qp_reduced_hessian` | sparse active-set QP (SQOPT-style basis partition of the working set with sparse `LUSOL` factors, conjugate gradients on the reduced Hessian, active bounds handled by fixing variables); never forms a dense array, so it scales to larger problems |
 
 Both active-set solvers enforce the linearized constraints and bounds
 exactly, and share the same robustness features:
@@ -236,10 +236,10 @@ exactly, and share the same robustness features:
   `sqpopt_infeasible`, and the major iteration takes a feasibility-
   restoration step instead.
 - Rows join the working set only if linearly independent of it (the
-  sparse solver picks the initial working set from the rows at a bound
-  with one rank-revealing `LUSOL` factorization, preferring equality
-  rows, then bounds, then inequalities, so duplicated or dependent
-  constraints are handled);
+  sparse solver picks its initial basis and working set with one
+  rank-revealing `LUSOL` factorization, preferring to keep equality
+  constraints, then bounds, then inequalities in the working set, so
+  duplicated or dependent constraints are handled);
   directions of zero or negative curvature (an indefinite SR1 Hessian, or
   along an elastic slack) are followed to the nearest blocking constraint
   rather than producing a huge Newton step; and all tolerances are
@@ -265,12 +265,13 @@ exactly, and share the same robustness features:
 | `elastic_weight_max` | `1e10` | largest elastic penalty weight tried (same scaling) before the linearization is declared inconsistent |
 | `warm_start` | `.true.` | start each QP from the previous QP's final working set (within one `solve`) |
 
-**Sparse (projected-CG) active-set QP options (`qp_solver%sparse_qp`, used when `mode==sqpopt_qp_reduced_hessian`):**
+**Sparse active-set QP options (`qp_solver%sparse_qp`, used when `mode==sqpopt_qp_reduced_hessian`):**
 
 | option | default | description |
 |---|---|---|
+| `null_space` | `sqpopt_null_space_lu` | how the null space of the working set is handled: `sqpopt_null_space_lu` (SQOPT-style) gives every general row a slack variable, so the working set is just the unknowns fixed at a bound, and splits the free unknowns into a nonsingular basis `B` and the superbasic rest `S`: the null space is `Z = [-B⁻¹S; I]`, every projection and multiplier is a direct solve with `B`'s sparse LU factors, and working-set changes update the factors (`lu8rpc`) instead of refactorizing; `sqpopt_null_space_lsqr` uses orthogonal projections, each an iterative `LSQR` least-squares solve, with projected CG (much slower at scale, kept for comparison) |
 | `max_iter` | `100` | minimum limit on active-set iterations per QP solve (the actual limit is `max(max_iter, 10*(rows+1))`) |
-| `max_pcg_iter` | `0` | maximum projected-CG iterations per active-set face (`<=0` means twice the number of unknowns; CG is also stopped at the dimension of the face) |
+| `max_pcg_iter` | `0` | maximum CG iterations per active-set face (`<=0` means twice the number of unknowns; CG is also stopped at the dimension of the face) |
 | `active_tol` | `1e-8` | relative tolerance for a row being at a bound, and for the sign of a multiplier |
 | `opt_tol` | `1e-10` | relative tolerance on the projected-gradient stationarity test |
 | `pcg_rtol` | `1e-10` | projected CG stops once the projected residual has been reduced by this factor |
@@ -278,7 +279,7 @@ exactly, and share the same robustness features:
 | `elastic_weight` | `1e4` | as for the dense solver |
 | `elastic_weight_max` | `1e8` | as for the dense solver (lower, since the iterative projections' accuracy is relative to the weight) |
 | `warm_start` | `.true.` | as for the dense solver |
-| `lsqr_atol`, `lsqr_btol`, `lsqr_conlim` | `0.0` | `LSQR` relative error tolerances in `A`/`b`, and the upper limit on `cond(Abar)` (`0` means "let `LSQR` use its own machine-precision-based default", which is tighter than usually necessary); loosening these is the main lever for trading QP-solve accuracy for speed in this mode |
+| `lsqr_atol`, `lsqr_btol`, `lsqr_conlim` | `0.0` | `LSQR` relative error tolerances in `A`/`b`, and the upper limit on `cond(Abar)` (`0` means "let `LSQR` use its own machine-precision-based default", which is tighter than usually necessary), for the minimum-norm starting step and (with `null_space=sqpopt_null_space_lsqr`) every projection |
 | `lsqr_itnlim` | `0` | `LSQR` maximum iterations per solve (`<=0` means `2*(rows+columns)+10`) |
 
 #### Line search & merit function (`sqpopt_linesearch_type`)
@@ -384,7 +385,7 @@ This package depends on the following external libraries (which will be automati
 
 * [LSQR](https://github.com/jacobwilliams/LSQR) -- iterative solver for sparse linear systems and least-squares problems
 * [LSMR](https://github.com/jacobwilliams/LSMR) -- iterative solver for sparse linear systems and least-squares problems, similar to LSQR but with improved numerical stability (not yet used; see `plan/ROADMAP.md` F14)
-* [lusol](https://github.com/jacobwilliams/lusol) -- sparse LU factorization library (rank-revealing factorization for the sparse QP's working set)
+* [lusol](https://github.com/jacobwilliams/lusol) -- sparse LU factorization library (the sparse QP's basis factors and updates, and its rank-revealing basis choice)
 * [fmin](https://github.com/jacobwilliams/fmin.git) -- derivative-free minimization routine used for exact line search
 
 

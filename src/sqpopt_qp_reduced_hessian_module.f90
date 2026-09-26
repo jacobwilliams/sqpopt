@@ -5,13 +5,29 @@
 !  **Sparse** active-set QP solver for the linearized SQP subproblem (the
 !  default for larger problems, see `sqpopt_qp_auto`). Like
 !  [[sqpopt_qp_dense_module]], this enforces the linearized constraints
-!  and bounds exactly, but stays fully sparse/matrix-free: instead of
-!  forming a dense Hessian and an orthonormal null-space basis `Z`, it
-!  gets any null-space projection it needs by solving a least-squares
-!  problem with `LSQR`, and solves the reduced-space Newton system with
-!  **projected conjugate gradients** (Gould, Hribar & Nocedal 1998; Nocedal
-!  & Wright, *Numerical Optimization*, Ch. 16) instead of a direct
-!  factorization.
+!  and bounds exactly, but never forms a dense matrix: the Hessian is only
+!  used through products, and active variable bounds simply fix their
+!  variables. The null space of the working set is handled in one of two
+!  ways (`null_space`):
+!
+!  * `sqpopt_null_space_lu` (the default, SQOPT-style): every general row
+!    gets a slack variable (\( J p - s = 0 \)), so all the constraints
+!    are simple bounds on the unknowns, and the working set is the set of
+!    unknowns fixed at a bound. The free unknowns are split into a square
+!    nonsingular **basis** `B` (sparse LU factors, from `LUSOL`) and the
+!    **superbasic** rest `S`, so the null space is spanned by
+!    \( Z = [-B^{-1} S; I] \). Every product with `Z` or \( Z^T \) is
+!    one solve with `B`'s factors, the reduced-space Newton system
+!    \( Z^T H Z \, d_S = -Z^T (Hv+g) \) is solved by conjugate gradients,
+!    and the multipliers come from one solve with \( B^T \). All of these
+!    are direct (not iterative) solves. Fixing or freeing a superbasic
+!    unknown leaves `B` unchanged; fixing a basic one swaps in a superbasic
+!    column with a Bartels-Golub update of the factors (`lu8rpc`), so `B` is
+!    only refactorized occasionally.
+!  * `sqpopt_null_space_lsqr`: orthogonal projections onto the null space,
+!    each a least-squares solve with `LSQR`, with **projected conjugate
+!    gradients** (Gould, Hribar & Nocedal 1998; Nocedal & Wright,
+!    *Numerical Optimization*, Ch. 16).
 !
 !  The formulation is the same as the dense solver's: general constraints
 !  and bounds are uniform two-sided "rows" (stored in compressed-row form,
@@ -37,16 +53,22 @@
     use sqpopt_types_module,   only: sqpopt_sparse_matrix, sqpopt_success, sqpopt_qp_solve_failed, &
                                      sqpopt_infeasible, sqpopt_infinity
     use sqpopt_hessian_module, only: sqpopt_hessian_type
-    use sqpopt_linalg_module,  only: independent_columns
+    use sqpopt_linalg_module,  only: independent_columns, sqpopt_lu_type
     use lsqr_module,           only: lsqr_solver_ez
 
     implicit none
 
     private
 
+    integer, parameter, public :: sqpopt_null_space_lu   = 1 !! (default) basis partition of the working set, with sparse
+                                                              !! LU factors of the basis (SQOPT-style, see the module docs)
+    integer, parameter, public :: sqpopt_null_space_lsqr = 2 !! orthogonal projections onto the null space, by `LSQR`
+
     type, public :: sqpopt_reduced_hessian_qp_type
         !! options for the sparse (projected-CG) active-set QP solver.
 
+        integer  :: null_space   = sqpopt_null_space_lu !! how the null space of the working set is handled
+                                                        !! (see the `sqpopt_null_space_*` constants)
         integer  :: max_iter     = 100       !! minimum limit on the number of active-set iterations per QP solve
                                              !! (the actual limit is `max(max_iter, 10*(number of rows+1))`)
         integer  :: max_pcg_iter = 0         !! maximum projected-CG iterations per active-set face
@@ -66,8 +88,9 @@
                                                    !! the dense solver's, since the iterative projections' accuracy
                                                    !! is relative to the penalty weight)
 
-        ! `LSQR` settings, used for every null-space projection and multiplier
-        ! solve in this module (see [[lsqr_module]] for the precise meaning of
+        ! `LSQR` settings, used for the minimum-norm starting step, and (with
+        ! `null_space=sqpopt_null_space_lsqr`) for every null-space projection
+        ! and multiplier solve (see [[lsqr_module]] for the precise meaning of
         ! each). `0` for `lsqr_atol`/`lsqr_btol`/`lsqr_conlim` means "let LSQR
         ! use its own machine-precision-based default"; loosening these trades
         ! QP-solve accuracy for speed:
@@ -134,6 +157,20 @@
     real(wp) :: rho, rho_max, gscale, alpha, alpha_cap, scale
     integer  :: n_active, blocking, blocking_side
     logical  :: at_face_optimum, truncated
+    logical  :: lu_ok
+    ! the basis method's state (see `basis_active_set`):
+    integer, parameter :: max_updates = 100  !! refactorize `B` after this many column replacements
+    integer  :: nn     !! number of unknowns `v = (p, e, s)`
+    integer  :: nupd   !! column replacements since `B` was last factorized
+    integer,  dimension(:), allocatable :: cptr, crow  !! the constraint matrix `[J E -I]`, by columns
+    real(wp), dimension(:), allocatable :: cval
+    real(wp), dimension(:), allocatable :: v, vlb, vub !! the unknowns and their bounds
+    integer,  dimension(:), allocatable :: state       !! 0 = free, -1/+1 = fixed at the lower/upper bound
+    integer,  dimension(:), allocatable :: bpos        !! position of each unknown in the basis (0 if not basic)
+    integer,  dimension(:), allocatable :: bvar        !! the basic unknowns
+    integer,  dimension(:), allocatable :: sup         !! the superbasic unknowns
+    logical,  dimension(:), allocatable :: is_eqv      !! unknowns with equal bounds
+    type(sqpopt_lu_type) :: blu                        !! LU factors of `B`
 
     n = size(g)
     m = size(c)
@@ -187,6 +224,15 @@
     allocate(u(nt))
     u(1:n)    = p0
     u(n+1:nt) = s0
+
+    ! ---- the basis method (the default), falling back to the LSQR method if it fails ----
+    if (me%null_space == sqpopt_null_space_lu) then
+        call basis_active_set(lu_ok)
+        if (lu_ok) return
+        u(1:n)    = p0
+        u(n+1:nt) = s0
+        rho       = me%elastic_weight*gscale
+    end if
 
     ! ---- initial working set ----
     allocate(status(mtot)); status = 0
@@ -569,6 +615,444 @@
         call project_null(ja, fixed, d_total, tmp)
         d_total = tmp
         end subroutine projected_cg
+
+        subroutine basis_active_set(ok)
+        !! the active-set iterations of the basis method (`null_space =
+        !! sqpopt_null_space_lu`), SQOPT-style. Each general row gets a slack
+        !! variable `s` (`J p + E e - s = 0`, with the elastic slacks `e`), so
+        !! the unknowns are `v = (p, e, s)` with simple bounds only, and the
+        !! working set is just the set of *fixed* unknowns (each at one of its
+        !! bounds). The free unknowns are split into `m` **basic** ones, whose
+        !! columns form a nonsingular basis `B` (with sparse LU factors), and
+        !! the **superbasic** rest; a step `d_S` in the superbasics moves the
+        !! basics by `d_B = -B^{-1} S d_S`, which stays on the constraints.
+        !!
+        !! Fixing a superbasic unknown or freeing a fixed one doesn't change
+        !! `B`; fixing a basic one replaces its column of `B` by that of a
+        !! superbasic (the one with the largest pivot), with a Bartels-Golub
+        !! update of the factors (`lu8rpc`) rather than a refactorization.
+        !!
+        !! Sets `p`, `lambda`, `istat`, `me%n_iter`, and `me%warm_status`, and
+        !! `ok=.true.`; or `ok=.false.` if the factorization failed.
+        logical, intent(out) :: ok
+
+        integer  :: j, k, l, r, iter, maxit_b, blk, side, st
+        real(wp), dimension(:), allocatable :: gv, y, rs, dtot, dext
+        logical,  dimension(:), allocatable :: chosen
+        real(wp) :: alpha_b, sc, worst, tol_mult, dj
+        logical  :: trunc, cg_done
+
+        ok = .false.
+        nn = nt + m
+
+        ! ---- the constraint matrix `[J E -I]` (`m x nn`), by columns ----
+        allocate(cptr(nn+1)); cptr = 0
+        do r = 1, m
+            do l = rows%ptr(r), rows%ptr(r+1)-1
+                cptr(rows%col(l)+1) = cptr(rows%col(l)+1) + 1
+            end do
+            cptr(nt+r+1) = 1
+        end do
+        cptr(1) = 1
+        do j = 1, nn
+            cptr(j+1) = cptr(j+1) + cptr(j)
+        end do
+        allocate(crow(cptr(nn+1)-1), cval(cptr(nn+1)-1))
+        block
+            integer, dimension(nn) :: pos
+            pos = cptr(1:nn)
+            do r = 1, m
+                do l = rows%ptr(r), rows%ptr(r+1)-1
+                    j = rows%col(l)
+                    crow(pos(j)) = r; cval(pos(j)) = rows%val(l); pos(j) = pos(j) + 1
+                end do
+                crow(pos(nt+r)) = r; cval(pos(nt+r)) = -1.0_wp
+            end do
+        end block
+
+        ! ---- the unknowns and their bounds ----
+        allocate(v(nn), vlb(nn), vub(nn), is_eqv(nn))
+        v(1:nt) = u
+        do r = 1, m
+            v(nt+r) = row_dot(rows, r, u)
+        end do
+        vlb(1:nt) = row_lb(m+1:m+nt);  vub(1:nt) = row_ub(m+1:m+nt)
+        vlb(nt+1:nn) = row_lb(1:m);    vub(nt+1:nn) = row_ub(1:m)
+        do j = 1, nn
+            is_eqv(j) = vub(j)-vlb(j) <= me%active_tol*max(1.0_wp, abs(vlb(j)))
+        end do
+
+        ! ---- initial basis and working set ----
+        ! The unknowns at a bound are the candidates for the working set. The
+        ! basis is picked from all the columns by one rank-revealing LU, on the
+        ! row-normalized matrix, with each column scaled by how much it should
+        ! be *free*: the free row slacks most (as exact unit columns, which
+        ! LUSOL takes first: an inactive row's slack is its natural basic
+        ! variable), then the other free unknowns, then inequality rows'
+        ! slacks, then variable bounds, then equality constraints. The
+        ! candidates not picked are fixed (the working set); those picked stay
+        ! free, which drops them from the working set only if needed for a
+        ! nonsingular basis (i.e. if the candidates are linearly dependent).
+        ! (Normalizing the columns instead can make a poor basis: e.g. a
+        ! variable with a single small entry would become a unit column.)
+        allocate(state(nn), bpos(nn), bvar(m), chosen(nn)); state = 0; bpos = 0
+        do j = 1, nn
+            state(j) = at_bound_v(j)
+            if (is_eqv(j)) state(j) = -1
+        end do
+        if (m > 0) then
+            block
+                real(wp), dimension(size(cval)) :: wv
+                integer,  dimension(size(cval)) :: wc
+                real(wp), dimension(m) :: rn
+                real(wp) :: wt
+                rn = 0.0_wp
+                do j = 1, nt
+                    do l = cptr(j), cptr(j+1)-1
+                        rn(crow(l)) = rn(crow(l)) + cval(l)**2
+                    end do
+                end do
+                rn = sqrt(rn)
+                where (rn <= 0.0_wp) rn = 1.0_wp
+                do j = 1, nn
+                    if (state(j) == 0) then
+                        wt = 1.0_wp
+                    else if (is_eqv(j)) then
+                        wt = 1.0e-6_wp
+                    else if (j <= nt) then
+                        wt = 1.0e-4_wp
+                    else
+                        wt = 1.0e-2_wp
+                    end if
+                    do l = cptr(j), cptr(j+1)-1
+                        wv(l) = wt*cval(l)/rn(crow(l))
+                        wc(l) = j
+                    end do
+                    if (j > nt .and. state(j) == 0) wv(cptr(j)) = -1.0_wp
+                end do
+                call independent_columns(m, nn, crow, wc, wv, 1.0e-8_wp, 1.0e-6_wp*epsilon(1.0_wp)**0.67_wp, &
+                                         chosen, st)
+            end block
+            if (st /= 0 .or. count(chosen) /= m) return
+            k = 0
+            do j = 1, nn
+                if (.not. chosen(j)) cycle
+                k = k + 1
+                bvar(k) = j
+                bpos(j) = k
+                state(j) = 0
+            end do
+            if (.not. factorize_basis()) return
+        end if
+        call update_basics()
+
+        ! ---- active-set iterations ----
+        istat   = sqpopt_qp_solve_failed
+        maxit_b = max(me%max_iter, 10*(mtot+1))
+        allocate(gv(nn), y(m), dtot(nn), dext(nn))
+        y = 0.0_wp
+        nupd = 0
+        cg_done = .false.
+        do iter = 1, maxit_b
+
+            sup = pack([(j, j=1,nn)], state == 0 .and. bpos == 0)
+            gv(1:nt) = gradient(v(1:nt))
+            gv(nt+1:nn) = 0.0_wp
+            if (allocated(rs)) deallocate(rs)
+            allocate(rs(size(sup)))
+            call zt_times(gv, rs, y)
+            sc = 1.0_wp + maxval(abs(merge(gv, 0.0_wp, state == 0)))
+
+            ! (after an unblocked CG step, the face is solved: the recomputed
+            ! reduced gradient can't always meet the tolerance again, because of
+            ! cancellation with the large elastic multipliers)
+            if (norm2(rs) > me%opt_tol*sc .and. .not. cg_done) then
+
+                call reduced_cg(rs, me%opt_tol*sc, dtot, dext, trunc)
+
+                ! first, the step accumulated by CG (which may itself be blocked):
+                call ratio_test_v(dtot, 1.0_wp, alpha_b, blk, side)
+                v = v + alpha_b*dtot
+                if (blk /= 0 .and. alpha_b < 1.0_wp - 1.0e-12_wp) then
+                    if (.not. fix(blk, side)) return
+                    cycle
+                end if
+                if (.not. trunc) then
+                    cg_done = .true.     ! (then at the face optimum)
+                    cycle
+                end if
+                ! then, if CG found nonpositive curvature, move along that
+                ! (downhill) direction, not bounded by 1, to the nearest blocking bound:
+                call ratio_test_v(dext, huge(1.0_wp), alpha_b, blk, side)
+                if (blk == 0) exit  ! unbounded QP
+                v = v + alpha_b*dext
+                if (.not. fix(blk, side)) return
+                cycle
+
+            end if
+
+            cg_done = .false.
+
+            ! optimal on this face. Free the fixed unknown with the most wrongly
+            ! signed reduced cost `g_j - a_j^T y` (its multiplier), if any
+            ! (relative to the largest one, not counting the elastic slacks'
+            ! bounds, whose multipliers are the large penalty weight):
+            tol_mult = 0.0_wp
+            do j = 1, nn
+                if (state(j) == 0 .or. (j > n .and. j <= nt)) cycle
+                tol_mult = max(tol_mult, abs(gv(j) - col_dot(j, y)))
+            end do
+            tol_mult = me%active_tol*max(1.0_wp, tol_mult)
+            worst = tol_mult
+            k = 0
+            do j = 1, nn
+                if (state(j) == 0 .or. is_eqv(j)) cycle
+                dj = gv(j) - col_dot(j, y)
+                if (state(j) == -1 .and. -dj > worst) then
+                    worst = -dj; k = j
+                else if (state(j) == 1 .and. dj > worst) then
+                    worst = dj; k = j
+                end if
+            end do
+            if (k /= 0) then
+                state(k) = 0
+                cycle
+            end if
+
+            ! optimal for the current elastic weight. Any slack still positive?
+            if (any(v(n+1:nt) > me%feas_tol*max(1.0_wp, s0))) then
+                if (rho < rho_max) then
+                    rho = min(100.0_wp*rho, rho_max)
+                    cycle
+                end if
+                istat = sqpopt_infeasible
+            else
+                istat = sqpopt_success
+            end if
+            exit
+
+        end do
+
+        me%n_iter = min(iter, maxit_b)
+        u = v(1:nt)
+        p = v(1:n)
+        lambda = 0.0_wp
+        do r = 1, m
+            if (state(nt+r) /= 0) lambda(r) = y(r)
+        end do
+        me%warm_status = [state(nt+1:nn), state(1:n)]
+        ok = .true.
+
+        end subroutine basis_active_set
+
+        integer function at_bound_v(jj)
+        !! -1 or +1 if unknown `jj` is at its lower or upper bound, else 0
+        integer, intent(in) :: jj
+        at_bound_v = 0
+        if (vlb(jj) > -sqpopt_infinity) then
+            if (abs(v(jj)-vlb(jj)) <= me%active_tol*max(1.0_wp, abs(vlb(jj)))) at_bound_v = -1
+        end if
+        if (at_bound_v == 0 .and. vub(jj) < sqpopt_infinity) then
+            if (abs(v(jj)-vub(jj)) <= me%active_tol*max(1.0_wp, abs(vub(jj)))) at_bound_v = 1
+        end if
+        end function at_bound_v
+
+        pure real(wp) function col_dot(jj, w)
+        !! `a_jj^T w`
+        integer,                intent(in) :: jj
+        real(wp), dimension(:), intent(in) :: w
+        col_dot = dot_product(cval(cptr(jj):cptr(jj+1)-1), w(crow(cptr(jj):cptr(jj+1)-1)))
+        end function col_dot
+
+        logical function factorize_basis()
+        !! factorize `B` (the columns `bvar`) from scratch
+        integer,  dimension(:), allocatable :: bi, bj
+        real(wp), dimension(:), allocatable :: bv
+        integer :: kk, stat
+        bi = [(crow(cptr(bvar(kk)):cptr(bvar(kk)+1)-1), kk=1,m)]
+        bj = [(spread(kk, 1, cptr(bvar(kk)+1)-cptr(bvar(kk))), kk=1,m)]
+        bv = [(cval(cptr(bvar(kk)):cptr(bvar(kk)+1)-1), kk=1,m)]
+        call blu%factorize(m, bi, bj, bv, 1.0e-12_wp, stat)
+        factorize_basis = stat == 0
+        nupd = 0
+        end function factorize_basis
+
+        subroutine update_basics()
+        !! the basic unknowns from the constraints, given the others:
+        !! `B v_B = -(sum of a_j v_j over the nonbasic j)` (this also removes
+        !! any drift from the constraints)
+        real(wp), dimension(m) :: rhs, vb
+        integer :: jj
+        if (m == 0) return
+        rhs = 0.0_wp
+        do jj = 1, nn
+            if (bpos(jj) /= 0 .or. v(jj) == 0.0_wp) cycle
+            rhs(crow(cptr(jj):cptr(jj+1)-1)) = rhs(crow(cptr(jj):cptr(jj+1)-1)) - cval(cptr(jj):cptr(jj+1)-1)*v(jj)
+        end do
+        call blu%solve(rhs, vb, transpose=.false.)
+        v(bvar) = vb
+        end subroutine update_basics
+
+        subroutine z_times(vs, d)
+        !! `d = Z vs`: `vs` on the superbasics, then the basics from `B d_B = -S vs`
+        real(wp), dimension(:), intent(in)  :: vs
+        real(wp), dimension(:), intent(out) :: d
+        real(wp), dimension(m) :: rhs, db
+        integer :: kk, jj
+        d = 0.0_wp
+        if (size(sup) > 0) d(sup) = vs
+        if (m == 0) return
+        rhs = 0.0_wp
+        do kk = 1, size(sup)
+            jj = sup(kk)
+            rhs(crow(cptr(jj):cptr(jj+1)-1)) = rhs(crow(cptr(jj):cptr(jj+1)-1)) - cval(cptr(jj):cptr(jj+1)-1)*vs(kk)
+        end do
+        call blu%solve(rhs, db, transpose=.false.)
+        d(bvar) = db
+        end subroutine z_times
+
+        subroutine zt_times(w, rr, yy)
+        !! `rr = Z^T w = w_S - S^T yy`, with `B^T yy = w_B` (at a face
+        !! optimum, `yy` are the general rows' multipliers)
+        real(wp), dimension(:), intent(in)  :: w
+        real(wp), dimension(:), intent(out) :: rr
+        real(wp), dimension(:), intent(out) :: yy
+        integer :: kk
+        if (m > 0) then
+            call blu%solve(w(bvar), yy, transpose=.true.)
+        end if
+        do kk = 1, size(sup)
+            rr(kk) = w(sup(kk))
+            if (m > 0) rr(kk) = rr(kk) - col_dot(sup(kk), yy)
+        end do
+        end subroutine zt_times
+
+        subroutine hv_product(d, hd)
+        !! the QP Hessian (in `v`) times `d`: zero on the row slacks
+        real(wp), dimension(:), intent(in)  :: d
+        real(wp), dimension(:), intent(out) :: hd
+        call hext_product(d(1:nt), hd(1:nt))
+        hd(nt+1:nn) = 0.0_wp
+        end subroutine hv_product
+
+        subroutine reduced_cg(rg0, abs_tol, d_total, d_extra, truncated)
+        !! conjugate gradients on the reduced Hessian `Z^T H Z` (in the
+        !! superbasics): returns the accumulated step `d_total = Z d_S`; if a
+        !! direction of nonpositive curvature is found, it is returned
+        !! (downhill) in `d_extra` with `truncated=.true.`. Every step stays
+        !! on the constraints by construction.
+        real(wp), dimension(:), intent(in)  :: rg0     !! reduced gradient
+        real(wp),               intent(in)  :: abs_tol !! absolute stopping tolerance on it
+        real(wp), dimension(:), intent(out) :: d_total, d_extra
+        logical,                intent(out) :: truncated
+        real(wp), dimension(size(rg0)) :: rr, ds, hd
+        real(wp), dimension(m)  :: yy
+        real(wp), dimension(nn) :: zd, hzd
+        real(wp) :: rr_old, rr_new, kappa, alpha, tol
+        integer :: jj, max_it
+        d_total = 0.0_wp
+        d_extra = 0.0_wp
+        truncated = .false.
+        rr = rg0
+        ds = -rr
+        rr_old = dot_product(rr, rr)
+        tol = max(abs_tol, me%pcg_rtol*norm2(rg0))
+        max_it = min(max_pcg, max(1, size(rg0)))
+        do jj = 1, max_it
+            if (sqrt(rr_old) <= tol) exit
+            call z_times(ds, zd)
+            call hv_product(zd, hzd)
+            call zt_times(hzd, hd, yy)
+            kappa = dot_product(ds, hd)
+            if (kappa <= 1.0e-10_wp*norm2(ds)*norm2(hd)) then
+                d_extra = zd
+                truncated = norm2(zd) > 0.0_wp
+                return
+            end if
+            alpha   = rr_old/kappa
+            d_total = d_total + alpha*zd
+            rr      = rr + alpha*hd
+            rr_new  = dot_product(rr, rr)
+            ds      = -rr + (rr_new/rr_old)*ds
+            rr_old  = rr_new
+        end do
+        end subroutine reduced_cg
+
+        subroutine ratio_test_v(d, alpha_cap, alpha, blocking, blocking_side)
+        !! the largest `alpha <= alpha_cap` for which `v+alpha*d` satisfies the
+        !! bounds of every free unknown, and the unknown (and bound) that blocks first
+        real(wp), dimension(:), intent(in)  :: d
+        real(wp),               intent(in)  :: alpha_cap
+        real(wp),               intent(out) :: alpha
+        integer,                intent(out) :: blocking, blocking_side
+        real(wp) :: alpha_k, dtol
+        integer :: jj
+        alpha = alpha_cap
+        blocking = 0
+        blocking_side = 0
+        dtol = 1.0e-12_wp*maxval(abs(d))
+        do jj = 1, nn
+            if (state(jj) /= 0 .or. abs(d(jj)) <= dtol) cycle
+            if (d(jj) > 0.0_wp) then
+                if (vub(jj) >= sqpopt_infinity) cycle
+                alpha_k = max((vub(jj) - v(jj))/d(jj), 0.0_wp)
+                if (alpha_k < alpha) then
+                    alpha = alpha_k; blocking = jj; blocking_side = 1
+                end if
+            else
+                if (vlb(jj) <= -sqpopt_infinity) cycle
+                alpha_k = max((vlb(jj) - v(jj))/d(jj), 0.0_wp)
+                if (alpha_k < alpha) then
+                    alpha = alpha_k; blocking = jj; blocking_side = -1
+                end if
+            end if
+        end do
+        end subroutine ratio_test_v
+
+        logical function fix(jj, sd)
+        !! fix unknown `jj` at its bound `sd` (add it to the working set). If
+        !! it is basic, the superbasic with the largest pivot in its row of
+        !! `B^{-1} S` replaces it in the basis. `.false.` if the factorization failed.
+        integer, intent(in) :: jj, sd
+        real(wp), dimension(m) :: e_p, w
+        real(wp) :: piv, best
+        integer  :: pp, kk, q, stat
+        fix = .true.
+        state(jj) = sd
+        v(jj) = merge(vlb(jj), vub(jj), sd == -1)
+        pp = bpos(jj)
+        if (pp /= 0) then
+            e_p = 0.0_wp
+            e_p(pp) = 1.0_wp
+            call blu%solve(e_p, w, transpose=.true.)
+            q = 0
+            best = 0.0_wp
+            do kk = 1, size(sup)
+                if (sup(kk) == jj) cycle
+                piv = abs(col_dot(sup(kk), w))
+                if (piv > best) then
+                    best = piv; q = sup(kk)
+                end if
+            end do
+            if (q == 0 .or. best <= 1.0e-12_wp*max(1.0_wp, maxval(abs(w)))) then
+                fix = .false.   ! (can't happen in exact arithmetic: the basic unknown couldn't have moved)
+                return
+            end if
+            bpos(jj) = 0
+            bpos(q)  = pp
+            bvar(pp) = q
+            nupd = nupd + 1
+            stat = 1
+            if (nupd <= max_updates) &
+                call blu%replace_column(pp, crow(cptr(q):cptr(q+1)-1), cval(cptr(q):cptr(q+1)-1), stat)
+            if (stat /= 0) then
+                fix = factorize_basis()
+                if (.not. fix) return
+            end if
+        end if
+        call update_basics()
+        end function fix
+
 
         subroutine ratio_test(base, d, alpha_cap, alpha, blocking, blocking_side)
         !! the largest `alpha <= alpha_cap` for which `base+alpha*d` satisfies every

@@ -27,6 +27,7 @@
     use sqpopt_hessian_module,    only: sqpopt_hessian_type
     use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type, sqpopt_qp_auto, sqpopt_qp_dense, &
                                          sqpopt_qp_reduced_hessian
+    use sqpopt_qp_reduced_hessian_module, only: sqpopt_null_space_lu, sqpopt_null_space_lsqr
     use sqpopt_linesearch_module, only: sqpopt_linesearch_type, sqpopt_linesearch_armijo, sqpopt_linesearch_filter, &
                                          sqpopt_merit_l1, sqpopt_merit_augmented_lagrangian
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
@@ -458,7 +459,7 @@
     if (.not. (r%active_tol > 0.0_wp .and. r%opt_tol > 0.0_wp .and. r%feas_tol > 0.0_wp .and. &
                r%pcg_rtol > 0.0_wp .and. r%elastic_weight > 0.0_wp .and. r%elastic_weight_max >= r%elastic_weight &
                .and. r%lsqr_atol >= 0.0_wp .and. r%lsqr_btol >= 0.0_wp .and. r%lsqr_conlim >= 0.0_wp) &
-        .or. r%max_iter < 1) then
+        .or. r%max_iter < 1 .or. all(r%null_space /= [sqpopt_null_space_lu, sqpopt_null_space_lsqr])) then
         msg = 'a qp_solver%sparse_qp setting is out of range'; return
     end if
     end associate

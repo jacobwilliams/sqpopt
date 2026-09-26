@@ -420,7 +420,8 @@ What changed:
 - **E6 (dense QR updates) is deferred.** At `n ≤ 200` the dense QP isn't
   a bottleneck; the dense control problem takes 38 ms in total.
 
-**Where the time goes now** (control N=150): about 90% is in LSQR,
+**Where the time went after Phase 2** (control N=150; see F1 in "Phase 4
+status" for since): about 90% was in LSQR,
 through the reduced-Hessian QP's null-space projections, both in
 projected CG and in the remaining independence checks. Options for
 later:
@@ -456,6 +457,72 @@ candidate rows at once, via the new `independent_columns` in
   `test_independent_columns` unit test.
 - Not done: flagging redundant equality constraints at the start of a
   solve with the same factorization (the QP already copes with them).
+- Since F1, this path (`initial_working_set`) is only used by the LSQR
+  null-space method; the basis method picks its initial basis and
+  working set the same way (one rank-revealing LU, with priority
+  weights), see below.
+
+**F1 done (2026-09-26): SQOPT-style basis method in the sparse QP.** New
+`null_space` option on `sqpopt_reduced_hessian_qp_type`:
+`sqpopt_null_space_lu` (the default) or `sqpopt_null_space_lsqr` (the old
+method, kept for comparison and as a fallback).
+- **Slack formulation.** Every general row gets a slack (`J p + E e − s
+  = 0`, with the elastic slacks `e`), so all constraints are bounds and the
+  working set is just the fixed unknowns. The free unknowns are split into
+  `m` basic ones (a nonsingular `B`, factorized by `lu1fac` with rook
+  pivoting) and the superbasics `S`; `Z = [−B⁻¹S; I]`.
+- **Direct solves.** Products with `Z`/`Zᵀ` are one `lu6sol` each; CG runs
+  on `ZᵀHZ` in the superbasics (steps stay on the constraints by
+  construction, so no reprojection); multipliers are `Bᵀy = g_B` exactly.
+- **Updates, not refactorizations.** Fixing or freeing a superbasic, or
+  freeing a fixed unknown, leaves `B` unchanged. Fixing a basic unknown
+  swaps in the superbasic with the largest pivot in its row of `B⁻¹S`,
+  via `lu8rpc` (Bartels–Golub); `B` is refactorized every 100 updates or
+  if an update fails. The basics are recomputed from the constraints
+  after each change, so there is no drift.
+- **Initial basis and working set** from one rank-revealing `lu1fac`
+  (TCP) on the **row-normalized** `[J E −I]`, with free row slacks as
+  exact unit columns (LUSOL takes them first) and the candidates for the
+  working set scaled down by priority (inequality slacks 1e-2, bounds
+  1e-4, equalities 1e-6). Candidates not picked are fixed; those picked
+  stay free (dropped from the working set only if dependent).
+  Normalizing *columns* instead was tried and is bad: e.g. the control
+  problem's control columns (one entry `−h`) became unit columns and
+  were made basic, giving `B⁻¹S ~ 1/h` and ~20× more CG iterations.
+- **Trusting CG on a face.** After an unblocked CG step the face is taken
+  as solved (as the LSQR loop does); re-testing the recomputed reduced
+  gradient can stall, because of cancellation with the large elastic
+  multipliers (seen on rosenbrock N=6000: QPs hitting the iteration
+  limit).
+- New `sqpopt_lu_type` in `sqpopt_linalg_module` (`factorize`, `solve`,
+  `replace_column`).
+- **Results.** `test_qp_fuzz` now runs three solvers (dense, LU, LSQR):
+  5,000/5,000 each, with the LU method held to the dense solver's 1e-6
+  KKT tolerance (LSQR 1e-5). HS suite with the sparse QP forced: 243
+  solved (245 with the LSQR method); TP13 moves from 7.9e-5 to 1.2e-4
+  relative error (degenerate optimum, borderline), and TP372 now hits
+  `max_iter` with every step capped at `max_step`, as the dense QP also
+  does (it is in `known_unsolved`). Default results unchanged (246).
+  Timings (release):
+
+  | problem | LSQR | LU (row basis, interim) | LU (slack basis) |
+  |---|--:|--:|--:|
+  | control N=150 | 0.48 s | 0.02 s | 0.02 s |
+  | control N=500 | 27.7 s | 0.38 s | 0.31 s |
+  | control N=1500 | > 3 min (stopped) | 5.2 s | 4.1 s |
+  | rosenbrock N=2000 | 5.7 s | 3.7 s | 2.6 s |
+  | rosenbrock N=6000 | – | 78 s | 58 s |
+
+- **Where the time goes now:** at large `m`, the one-change-per-iteration
+  active-set method itself. E.g. rosenbrock N=6000 starts with 3,000
+  violated constraints, and each QP takes ~9,000 active-set iterations
+  (each row blocks and is released one at a time), each with a few CG
+  iterations (Hessian products, about 70% of the time). SQOPT's CG
+  option would take the same steps. Options: a better initial working
+  set on infeasible starts, a preconditioner for `ZᵀHZ`, or the dense
+  reduced-Hessian (SQOPT "Cholesky") option when `nS` is small.
+- Not done: the dense reduced-Hessian option; the minimum-norm starting
+  step still uses one LSQR solve per QP.
 
 ## 2. Bugs: correctness (fix first)
 
@@ -528,7 +595,8 @@ candidate rows at once, via the new `independent_columns` in
 
 ## 5. Features toward state of the art
 
-- **F1: a real QP as the default, and a real large-scale QP.** The
+- **F1: a real QP as the default, and a real large-scale QP.** *(Done
+  2026-09-26; see "Phase 4 status".)* The
   composite step was removed (2026-09-26; it couldn't survive the B2
   fix, see §1). Short term (done): make `sqpopt_qp_dense` the default for
   small `n` and `sqpopt_qp_reduced_hessian` the default for large `n`

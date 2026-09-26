@@ -1,8 +1,8 @@
 program test_qp_fuzz
 
     !! Randomized test of the two active-set QP solvers
-    !! (`sqpopt_dense_qp_type` and `sqpopt_reduced_hessian_qp_type`) on many
-    !! small random QPs
+    !! (`sqpopt_dense_qp_type`, and `sqpopt_reduced_hessian_qp_type` with both
+    !! of its null-space methods, LU and LSQR) on many small random QPs
     !!
     !!   minimize   0.5 p^T B p + g^T p
     !!   subject to c_lb <= J p <= c_ub,  x_lb <= p <= x_ub
@@ -28,19 +28,20 @@ program test_qp_fuzz
 
     use sqpopt_hessian_module,            only: sqpopt_hessian_type
     use sqpopt_qp_dense_module,           only: sqpopt_dense_qp_type
-    use sqpopt_qp_reduced_hessian_module, only: sqpopt_reduced_hessian_qp_type
+    use sqpopt_qp_reduced_hessian_module, only: sqpopt_reduced_hessian_qp_type, sqpopt_null_space_lu, sqpopt_null_space_lsqr
     use sqpopt_types_module,              only: sqpopt_sparse_matrix, sqpopt_success, sqpopt_infeasible, sqpopt_infinity
     use sqpopt_kinds,                     only: wp => sqpopt_module_wp
 
     implicit none
 
     integer, parameter :: n_trials = 400
-    integer, parameter :: solver_dense = 1, solver_rh = 2
+    integer, parameter :: solver_dense = 1, solver_rh = 2, solver_rh_lsqr = 3
 
-    integer :: trial, solver, kind, n_fail(2), n_run(2)
+    integer :: trial, solver, kind, n_fail(3), n_run(3)
     logical :: trial_ok                          !! result of the current trial (set by `fail`)
     character(len=:), allocatable :: trial_why   !! why the current trial failed
-    character(len=*), parameter :: solver_name(2) = ['dense          ', 'reduced-Hessian']
+    character(len=*), parameter :: solver_name(3) = ['dense                 ', 'reduced-Hessian (LU)  ', &
+                                                     'reduced-Hessian (LSQR)']
 
     write(*,*) '----------------------------'
     write(*,*) 'test_qp_fuzz'
@@ -54,13 +55,13 @@ program test_qp_fuzz
         ! trial kinds: 1-6 convex feasible (various degeneracies),
         ! 7 nonconvex (SR1) feasible, 8 infeasible
         kind = 1 + mod(trial-1, 8)
-        do solver = solver_dense, solver_rh
+        do solver = solver_dense, solver_rh_lsqr
             n_run(solver) = n_run(solver) + 1
             if (.not. run_trial(trial, kind, solver)) n_fail(solver) = n_fail(solver) + 1
         end do
     end do
 
-    do solver = solver_dense, solver_rh
+    do solver = solver_dense, solver_rh_lsqr
         print '(A,A,A,I0,A,I0)', 'solver ', trim(solver_name(solver)), ': failures = ', n_fail(solver), ' / ', n_run(solver)
     end do
     if (any(n_fail > 0)) error stop 'test_qp_fuzz FAILED'
@@ -240,8 +241,9 @@ program test_qp_fuzz
         tol = 1.0e-6_wp
     else
         rh_qp%max_pcg_iter = 4*n
+        rh_qp%null_space = merge(sqpopt_null_space_lsqr, sqpopt_null_space_lu, solver == solver_rh_lsqr)
         call rh_qp%solve(hess, jac, zero_n, g, zero_m, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
-        tol = 1.0e-5_wp
+        tol = merge(1.0e-5_wp, 1.0e-6_wp, solver == solver_rh_lsqr)   ! (LSQR's projections are iterative)
     end if
 
     if (infeasible) then
