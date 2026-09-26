@@ -2,33 +2,37 @@
 !> author: Jacob Williams
 !  license: MIT
 !
-!  Opt-in **sparse** active-set QP solver for the linearized SQP
-!  subproblem. Like
+!  **Sparse** active-set QP solver for the linearized SQP subproblem (the
+!  default for larger problems, see `sqpopt_qp_auto`). Like
 !  [[sqpopt_qp_dense_module]], this enforces the linearized constraints
-!  and bounds *exactly* (unlike `sqpopt_qp_solver_module`'s default composite
-!  step), but stays fully sparse/matrix-free: instead of forming a dense
-!  `n x n` Hessian and an `n x (n-m_a)` orthonormal null-space basis
-!  (`Z`), it gets any null-space projection it needs by re-solving a
-!  small least-squares problem with `LSQR` (the same technique the
-!  composite step already uses for its tangential step), and solves the
-!  reduced-space Newton system with **projected conjugate gradients**
-!  (Gould, Hribar & Nocedal 1998; Nocedal & Wright, *Numerical
-!  Optimization*, Ch. 16) instead of a direct Cholesky factorization.
+!  and bounds exactly, but stays fully sparse/matrix-free: instead of
+!  forming a dense Hessian and an orthonormal null-space basis `Z`, it
+!  gets any null-space projection it needs by solving a least-squares
+!  problem with `LSQR`, and solves the reduced-space Newton system with
+!  **projected conjugate gradients** (Gould, Hribar & Nocedal 1998; Nocedal
+!  & Wright, *Numerical Optimization*, Ch. 16) instead of a direct
+!  factorization.
 !
-!  As in [[sqpopt_qp_dense_module]], general constraints and variable
-!  bounds are treated uniformly as `m+n` candidate two-sided "rows" on
-!  `p` directly (no `w=(p,s)` slack padding -- mathematically equivalent,
-!  simpler): the `m` rows of the sparse Jacobian, followed by `n` unit
-!  rows for the variable bounds. Equality rows (`row_lb==row_ub`) are
-!  permanently active and never leave the working set. The outer
-!  active-set control logic (ratio test to add a row, Lagrange-multiplier
-!  sign check to drop one) is otherwise identical to the dense solver --
-!  only the linear algebra inside each iteration differs.
+!  The formulation is the same as the dense solver's: general constraints
+!  and bounds are uniform two-sided "rows" (stored in compressed-row form,
+!  so each row's product costs only its own nonzeros), and every general
+!  constraint violated at `p=0` gets an elastic slack with an \( \ell_1 \)
+!  penalty, so `p=0` plus those slacks is a feasible starting point and
+!  inconsistent linearized constraints are detected (the penalty weight is
+!  raised up to `elastic_weight_max`, then `istat=sqpopt_infeasible`); see
+!  [[sqpopt_qp_dense_module]] for the details (here, the slacks also get a
+!  small proximal curvature, so CG steps along them stay bounded). Projected
+!  CG stops on
+!  (relative) convergence, and follows any direction of nonpositive
+!  curvature (e.g. along an elastic slack, or an indefinite SR1 Hessian) to
+!  the nearest blocking row. Rows are only added to the initial working set
+!  if they are (numerically) linearly independent of it.
 
     module sqpopt_qp_reduced_hessian_module
 
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
-    use sqpopt_types_module,   only: sqpopt_sparse_matrix, sqpopt_success, sqpopt_qp_solve_failed, sqpopt_infeasible
+    use sqpopt_types_module,   only: sqpopt_sparse_matrix, sqpopt_success, sqpopt_qp_solve_failed, &
+                                     sqpopt_infeasible, sqpopt_infinity
     use sqpopt_hessian_module, only: sqpopt_hessian_type
     use lsqr_module,           only: lsqr_solver_ez
 
@@ -37,27 +41,36 @@
     private
 
     type, public :: sqpopt_reduced_hessian_qp_type
-        !! options and workspace for the sparse (projected-CG) active-set QP solver.
+        !! options for the sparse (projected-CG) active-set QP solver.
 
-        integer  :: max_iter     = 100      !! maximum number of active-set changes allowed per QP solve
-        integer  :: max_pcg_iter = 0        !! maximum projected-CG iterations per active-set face (`<=0` => use `n`)
-        real(wp) :: active_tol   = 1.0e-8_wp !! tolerance used to detect an (in)active/equality row
-        real(wp) :: opt_tol      = 1.0e-8_wp !! tolerance on the projected-residual stationarity test
-        real(wp) :: feas_tol     = 1.0e-6_wp !! if the final QP step still violates a linearized constraint or bound
-                                             !! by more than `feas_tol*max(1,|bound|)`, the linearized constraints
-                                             !! are reported as inconsistent (`istat=sqpopt_infeasible`)
+        integer  :: max_iter     = 100       !! minimum limit on the number of active-set iterations per QP solve
+                                             !! (the actual limit is `max(max_iter, 10*(number of rows+1))`)
+        integer  :: max_pcg_iter = 0         !! maximum projected-CG iterations per active-set face
+                                             !! (`<=0` => twice the number of unknowns)
+        real(wp) :: active_tol   = 1.0e-8_wp !! relative tolerance for a row being at a bound, and for the sign
+                                             !! of a multiplier (relative to the largest multiplier)
+        real(wp) :: opt_tol      = 1.0e-10_wp !! relative tolerance on the projected-gradient stationarity test
+                                              !! (relative to \( 1+\lVert Hp+g \rVert_\infty \))
+        real(wp) :: pcg_rtol     = 1.0e-10_wp !! projected CG stops once the projected residual has been reduced
+                                              !! by this factor (or meets `opt_tol`)
+        real(wp) :: feas_tol     = 1.0e-6_wp  !! an elastic slack larger than `feas_tol*max(1,|bound|)` at the
+                                              !! solution counts as a violated linearized constraint
+        real(wp) :: elastic_weight     = 1.0e4_wp  !! initial elastic penalty weight, relative to
+                                                   !! \( \max(1,\lVert g \rVert_\infty) \)
+        real(wp) :: elastic_weight_max = 1.0e8_wp  !! largest elastic penalty weight tried (same scaling) before the
+                                                   !! linearized constraints are declared inconsistent (lower than
+                                                   !! the dense solver's, since the iterative projections' accuracy
+                                                   !! is relative to the penalty weight)
 
-        ! `LSQR` settings, used for every `project_null`/`project_onto_active`/multiplier
-        ! solve in this module (see [[lsqr_module]] for the precise meaning of each --
-        ! `0` for `lsqr_atol`/`lsqr_btol`/`lsqr_conlim` means "let LSQR use its own
-        ! machine-precision-based default", which is tighter than usually necessary and
-        ! can mean more internal LSQR iterations per call; loosening these (and/or
-        ! raising `lsqr_itnlim`) is the main lever for trading QP-solve accuracy for
-        ! speed in this QP mode:
+        ! `LSQR` settings, used for every null-space projection and multiplier
+        ! solve in this module (see [[lsqr_module]] for the precise meaning of
+        ! each). `0` for `lsqr_atol`/`lsqr_btol`/`lsqr_conlim` means "let LSQR
+        ! use its own machine-precision-based default"; loosening these trades
+        ! QP-solve accuracy for speed:
         real(wp) :: lsqr_atol   = 0.0_wp !! `LSQR` relative error tolerance in `A` (0 => `LSQR` default)
         real(wp) :: lsqr_btol   = 0.0_wp !! `LSQR` relative error tolerance in `b` (0 => `LSQR` default)
         real(wp) :: lsqr_conlim = 0.0_wp !! `LSQR` upper limit on `cond(Abar)` (0 => `LSQR` default)
-        integer  :: lsqr_itnlim = 100    !! `LSQR` maximum iterations per solve
+        integer  :: lsqr_itnlim = 0      !! `LSQR` maximum iterations per solve (`<=0` => `2*(rows+columns)+10`)
 
         contains
 
@@ -65,14 +78,23 @@
 
     end type sqpopt_reduced_hessian_qp_type
 
+    type :: csr_rows
+        !! the combined constraint rows, in compressed-row form
+        integer :: nrows = 0
+        integer :: ncols = 0
+        integer,  dimension(:), allocatable :: ptr  !! row `k` is entries `ptr(k):ptr(k+1)-1`
+        integer,  dimension(:), allocatable :: col
+        real(wp), dimension(:), allocatable :: val
+    end type csr_rows
+
     contains
 !*******************************************************************************
 
 !*******************************************************************************
 !>
 !  solve the linearized QP subproblem for the search direction `p` and
-!  the associated Lagrange multipliers `lambda`, using the sparse
-!  projected-CG active-set method (see the module-level documentation).
+!  the associated Lagrange multipliers `lambda` (see the module-level
+!  documentation). `istat` is as for [[sqpopt_qp_dense_module]]'s solver.
 
     subroutine solve_reduced_hessian_qp(me, hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
 
@@ -88,536 +110,512 @@
     real(wp), dimension(:),     intent(out)   :: lambda  !! Lagrange multiplier estimate `dimension(m)`
     integer,                    intent(out)   :: istat   !! status code (see [[sqpopt_types_module]])
 
-    integer :: n, m, mtot, k, it, n_active, max_pcg
-    type(sqpopt_sparse_matrix) :: arows  !! combined m+n rows: J's rows, then n identity (bound) rows
-    real(wp), dimension(:), allocatable :: row_lb, row_ub, u, hu_g, gproj, d_total, d_extra, coeff
-    logical,  dimension(:), allocatable :: is_equality
-    integer,  dimension(:), allocatable :: status
-    type(sqpopt_sparse_matrix) :: ja
-    integer,  dimension(:), allocatable :: orig_idx, coeff_idx
-    real(wp), dimension(:), allocatable :: rhs_active
-    real(wp) :: alpha, rate, alpha_k, worst, val, alpha_cap
-    integer  :: blocking, blocking_side, worst_idx, idx
+    integer :: n, m, nv, nt, mtot, k, i, it, maxit, max_pcg, itnlim
+    type(csr_rows) :: rows
+    type(sqpopt_sparse_matrix) :: ja   !! the working set's general rows, restricted to the free unknowns
+    real(wp), dimension(:), allocatable :: row_lb, row_ub, u, hu_g, gproj, d_total, d_extra, coeff, s_sign, s0
+    integer,  dimension(:), allocatable :: status, orig_idx, coeff_idx, slack_row
+    logical,  dimension(:), allocatable :: is_equality, fixed
+    real(wp) :: rho, rho_max, gscale, alpha, alpha_cap, scale
+    integer  :: n_active, blocking, blocking_side
     logical  :: at_face_optimum, truncated
 
     n = size(g)
     m = size(c)
-    mtot = m + n
-    max_pcg = merge(me%max_pcg_iter, n, me%max_pcg_iter > 0)
 
-    ! ---- combine general constraints (rows 1..m) and variable bounds (rows m+1..m+n)
-    !      into one sparse set of two-sided "rows" on p ----
-    allocate(arows%irow(jac%nnz+n), arows%icol(jac%nnz+n), arows%val(jac%nnz+n))
-    arows%nrows = mtot
-    arows%ncols = n
-    arows%nnz   = jac%nnz + n
-    if (jac%nnz > 0) then
-        arows%irow(1:jac%nnz) = jac%irow(1:jac%nnz)
-        arows%icol(1:jac%nnz) = jac%icol(1:jac%nnz)
-        arows%val(1:jac%nnz)  = jac%val(1:jac%nnz)
-    end if
-    do k = 1, n
-        arows%irow(jac%nnz+k) = m+k
-        arows%icol(jac%nnz+k) = k
-        arows%val(jac%nnz+k)  = 1.0_wp
-    end do
-
-    allocate(row_lb(mtot), row_ub(mtot))
-    row_lb(1:m) = c_lb - c
-    row_ub(1:m) = c_ub - c
-    row_lb(m+1:mtot) = x_lb - x
-    row_ub(m+1:mtot) = x_ub - x
-
-    allocate(is_equality(mtot))
-    is_equality(1:m)      = (c_ub-c_lb) <= me%active_tol
-    is_equality(m+1:mtot) = (x_ub-x_lb) <= me%active_tol
-
-    allocate(status(mtot))
-    status = 0
-    where (is_equality) status = -1  !! permanently active
-
-    allocate(u(n)); u = 0.0_wp
-
-    ! ---- phase 1: bootstrap a feasible-for-the-initial-working-set starting point ----
-    call project_onto_active(arows, row_lb, row_ub, status, mtot, n, u, &
-                              me%lsqr_atol, me%lsqr_btol, me%lsqr_conlim, me%lsqr_itnlim)
-    do k = 1, n
-        if (is_equality(m+k)) cycle
-        if (u(k) < row_lb(m+k) - me%active_tol) then
-            status(m+k) = -1
-        else if (u(k) > row_ub(m+k) + me%active_tol) then
-            status(m+k) = 1
+    ! ---- elastic slacks: one for each general row violated at p=0 ----
+    allocate(row_lb(m), row_ub(m), s_sign(m), slack_row(m))
+    row_lb = c_lb - c
+    row_ub = c_ub - c
+    nv = 0
+    do i = 1, m
+        s_sign(i) = 0.0_wp
+        if (row_lb(i) > me%feas_tol*max(1.0_wp, abs(row_lb(i)))) then
+            s_sign(i) = 1.0_wp
+        else if (row_ub(i) < -me%feas_tol*max(1.0_wp, abs(row_ub(i)))) then
+            s_sign(i) = -1.0_wp
+        end if
+        if (s_sign(i) /= 0.0_wp) then
+            nv = nv + 1
+            slack_row(nv) = i
         end if
     end do
-    call sparse_row_value(arows, u, m, is_equality, status, row_lb, row_ub, me%active_tol)
-    call project_onto_active(arows, row_lb, row_ub, status, mtot, n, u, &
-                              me%lsqr_atol, me%lsqr_btol, me%lsqr_conlim, me%lsqr_itnlim)
+    nt   = n + nv
+    mtot = m + nt
+    max_pcg = merge(me%max_pcg_iter, 2*nt, me%max_pcg_iter > 0)
+    itnlim  = merge(me%lsqr_itnlim, 2*(mtot+nt)+10, me%lsqr_itnlim > 0)
 
-    ! ---- phase 2: active-set iterations ----
+    ! ---- the combined constraint rows, in compressed-row form ----
+    call build_rows()
+    row_lb = [row_lb, x_lb - x, spread(0.0_wp, 1, nv)]
+    row_ub = [row_ub, x_ub - x, spread(sqpopt_infinity, 1, nv)]
+    allocate(is_equality(mtot))
+    do k = 1, mtot
+        is_equality(k) = row_ub(k)-row_lb(k) <= me%active_tol*max(1.0_wp, abs(row_lb(k)))
+    end do
+
+    gscale  = 1.0_wp
+    if (n > 0) gscale = max(1.0_wp, maxval(abs(g)))
+    rho     = me%elastic_weight*gscale
+    rho_max = me%elastic_weight_max*gscale
+
+    ! ---- feasible starting point: p=0, slacks just large enough ----
+    allocate(u(nt)); u = 0.0_wp
+    u(1:n) = min(max(0.0_wp, row_lb(m+1:m+n)), row_ub(m+1:m+n))
+    do k = 1, nv
+        i = slack_row(k)
+        u(n+k) = merge(row_lb(i), -row_ub(i), s_sign(i) > 0.0_wp)
+    end do
+    s0 = u(n+1:nt)
+
+    ! ---- initial working set ----
+    allocate(status(mtot)); status = 0
+    call initial_working_set()
+
+    ! ---- active-set iterations ----
     istat = sqpopt_qp_solve_failed
-    allocate(coeff(0), coeff_idx(0))
+    allocate(coeff(0), coeff_idx(0), gproj(nt), d_total(nt), d_extra(nt))
+    maxit = max(me%max_iter, 10*(mtot+1))
 
-    do it = 1, max(me%max_iter, 10*(mtot+1))
+    do it = 1, maxit
 
-        call build_active_set(arows, row_lb, row_ub, status, mtot, n, ja, rhs_active, orig_idx, n_active)
+        call build_working_set(rows, status, m, ja, fixed, orig_idx, n_active)
 
-        if (allocated(hu_g)) deallocate(hu_g)
-        allocate(hu_g(n))
-        call hessian%hv_product(u, hu_g)
-        hu_g = hu_g + g
-
-        if (allocated(gproj)) deallocate(gproj)
-        allocate(gproj(n))
-        call project_null(ja, n_active, n, hu_g, gproj, me%lsqr_atol, me%lsqr_btol, me%lsqr_conlim, me%lsqr_itnlim)
-
+        hu_g = gradient(u)
+        ! (relative to the gradient on every free unknown, including the
+        ! elastic slacks, whose large penalty weight limits how accurately
+        ! the iterative projections can be computed):
+        scale = 1.0_wp + maxval(abs(merge(0.0_wp, hu_g, fixed)))
+        call project_null(ja, fixed, hu_g, gproj)
         at_face_optimum = .false.
 
-        if (norm2(gproj) <= me%opt_tol) then
+        if (norm2(gproj) <= me%opt_tol*scale) then
 
             at_face_optimum = .true.
 
         else
 
-            if (allocated(d_total)) deallocate(d_total)
-            if (allocated(d_extra)) deallocate(d_extra)
-            allocate(d_total(n), d_extra(n))
-            call projected_cg(hessian, ja, n_active, n, hu_g, gproj, max_pcg, me%opt_tol, me%active_tol, &
-                               me%lsqr_atol, me%lsqr_btol, me%lsqr_conlim, me%lsqr_itnlim, &
-                               d_total, d_extra, truncated)
+            call projected_cg(ja, fixed, hu_g, gproj, me%opt_tol*scale, d_total, d_extra, truncated)
 
-            ! ---- ratio test against every currently-inactive row ----
-            if (truncated) then
-                alpha_cap = huge(1.0_wp)
-            else
-                alpha_cap = 1.0_wp
-            end if
-            alpha = alpha_cap
-            blocking = 0
-            blocking_side = 0
-            do k = 1, mtot
-                if (status(k) /= 0) cycle
-                if (truncated) then
-                    rate = sparse_dot_row(arows, k, d_extra)
-                else
-                    rate = sparse_dot_row(arows, k, d_total)
-                end if
-                if (rate > me%active_tol) then
-                    alpha_k = ratio_alpha(arows, k, u, d_total, d_extra, truncated, row_ub(k), .true.)
-                    if (alpha_k < alpha) then
-                        alpha = max(alpha_k, 0.0_wp); blocking = k; blocking_side = 1
-                    end if
-                else if (rate < -me%active_tol) then
-                    alpha_k = ratio_alpha(arows, k, u, d_total, d_extra, truncated, row_lb(k), .false.)
-                    if (alpha_k < alpha) then
-                        alpha = max(alpha_k, 0.0_wp); blocking = k; blocking_side = -1
-                    end if
-                end if
-            end do
-
-            if (truncated) then
-                u = u + d_total + alpha*d_extra
-            else
-                u = u + alpha*d_total
-            end if
-
-            if (blocking /= 0 .and. alpha < alpha_cap - 1.0e-10_wp) then
+            ! first, the step accumulated by CG (which may itself be blocked):
+            alpha_cap = 1.0_wp
+            call ratio_test(u, d_total, alpha_cap, alpha, blocking, blocking_side)
+            u = u + alpha*d_total
+            if (blocking /= 0 .and. alpha < alpha_cap - 1.0e-12_wp) then
                 status(blocking) = blocking_side
                 cycle
-            else if (truncated) then
-                ! unbounded direction with no blocking row: not a well-posed
-                ! bounded QP face -- bail out defensively:
-                istat = sqpopt_qp_solve_failed
-                exit
-            else
-                at_face_optimum = .true.
             end if
+
+            if (truncated) then
+                ! then, if CG found nonpositive curvature, move along that
+                ! (downhill) direction, not bounded by 1, to the nearest blocking row:
+                alpha_cap = huge(1.0_wp)
+                call ratio_test(u, d_extra, alpha_cap, alpha, blocking, blocking_side)
+                if (blocking == 0) exit  ! unbounded QP
+                u = u + alpha*d_extra
+                status(blocking) = blocking_side
+                cycle
+            end if
+            at_face_optimum = .true.
 
         end if
 
         if (at_face_optimum) then
 
-            if (n_active == 0) then
-                istat = sqpopt_success
-                exit
+            ! multipliers for the working set, from H*u+g = G^T*lambda_G + (bound
+            ! multipliers on the fixed unknowns): lambda_G is the least-squares
+            ! solution on the free unknowns, and each bound multiplier is then
+            ! the remaining residual in its fixed coordinate:
+            hu_g = gradient(u)
+            coeff     = [real(wp) ::]
+            coeff_idx = [integer ::]
+            if (n_active > 0) then
+                block
+                    real(wp), dimension(ja%nrows) :: lam_g
+                    real(wp), dimension(nt) :: resid
+                    type(lsqr_solver_ez) :: lsqr
+                    integer :: istop, idx, j
+                    lam_g = 0.0_wp
+                    if (ja%nrows > 0) then
+                        call lsqr%initialize(nt, ja%nrows, ja%val, ja%icol, ja%irow, &
+                                              atol=me%lsqr_atol, btol=me%lsqr_btol, conlim=me%lsqr_conlim, itnlim=itnlim)
+                        call lsqr%solve(merge(0.0_wp, hu_g, fixed), 0.0_wp, lam_g, istop)
+                    end if
+                    resid = hu_g
+                    do idx = 1, ja%nrows  ! (the first ja%nrows entries of orig_idx are the general rows)
+                        k = orig_idx(idx)
+                        do j = rows%ptr(k), rows%ptr(k+1)-1
+                            resid(rows%col(j)) = resid(rows%col(j)) - rows%val(j)*lam_g(idx)
+                        end do
+                    end do
+                    deallocate(coeff)
+                    allocate(coeff(n_active))
+                    coeff(1:ja%nrows) = lam_g
+                    do idx = ja%nrows+1, n_active
+                        coeff(idx) = resid(orig_idx(idx) - m)
+                    end do
+                    coeff_idx = orig_idx
+                end block
             end if
 
-            if (allocated(hu_g)) deallocate(hu_g)
-            allocate(hu_g(n))
-            call hessian%hv_product(u, hu_g)
-            hu_g = hu_g + g
-
+            ! drop the inequality row with the most wrongly-signed multiplier, if any:
             block
-                real(wp), dimension(n_active) :: coeff_local
-                type(lsqr_solver_ez) :: lsqr
-                integer :: istop
-                call lsqr%initialize(n, n_active, ja%val, ja%icol, ja%irow, &
-                                      atol=me%lsqr_atol, btol=me%lsqr_btol, conlim=me%lsqr_conlim, itnlim=me%lsqr_itnlim)
-                call lsqr%solve(hu_g, 0.0_wp, coeff_local, istop)
-                if (allocated(coeff)) deallocate(coeff)
-                allocate(coeff(n_active))
-                coeff = coeff_local
-                coeff_idx = orig_idx  !! the working set these multipliers belong to
-            end block
-
-            worst = me%active_tol
-            worst_idx = 0
-            do idx = 1, n_active
-                k = orig_idx(idx)
-                if (is_equality(k)) cycle
-                if (status(k) == -1) then
-                    if (-coeff(idx) > worst) then
+                integer  :: worst_idx, idx
+                real(wp) :: worst, tol_mult
+                ! (relative to the largest multiplier, but not counting the elastic
+                ! slacks' bounds, whose multipliers are the large penalty weight):
+                tol_mult = me%active_tol
+                if (size(coeff) > 0) tol_mult = me%active_tol*max(1.0_wp, &
+                    maxval(abs(coeff), mask=coeff_idx <= m+n))
+                worst     = tol_mult
+                worst_idx = 0
+                do idx = 1, n_active
+                    k = orig_idx(idx)
+                    if (is_equality(k)) cycle
+                    if (status(k) == -1 .and. -coeff(idx) > worst) then
                         worst = -coeff(idx); worst_idx = k
-                    end if
-                else
-                    if (coeff(idx) > worst) then
+                    else if (status(k) == 1 .and. coeff(idx) > worst) then
                         worst = coeff(idx); worst_idx = k
                     end if
+                end do
+                if (worst_idx /= 0) then
+                    status(worst_idx) = 0
+                    cycle
                 end if
-            end do
+            end block
 
-            if (worst_idx == 0) then
-                istat = sqpopt_success
-                exit
+            ! optimal for the current elastic weight. Any slack still positive?
+            if (any(u(n+1:nt) > me%feas_tol*max(1.0_wp, s0))) then
+                if (rho < rho_max) then
+                    rho = min(100.0_wp*rho, rho_max)
+                    cycle
+                end if
+                istat = sqpopt_infeasible
             else
-                status(worst_idx) = 0
-                cycle
+                istat = sqpopt_success
             end if
+            exit
 
         end if
 
     end do
 
-    p = u
-
-    ! multipliers from the last working set they were computed for (if the
-    ! iteration limit was hit, that may not be the final working set):
+    p = u(1:n)
     lambda = 0.0_wp
-    do idx = 1, size(coeff_idx)
-        k = coeff_idx(idx)
-        if (k <= m) lambda(k) = coeff(idx)
+    do k = 1, size(coeff_idx)
+        if (coeff_idx(k) <= m) lambda(coeff_idx(k)) = coeff(k)
     end do
-
-    ! the active-set iterations only keep rows that start out satisfied
-    ! from becoming violated, so a remaining violation means no feasible
-    ! point for the linearized constraints was found:
-    if (istat == sqpopt_success) then
-        do k = 1, mtot
-            val = sparse_dot_row(arows, k, u)
-            if (val < row_lb(k) - me%feas_tol*max(1.0_wp, abs(row_lb(k))) .or. &
-                val > row_ub(k) + me%feas_tol*max(1.0_wp, abs(row_ub(k)))) then
-                istat = sqpopt_infeasible
-                exit
-            end if
-        end do
-    end if
 
     contains
 
-    !> ratio-test step length for row `k` along the candidate move, expressed
-    !! generically for both the "scale the whole PCG step" case
-    !! (`truncated=.false.`, tests `u+alpha*d_total`, `alpha` in `[0,1]`) and
-    !! the "scale only the truncation direction" case (`truncated=.true.`,
-    !! tests `u+d_total+alpha*d_extra`, `alpha>=0`).
-    pure function ratio_alpha(arows, k, u, d_total, d_extra, truncated, bound_val, is_upper) result(a)
-    type(sqpopt_sparse_matrix), intent(in) :: arows !! sparse combined constraint matrix
-    integer,                    intent(in) :: k !! row index in the sparse combined constraint matrix
-    real(wp), dimension(:),     intent(in) :: u !! current solution vector
-    real(wp), dimension(:),     intent(in) :: d_total !! candidate move direction
-    real(wp), dimension(:),     intent(in) :: d_extra !! extra move direction for truncated step
-    logical,                    intent(in) :: truncated !! whether the step is truncated
-    logical,                    intent(in) :: is_upper !! whether the bound is an upper bound
-    real(wp),                   intent(in) :: bound_val !! value of the bound
-    real(wp) :: a
-    real(wp) :: base_val, rate
-    if (truncated) then
-        base_val = sparse_dot_row(arows, k, u + d_total)
-        rate     = sparse_dot_row(arows, k, d_extra)
-    else
-        base_val = sparse_dot_row(arows, k, u)
-        rate     = sparse_dot_row(arows, k, d_total)
-    end if
-    a = (bound_val - base_val)/rate
-    end function ratio_alpha
+        subroutine build_rows()
+        !! the combined rows: `J` (plus the slack columns), then a unit row per unknown
+        integer, dimension(:), allocatable :: cnt, pos
+        integer :: kk, r
+        rows%nrows = mtot
+        rows%ncols = nt
+        allocate(cnt(mtot)); cnt = 1           ! (every general row has room for its slack; unused if none)
+        cnt(1:m) = 0
+        do kk = 1, jac%nnz
+            cnt(jac%irow(kk)) = cnt(jac%irow(kk)) + 1
+        end do
+        do kk = 1, nv
+            cnt(slack_row(kk)) = cnt(slack_row(kk)) + 1
+        end do
+        allocate(rows%ptr(mtot+1))
+        rows%ptr(1) = 1
+        do r = 1, mtot
+            rows%ptr(r+1) = rows%ptr(r) + cnt(r)
+        end do
+        allocate(rows%col(rows%ptr(mtot+1)-1), rows%val(rows%ptr(mtot+1)-1))
+        pos = rows%ptr(1:mtot)
+        do kk = 1, jac%nnz
+            r = jac%irow(kk)
+            rows%col(pos(r)) = jac%icol(kk); rows%val(pos(r)) = jac%val(kk); pos(r) = pos(r) + 1
+        end do
+        do kk = 1, nv
+            r = slack_row(kk)
+            rows%col(pos(r)) = n+kk; rows%val(pos(r)) = s_sign(r); pos(r) = pos(r) + 1
+        end do
+        do kk = 1, nt
+            r = m + kk
+            rows%col(pos(r)) = kk; rows%val(pos(r)) = 1.0_wp; pos(r) = pos(r) + 1
+        end do
+        end subroutine build_rows
+
+        function gradient(v) result(gr)
+        !! the gradient of the (elastic) QP objective at `v`: `H*v_p + g`, then `rho + delta*s` for each slack
+        real(wp), dimension(:), intent(in) :: v
+        real(wp), dimension(size(v)) :: gr
+        call hext_product(v, gr)
+        gr(1:n)    = gr(1:n) + g
+        gr(n+1:nt) = gr(n+1:nt) + rho
+        end function gradient
+
+        subroutine hext_product(v, hv)
+        !! the (elastic) QP Hessian times `v`: `H` on `p`, and a small proximal
+        !! curvature `delta` on the slacks. (With zero curvature there, CG
+        !! steps along a slack would be unboundedly long; the slacks are zero
+        !! at any feasible solution, so `delta` doesn't change the solution
+        !! then, and only perturbs the size, not the positivity, of the
+        !! slacks for inconsistent constraints.)
+        real(wp), dimension(:), intent(in)  :: v
+        real(wp), dimension(:), intent(out) :: hv
+        call hessian%hv_product(v(1:n), hv(1:n))
+        hv(n+1:nt) = gscale*v(n+1:nt)
+        end subroutine hext_product
+
+        subroutine project_null(ja, fixed, v, out)
+        !! project `v` onto the null space of the working set: zero in the
+        !! `fixed` coordinates (exactly), then `out = v - ja^T z` on the rest,
+        !! with `z` the minimum-norm least-squares solution of `ja^T z ~ v`
+        !! (`ja` has no entries in the fixed columns)
+        type(sqpopt_sparse_matrix), intent(in)  :: ja
+        logical,  dimension(:),     intent(in)  :: fixed
+        real(wp), dimension(:),     intent(in)  :: v
+        real(wp), dimension(:),     intent(out) :: out
+        type(lsqr_solver_ez) :: lsqr
+        real(wp), dimension(ja%nrows) :: z
+        integer :: istop, kk
+        out = merge(0.0_wp, v, fixed)
+        if (ja%nrows == 0) return
+        call lsqr%initialize(nt, ja%nrows, ja%val, ja%icol, ja%irow, &
+                              atol=me%lsqr_atol, btol=me%lsqr_btol, conlim=me%lsqr_conlim, itnlim=itnlim)
+        call lsqr%solve(out, 0.0_wp, z, istop)
+        do kk = 1, ja%nnz
+            out(ja%icol(kk)) = out(ja%icol(kk)) - ja%val(kk)*z(ja%irow(kk))
+        end do
+        end subroutine project_null
+
+        subroutine projected_cg(ja, fixed, hu_g0, gproj0, abs_tol, d_total, d_extra, truncated)
+        !! projected conjugate gradients on the current face, from `u`: returns
+        !! the accumulated step `d_total`; if a direction of nonpositive
+        !! curvature is found, it is returned (oriented downhill) in `d_extra`
+        !! with `truncated=.true.`
+        type(sqpopt_sparse_matrix), intent(in)  :: ja
+        logical,  dimension(:),     intent(in)  :: fixed   !! the unknowns fixed at a bound by the working set
+        real(wp), dimension(:),     intent(in)  :: hu_g0   !! `H*u+g` at `u`
+        real(wp), dimension(:),     intent(in)  :: gproj0  !! its projection onto the face
+        real(wp),                   intent(in)  :: abs_tol !! absolute stopping tolerance on the projected residual
+        real(wp), dimension(:),     intent(out) :: d_total, d_extra
+        logical,                    intent(out) :: truncated
+        real(wp), dimension(nt) :: r, gp, dvec, hd, tmp
+        real(wp) :: rg_old, rg_new, kappa, alpha, beta, tol
+        integer :: j, max_it
+        d_total = 0.0_wp
+        d_extra = 0.0_wp
+        truncated = .false.
+        r    = hu_g0
+        gp   = gproj0
+        dvec = -gp
+        ! (`r^T P r = |P r|^2` for the orthogonal projector `P`; the latter is
+        ! computed much more accurately when `r` is large and `P r` is small)
+        rg_old = dot_product(gp, gp)
+        tol = max(abs_tol, me%pcg_rtol*norm2(gproj0))
+        ! in exact arithmetic CG converges within the dimension of the null
+        ! space; iterating further only accumulates rounding error:
+        max_it = min(max_pcg, max(1, count(.not. fixed) - ja%nrows))
+        do j = 1, max_it
+            if (norm2(gp) <= tol) exit
+            call hext_product(dvec, hd)
+            kappa = dot_product(dvec, hd)
+            if (kappa <= 1.0e-10_wp*norm2(dvec)*norm2(hd)) then
+                ! (numerically) zero or negative curvature along `dvec`, which is
+                ! a descent direction for the model at `u+d_total` (re-projected,
+                ! so that following it can't drift off the working set):
+                call project_null(ja, fixed, dvec, d_extra)
+                truncated = norm2(d_extra) > 1.0e-8_wp*norm2(dvec)
+                return
+            end if
+            alpha   = rg_old/kappa
+            d_total = d_total + alpha*dvec
+            r       = r + alpha*hd
+            call project_null(ja, fixed, r, gp)
+            rg_new  = dot_product(gp, gp)
+            if (abs(rg_old) <= tiny(1.0_wp)) exit
+            beta   = rg_new/rg_old
+            dvec   = -gp + beta*dvec
+            rg_old = rg_new
+        end do
+        ! make sure the step stays exactly on the working set:
+        call project_null(ja, fixed, d_total, tmp)
+        d_total = tmp
+        end subroutine projected_cg
+
+        subroutine ratio_test(base, d, alpha_cap, alpha, blocking, blocking_side)
+        !! the largest `alpha <= alpha_cap` for which `base+alpha*d` satisfies every
+        !! row not in the working set, and the row (and side) that blocks first
+        real(wp), dimension(:), intent(in)  :: base, d
+        real(wp),               intent(in)  :: alpha_cap
+        real(wp),               intent(out) :: alpha
+        integer,                intent(out) :: blocking, blocking_side
+        real(wp) :: rate, alpha_k, val, dnorm
+        integer :: kk
+        alpha = alpha_cap
+        blocking = 0
+        blocking_side = 0
+        dnorm = norm2(d)
+        do kk = 1, mtot
+            if (status(kk) /= 0) cycle
+            rate = row_dot(rows, kk, d)
+            if (abs(rate) <= 1.0e-12_wp*row_norm(rows, kk)*dnorm) cycle
+            val = row_dot(rows, kk, base)
+            if (rate > 0.0_wp) then
+                if (row_ub(kk) >= sqpopt_infinity) cycle
+                alpha_k = max((row_ub(kk) - val)/rate, 0.0_wp)
+                if (alpha_k < alpha) then
+                    alpha = alpha_k; blocking = kk; blocking_side = 1
+                end if
+            else
+                if (row_lb(kk) <= -sqpopt_infinity) cycle
+                alpha_k = max((row_lb(kk) - val)/rate, 0.0_wp)
+                if (alpha_k < alpha) then
+                    alpha = alpha_k; blocking = kk; blocking_side = -1
+                end if
+            end if
+        end do
+        end subroutine ratio_test
+
+        subroutine initial_working_set()
+        !! add the rows that are at a bound at `u` (equality rows first) to the
+        !! working set, skipping any whose component outside the span of the
+        !! rows already added is negligible (i.e., that are linearly dependent)
+        type(sqpopt_sparse_matrix) :: ja_cur
+        integer, dimension(:), allocatable :: idx_cur
+        logical, dimension(:), allocatable :: fixed_cur
+        real(wp), dimension(nt) :: a, r
+        real(wp) :: val
+        integer :: kk, pass, side, na, j
+        do pass = 1, 2
+            do kk = 1, mtot
+                if (status(kk) /= 0) cycle
+                if ((pass == 1) .neqv. is_equality(kk)) cycle
+                val = row_dot(rows, kk, u)
+                if (abs(val-row_lb(kk)) <= me%active_tol*max(1.0_wp, abs(row_lb(kk)))) then
+                    side = -1
+                else if (abs(val-row_ub(kk)) <= me%active_tol*max(1.0_wp, abs(row_ub(kk)))) then
+                    side = 1
+                else
+                    cycle
+                end if
+                a = 0.0_wp
+                do j = rows%ptr(kk), rows%ptr(kk+1)-1
+                    a(rows%col(j)) = rows%val(j)
+                end do
+                call build_working_set(rows, status, m, ja_cur, fixed_cur, idx_cur, na)
+                if (na >= nt) return
+                call project_null(ja_cur, fixed_cur, a, r)
+                if (norm2(r) > 1.0e-8_wp*norm2(a)) status(kk) = side
+            end do
+        end do
+        end subroutine initial_working_set
 
     end subroutine solve_reduced_hessian_qp
 !*******************************************************************************
 
 !*******************************************************************************
 !>
-!  dot product of row `k` of the sparse combined row set `arows` with a
-!  dense vector `v` (`dimension(n)`), i.e. `arows(k,:) . v`.
+!  dot product of row `k` of `rows` with `v`.
 
-    pure function sparse_dot_row(arows, k, v) result(s)
+    pure function row_dot(rows, k, v) result(s)
 
-    type(sqpopt_sparse_matrix), intent(in) :: arows !! sparse combined constraint matrix
-    integer,                    intent(in) :: k !! row index in the sparse combined constraint matrix
-    real(wp), dimension(:),     intent(in) :: v !! dense vector to be dotted with row `k` of `arows`
-    real(wp) :: s !! result of the dot product of row `k` of `arows` with vector `v`
+    type(csr_rows),         intent(in) :: rows
+    integer,                intent(in) :: k
+    real(wp), dimension(:), intent(in) :: v
+    real(wp) :: s
 
     integer :: j
 
     s = 0.0_wp
-    do j = 1, arows%nnz
-        if (arows%irow(j) == k) s = s + arows%val(j)*v(arows%icol(j))
+    do j = rows%ptr(k), rows%ptr(k+1)-1
+        s = s + rows%val(j)*v(rows%col(j))
     end do
 
-    end function sparse_dot_row
+    end function row_dot
 !*******************************************************************************
 
 !*******************************************************************************
 !>
-!  project a vector `v` onto the null space of the active-row matrix
-!  `ja` (`n_active x n`): `out = v - ja^T*z`, `z` the minimum-norm
-!  least-squares solution of `ja^T*z ~ v`, solved with `LSQR` using the
-!  same transpose-orientation trick as `sqpopt_qp_solver_module`'s
-!  composite step (swap `irow`/`icol` so `LSQR` sees `ja^T` directly).
+!  2-norm of row `k` of `rows`.
 
-    subroutine project_null(ja, n_active, n, v, out, atol, btol, conlim, itnlim)
+    pure function row_norm(rows, k) result(s)
 
-    type(sqpopt_sparse_matrix), intent(in)  :: ja !! active-row matrix (`n_active x n`)
-    integer,                    intent(in)  :: n_active !! number of active rows in `ja`
-    integer,                    intent(in)  :: n !! number of columns in `ja`
-    real(wp), dimension(:),     intent(in)  :: v !! vector to be projected onto the null space of `ja`
-    real(wp), dimension(:),     intent(out) :: out !! projected vector onto the null space of `ja`
-    real(wp),                   intent(in)  :: atol     !! `LSQR` tolerances (see [[sqpopt_reduced_hessian_qp_type]])
-    real(wp),                   intent(in)  :: btol     !! `LSQR` tolerances (see [[sqpopt_reduced_hessian_qp_type]])
-    real(wp),                   intent(in)  :: conlim   !! `LSQR` tolerances (see [[sqpopt_reduced_hessian_qp_type]])
-    integer,                    intent(in)  :: itnlim   !! `LSQR` max iterations
+    type(csr_rows), intent(in) :: rows
+    integer,        intent(in) :: k
+    real(wp) :: s
 
-    type(lsqr_solver_ez) :: lsqr
-    real(wp), dimension(:), allocatable :: z !! minimum-norm least-squares solution of `ja^T*z ~ v`
-    real(wp), dimension(n) :: jtz !! `ja^T*z`
-    integer :: istop, j
+    s = norm2(rows%val(rows%ptr(k):rows%ptr(k+1)-1))
 
-    if (n_active == 0) then
-        out = v
-        return
-    end if
-
-    allocate(z(n_active))
-    call lsqr%initialize(n, n_active, ja%val, ja%icol, ja%irow, &
-                          atol=atol, btol=btol, conlim=conlim, itnlim=itnlim)
-    call lsqr%solve(v, 0.0_wp, z, istop)
-
-    jtz = 0.0_wp
-    do j = 1, ja%nnz
-        jtz(ja%icol(j)) = jtz(ja%icol(j)) + ja%val(j)*z(ja%irow(j))
-    end do
-
-    out = v - jtz
-
-    end subroutine project_null
+    end function row_norm
 !*******************************************************************************
 
 !*******************************************************************************
 !>
-!  projected conjugate gradients (Gould, Hribar & Nocedal 1998; Nocedal &
-!  Wright Ch. 16): (approximately) solve the equality-constrained
-!  subproblem `min 0.5*u^T*H*u + g^T*u` s.t. `ja*u = rhs_active` (implicit
-!  in `ja`/the current working set) starting from a point already on that
-!  face, returning the accumulated step `d_total`. If negative/zero
-!  curvature is detected (`H` is not guaranteed positive-definite on the
-!  null space), CG is truncated (Steihaug-Toint style) and the direction
-!  at truncation is returned separately in `d_extra` with `truncated=.true.`
-!  (the caller ratio-tests an *unbounded* move along `d_extra` in addition
-!  to the already-accumulated `d_total`).
+!  the working set, split into its active variable-bound rows -- which
+!  simply fix those unknowns (`fixed`) -- and its active general rows,
+!  gathered (renumbered `1..ja%nrows`) into the COO matrix `ja` restricted
+!  to the *free* unknowns (entries in fixed columns are dropped). Handling
+!  the bounds this way, rather than as rows in `ja`, keeps the least-squares
+!  problems small and makes the fixed coordinates of every projection
+!  exactly zero. `orig_idx` gives the index in `rows` of each active row:
+!  the general rows first (in the order of `ja`'s rows), then the bounds.
 
-    subroutine projected_cg(hessian, ja, n_active, n, hu_g0, gproj0, max_pcg, opt_tol, curv_tol, &
-                             lsqr_atol, lsqr_btol, lsqr_conlim, lsqr_itnlim, &
-                             d_total, d_extra, truncated)
+    subroutine build_working_set(rows, status, m, ja, fixed, orig_idx, n_active)
 
-    type(sqpopt_hessian_type),  intent(inout) :: hessian
-    type(sqpopt_sparse_matrix), intent(in)    :: ja
-    integer,                    intent(in)    :: n_active !! number of active rows in `ja`
-    integer,                    intent(in)    :: n !! number of columns in `ja`
-    integer,                    intent(in)    :: max_pcg !!
-    real(wp), dimension(n),     intent(in)    :: hu_g0   !! H*u0+g at the starting point
-    real(wp), dimension(n),     intent(in)    :: gproj0  !! project_null(ja,hu_g0) at the starting point
-    real(wp),                   intent(in)    :: opt_tol !! optimality tolerance
-    real(wp),                   intent(in)    :: curv_tol !! curvature tolerance
-    real(wp),                   intent(in)    :: lsqr_atol    !! `LSQR` tolerances
-    real(wp),                   intent(in)    :: lsqr_btol    !! `LSQR` tolerances
-    real(wp),                   intent(in)    :: lsqr_conlim  !! `LSQR` tolerances
-    integer,                    intent(in)    :: lsqr_itnlim  !! `LSQR` max iterations
-    real(wp), dimension(n),     intent(out)   :: d_total !! accumulated step
-    real(wp), dimension(n),     intent(out)   :: d_extra !! truncation direction (only meaningful if truncated)
-    logical,                    intent(out)   :: truncated !! whether CG was truncated due to negative/zero curvature
-
-    real(wp), dimension(n) :: r, gproj, dvec, hd
-    real(wp) :: rg_old, rg_new, kappa, alpha, beta
-    integer :: j
-
-    d_total = 0.0_wp
-    d_extra = 0.0_wp
-    truncated = .false.
-
-    r     = hu_g0
-    gproj = gproj0
-    dvec  = -gproj
-    rg_old = dot_product(r, gproj)
-
-    do j = 1, max_pcg
-
-        if (norm2(gproj) <= opt_tol) exit
-
-        call hessian%hv_product(dvec, hd)
-        kappa = dot_product(dvec, hd)
-
-        if (kappa <= curv_tol) then
-            d_extra   = dvec
-            truncated = .true.
-            return
-        end if
-
-        alpha  = rg_old/kappa
-        d_total = d_total + alpha*dvec
-        r       = r + alpha*hd
-        call project_null(ja, n_active, n, r, gproj, lsqr_atol, lsqr_btol, lsqr_conlim, lsqr_itnlim)
-        rg_new = dot_product(r, gproj)
-        if (abs(rg_old) <= tiny(1.0_wp)) exit
-        beta   = rg_new/rg_old
-        dvec   = -gproj + beta*dvec
-        rg_old = rg_new
-
-    end do
-
-    end subroutine projected_cg
-!*******************************************************************************
-
-!*******************************************************************************
-!>
-!  gather the currently-active rows (`status/=0`) of the combined
-!  `mtot x n` sparse row set into a `n_active x n` sparse sub-matrix `ja`
-!  and their target right-hand-side values `rhs_active`, along with
-!  `orig_idx`, mapping each active row back to its index in `1..mtot`.
-
-    subroutine build_active_set(arows, row_lb, row_ub, status, mtot, n, ja, rhs_active, orig_idx, n_active)
-
-    type(sqpopt_sparse_matrix), intent(in)  :: arows !! the combined `mtot x n` sparse row set
-    integer,                    intent(in)  :: mtot !! total number of rows in the combined sparse row set
-    integer,                    intent(in)  :: n    !! number of columns in the combined sparse row set
-    real(wp), dimension(mtot),  intent(in)  :: row_lb !! lower bounds for each row
-    real(wp), dimension(mtot),  intent(in)  :: row_ub !! upper bounds for each row
-    integer,  dimension(mtot),  intent(in)  :: status !! status of each row (0 = inactive, -1 = active at lower bound, 1 = active at upper bound)
-    type(sqpopt_sparse_matrix), intent(out) :: ja !! the `n_active x n` sparse sub-matrix of active rows
-    real(wp), dimension(:), allocatable, intent(out) :: rhs_active !! right-hand-side values for the active rows
-    integer,  dimension(:), allocatable, intent(out) :: orig_idx !! mapping of each active row back to its index in `1..mtot`
+    type(csr_rows),             intent(in)  :: rows
+    integer,  dimension(:),     intent(in)  :: status   !! 0 = inactive, -1/+1 = active at the lower/upper bound
+    integer,                    intent(in)  :: m        !! number of general rows (the rest are the bounds on each unknown)
+    type(sqpopt_sparse_matrix), intent(out) :: ja       !! the active general rows, on the free unknowns
+    logical,  dimension(:), allocatable, intent(out) :: fixed    !! `dimension(ncols)`: unknowns fixed at a bound
+    integer,  dimension(:), allocatable, intent(out) :: orig_idx !! index in `rows` of each active row
     integer,                    intent(out) :: n_active !! number of active rows
 
-    integer, dimension(:), allocatable :: row_map !! mapping of each row in the combined sparse row set to its index in the active set (0 if inactive)
-    integer :: k, idx, nnz_a, j
+    integer :: k, j, idx, nnz_a, n_gen
+
+    allocate(fixed(rows%ncols))
+    fixed = status(m+1:m+rows%ncols) /= 0
 
     n_active = count(status /= 0)
-    allocate(rhs_active(n_active), orig_idx(n_active))
-    allocate(row_map(mtot)); row_map = 0
-
+    n_gen    = count(status(1:m) /= 0)
+    allocate(orig_idx(n_active))
     idx = 0
-    do k = 1, mtot
+    do k = 1, m
         if (status(k) /= 0) then
             idx = idx + 1
-            row_map(k) = idx
             orig_idx(idx) = k
-            rhs_active(idx) = merge(row_lb(k), row_ub(k), status(k) == -1)
+        end if
+    end do
+    do k = m+1, rows%nrows
+        if (status(k) /= 0) then
+            idx = idx + 1
+            orig_idx(idx) = k
         end if
     end do
 
-    nnz_a = count(row_map(arows%irow(1:arows%nnz)) > 0)
-    ja%nrows = n_active
-    ja%ncols = n
+    nnz_a = 0
+    do idx = 1, n_gen
+        k = orig_idx(idx)
+        do j = rows%ptr(k), rows%ptr(k+1)-1
+            if (.not. fixed(rows%col(j))) nnz_a = nnz_a + 1
+        end do
+    end do
+    ja%nrows = n_gen
+    ja%ncols = rows%ncols
     ja%nnz   = nnz_a
     allocate(ja%irow(nnz_a), ja%icol(nnz_a), ja%val(nnz_a))
-
-    idx = 0
-    do j = 1, arows%nnz
-        if (row_map(arows%irow(j)) > 0) then
-            idx = idx + 1
-            ja%irow(idx) = row_map(arows%irow(j))
-            ja%icol(idx) = arows%icol(j)
-            ja%val(idx)  = arows%val(j)
-        end if
+    nnz_a = 0
+    do idx = 1, n_gen
+        k = orig_idx(idx)
+        do j = rows%ptr(k), rows%ptr(k+1)-1
+            if (fixed(rows%col(j))) cycle
+            nnz_a = nnz_a + 1
+            ja%irow(nnz_a) = idx
+            ja%icol(nnz_a) = rows%col(j)
+            ja%val(nnz_a)  = rows%val(j)
+        end do
     end do
 
-    end subroutine build_active_set
-!*******************************************************************************
-
-!*******************************************************************************
-!>
-!  adjust `u` (in place) by the minimum-norm correction needed so that
-!  every currently-active row exactly satisfies its target bound value
-!  (bootstraps a feasible-for-the-working-set starting point). Uses `LSQR`
-!  in its normal orientation (minimum-norm solution of the underdetermined
-!  system `ja*correction = resid`), the same way the composite step
-!  already uses it for its own normal step.
-
-    subroutine project_onto_active(arows, row_lb, row_ub, status, mtot, n, u, atol, btol, conlim, itnlim)
-
-    type(sqpopt_sparse_matrix), intent(in)    :: arows ! ! sparse matrix of active rows
-    integer,                    intent(in)    :: mtot   !! total number of rows in the original constraint matrix
-    integer,                    intent(in)    :: n      !! total number of columns in the original constraint matrix
-    real(wp), dimension(mtot),  intent(in)    :: row_lb !! lower bounds for the rows of the original constraint matrix
-    real(wp), dimension(mtot),  intent(in)    :: row_ub !! upper bounds for the rows of the original constraint matrix
-    integer,  dimension(mtot),  intent(in)    :: status !! status of the rows of the original constraint matrix
-    real(wp), dimension(n),     intent(inout) :: u      !! current solution vector
-    real(wp),                   intent(in)    :: atol   !! `LSQR` tolerances (see [[sqpopt_reduced_hessian_qp_type]])
-    real(wp),                   intent(in)    :: btol   !! `LSQR` tolerances (see [[sqpopt_reduced_hessian_qp_type]])
-    real(wp),                   intent(in)    :: conlim !! `LSQR` tolerances (see [[sqpopt_reduced_hessian_qp_type]])
-    integer,                    intent(in)    :: itnlim !! `LSQR` max iterations
-
-    type(sqpopt_sparse_matrix) :: ja
-    type(lsqr_solver_ez) :: lsqr
-    real(wp), dimension(:), allocatable :: rhs_active, resid, correction
-    integer,  dimension(:), allocatable :: orig_idx
-    integer :: n_active, j, istop
-
-    call build_active_set(arows, row_lb, row_ub, status, mtot, n, ja, rhs_active, orig_idx, n_active)
-    if (n_active == 0) return
-
-    allocate(resid(n_active), correction(n))
-    resid = rhs_active
-    do j = 1, ja%nnz
-        resid(ja%irow(j)) = resid(ja%irow(j)) - ja%val(j)*u(ja%icol(j))
-    end do
-
-    call lsqr%initialize(n_active, n, ja%val, ja%irow, ja%icol, &
-                          atol=atol, btol=btol, conlim=conlim, itnlim=itnlim)
-    call lsqr%solve(resid, 0.0_wp, correction, istop)
-    u = u + correction
-
-    end subroutine project_onto_active
-!*******************************************************************************
-
-!*******************************************************************************
-!>
-!  update `row_lb`/`row_ub`-relative `status` for any general-constraint
-!  row (`1..m`) currently violated at `u` (used during phase 1
-!  bootstrapping, mirroring the equivalent bound-row check already done
-!  inline in [[solve_reduced_hessian_qp]]).
-
-    subroutine sparse_row_value(arows, u, m, is_equality, status, row_lb, row_ub, tol)
-
-    type(sqpopt_sparse_matrix), intent(in)    :: arows !! sparse matrix of the general constraint rows
-    real(wp), dimension(:),     intent(in)    :: u !! current solution vector
-    integer,                    intent(in)    :: m !! number of general constraint rows
-    logical,  dimension(:),     intent(in)    :: is_equality !! indicates whether each general constraint row is an equality constraint
-    integer,  dimension(:),     intent(inout) :: status !! current status of each general constraint row
-    real(wp), dimension(:),     intent(in)    :: row_lb !! lower bounds for the general constraint rows
-    real(wp), dimension(:),     intent(in)    :: row_ub !! upper bounds for the general constraint rows
-    real(wp),                   intent(in)    :: tol !! tolerance for checking constraint violations
-
-    integer :: k !! loop index for the general constraint rows
-    real(wp) :: val !! value of the current general constraint row at `u`
-
-    do k = 1, m
-        if (is_equality(k)) cycle
-        val = sparse_dot_row(arows, k, u)
-        if (val < row_lb(k) - tol) then
-            status(k) = -1
-        else if (val > row_ub(k) + tol) then
-            status(k) = 1
-        end if
-    end do
-
-    end subroutine sparse_row_value
+    end subroutine build_working_set
 !*******************************************************************************
 
     end module sqpopt_qp_reduced_hessian_module

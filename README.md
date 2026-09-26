@@ -171,8 +171,27 @@ matrix); `solve()` always (re)initializes it from `options%lbfgs_memory`/
 |---|---|
 | `sqpopt_qp_auto` | (default) `sqpopt_qp_dense` if `n <= auto_dense_max_n`, else `sqpopt_qp_reduced_hessian` |
 | `sqpopt_qp_composite` | *legacy/experimental* matrix-free composite-step heuristic (multiplier estimate + normal step + tangential step, all via `LSQR`); does not enforce the linearized general-constraint bounds exactly, and its least-squares multipliers are not true QP multipliers, so it can fail on harder problems (e.g. HS71) and cannot detect infeasibility |
-| `sqpopt_qp_dense` | dense active-set QP (Householder QR null-space + modified Cholesky reduced-Hessian solve); enforces bounds/constraints exactly; forms `O(n^2)`/`O(mn)` dense arrays each call, so best for small-to-moderate problems |
-| `sqpopt_qp_reduced_hessian` | sparse/matrix-free active-set QP (projected conjugate gradients, `LSQR`-based null-space projections); enforces bounds/constraints exactly; needs more major iterations than `sqpopt_qp_dense` (an `LSQR`-iterative-tolerance cost) but never forms a dense array, so it scales to larger problems |
+| `sqpopt_qp_dense` | dense active-set QP (Householder QR null space, Cholesky of the reduced Hessian); forms `O(n^2)`/`O(mn)` dense arrays each call, so best for small-to-moderate problems |
+| `sqpopt_qp_reduced_hessian` | sparse/matrix-free active-set QP (projected conjugate gradients, `LSQR`-based null-space projections, active bounds handled by fixing variables); never forms a dense array, so it scales to larger problems |
+
+Both active-set solvers enforce the linearized constraints and bounds
+exactly, and share the same robustness features:
+
+- **Elastic mode.** Each linearized constraint violated at `p=0` gets a
+  nonnegative slack with an \( \ell_1 \) penalty (SNOPT's elastic mode),
+  which gives a feasible starting point with no separate phase-1 problem.
+  If slacks remain positive at the solution, the penalty weight is raised
+  (up to `elastic_weight_max`); if they are still positive then, the
+  linearized constraints are inconsistent and the QP returns
+  `sqpopt_infeasible`, and the major iteration takes a feasibility-
+  restoration step instead.
+- Rows join the working set only if linearly independent of it;
+  directions of zero or negative curvature (an indefinite SR1 Hessian, or
+  along an elastic slack) are followed to the nearest blocking constraint
+  rather than producing a huge Newton step; and all tolerances are
+  relative to the problem's scale.
+- Both are checked against the KKT conditions on thousands of random
+  convex, nonconvex, degenerate, and infeasible QPs (`test/test_qp_fuzz.f90`).
 
 **`bound_enforcement` values (`qp_solver%bound_enforcement`, `sqpopt_qp_composite` mode only):**
 
@@ -185,22 +204,27 @@ matrix); `solve()` always (re)initializes it from `options%lbfgs_memory`/
 
 | option | default | description |
 |---|---|---|
-| `max_iter` | `100` | maximum number of active-set changes (add/drop a row) allowed per QP solve |
-| `active_tol` | `1e-8` | tolerance used to detect an (in)active/equality row |
-| `opt_tol` | `1e-8` | tolerance on the reduced-gradient stationarity test |
-| `feas_tol` | `1e-6` | if the QP step still violates a linearized constraint/bound by more than `feas_tol*max(1,\|bound\|)`, the linearization is reported as inconsistent and a feasibility-restoration step is taken instead |
+| `max_iter` | `100` | minimum limit on active-set iterations per QP solve (the actual limit is `max(max_iter, 10*(rows+1))`) |
+| `active_tol` | `1e-8` | relative tolerance for a row being at a bound, and for the sign of a multiplier |
+| `opt_tol` | `1e-10` | relative tolerance on the reduced-gradient stationarity test |
+| `feas_tol` | `1e-6` | an elastic slack larger than `feas_tol*max(1,\|initial violation\|)` at the solution counts as a violated linearized constraint |
+| `elastic_weight` | `1e4` | initial elastic penalty weight, relative to \( \max(1,\lVert g \rVert_\infty) \) |
+| `elastic_weight_max` | `1e10` | largest elastic penalty weight tried (same scaling) before the linearization is declared inconsistent |
 
 **Sparse (projected-CG) active-set QP options (`qp_solver%sparse_qp`, used when `mode==sqpopt_qp_reduced_hessian`):**
 
 | option | default | description |
 |---|---|---|
-| `max_iter` | `100` | maximum number of active-set changes (add/drop a row) allowed per QP solve |
-| `max_pcg_iter` | `0` | maximum projected-CG iterations per active-set face (`<=0` means "use `n`") |
-| `active_tol` | `1e-8` | tolerance used to detect an (in)active/equality row |
-| `opt_tol` | `1e-8` | tolerance on the projected-residual stationarity test |
-| `feas_tol` | `1e-6` | as for the dense solver: tolerance for reporting inconsistent linearized constraints |
+| `max_iter` | `100` | minimum limit on active-set iterations per QP solve (the actual limit is `max(max_iter, 10*(rows+1))`) |
+| `max_pcg_iter` | `0` | maximum projected-CG iterations per active-set face (`<=0` means twice the number of unknowns; CG is also stopped at the dimension of the face) |
+| `active_tol` | `1e-8` | relative tolerance for a row being at a bound, and for the sign of a multiplier |
+| `opt_tol` | `1e-10` | relative tolerance on the projected-gradient stationarity test |
+| `pcg_rtol` | `1e-10` | projected CG stops once the projected residual has been reduced by this factor |
+| `feas_tol` | `1e-6` | as for the dense solver |
+| `elastic_weight` | `1e4` | as for the dense solver |
+| `elastic_weight_max` | `1e8` | as for the dense solver (lower, since the iterative projections' accuracy is relative to the weight) |
 | `lsqr_atol`, `lsqr_btol`, `lsqr_conlim` | `0.0` | `LSQR` relative error tolerances in `A`/`b`, and the upper limit on `cond(Abar)` (`0` means "let `LSQR` use its own machine-precision-based default", which is tighter than usually necessary); loosening these is the main lever for trading QP-solve accuracy for speed in this mode |
-| `lsqr_itnlim` | `100` | `LSQR` maximum iterations per solve |
+| `lsqr_itnlim` | `0` | `LSQR` maximum iterations per solve (`<=0` means `2*(rows+columns)+10`) |
 
 #### Line search & merit function (`sqpopt_linesearch_type`)
 
@@ -217,10 +241,11 @@ matrix); `solve()` always (re)initializes it from `options%lbfgs_memory`/
 | `tol` | `1e-4` | desired tolerance on the minimizer (`sqpopt_linesearch_exact` mode) |
 | `watchdog_relaxed_len` | `2` | number of relaxed steps tolerated before requiring a new best point (`sqpopt_linesearch_watchdog` mode) |
 | `watchdog_cooldown_len` | `10` | number of iterations relaxed acceptance is disabled for after a backtrack (`sqpopt_linesearch_watchdog` mode) |
-| `filter_beta` | `0.99` | envelope constant \( \beta \) in the filter's sufficient-reduction test (`sqpopt_linesearch_filter` mode) |
-| `filter_alpha1`, `filter_alpha2` | `0.25`, `1e-4` | envelope constants weighting the QP-predicted decrease `q` and \( h\mu \) respectively (`sqpopt_linesearch_filter` mode) |
-| `filter_ubd`, `filter_tt` | `100.0`, `1.25` | set the initial upper bound on the constraint violation, \( u=\max(\texttt{filter\_ubd}, \texttt{filter\_tt}\cdot h(x_0)) \) (`sqpopt_linesearch_filter` mode) |
-| `filter_feas_tol` | `1e-8` | below this constraint violation a point is treated as feasible; if both the current and trial points are feasible, plain descent in `f` is also required (`sqpopt_linesearch_filter` mode) |
+| `filter_gamma_theta`, `filter_gamma_phi` | `1e-5`, `1e-5` | filter margins \( \gamma_\theta,\gamma_\varphi \): a step must reduce the violation \( \theta \) by the fraction \( \gamma_\theta \), or the objective by \( \gamma_\varphi\theta \) (`filter` mode, and the trust region with it) |
+| `filter_delta`, `filter_s_theta`, `filter_s_phi` | `1`, `1.1`, `2.3` | switching condition \( \alpha(-g^Tp)^{s_\varphi} > \delta\theta^{s_\theta} \): when it holds (and \( \theta\le\theta_{min} \)) the step must satisfy an Armijo condition on the objective |
+| `filter_eta_phi` | `1e-4` | Armijo constant for those ("f-type") steps |
+| `filter_theta_max_fact`, `filter_theta_min_fact` | `1e4`, `1e-4` | \( \theta_{max} \), \( \theta_{min} \) as multiples of \( \max(1,\theta(x_0)) \): no point with violation above \( \theta_{max} \) is accepted |
+| `filter_gamma_alpha` | `0.05` | safety factor in the minimum step length below which the search gives up (and a restoration step is taken) |
 
 **`mode` values (`linesearch%mode` / `options%linesearch_mode`):**
 
@@ -229,7 +254,7 @@ matrix); `solve()` always (re)initializes it from `options%lbfgs_memory`/
 | `sqpopt_linesearch_armijo` | (default) standard backtracking line search with an Armijo-type sufficient-decrease test on the merit function (as used by default in `slsqp`) |
 | `sqpopt_linesearch_exact` | (approximately) minimizes the merit function along the search direction using the derivative-free `fmin` routine |
 | `sqpopt_linesearch_watchdog` | Powell's watchdog technique: tracks the best point found so far and, for a short window after a genuine improvement, relaxes the sufficient-decrease test (accepting the full step outright) rather than stalling near a curved/simultaneously-active constraint boundary (the Maratos effect); backtracks to the best point and disables relaxed acceptance for `watchdog_cooldown_len` iterations if the window is used up without a new best point |
-| `sqpopt_linesearch_filter` | Fletcher & Leyffer's filter method (*"Nonlinear programming without a penalty function"*, Math. Program. 91 (2002)) adapted to a backtracking line search: dispenses with the merit function/`penalty` parameter entirely, instead accepting a trial point if its `(f, h)` pair -- objective value and \( \ell_1 \) constraint violation -- is not dominated by any previously-accepted iterate's `(f, h)` pair (the "filter"); ignores `merit_mode`/`penalty` entirely (see [[sqpopt_linesearch_module]] for what's included/omitted relative to the original trust-region algorithm) |
+| `sqpopt_linesearch_filter` | filter line search (Fletcher & Leyffer's filter, with the globally convergent line-search rules of Wächter & Biegler, as in IPOPT): no merit function or penalty parameter; a trial point is judged by its (violation, objective) pair, which must not be dominated by the filter; a switching condition decides whether the step must reduce the objective (Armijo) or may trade it for feasibility, and only the latter steps enlarge the filter; if no acceptable step is found, a feasibility-restoration step is taken. Ignores `merit_mode`/`penalty` |
 
 **`merit_mode` values (`linesearch%merit_mode` / `options%merit_mode`):**
 
@@ -238,8 +263,8 @@ matrix); `solve()` always (re)initializes it from `options%lbfgs_memory`/
 | `sqpopt_merit_l1` | (default) non-smooth \( \ell_1 \) exact penalty function (as in `slsqp`) |
 | `sqpopt_merit_augmented_lagrangian` | smooth augmented Lagrangian merit function (Gill, Murray, Saunders & Wright; the merit function used in NPSOL and, in spirit, SNOPT) -- twice continuously differentiable, which helps avoid the Maratos effect |
 
-**Second-order correction.** In the `armijo`, `watchdog`, and `filter`
-line searches, and in the trust region, when the first (full) trial step
+**Second-order correction.** In every line search, and in the trust
+region, when the first (full) trial step
 is rejected without reducing the constraint violation -- the signature of
 the Maratos effect near curved constraints -- a second-order-corrected
 step (a minimum-norm correction for the true constraint values at the
@@ -270,9 +295,10 @@ See `plan/TRUST_REGION_PLAN.md` for the full design.
 
 When enabled, `linesearch%mode` is reinterpreted as *which acceptance
 test* to use, not which line search to run (there is no `alpha` to
-search): `sqpopt_linesearch_filter` reuses the filter's own `(f,h)`
-domination test -- this combination is the *literal* Fletcher & Leyffer
-filter-SQP algorithm -- while `armijo`/`exact`/`watchdog` all collapse to
+search): `sqpopt_linesearch_filter` uses the same filter acceptance test
+as the filter line search (with the quadratic model's predicted decrease
+in the switching condition) -- a trust-region filter-SQP method in the
+spirit of Fletcher & Leyffer -- while `armijo`/`exact`/`watchdog` all collapse to
 the same classical trust-region-SQP ratio test on the merit function
 selected by `merit_mode`.
 

@@ -10,6 +10,9 @@ program test_infeasible
     !! The closest the constraints can get to feasibility (in the l2 sense
     !! the infeasibility test uses) is x1 = 1.5.
     !!
+    !! Run with both the (default) Armijo line search and the filter line
+    !! search (whose failure path goes through feasibility restoration).
+    !!
     !! The legacy composite-step heuristic (`sqpopt_qp_composite`) cannot tell
     !! an inconsistent linearization from a consistent one, so it is only
     !! required to stop with a failure status (not success, and not by
@@ -20,6 +23,7 @@ program test_infeasible
     use sqpopt_options_module,   only: sqpopt_options_type
     use sqpopt_qp_solver_module, only: sqpopt_qp_auto, sqpopt_qp_composite, sqpopt_qp_dense, sqpopt_qp_reduced_hessian
     use sqpopt_types_module,     only: sqpopt_infeasible, sqpopt_success, sqpopt_max_iter_reached
+    use sqpopt_linesearch_module, only: sqpopt_linesearch_armijo, sqpopt_linesearch_filter
     use sqpopt_kinds,            only: wp => sqpopt_module_wp
 
     implicit none
@@ -30,7 +34,7 @@ program test_infeasible
     type(sqpopt_problem_type) :: problem
     type(sqpopt_options_type) :: options
     real(wp) :: xsol(2), lam(2)
-    integer  :: istat, i
+    integer  :: istat, i, ls
 
     write(*,*) '----------------------------'
     write(*,*) 'test_infeasible'
@@ -42,13 +46,16 @@ program test_infeasible
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,2], icol=[1,1])
     call problem%set_functions(f=obj, g=grad, c=cons, jac=jacv)
 
+    do ls = 1, 2
     do i = 1, size(modes)
         options = sqpopt_options_type()
         options%qp_solver_mode = modes(i)
+        options%linesearch_mode = merge(sqpopt_linesearch_armijo, sqpopt_linesearch_filter, ls == 1)
         call solver%initialize(problem=problem, options=options)
         call solver%solve([0.5_wp, 0.0_wp], istat)
         call solver%get_solution(xsol, lam)
-        print '(A,I0,A,2F10.4,A,I0,2A)', 'qp_solver_mode=', modes(i), ': x=', xsol, &
+        print '(A,I0,A,I0,A,2F10.4,A,I0,2A)', 'linesearch_mode=', options%linesearch_mode, &
+            ' qp_solver_mode=', modes(i), ': x=', xsol, &
             '  istat=', istat, '  ', solver%status_message()
         if (modes(i) == sqpopt_qp_composite) then
             if (istat == sqpopt_success .or. istat == sqpopt_max_iter_reached) &
@@ -57,6 +64,7 @@ program test_infeasible
             if (istat /= sqpopt_infeasible) error stop 'test_infeasible FAILED: infeasibility not detected'
             if (abs(xsol(1)-1.5_wp) > 1.0e-4_wp) error stop 'test_infeasible FAILED: not at the least-infeasible point'
         end if
+    end do
     end do
 
     print '(A)', 'test_infeasible PASSED'

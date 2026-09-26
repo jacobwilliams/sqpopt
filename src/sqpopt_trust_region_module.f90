@@ -27,12 +27,11 @@
 !  correction, see [[sqpopt_soc_module]]), and the radius is grown or
 !  shrunk accordingly:
 !
-!  * if `linesearch%mode == sqpopt_linesearch_filter`, acceptance reuses
-!    the filter's own `(f,h)` domination test (`linesearch%filter_test`)
-!    -- this combination is the *literal* Fletcher & Leyffer filter-SQP
-!    algorithm (`references/fletcher.pdf`), of which
-!    `sqpopt_linesearch_filter` on its own is only a line-search
-!    adaptation.
+!  * if `linesearch%mode == sqpopt_linesearch_filter`, acceptance uses the
+!    same filter test as the filter line search (`linesearch%filter_accept`,
+!    with the quadratic model's predicted decrease `q` in place of
+!    \( g^Tp \) in the switching condition) -- a trust-region filter-SQP
+!    method in the spirit of Fletcher & Leyffer (`references/fletcher.pdf`).
 !  * otherwise, acceptance uses the classical trust-region-SQP ratio test
 !    (Nocedal & Wright, *Numerical Optimization*, Ch. 18): \( \rho =
 !    \text{ared}/\text{pred} \), the ratio of the actual to the
@@ -58,8 +57,7 @@
     use sqpopt_problem_module,    only: sqpopt_problem_type
     use sqpopt_hessian_module,    only: sqpopt_hessian_type
     use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type
-    use sqpopt_linesearch_module, only: sqpopt_linesearch_type, sqpopt_linesearch_filter, &
-                                         l1_violation, filter_penalty_estimate
+    use sqpopt_linesearch_module, only: sqpopt_linesearch_type, sqpopt_linesearch_filter, l1_violation
     use sqpopt_linalg_module,     only: sparse_matvec
     use sqpopt_soc_module,        only: soc_step
 
@@ -121,19 +119,18 @@
     integer,                        intent(out) :: istat      !! status code (see [[sqpopt_types_module]])
 
     integer :: retry, qp_istat
-    logical :: use_filter, accept, both_feasible, ok, soc_ok
+    logical :: use_filter, accept, ok, soc_ok, f_type
     real(wp), dimension(size(x)) :: p, p_soc, x_lb2, x_ub2, hp
     real(wp), dimension(size(c)) :: jp, c_trial, c_lin
-    real(wp) :: f_trial, h0, h_trial, q, pred, ratio, mu, phi0, phi_model
+    real(wp) :: f_trial, h0, h_trial, q, pred, ratio, phi0, phi_model
 
     if (.not. me%ready) then
         me%radius = me%radius0
         me%ready  = .true.
     end if
 
-    use_filter    = (linesearch%mode == sqpopt_linesearch_filter)
-    h0            = l1_violation(c, problem%c_lb, problem%c_ub)
-    both_feasible = h0 <= linesearch%filter_feas_tol
+    use_filter = (linesearch%mode == sqpopt_linesearch_filter)
+    h0         = l1_violation(c, problem%c_lb, problem%c_ub)
     if (use_filter) call linesearch%filter_prepare(h0)
 
     do retry = 1, me%max_retries
@@ -180,10 +177,8 @@
 
         if (accept) then
 
-            if (use_filter) then
-                mu = filter_penalty_estimate(new_lambda)
-                call linesearch%filter_record(f_trial, h_trial, q, mu)
-            end if
+            ! (a step that isn't f-type adds the current point to the filter)
+            if (use_filter .and. .not. f_type) call linesearch%filter_record(h0, f)
 
             if (maxval(abs(p)) >= 0.99_wp*me%radius) then
                 ! the step used (approximately) the full trust region --
@@ -230,14 +225,14 @@
         call problem%eval_c(x_trial, c_trial)
         ok = sqpopt_all_finite([f_trial]) .and. sqpopt_all_finite(c_trial)
         accept = .false.
+        f_type = .false.
         ratio  = -1.0_wp
         if (.not. ok) return
         h_trial = l1_violation(c_trial, problem%c_lb, problem%c_ub)
 
         if (use_filter) then
 
-            accept = linesearch%filter_test(f_trial, h_trial)
-            if (accept .and. both_feasible .and. h_trial <= linesearch%filter_feas_tol) accept = f_trial < f
+            accept = linesearch%filter_accept(h0, f, -q, 1.0_wp, h_trial, f_trial, f_type)
             ratio = 1.0_wp !! not used for the ratio test in this branch, only for the "grow radius" gate
 
         else

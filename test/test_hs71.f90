@@ -44,7 +44,7 @@ program test_hs71
     use sqpopt_linesearch_module, only: sqpopt_merit_l1, sqpopt_merit_augmented_lagrangian, &
                                         sqpopt_linesearch_armijo, sqpopt_linesearch_watchdog, sqpopt_linesearch_filter
     use sqpopt_qp_solver_module, only: sqpopt_qp_auto, sqpopt_qp_dense, sqpopt_qp_reduced_hessian, sqpopt_qp_solver_type
-    use sqpopt_types_module,   only: sqpopt_success, sqpopt_stalled
+    use sqpopt_types_module,   only: sqpopt_success
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
 
     implicit none
@@ -62,21 +62,12 @@ program test_hs71
     call run_hs71('augmented Lagrangian',   sqpopt_merit_augmented_lagrangian, sqpopt_linesearch_armijo,   sqpopt_qp_auto)
     call run_hs71('watchdog',               sqpopt_merit_l1,                   sqpopt_linesearch_watchdog, sqpopt_qp_auto)
     call run_hs71('dense QP',               sqpopt_merit_l1,                   sqpopt_linesearch_armijo,   sqpopt_qp_dense)
-    ! the reduced-Hessian QP's multipliers are only as accurate as its
-    ! (absolute) LSQR/`opt_tol` tolerances allow, which near the solution
-    ! isn't always enough for the KKT test to certify the (accurate) final
-    ! point, so `sqpopt_stalled` is also accepted here (see plan/ROADMAP.md,
-    ! Phase 1 item 5: relative QP tolerances):
-    call run_hs71('reduced-Hessian QP',     sqpopt_merit_l1,                   sqpopt_linesearch_armijo,   sqpopt_qp_reduced_hessian, &
-                  allow_stalled=.true.)
+    call run_hs71('reduced-Hessian QP',     sqpopt_merit_l1,                   sqpopt_linesearch_armijo,   sqpopt_qp_reduced_hessian)
     ! the reduced-Hessian solver's LSQR tolerances are user-tunable (see
-    ! PLAN.md section 6.2); kept as an example of setting them. Loosening
-    ! them trades accuracy for speed: the looser multiplier estimates keep
-    ! the KKT test from being met exactly, so this run ends as
-    ! `sqpopt_stalled` (feasible, no further progress) -- still accurate to
-    ! well within the test's tolerance:
+    ! PLAN.md section 6.2); kept as an example of setting them (loosening
+    ! them trades QP accuracy for speed):
     call run_hs71('rh, tuned LSQR (atol=btol=5e-10)', sqpopt_merit_l1, sqpopt_linesearch_armijo, sqpopt_qp_reduced_hessian, &
-                  lsqr_atol=5.0e-10_wp, lsqr_btol=5.0e-10_wp, allow_stalled=.true.)
+                  lsqr_atol=5.0e-10_wp, lsqr_btol=5.0e-10_wp)
     ! filter method (Fletcher & Leyffer, no merit function/penalty parameter
     ! at all) paired with a real active-set QP solve -- also reaches
     ! sqpopt_success tightly, confirming the filter line search is a viable
@@ -85,7 +76,7 @@ program test_hs71
 
     contains
 
-    subroutine run_hs71(label, merit_mode, linesearch_mode, qp_mode, lsqr_atol, lsqr_btol, lsqr_itnlim, allow_stalled)
+    subroutine run_hs71(label, merit_mode, linesearch_mode, qp_mode, lsqr_atol, lsqr_btol, lsqr_itnlim)
 
     character(len=*), intent(in) :: label
     integer,           intent(in) :: merit_mode
@@ -93,7 +84,6 @@ program test_hs71
     integer,           intent(in) :: qp_mode
     real(wp), intent(in), optional :: lsqr_atol, lsqr_btol !! LSQR tuning (sqpopt_qp_reduced_hessian mode only)
     integer,  intent(in), optional :: lsqr_itnlim          !! LSQR tuning (sqpopt_qp_reduced_hessian mode only)
-    logical,  intent(in), optional :: allow_stalled        !! also accept `sqpopt_stalled` (default `.false.`)
 
     type(sqpopt_type)         :: solver
     type(sqpopt_problem_type) :: problem
@@ -104,7 +94,6 @@ program test_hs71
     real(wp), parameter :: fexpect = 17.0140173_wp
     real(wp) :: fsol
     integer :: istat
-    logical :: ok_status
 
     i_obj  = 0
     i_grad = 0
@@ -150,9 +139,7 @@ program test_hs71
     if (outside_bounds) error stop 'test_hs71 FAILED: '//label//' evaluated a function outside the variable bounds'
 
     ! every variant uses a real QP solve, so must converge tightly:
-    ok_status = istat == sqpopt_success
-    if (present(allow_stalled)) ok_status = ok_status .or. (allow_stalled .and. istat == sqpopt_stalled)
-    if (.not. ok_status) error stop 'test_hs71 FAILED: '//label//' did not reach sqpopt_success'
+    if (istat /= sqpopt_success) error stop 'test_hs71 FAILED: '//label//' did not reach sqpopt_success'
     if (maxval(abs(xsol-xexpect)) > 1.0e-4_wp) error stop 'test_hs71 FAILED: '//label//' wrong solution'
     print '(A)', 'test_hs71 ['//trim(label)//'] PASSED'
     print '(A)', ''

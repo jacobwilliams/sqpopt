@@ -21,6 +21,7 @@
     public :: dense_null_space
     public :: dense_modified_cholesky
     public :: dense_solve_cholesky
+    public :: dense_cholesky_curvature
 
     contains
 !*******************************************************************************
@@ -127,6 +128,63 @@
     end do
 
     end subroutine dense_modified_cholesky
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  Cholesky factorization \( A = LL^T \) of a symmetric `dimension(n,n)`
+!  matrix `a` that may not be positive definite, *without* perturbing it.
+!  If `a` is (numerically) positive definite, `ok=.true.` and `l` is its
+!  Cholesky factor. Otherwise the factorization stops at the first column
+!  `j` whose pivot \( a_{jj} - \lVert l_{j,1:j-1} \rVert^2 \) is not
+!  sufficiently positive (relative to the largest diagonal element), and
+!  returns `ok=.false.` with a direction `d` of nonpositive curvature,
+!  \( d^T A d \le \) (roughly) 0:
+!  $$ d = \begin{bmatrix} -L_{11}^{-T} l_j \\ 1 \\ 0 \end{bmatrix} $$
+!  for which \( d^T A d \) equals that pivot (the Schur complement).
+
+    subroutine dense_cholesky_curvature(a, n, l, ok, d)
+
+    integer,                  intent(in)  :: n  !! order of the matrix `a`
+    real(wp), dimension(n,n), intent(in)  :: a  !! symmetric matrix to be factorized
+    real(wp), dimension(n,n), intent(out) :: l  !! lower-triangular Cholesky factor (valid only if `ok`)
+    logical,                  intent(out) :: ok !! true if `a` is positive definite
+    real(wp), dimension(n),   intent(out) :: d  !! direction of nonpositive curvature (only if `.not. ok`)
+
+    real(wp), parameter :: rel_tol = 1.0e-10_wp !! pivots below `rel_tol*max|a_jj|` count as nonpositive
+
+    integer  :: i, j
+    real(wp) :: piv, tol
+
+    l  = 0.0_wp
+    d  = 0.0_wp
+    ok = .true.
+    if (n == 0) return
+
+    tol = 0.0_wp
+    do j = 1, n
+        tol = max(tol, abs(a(j,j)))
+    end do
+    tol = rel_tol*max(tol, tiny(1.0_wp))
+
+    do j = 1, n
+        piv = a(j,j) - dot_product(l(j,1:j-1), l(j,1:j-1))
+        if (piv <= tol) then
+            ! nonpositive curvature: d = [-L11^{-T} l_j; 1; 0]
+            ok   = .false.
+            d(j) = 1.0_wp
+            do i = j-1, 1, -1
+                d(i) = -(l(j,i) + dot_product(l(i+1:j-1,i), d(i+1:j-1)))/l(i,i)
+            end do
+            return
+        end if
+        l(j,j) = sqrt(piv)
+        do i = j+1, n
+            l(i,j) = (a(i,j) - dot_product(l(i,1:j-1), l(j,1:j-1)))/l(j,j)
+        end do
+    end do
+
+    end subroutine dense_cholesky_curvature
 !*******************************************************************************
 
 !*******************************************************************************

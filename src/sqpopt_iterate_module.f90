@@ -17,7 +17,7 @@
     use sqpopt_options_module,    only: sqpopt_options_type, sqpopt_hessian_sr1
     use sqpopt_hessian_module,    only: sqpopt_hessian_type
     use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type
-    use sqpopt_linesearch_module, only: sqpopt_linesearch_type, sqpopt_linesearch_filter
+    use sqpopt_linesearch_module, only: sqpopt_linesearch_type, sqpopt_linesearch_filter, l1_violation
     use sqpopt_linalg_module,     only: sparse_matvec_transpose
     use sqpopt_convergence_module, only: check_convergence
     use sqpopt_soc_module,        only: soc_step
@@ -209,30 +209,33 @@
 
             ! line search along `p` to (approximately) minimize the merit function
             ! (or, in `sqpopt_linesearch_filter` mode, to find a point acceptable
-            ! to the filter -- that mode needs the QP's own predicted decrease in
-            ! `f`, `q = -(g^Tp + 0.5*p^THp)`, computed here since only this routine
-            ! has access to `hessian`; skipped for the other modes, which ignore
-            ! `q`, since `hv_product` isn't free). If the full step is rejected
-            ! because of constraint curvature (the Maratos effect), the line
-            ! search also tries its second-order correction (see `soc` below):
-            block
-                real(wp) :: q
-                q = 0.0_wp
-                if (linesearch%mode == sqpopt_linesearch_filter) then
-                    block
-                        real(wp), dimension(problem%n) :: hp
-                        call hessian%hv_product(p, hp)
-                        q = -(dot_product(g, p) + 0.5_wp*dot_product(p, hp))
-                    end block
-                end if
-                if (problem%m > 0) then
-                    call linesearch%search(problem%eval_f, problem%eval_c, x, p, f, g, c, jac, new_lambda, &
-                                            problem%c_lb, problem%c_ub, q, alpha, x_new, step_istat, soc=soc)
-                else
-                    call linesearch%search(problem%eval_f, problem%eval_c, x, p, f, g, c, jac, new_lambda, &
-                                            problem%c_lb, problem%c_ub, q, alpha, x_new, step_istat)
-                end if
-            end block
+            ! to the filter). If the full step is rejected because of constraint
+            ! curvature (the Maratos effect), the line search also tries its
+            ! second-order correction (see `soc` below):
+            if (problem%m > 0) then
+                call linesearch%search(problem%eval_f, problem%eval_c, x, p, f, g, c, jac, new_lambda, &
+                                        problem%c_lb, problem%c_ub, alpha, x_new, step_istat, soc=soc)
+            else
+                call linesearch%search(problem%eval_f, problem%eval_c, x, p, f, g, c, jac, new_lambda, &
+                                        problem%c_lb, problem%c_ub, alpha, x_new, step_istat)
+            end if
+
+            if (step_istat /= sqpopt_success .and. linesearch%mode == sqpopt_linesearch_filter) then
+                ! the filter line search failed (no acceptable step length): as
+                ! in Wächter & Biegler's method, add the current point to the
+                ! filter and, if infeasible, take a feasibility restoration
+                ! step instead (keeping the current multipliers):
+                block
+                    real(wp) :: theta
+                    theta = l1_violation(c, problem%c_lb, problem%c_ub)
+                    call linesearch%filter_record(theta, f)
+                    if (theta > 0.0_wp) then
+                        restore    = .true.
+                        new_lambda = lambda
+                        call restoration_step(problem, jac, x, c, qp_solver%max_step, x_new, alpha, step_istat)
+                    end if
+                end block
+            end if
 
         end if
 

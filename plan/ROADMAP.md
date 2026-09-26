@@ -110,12 +110,16 @@ to 65 evaluations.
   calls. Add this to the dependency-trim decision (§8.4) and to the CI
   precision matrix.
 
-## Phase 1 status: items 1–4 done (2026-09-25)
+## Phase 1 status: done (2026-09-25)
+
+All seven items are done. Items 5–7 are described after items 1–4
+below.
+
+### Items 1–4
 
 Done: F3 (damping), B8 (no forced acceptance), F5/B13 (SOC done right),
 and non-finite handling. The trust region's merit-model mismatch (part
-of B15) is also fixed. Still to do in Phase 1: items 5–7 (B11/B12 with
-the random-QP fuzz test, F2 elastic mode, and F6 Wächter–Biegler filter).
+of B15) is also fixed.
 
 What changed:
 - **Damped BFGS (F3).** `sqpopt_hessian_type%damping` (default on)
@@ -172,13 +176,109 @@ Results: HS71 needs 14–17 evaluations (22 after Phase 0),
 `test_medium` 41 (65), and the constrained Rosenbrock problem in
 `test_resolve` 70–87 (73–195).
 
-**New finding, for item 5.** The QP solvers' `opt_tol` is absolute, so
-near a solution, where steps are about 1e-7, the QP direction is only
-roughly correct. With the reduced-Hessian QP, the multipliers are then
-too imprecise for the KKT test to certify the final point. HS71 with
-that solver reaches 3e-7 error but ends as `sqpopt_stalled`, which
-`test_hs71` now accepts for that variant. Make the QP tolerances
-relative to the step and gradient size.
+**Finding carried into item 5.** The QP solvers' `opt_tol` was
+absolute, so near a solution the reduced-Hessian QP's multipliers were
+too imprecise for the KKT test. Item 5 made the tolerances relative, and
+`test_hs71` again requires `sqpopt_success` from every variant.
+
+### Items 5–7: QP robustness, elastic mode, Wächter–Biegler filter
+
+**Random-QP fuzz test (item 5).** `test/test_qp_fuzz.f90` solves 400
+seeded random QPs with each solver and checks the full KKT conditions:
+primal feasibility, stationarity with correctly signed bound
+multipliers, and multiplier sign and complementarity. The QPs cover
+convex, nonconvex (indefinite SR1), degenerate (dependent, duplicated,
+or bound-parallel rows; fixed variables; more equalities than
+variables), and infeasible cases. The previous dense solver failed
+**41/400**, with 16 wrong answers (not stationary, or wrong-sign
+multipliers). The previous reduced-Hessian solver failed 44/400. Both
+new solvers pass 400/400. They also passed 3,000/3,000 in a one-off
+stress run with n ≤ 12 and m ≤ 15.
+
+**Dense QP, rewritten** ([sqpopt_qp_dense_module.f90](../src/sqpopt_qp_dense_module.f90)):
+- **Elastic mode (F2).** Only the rows violated at `p=0` get a slack
+  with an ℓ1 penalty, so the problem stays about `n` wide. This gives a
+  feasible start with no phase 1. The weight ρ starts at
+  `1e4·max(1,‖g‖∞)` and is raised ×100 while slacks stay positive, up
+  to `1e10` (same scaling), after which the QP reports
+  `sqpopt_infeasible`.
+- **Independent working set (B11).** The initial set is built with
+  Gram–Schmidt independence checks. A row that blocks a step along the
+  null space is independent by construction.
+- **Nonpositive curvature (B12).** The new `dense_cholesky_curvature`
+  either factors `ZᵀHZ` or returns a direction of nonpositive
+  curvature, which is followed downhill to the nearest blocking row.
+  The old `1e-10` pivot floor is gone.
+- **Relative tolerances.** Ratio-test rates are measured relative to
+  `‖a‖·‖d‖`, and optimality relative to `1+‖Hu+g‖∞`. Infinite bounds
+  are skipped.
+- **Multipliers.** The multiplier sign tolerance is scaled while
+  excluding the elastic slacks' own bounds; including them had inflated
+  the tolerance to about 1e-3. Multipliers get one step of iterative
+  refinement, since the normal equations square the conditioning.
+
+**Reduced-Hessian QP, rewritten** ([sqpopt_qp_reduced_hessian_module.f90](../src/sqpopt_qp_reduced_hessian_module.f90)):
+- It uses the same elastic formulation, with `elastic_weight_max` 1e8.
+- **Rows are stored in CSR form (E3).** Row products cost only that
+  row's nonzeros.
+- **Active bounds fix variables** instead of being LSQR rows, as SQOPT
+  does. The fixed coordinates of every projection are then exactly
+  zero, and bound multipliers are read from the residual. This was the
+  key fix: projecting gradients dominated by ρ-sized slack components
+  left roundoff in zero-curvature directions, which CG amplified into
+  wild steps.
+- **Proximal curvature on the slacks.** `δ = max(1,‖g‖∞)` keeps CG
+  steps along slacks bounded. It doesn't change feasible solutions.
+- **Projected CG hardening:**
+  - it uses `gp·gp` instead of `r·gp`;
+  - it is capped at the null-space dimension;
+  - its step is re-projected at the end;
+  - a curvature direction is re-projected before it is followed;
+  - the step accumulated before truncation is now ratio-tested (it
+    wasn't before).
+- **Tolerances.** They are relative to the gradient on the free
+  unknowns. `pcg_rtol` was added, and `lsqr_itnlim` now defaults to
+  automatic.
+
+**Exact line search.** It now also tries SOC when its minimizer falls
+short of the full step. Without it, the exact search converged only
+linearly (Maratos) once the always-on SOC was removed in item 3. The
+constrained Rosenbrock problem went from `max_iter` at 2,011
+evaluations to success in 207.
+
+**Wächter–Biegler filter (F6, B14)**
+([sqpopt_linesearch_module.f90](../src/sqpopt_linesearch_module.f90)):
+- This replaces the Fletcher–Leyffer envelope with the switching
+  condition, Armijo on f-type steps, filter margins `γθ`/`γφ`,
+  augmentation only on non-f-type steps, `θ_max`/`θ_min`, and W&B's
+  `α_min`. The switching powers are computed in log space, so they
+  can't overflow.
+- When the search fails, the iteration adds the current point to the
+  filter and, if infeasible, takes a restoration step.
+- The trust region's filter mode uses the same test, with `−q` in place
+  of `gᵀp`.
+- Old options were removed: `filter_beta`, `filter_alpha1/2`,
+  `filter_ubd`, `filter_tt`, `filter_feas_tol`, and
+  `filter_penalty_estimate`. This is an API change, but pre-1.0.
+- Results: the constrained Rosenbrock problem went from 74 to 35
+  evaluations. With the filter, even the composite mode now detects
+  infeasibility, via restoration; `test_infeasible` runs both line
+  searches.
+
+**Open issue: attraction to points where constraint qualifications
+fail.** This carries over from Phase 0 and stays open. On
+`min x₁+x₂` s.t. `x₁²+x₂²=1` in the box `[-1,1]²`, from a box corner,
+the active-set modes approach (0,−1), where the circle is tangent to a
+bound. They now report `sqpopt_success` there, whereas after Phase 0
+they reported `stalled`. At that point the constraint is violated by only
+ε² < `ctol`, and λ ≈ 8e3 with λx₁ → ½, so it is an approximate KKT
+(Fritz–John) point with a diverging multiplier, not a minimizer. The
+composite mode reaches the true solution. The fix is an SQP-level
+elastic strategy, like SNOPT's: keep the elastic weight bounded, and
+enter elastic mode when the multipliers exceed it, instead of raising
+ρ inside the QP. Also consider a separate status, or a warning, when the
+multipliers are huge at "convergence". Add this problem to the
+benchmark suite.
 
 ## 2. Bugs: correctness (fix first)
 
