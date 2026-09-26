@@ -16,8 +16,8 @@ source: true
 graph: true
 extra_mods: fmin_module:https://github.com/jacobwilliams/fmin
             iso_fortran_env:https://gcc.gnu.org/onlinedocs/gfortran/ISO_005fFORTRAN_005fENV.html
-            lsmrModule:https://github.com/jacobwilliams/LSMR
-            lusol_ez_module:https://github.com/jacobwilliams/lusol
+            lusol:https://github.com/jacobwilliams/lusol
+            lusol_precision:https://github.com/jacobwilliams/lusol
             lsqr_module:https://github.com/jacobwilliams/LSQR
 
 {!README.md!}

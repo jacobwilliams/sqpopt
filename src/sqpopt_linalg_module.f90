@@ -6,7 +6,7 @@
 !  stored in coordinate (COO) format (1-based `irow`/`icol`/`val` triplets,
 !  see [[sqpopt_types_module(module):sqpopt_sparse_matrix(type)]]) -- dense
 !  \( n \times n \) or \( m \times n \) arrays are never formed. This is
-!  the same triplet convention used by the `lusol`, `LSQR`, and `LSMR`
+!  the same triplet convention used by the `lusol` and `LSQR`
 !  dependencies, so that a [[sqpopt_sparse_matrix]] can be passed directly
 !  to those solvers.
 

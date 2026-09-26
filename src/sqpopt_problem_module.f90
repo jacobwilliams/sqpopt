@@ -21,8 +21,8 @@
 !  The Jacobian of \( c(x) \) and the Hessian of the Lagrangian are
 !  never treated as dense \( m \times n \) or \( n \times n \) arrays:
 !  their (fixed) sparsity patterns are supplied once as 1-based COO
-!  `irow`/`icol` triplets (the same convention used by the `lusol`,
-!  `LSQR`, and `LSMR` dependencies), and the user-supplied evaluation
+!  `irow`/`icol` triplets (the same convention used by the `lusol` and
+!  `LSQR` dependencies), and the user-supplied evaluation
 !  routines only need to fill in the corresponding nonzero *values* on
 !  each call.
 !

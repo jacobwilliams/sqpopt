@@ -413,7 +413,6 @@ fpm run --example benchmark --profile release
 This package depends on the following external libraries (which will be automatically fetched and built by FPM):
 
 * [LSQR](https://github.com/jacobwilliams/LSQR) -- iterative solver for sparse linear systems and least-squares problems
-* [LSMR](https://github.com/jacobwilliams/LSMR) -- iterative solver for sparse linear systems and least-squares problems, similar to LSQR but with improved numerical stability (not yet used; see `plan/ROADMAP.md` F14)
 * [lusol](https://github.com/jacobwilliams/lusol) -- sparse LU factorization library (the sparse QP's basis factors and updates, and its rank-revealing basis choice)
 * [fmin](https://github.com/jacobwilliams/fmin.git) -- derivative-free minimization routine used for exact line search
 

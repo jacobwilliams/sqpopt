@@ -103,10 +103,9 @@ to 65 evaluations.
   fix this. The case is worth adding to the benchmark suite.
 - ~~**Composite can't detect infeasibility.**~~ Moot: the composite mode
   was removed (2026-09-26).
-- **`REAL32` builds fail inside the `LSMR` dependency** (`Real constant
-  overflows its kind` in `lsmrModule.f90`), which nothing in sqpopt
-  calls. Add this to the dependency-trim decision (§8.4) and to the CI
-  precision matrix.
+- ~~**`REAL32` builds fail inside the `LSMR` dependency**~~ Fixed: `LSMR`
+  was dropped (2026-09-26, F14), and the `REAL32` build now succeeds.
+  Still to add to the CI precision matrix.
 
 ## Phase 1 status: done (2026-09-25)
 
@@ -722,9 +721,8 @@ guide (`references/NLPQLP.pdf`), on the line search type:
   (IPOPT-style) and optional user variable scaling.
 - **Dependencies.** *Partly done (2026-09-26):* the unused
   `solve_sparse_linear_system` wrapper and the `sqpopt_linsolve_*`
-  constants are removed, and `lbfgsb` is dropped. `lusol` and `LSMR` are
-  still dependencies but unused until F13/F14 put them to work (or they
-  are dropped).
+  constants are removed, and `lbfgsb` is dropped. `lusol` is now used
+  (F13, F1), and `LSMR` was dropped (F14).
 
 ## 5. Features toward state of the art
 
@@ -828,7 +826,11 @@ guide (`references/NLPQLP.pdf`), on the line search type:
 
   It needs the low-level `lu1fac`/`lu6sol` interface: `lusol_ez%solve`
   refactors on every call, so it only suits one-off solves.
-- **F14: try LSMR for the reduced-Hessian QP's projections.** This is an
+- **F14: try LSMR for the reduced-Hessian QP's projections.** *(Dropped
+  2026-09-26: F1 replaced the LSQR projections with direct LU solves, so
+  LSQR is only used by the fallback `sqpopt_null_space_lsqr` method, and
+  `LSMR` was removed as a dependency, which also fixed the `REAL32`
+  build.)* This was an
   optional, benchmarked experiment. LSMR solves the same least-squares
   problems as LSQR with the same COO interface (`lsmr_ez`), so it is
   close to a drop-in swap.
@@ -903,7 +905,7 @@ decision), option consolidation and validation, scaling, F8, F9, F10.
 **Phase 4: large scale and advanced.** F13 first (LUSOL rank detection:
 small, and it exercises the low-level LUSOL interface), then the sparse
 basis-factorization active-set QP (F1, long-term part), plus F4, F7,
-F11, and F12. Try F14 (LSMR) as a benchmarked experiment along the way.
+F11, and F12. *(F14, LSMR, dropped.)*
 
 **Phase 5 (runs alongside every phase):** CI, the benchmark suite, and
 documentation.
@@ -922,7 +924,7 @@ documentation.
    `lusol`/`LSMR`/`lbfgsb`. *Recommendation (2026-09-26):*
    - keep `lusol`, for F13 *(done: now used)* and then F1;
    - keep `LSMR` only if F14 shows a real benchmark gain, otherwise drop
-     it (which also fixes the `REAL32` build);
+     it (which also fixes the `REAL32` build) *(done: dropped)*;
    - drop `lbfgsb`, which is unused and has no identified role *(done)*;
    - either way, remove the unused `solve_sparse_linear_system` wrapper
      *(done)*.
