@@ -521,8 +521,43 @@ method, kept for comparison and as a fallback).
   option would take the same steps. Options: a better initial working
   set on infeasible starts, a preconditioner for `ZᵀHZ`, or the dense
   reduced-Hessian (SQOPT "Cholesky") option when `nS` is small.
-- Not done: the dense reduced-Hessian option; the minimum-norm starting
-  step still uses one LSQR solve per QP.
+- **Follow-ups (2026-09-26)**, each measured on the benchmark (release):
+  1. *Basic starting step* (SQOPT-style: the guessed working set fixed at
+     its bounds, superbasics zero, `B v_B = −N v_N`; one LU solve) instead
+     of the minimum-norm LSQR one, which was 45% of control N=1500's time.
+  2. *Free all wrongly-signed fixed unknowns at once* at a face optimum
+     (the worst one only in the second half of the iteration limit, as a
+     safeguard against cycling), instead of one per active-set iteration.
+  3. *Diagonal (Jacobi) preconditioner* for CG on `ZᵀHZ`: the diagonal
+     of the L-BFGS matrix (new `sqpopt_hessian_type%diagonal`, O(n k²))
+     on the superbasics. Halves CG iterations per face on control.
+  4. *Gradient-projection step* when CG is blocked by a superbasic: step
+     as far as the basics allow, clip and fix every superbasic taken past
+     a bound, recompute the basics; accepted only if the basics stay
+     feasible and the QP objective decreases, with backtracking (halving,
+     up to 8 times). Fixes e.g. the elastic slacks reaching zero together
+     (rosenbrock: ~1,000 faces per QP → ~3).
+  5. *Dense reduced Hessian* (SQOPT's "Cholesky" option, without updates)
+     for faces with `nS ≤ dense_max_ns` (default 50), CG otherwise. No
+     speed gain (forming `ZᵀHZ` costs about as much as CG), but with the
+     sparse QP forced on the HS suite it solves 245 problems instead of
+     243.
+
+  Tried and rejected: making free *elastic* slacks unit columns in the
+  basis choice (so the variables would be superbasic, and projectable):
+  rosenbrock N=2000 went from 0.25 s back to 1.3 s.
+
+  | problem | before (F1) | 1 | +2 | +3 | +4 (all) |
+  |---|--:|--:|--:|--:|--:|
+  | control N=500 | 0.31 s | 0.17 s | 0.12 s | 0.12 s | 0.06 s |
+  | control N=1500 | 4.1 s | 2.0 s | 1.55 s | 0.96 s | 0.39 s |
+  | rosenbrock N=2000 | 2.6 s | 2.6 s | 1.3 s | 1.3 s | 0.26 s |
+  | rosenbrock N=6000 | 58 s | – | 27.5 s | – | 2.4 s |
+
+  What remains on rosenbrock N=6000 is mostly its first QP (infeasible
+  start): ~6,000 faces, each a *basic* variable reaching a bound (a basis
+  swap each), at ~1.5 CG iterations per face. The dense option could be
+  made much cheaper by updating its factors between faces, as SQOPT does.
 
 ## 2. Bugs: correctness (fix first)
 

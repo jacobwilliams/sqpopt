@@ -459,7 +459,7 @@
     if (.not. (r%active_tol > 0.0_wp .and. r%opt_tol > 0.0_wp .and. r%feas_tol > 0.0_wp .and. &
                r%pcg_rtol > 0.0_wp .and. r%elastic_weight > 0.0_wp .and. r%elastic_weight_max >= r%elastic_weight &
                .and. r%lsqr_atol >= 0.0_wp .and. r%lsqr_btol >= 0.0_wp .and. r%lsqr_conlim >= 0.0_wp) &
-        .or. r%max_iter < 1 .or. all(r%null_space /= [sqpopt_null_space_lu, sqpopt_null_space_lsqr])) then
+        .or. r%max_iter < 1 .or. r%dense_max_ns < 0 .or. all(r%null_space /= [sqpopt_null_space_lu, sqpopt_null_space_lsqr])) then
         msg = 'a qp_solver%sparse_qp setting is out of range'; return
     end if
     end associate

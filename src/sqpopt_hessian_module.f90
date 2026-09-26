@@ -56,6 +56,7 @@
         procedure, public :: update_bfgs             => hessian_update_bfgs
         procedure, public :: update_sr1              => hessian_update_sr1
         procedure, public :: hv_product              => hessian_vector_product
+        procedure, public :: diagonal                => hessian_diagonal
         procedure, public :: inverse_vector_product  => hessian_inverse_vector_product
         procedure, public :: reset                   => hessian_reset
 
@@ -290,6 +291,53 @@
     end if
 
     end subroutine hessian_vector_product
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the diagonal of the Hessian approximation \( H \), from its compact
+!  representation (at a cost of \( O(n k^2) \) for `k` pairs, without
+!  forming \( H \)): \( H_{ii} = \theta \mp \psi_i^T M^{-1} \psi_i \), with
+!  \( \psi_i \) the `i`-th row of \( [\theta S \; Y] \) (BFGS, minus) or of
+!  \( Y - \theta S \) (SR1, plus). Used as a (Jacobi) preconditioner.
+
+    subroutine hessian_diagonal(me, d)
+
+    class(sqpopt_hessian_type), intent(inout) :: me
+    real(wp), dimension(:), intent(out) :: d   !! the diagonal `dimension(n)`
+
+    integer :: i, k, c, nk, j
+    real(wp) :: theta
+    real(wp), dimension(:,:), allocatable :: psi, minv
+
+    k = me%n_history
+    theta = 1.0_wp/me%gamma
+    d = theta
+    if (k == 0) return
+    if (.not. me%mid_valid) call factor_middle_matrix(me)
+    if (.not. me%mid_ok) return
+
+    nk = merge(k, 2*k, me%use_sr1)
+    allocate(psi(me%n, nk), minv(nk, nk))
+    do i = 1, k
+        c = pair_col(me, i)
+        if (me%use_sr1) then
+            psi(:,i) = me%y(:,c) - theta*me%s(:,c)
+        else
+            psi(:,i)   = theta*me%s(:,c)
+            psi(:,k+i) = me%y(:,c)
+        end if
+    end do
+    minv = 0.0_wp
+    do j = 1, nk
+        minv(j,j) = 1.0_wp
+        call lu_solve(me%mid_lu, me%mid_piv, minv(:,j))
+    end do
+    do i = 1, me%n
+        d(i) = theta + merge(1.0_wp, -1.0_wp, me%use_sr1)*dot_product(psi(i,:), matmul(minv, psi(i,:)))
+    end do
+
+    end subroutine hessian_diagonal
 !*******************************************************************************
 
 !*******************************************************************************

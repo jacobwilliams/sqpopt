@@ -23,7 +23,20 @@
 !    are direct (not iterative) solves. Fixing or freeing a superbasic
 !    unknown leaves `B` unchanged; fixing a basic one swaps in a superbasic
 !    column with a Bartels-Golub update of the factors (`lu8rpc`), so `B` is
-!    only refactorized occasionally.
+!    only refactorized occasionally. Also:
+!
+!    - the starting step is a *basic* solution of the working-set guess
+!      (one LU solve), not a minimum-norm one;
+!    - CG is preconditioned by the diagonal of the (L-BFGS) Hessian, and a
+!      face with few superbasics (`dense_max_ns`) is solved exactly with a
+!      dense Cholesky factorization of the reduced Hessian instead;
+!    - when a CG step is blocked by a superbasic, a gradient-projection
+!      step fixes every superbasic it takes past a bound at once (if the
+!      basics stay feasible and the objective decreases, with
+!      backtracking), and at a face optimum every wrongly-signed fixed
+!      unknown is freed at once (the worst one only, in the second half of
+!      the iteration limit, against cycling). Both matter on infeasible
+!      starts, where many constraints change status in one QP.
 !  * `sqpopt_null_space_lsqr`: orthogonal projections onto the null space,
 !    each a least-squares solve with `LSQR`, with **projected conjugate
 !    gradients** (Gould, Hribar & Nocedal 1998; Nocedal & Wright,
@@ -73,6 +86,10 @@
                                              !! (the actual limit is `max(max_iter, 10*(number of rows+1))`)
         integer  :: max_pcg_iter = 0         !! maximum projected-CG iterations per active-set face
                                              !! (`<=0` => twice the number of unknowns)
+        integer  :: dense_max_ns = 50        !! with `null_space=sqpopt_null_space_lu`, a face with at most this
+                                             !! many superbasics is solved exactly, with a dense Cholesky
+                                             !! factorization of the reduced Hessian, instead of by CG
+                                             !! (if it is positive definite; `0` = always CG)
         real(wp) :: active_tol   = 1.0e-8_wp !! relative tolerance for a row being at a bound, and for the sign
                                              !! of a multiplier (relative to the largest multiplier)
         real(wp) :: opt_tol      = 1.0e-10_wp !! relative tolerance on the projected-gradient stationarity test
@@ -169,6 +186,7 @@
     integer,  dimension(:), allocatable :: bpos        !! position of each unknown in the basis (0 if not basic)
     integer,  dimension(:), allocatable :: bvar        !! the basic unknowns
     integer,  dimension(:), allocatable :: sup         !! the superbasic unknowns
+    real(wp), dimension(:), allocatable :: pdiag       !! the CG preconditioner (a diagonal, in `v`)
     logical,  dimension(:), allocatable :: is_eqv      !! unknowns with equal bounds
     type(sqpopt_lu_type) :: blu                        !! LU factors of `B`
 
@@ -176,7 +194,12 @@
     m = size(c)
 
     ! ---- starting step: crash or warm start (see [[sqpopt_qp_dense_module]]) ----
-    call starting_step(p0)
+    if (me%null_space == sqpopt_null_space_lu) then
+        call starting_step_basis(p0, lu_ok)
+        if (.not. lu_ok) call starting_step(p0)
+    else
+        call starting_step(p0)
+    end if
 
     ! ---- elastic slacks: one for each general row violated at p0 ----
     allocate(row_lb(m), row_ub(m), s_sign(m), slack_row(m), s0(m), jp0(m))
@@ -482,6 +505,127 @@
 
         end subroutine starting_step
 
+        subroutine starting_step_basis(p0, ok)
+        !! the basis method's starting step: a *basic* solution of the initial
+        !! working-set guess (as `starting_step`'s guess), instead of the
+        !! minimum-norm one, so it takes one sparse LU factorization instead
+        !! of an iterative `LSQR` solve. With a slack `s` for each row
+        !! (`J p - s = 0`), the guessed rows' slacks and the guessed variables
+        !! are fixed at their bounds, the other nonbasic unknowns are zero,
+        !! and the basic ones solve `B v_B = -N v_N` (see [[choose_basis]]; a
+        !! guess is dropped if the guesses are dependent). Any violated
+        !! variable bounds are added to the guess (up to 4 rounds), then the
+        !! step is clipped to the bounds. `ok=.false.` if the factorization
+        !! failed.
+        real(wp), dimension(n), intent(out) :: p0
+        logical,                intent(out) :: ok
+        integer,  dimension(n+m) :: st_v, cp
+        integer,  dimension(:), allocatable :: cr, bv_idx
+        real(wp), dimension(:), allocatable :: cv
+        real(wp), dimension(n+m) :: wlb, wub, w
+        logical,  dimension(n+m) :: eqv, chosen
+        real(wp), dimension(m) :: rhs, wb
+        type(sqpopt_lu_type) :: lu0
+        integer :: kk, jj, ll, round, stat, nc
+        logical :: added
+
+        ok = .false.
+        nc = n + m
+        wlb(1:n) = x_lb - x;  wub(1:n) = x_ub - x
+        wlb(n+1:nc) = c_lb - c;  wub(n+1:nc) = c_ub - c
+        do jj = 1, nc
+            eqv(jj) = wub(jj) - wlb(jj) <= 0.0_wp
+        end do
+
+        ! the guess (as in `starting_step`): the previous working set, or the
+        ! equality constraints and fixed variables; not a side with an infinite bound
+        st_v = 0
+        if (me%warm_start .and. allocated(me%warm_status)) then
+            if (size(me%warm_status) == m+n) then
+                st_v(1:n)    = me%warm_status(m+1:m+n)
+                st_v(n+1:nc) = me%warm_status(1:m)
+            end if
+        end if
+        if (all(st_v == 0)) then
+            where (eqv) st_v = -1
+        end if
+        do jj = 1, nc
+            if (st_v(jj) == -1 .and. wlb(jj) <= -sqpopt_infinity) st_v(jj) = 0
+            if (st_v(jj) ==  1 .and. wub(jj) >=  sqpopt_infinity) st_v(jj) = 0
+        end do
+
+        ! `[J -I]` by columns:
+        cp = 0
+        do kk = 1, jac%nnz
+            cp(jac%icol(kk)) = cp(jac%icol(kk)) + 1
+        end do
+        cp(n+1:nc) = 1
+        allocate(cr(sum(cp)), cv(sum(cp)))
+        block
+            integer, dimension(nc+1) :: ptr
+            integer, dimension(nc)   :: pos
+            ptr(1) = 1
+            do jj = 1, nc
+                ptr(jj+1) = ptr(jj) + cp(jj)
+            end do
+            pos = ptr(1:nc)
+            do kk = 1, jac%nnz
+                jj = jac%icol(kk)
+                cr(pos(jj)) = jac%irow(kk); cv(pos(jj)) = jac%val(kk); pos(jj) = pos(jj) + 1
+            end do
+            do kk = 1, m
+                cr(pos(n+kk)) = kk; cv(pos(n+kk)) = -1.0_wp
+            end do
+
+            do round = 1, 4
+                ! the basis (dropping dependent guesses), and the basic solution:
+                w = 0.0_wp
+                if (m > 0) then
+                    call choose_basis(m, nc, n, ptr, cr, cv, st_v, eqv, chosen, stat)
+                    if (stat /= 0) return
+                    where (chosen) st_v = 0
+                end if
+                where (st_v == -1) w = wlb
+                where (st_v ==  1) w = wub
+                if (m > 0) then
+                    bv_idx = pack([(jj, jj=1,nc)], chosen)
+                    block
+                        integer,  dimension(:), allocatable :: bi, bj
+                        real(wp), dimension(:), allocatable :: bvv
+                        bi  = [(cr(ptr(bv_idx(kk)):ptr(bv_idx(kk)+1)-1), kk=1,m)]
+                        bj  = [(spread(kk, 1, ptr(bv_idx(kk)+1)-ptr(bv_idx(kk))), kk=1,m)]
+                        bvv = [(cv(ptr(bv_idx(kk)):ptr(bv_idx(kk)+1)-1), kk=1,m)]
+                        call lu0%factorize(m, bi, bj, bvv, 1.0e-12_wp, stat)
+                    end block
+                    if (stat /= 0) return
+                    rhs = 0.0_wp
+                    do jj = 1, nc
+                        if (chosen(jj) .or. w(jj) == 0.0_wp) cycle
+                        do ll = ptr(jj), ptr(jj+1)-1
+                            rhs(cr(ll)) = rhs(cr(ll)) - cv(ll)*w(jj)
+                        end do
+                    end do
+                    call lu0%solve(rhs, wb, transpose=.false.)
+                    w(bv_idx) = wb
+                end if
+                ! add any violated variable bounds to the guess, and try again:
+                added = .false.
+                do jj = 1, n
+                    if (st_v(jj) /= 0) cycle
+                    if (w(jj) < wlb(jj)) then
+                        st_v(jj) = -1; added = .true.
+                    else if (w(jj) > wub(jj)) then
+                        st_v(jj) = 1; added = .true.
+                    end if
+                end do
+                if (.not. added) exit
+            end do
+        end block
+        p0 = min(max(w(1:n), wlb(1:n)), wub(1:n))
+        ok = .true.
+
+        end subroutine starting_step_basis
+
         subroutine build_rows()
         !! the combined rows: `J` (plus the slack columns), then a unit row per unknown
         integer, dimension(:), allocatable :: cnt, pos
@@ -683,56 +827,15 @@
         end do
 
         ! ---- initial basis and working set ----
-        ! The unknowns at a bound are the candidates for the working set. The
-        ! basis is picked from all the columns by one rank-revealing LU, on the
-        ! row-normalized matrix, with each column scaled by how much it should
-        ! be *free*: the free row slacks most (as exact unit columns, which
-        ! LUSOL takes first: an inactive row's slack is its natural basic
-        ! variable), then the other free unknowns, then inequality rows'
-        ! slacks, then variable bounds, then equality constraints. The
-        ! candidates not picked are fixed (the working set); those picked stay
-        ! free, which drops them from the working set only if needed for a
-        ! nonsingular basis (i.e. if the candidates are linearly dependent).
-        ! (Normalizing the columns instead can make a poor basis: e.g. a
-        ! variable with a single small entry would become a unit column.)
+        ! The unknowns at a bound are the candidates for the working set (see
+        ! [[choose_basis]] for how the basis is picked from all the columns).
         allocate(state(nn), bpos(nn), bvar(m), chosen(nn)); state = 0; bpos = 0
         do j = 1, nn
             state(j) = at_bound_v(j)
             if (is_eqv(j)) state(j) = -1
         end do
         if (m > 0) then
-            block
-                real(wp), dimension(size(cval)) :: wv
-                integer,  dimension(size(cval)) :: wc
-                real(wp), dimension(m) :: rn
-                real(wp) :: wt
-                rn = 0.0_wp
-                do j = 1, nt
-                    do l = cptr(j), cptr(j+1)-1
-                        rn(crow(l)) = rn(crow(l)) + cval(l)**2
-                    end do
-                end do
-                rn = sqrt(rn)
-                where (rn <= 0.0_wp) rn = 1.0_wp
-                do j = 1, nn
-                    if (state(j) == 0) then
-                        wt = 1.0_wp
-                    else if (is_eqv(j)) then
-                        wt = 1.0e-6_wp
-                    else if (j <= nt) then
-                        wt = 1.0e-4_wp
-                    else
-                        wt = 1.0e-2_wp
-                    end if
-                    do l = cptr(j), cptr(j+1)-1
-                        wv(l) = wt*cval(l)/rn(crow(l))
-                        wc(l) = j
-                    end do
-                    if (j > nt .and. state(j) == 0) wv(cptr(j)) = -1.0_wp
-                end do
-                call independent_columns(m, nn, crow, wc, wv, 1.0e-8_wp, 1.0e-6_wp*epsilon(1.0_wp)**0.67_wp, &
-                                         chosen, st)
-            end block
+            call choose_basis(m, nn, nt, cptr, crow, cval, state, is_eqv, chosen, st)
             if (st /= 0 .or. count(chosen) /= m) return
             k = 0
             do j = 1, nn
@@ -745,6 +848,21 @@
             if (.not. factorize_basis()) return
         end if
         call update_basics()
+
+        ! ---- the CG preconditioner: the diagonal of the QP Hessian on the
+        ! variables (L-BFGS), the elastic slacks' proximal curvature, and the
+        ! variables' mean on the row slacks (which have no curvature of their
+        ! own); kept positive ----
+        allocate(pdiag(nn))
+        call hessian%diagonal(pdiag(1:n))
+        pdiag(n+1:nt) = gscale
+        block
+            real(wp) :: base
+            base = sum(abs(pdiag(1:n)))/max(1, n)
+            if (base <= 0.0_wp) base = 1.0_wp
+            pdiag(nt+1:nn) = base
+            pdiag(1:n) = max(pdiag(1:n), 1.0e-8_wp*base)
+        end block
 
         ! ---- active-set iterations ----
         istat   = sqpopt_qp_solve_failed
@@ -768,15 +886,28 @@
             ! cancellation with the large elastic multipliers)
             if (norm2(rs) > me%opt_tol*sc .and. .not. cg_done) then
 
-                call reduced_cg(rs, me%opt_tol*sc, dtot, dext, trunc)
+                if (.not. dense_reduced_step(rs, dtot)) then
+                    call reduced_cg(rs, me%opt_tol*sc, dtot, dext, trunc)
+                else
+                    trunc = .false.
+                end if
 
                 ! first, the step accumulated by CG (which may itself be blocked):
                 call ratio_test_v(dtot, 1.0_wp, alpha_b, blk, side)
-                v = v + alpha_b*dtot
                 if (blk /= 0 .and. alpha_b < 1.0_wp - 1.0e-12_wp) then
+                    if (bpos(blk) == 0) then
+                        ! (blocked by a superbasic: try fixing all the superbasics
+                        ! the step would take past their bounds at once)
+                        if (projected_step(dtot, k)) then
+                            if (k < 0) return
+                            cycle
+                        end if
+                    end if
+                    v = v + alpha_b*dtot
                     if (.not. fix(blk, side)) return
                     cycle
                 end if
+                v = v + alpha_b*dtot
                 if (.not. trunc) then
                     cg_done = .true.     ! (then at the face optimum)
                     cycle
@@ -793,8 +924,8 @@
 
             cg_done = .false.
 
-            ! optimal on this face. Free the fixed unknown with the most wrongly
-            ! signed reduced cost `g_j - a_j^T y` (its multiplier), if any
+            ! optimal on this face. Free the fixed unknowns with wrongly signed
+            ! reduced costs `g_j - a_j^T y` (their multipliers), if any
             ! (relative to the largest one, not counting the elastic slacks'
             ! bounds, whose multipliers are the large penalty weight):
             tol_mult = 0.0_wp
@@ -803,15 +934,22 @@
                 tol_mult = max(tol_mult, abs(gv(j) - col_dot(j, y)))
             end do
             tol_mult = me%active_tol*max(1.0_wp, tol_mult)
+            ! (All of them at once, as in gradient-projection methods for bounds:
+            ! on an infeasible start many constraints are released, and one at a
+            ! time costs an active-set iteration each. Only the worst one in the
+            ! second half of the iteration limit, as a safeguard against cycling.)
             worst = tol_mult
             k = 0
             do j = 1, nn
                 if (state(j) == 0 .or. is_eqv(j)) cycle
-                dj = gv(j) - col_dot(j, y)
-                if (state(j) == -1 .and. -dj > worst) then
-                    worst = -dj; k = j
-                else if (state(j) == 1 .and. dj > worst) then
-                    worst = dj; k = j
+                dj = merge(-1.0_wp, 1.0_wp, state(j) == -1)*(gv(j) - col_dot(j, y))
+                if (dj <= tol_mult) cycle
+                if (iter <= maxit_b/2) then
+                    state(j) = 0
+                    k = j
+                else if (dj > worst) then
+                    worst = dj
+                    k = j
                 end if
             end do
             if (k /= 0) then
@@ -937,7 +1075,7 @@
 
         subroutine reduced_cg(rg0, abs_tol, d_total, d_extra, truncated)
         !! conjugate gradients on the reduced Hessian `Z^T H Z` (in the
-        !! superbasics): returns the accumulated step `d_total = Z d_S`; if a
+        !! superbasics, preconditioned by the diagonal `pdiag`): returns the accumulated step `d_total = Z d_S`; if a
         !! direction of nonpositive curvature is found, it is returned
         !! (downhill) in `d_extra` with `truncated=.true.`. Every step stays
         !! on the constraints by construction.
@@ -945,21 +1083,23 @@
         real(wp),               intent(in)  :: abs_tol !! absolute stopping tolerance on it
         real(wp), dimension(:), intent(out) :: d_total, d_extra
         logical,                intent(out) :: truncated
-        real(wp), dimension(size(rg0)) :: rr, ds, hd
+        real(wp), dimension(size(rg0)) :: rr, ds, hd, zz, pm
         real(wp), dimension(m)  :: yy
         real(wp), dimension(nn) :: zd, hzd
-        real(wp) :: rr_old, rr_new, kappa, alpha, tol
+        real(wp) :: rz_old, rz_new, kappa, alpha, tol
         integer :: jj, max_it
         d_total = 0.0_wp
         d_extra = 0.0_wp
         truncated = .false.
+        pm = pdiag(sup)
         rr = rg0
-        ds = -rr
-        rr_old = dot_product(rr, rr)
+        zz = rr/pm
+        ds = -zz
+        rz_old = dot_product(rr, zz)
         tol = max(abs_tol, me%pcg_rtol*norm2(rg0))
         max_it = min(max_pcg, max(1, size(rg0)))
         do jj = 1, max_it
-            if (sqrt(rr_old) <= tol) exit
+            if (norm2(rr) <= tol) exit
             call z_times(ds, zd)
             call hv_product(zd, hzd)
             call zt_times(hzd, hd, yy)
@@ -969,14 +1109,156 @@
                 truncated = norm2(zd) > 0.0_wp
                 return
             end if
-            alpha   = rr_old/kappa
+            alpha   = rz_old/kappa
             d_total = d_total + alpha*zd
             rr      = rr + alpha*hd
-            rr_new  = dot_product(rr, rr)
-            ds      = -rr + (rr_new/rr_old)*ds
-            rr_old  = rr_new
+            zz      = rr/pm
+            rz_new  = dot_product(rr, zz)
+            ds      = -zz + (rz_new/rz_old)*ds
+            rz_old  = rz_new
         end do
         end subroutine reduced_cg
+
+        logical function projected_step(d, stat)
+        !! a gradient-projection step along the CG step `d` (Moré-Toraldo
+        !! style), for when the plain step is blocked by a superbasic: the
+        !! step length is limited only by the *basic* unknowns (at most 1),
+        !! every superbasic taken past a bound is clipped to it and fixed, and
+        !! the basics are recomputed from the constraints. It is only taken
+        !! (`.true.`) if the basics stay within their bounds and the QP
+        !! objective decreases; then any basic unknown that blocked is fixed
+        !! too (`stat=-1` if its basis update failed). This fixes many
+        !! bounds in one active-set iteration where the plain step would
+        !! need one each (e.g. the elastic slacks reaching zero together).
+        real(wp), dimension(:), intent(in) :: d
+        integer,  intent(out) :: stat
+        real(wp), dimension(nn) :: w, v_old
+        integer,  dimension(nn) :: st_old
+        real(wp) :: a_b, ak, q_old, tolb
+        integer  :: jj, bb, bs, nclip, bt
+        projected_step = .false.
+        stat = 0
+        ! the step length allowed by the basics:
+        a_b = 1.0_wp
+        bb = 0; bs = 0
+        do jj = 1, nn
+            if (bpos(jj) == 0 .or. d(jj) == 0.0_wp) cycle
+            if (d(jj) > 0.0_wp .and. vub(jj) < sqpopt_infinity) then
+                ak = max((vub(jj) - v(jj))/d(jj), 0.0_wp)
+                if (ak < a_b) then; a_b = ak; bb = jj; bs = 1; end if
+            else if (d(jj) < 0.0_wp .and. vlb(jj) > -sqpopt_infinity) then
+                ak = max((vlb(jj) - v(jj))/d(jj), 0.0_wp)
+                if (ak < a_b) then; a_b = ak; bb = jj; bs = -1; end if
+            end if
+        end do
+        v_old = v
+        st_old = state
+        q_old = qp_objective(v)
+        ! the projected point: clip (and fix) the superbasics, then the basics;
+        ! backtracking (halving the step) until it is acceptable:
+        do bt = 1, 8
+            w = v_old + a_b*d
+            nclip = 0
+            do jj = 1, nn
+                if (st_old(jj) /= 0 .or. bpos(jj) /= 0) cycle
+                if (w(jj) <= vlb(jj)) then
+                    w(jj) = vlb(jj); state(jj) = -1; nclip = nclip + 1
+                else if (w(jj) >= vub(jj)) then
+                    w(jj) = vub(jj); state(jj) = 1; nclip = nclip + 1
+                end if
+            end do
+            if (nclip < 2) exit
+            v = w
+            call update_basics()
+            tolb = 0.0_wp
+            do jj = 1, nn
+                if (bpos(jj) == 0) cycle
+                tolb = max(tolb, vlb(jj) - v(jj) - me%active_tol*max(1.0_wp, abs(vlb(jj))), &
+                                 v(jj) - vub(jj) - me%active_tol*max(1.0_wp, abs(vub(jj))))
+            end do
+            if (tolb <= 0.0_wp) then
+                if (qp_objective(v) < q_old) then
+                    projected_step = .true.
+                    exit
+                end if
+            end if
+            v = v_old
+            state = st_old
+            a_b = 0.5_wp*a_b
+            bb = 0
+        end do
+        if (.not. projected_step) then
+            v = v_old          ! (rejected: back to the plain step)
+            state = st_old
+            return
+        end if
+        ! (the basics may be slightly outside their bounds within the tolerance)
+        do jj = 1, nn
+            if (bpos(jj) /= 0) v(jj) = min(max(v(jj), vlb(jj)), vub(jj))
+        end do
+        if (bb /= 0 .and. a_b < 1.0_wp) then
+            if (abs(v(bb) - merge(vlb(bb), vub(bb), bs == -1)) <= me%active_tol*max(1.0_wp, abs(v(bb)))) then
+                if (.not. fix(bb, bs)) stat = -1
+            end if
+        end if
+        end function projected_step
+
+        real(wp) function qp_objective(vv)
+        !! the (elastic) QP objective at `vv`: `1/2 v^T H v + g^T p + rho*sum(e)`
+        !! (with the elastic slacks' proximal term)
+        real(wp), dimension(:), intent(in) :: vv
+        real(wp), dimension(nn) :: hv
+        call hv_product(vv, hv)
+        qp_objective = 0.5_wp*dot_product(vv, hv) + dot_product(g, vv(1:n)) + rho*sum(vv(n+1:nt))
+        end function qp_objective
+
+        logical function dense_reduced_step(rg0, d_total)
+        !! for a small number of superbasics (`nS <= dense_max_ns`), the exact
+        !! Newton step on the face, `d_total = Z d_S` with `(Z^T H Z) d_S =
+        !! -rg0`, from a dense Cholesky factorization of the reduced Hessian
+        !! (formed with `nS` products; SQOPT's "Cholesky" option, without
+        !! updating the factors between faces). `.false.` (and CG is used
+        !! instead) if `nS` is too large or the reduced Hessian isn't
+        !! (numerically) positive definite.
+        real(wp), dimension(:), intent(in)  :: rg0
+        real(wp), dimension(:), intent(out) :: d_total
+        real(wp), dimension(size(rg0),size(rg0)) :: rh
+        real(wp), dimension(size(rg0)) :: e_j, ds
+        real(wp), dimension(m)  :: yy
+        real(wp), dimension(nn) :: zd, hzd
+        integer :: jj, ii, kk, ns
+        dense_reduced_step = .false.
+        ns = size(rg0)
+        if (ns == 0 .or. ns > me%dense_max_ns) return
+        do jj = 1, ns
+            e_j = 0.0_wp; e_j(jj) = 1.0_wp
+            call z_times(e_j, zd)
+            call hv_product(zd, hzd)
+            call zt_times(hzd, rh(:,jj), yy)
+        end do
+        rh = 0.5_wp*(rh + transpose(rh))
+        ! Cholesky (lower), in place:
+        do jj = 1, ns
+            rh(jj,jj) = rh(jj,jj) - dot_product(rh(jj,1:jj-1), rh(jj,1:jj-1))
+            if (rh(jj,jj) <= 1.0e-12_wp*max(1.0_wp, maxval(abs(pdiag(sup))))) return
+            rh(jj,jj) = sqrt(rh(jj,jj))
+            do ii = jj+1, ns
+                rh(ii,jj) = (rh(ii,jj) - dot_product(rh(ii,1:jj-1), rh(jj,1:jj-1)))/rh(jj,jj)
+            end do
+        end do
+        ds = -rg0
+        do ii = 1, ns
+            ds(ii) = (ds(ii) - dot_product(rh(ii,1:ii-1), ds(1:ii-1)))/rh(ii,ii)
+        end do
+        do ii = ns, 1, -1
+            do kk = ii+1, ns
+                ds(ii) = ds(ii) - rh(kk,ii)*ds(kk)
+            end do
+            ds(ii) = ds(ii)/rh(ii,ii)
+        end do
+        call z_times(ds, d_total)
+        dense_reduced_step = .true.
+        end function dense_reduced_step
 
         subroutine ratio_test_v(d, alpha_cap, alpha, blocking, blocking_side)
         !! the largest `alpha <= alpha_cap` for which `v+alpha*d` satisfies the
@@ -1233,6 +1515,73 @@
     s = norm2(rows%val(rows%ptr(k):rows%ptr(k+1)-1))
 
     end function row_norm
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  pick a basis (`m` linearly independent columns) of the `m x nn` sparse
+!  matrix `A = [J E -I]` (by columns: `cptr`, `crow`, `cval`; the last
+!  `nn-nx` columns are the row slacks `-I`), for the basis method of
+!  [[sqpopt_reduced_hessian_qp_type]], by one rank-revealing LU (see
+!  [[independent_columns]]).
+!
+!  The pivoting works on the row-normalized matrix, with each column scaled
+!  by how much its unknown should be *free* (`state(j)=0`) rather than fixed
+!  at a bound (`state(j)/=0`, a candidate for the working set): the free row
+!  slacks most (as exact unit columns, which LUSOL takes first: an inactive
+!  row's slack is its natural basic variable), then the other free
+!  unknowns, then fixed inequality rows' slacks, then fixed variables, then
+!  fixed equality constraints (`is_eqv`). A fixed candidate that is picked
+!  has to be freed (dropped from the working set), which only happens if
+!  the candidates are linearly dependent.
+!
+!  (Normalizing the columns instead can make a poor basis: e.g. a variable
+!  with a single small entry would become a unit column.)
+
+    subroutine choose_basis(m, nn, nx, cptr, crow, cval, state, is_eqv, chosen, istat)
+
+    integer,                intent(in)  :: m, nn, nx
+    integer,  dimension(:), intent(in)  :: cptr, crow
+    real(wp), dimension(:), intent(in)  :: cval
+    integer,  dimension(:), intent(in)  :: state   !! 0 = free, -1/+1 = fixed at a bound (a candidate)
+    logical,  dimension(:), intent(in)  :: is_eqv  !! unknowns with equal bounds
+    logical,  dimension(:), intent(out) :: chosen  !! the basic columns
+    integer,                intent(out) :: istat   !! 0 if exactly `m` columns were picked
+
+    real(wp), dimension(size(cval)) :: wv
+    integer,  dimension(size(cval)) :: wc
+    real(wp), dimension(m) :: rn
+    real(wp) :: wt
+    integer  :: j, l
+
+    rn = 0.0_wp
+    do j = 1, nx
+        do l = cptr(j), cptr(j+1)-1
+            rn(crow(l)) = rn(crow(l)) + cval(l)**2
+        end do
+    end do
+    rn = sqrt(rn)
+    where (rn <= 0.0_wp) rn = 1.0_wp
+    do j = 1, nn
+        if (state(j) == 0) then
+            wt = 1.0_wp
+        else if (is_eqv(j)) then
+            wt = 1.0e-6_wp
+        else if (j <= nx) then
+            wt = 1.0e-4_wp
+        else
+            wt = 1.0e-2_wp
+        end if
+        do l = cptr(j), cptr(j+1)-1
+            wv(l) = wt*cval(l)/rn(crow(l))
+            wc(l) = j
+        end do
+        if (j > nx .and. state(j) == 0) wv(cptr(j)) = -1.0_wp
+    end do
+    call independent_columns(m, nn, crow, wc, wv, 1.0e-8_wp, 1.0e-6_wp*epsilon(1.0_wp)**0.67_wp, chosen, istat)
+    if (istat == 0 .and. count(chosen) /= m) istat = -1
+
+    end subroutine choose_basis
 !*******************************************************************************
 
 !*******************************************************************************
