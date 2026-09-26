@@ -1,0 +1,239 @@
+# sqpopt Roadmap (v2): review findings and plan
+
+Written 2026-09-25 after a full review of all 16 modules in `src/`
+(~4,000 lines) and the test suite. Every item tagged **[verified]** was
+confirmed with a probe program built against the library under
+`-fcheck=all` (the probes are described in §6 and should become
+regression tests). Untagged items come from reading the code.
+[PLAN.md](PLAN.md) remains the historical design log. This document
+supersedes its §5 backlog.
+
+## 1. Where things stand
+
+**Strengths.** The architecture is good. It has clean module boundaries
+(problem, options, Hessian, QP, line search, trust region, convergence),
+pluggable modes for each component, a sparse COO Jacobian, and a
+matrix-free Hessian. It builds cleanly, and all current tests pass under
+`-fcheck=all`. The dense and reduced-Hessian QP modes already solve HS71
+well.
+
+**Main weaknesses.**
+1. There are several correctness bugs in the quasi-Newton and
+   convergence code. Two of them silently degrade every run of the
+   real-QP modes, and one makes the default mode report success at
+   non-optimal points.
+2. The default QP mode (`sqpopt_qp_composite`) is a heuristic that is not
+   a real QP solve. It limit-cycles on HS71 and, as it turns out, only
+   "works" there because of bug B2 below.
+3. There are no failure paths. QP failures, line-search failures, and
+   infeasibility never reach the caller. Every non-converged run ends as
+   `sqpopt_max_iter_reached`.
+4. Robustness plumbing is missing: infinite bounds, input validation,
+   evaluation errors, scaling, and resetting state between `solve()` calls.
+5. There is no CI and no benchmark suite. Some tests accept a 0.5
+   solution error on runs that never converge.
+
+**Measured impact of fixing just B1 and B2** (HS71, objective
+evaluations `i_obj` and max x-error):
+
+| mode | today | after B1 fix | after B1 + B2 fix |
+|---|---|---|---|
+| dense QP | 158 evals, 1.2e-6 | 38, 3e-7 | **22, 2e-7** |
+| reduced-Hessian QP | 26, 3.4e-5 | 26, 3.4e-5 | **26, 2e-7** |
+| filter + dense QP | 3203, 1.9e-4 | 166, 2e-7 | **22, 2e-7** |
+| composite (default) | 21960, 0.35 (max_iter) | unchanged | **diverges, 4.6** |
+
+## 2. Bugs: correctness (fix first)
+
+| # | Issue | Where | Evidence |
+|---|---|---|---|
+| B1 | **Compact L-BFGS forward product has `L` and `Lᵀ` swapped** in the BNS middle matrix. `B·v` fails the secant condition for the newest pair (error 0.72) and disagrees with the two-loop inverse (`‖B·H⁻¹v − v‖ = 0.71`). Every consumer of `hv_product` sees the wrong Hessian: the dense QP (densifies `H`), the reduced-Hessian QP's PCG, the filter's `q`, and the trust region's `pred`. The fix (upper-right block `mid(p,k+q)=s_pᵀy_q` for `p>q`, lower-left its transpose) brings the secant error to 0 and consistency to 7e-16. | [sqpopt_hessian_module.f90:234-238](../src/sqpopt_hessian_module.f90#L234-L238) | **[verified]** |
+| B2 | **Quasi-Newton `y` mixes two multiplier estimates.** `gl_prev = g_k − J_kᵀλ_k` but `gl = g_{k+1} − J_{k+1}ᵀλ_{k+1}`. The correct value is `y = ∇L(x_{k+1},λ_{k+1}) − ∇L(x_k,λ_{k+1})`. Fix: at the end of the iteration, store `gl_prev = g − J_kᵀ·new_lambda`. | [sqpopt_iterate_module.f90:118-124, 213-214](../src/sqpopt_iterate_module.f90#L118-L124) | **[verified]** (table above) |
+| B3 | **The KKT test ignores the sign of the multipliers and complementarity for general constraints**, so it reports success at non-KKT points. `min −x₁−x₂` s.t. `0≤xᵢ≤10` (as constraints), started at `x=0`: the composite mode returns `istat=0` at `x=(0,0)`, `λ=(−1,−1)`. The true optimum is `(10,10)`. The test needs: `λᵢ ≥ −tol` at a lower bound, `λᵢ ≤ tol` at an upper bound, `|λᵢ| ≤ tol` when strictly inactive, and free for equalities. It should also use scaled tolerances (SNOPT-style, relative to `max(1,‖λ‖)`). | [sqpopt_convergence_module.f90:62-85](../src/sqpopt_convergence_module.f90#L62-L85) | **[verified]** |
+| B4 | **The L-SR1 product is inconsistent.** The cached `wᵢ = yᵢ − B sᵢ` are computed against the *old* `γ`, and they go stale when `γ` changes or the oldest pair is dropped. Newest-pair secant error is 0.32. Fix: use the compact L-SR1 form (`B = θI + Ψ M⁻¹ Ψᵀ` with `Ψ = Y − θS`), rebuilt from `S`,`Y` on update, or freeze `θ` for SR1. | [sqpopt_hessian_module.f90:144-150, 166-172](../src/sqpopt_hessian_module.f90#L144-L150) | **[verified]** |
+| B5 | **Infinite bounds overflow.** `x_lb=-huge` makes `x_ub-x_lb = +Inf`, so `print_iterations` crashes under `-ffpe-trap=overflow`. The same pattern appears in the convergence test, both QP solvers, and the composite active set. There needs to be a documented `sqpopt_infinity` (e.g. `1e20`), and `\|b\| ≥ infinity` should be treated as "no bound" everywhere. | [sqpopt_convergence_module.f90:70](../src/sqpopt_convergence_module.f90#L70), [sqpopt_qp_dense_module.f90:132-133](../src/sqpopt_qp_dense_module.f90#L132-L133), ... | **[verified]** |
+| B6 | **Failure statuses never reach the caller.** `solve` only checks `converged` and user stop. The first `qp_istat` is never acted on, and line-search failures are ignored. `sqpopt_infeasible`, `sqpopt_qp_solve_failed`, and `sqpopt_line_search_failed` are never returned. An infeasible problem runs all 100 iterations and returns `istat=1` in all three QP modes. (This contradicts the "DONE" note in `notes.txt`.) | [sqpopt_module.F90:138-152](../src/sqpopt_module.F90#L138-L152), [sqpopt_iterate_module.f90:148](../src/sqpopt_iterate_module.f90#L148) | **[verified]** |
+| B7 | **The stalled-progress test can report success after a failed step.** If the line search or trust region fails and returns `x_new≈x`, then `rel_f, rel_x ≤ tol` holds with feasibility and the run returns `sqpopt_success` while KKT is not satisfied. This needs a distinct status (e.g. `sqpopt_stalled`) that is not reported as success. | [sqpopt_convergence_module.f90:87-96](../src/sqpopt_convergence_module.f90#L87-L96) | |
+| B8 | **Non-descent steps are forcibly accepted.** Armijo and filter accept `alpha_min=0.1` unconditionally, and the trust region accepts a rejected step. This breaks global convergence and can increase the merit function. Also, when `max_ls_iter` runs out first, the reported `alpha=alpha_min` does not match the returned `x_trial`. | [sqpopt_linesearch_module.f90:399-403, 650-656](../src/sqpopt_linesearch_module.f90#L399-L403), [sqpopt_trust_region_module.f90:223-229](../src/sqpopt_trust_region_module.f90#L223-L229) | |
+| B9 | **Solver state leaks across `solve()` calls.** `linesearch%penalty`, the filter (`filter_ready`), the watchdog state, and `trust_region%ready/radius` are never reset. Only the Hessian and the mode fields are re-initialized. | [sqpopt_module.F90:132-136](../src/sqpopt_module.F90#L132-L136) | |
+| B10 | **The QP failure path returns mismatched multipliers.** If the active-set loop exhausts its iterations, `coeff` comes from an older working set (or has size 0) while `orig_idx` is current. The result is an out-of-bounds read or wrong `λ`, and the caller uses `p` anyway. | [sqpopt_qp_dense_module.f90:290-295](../src/sqpopt_qp_dense_module.f90#L290-L295), [sqpopt_qp_reduced_hessian_module.f90:286-291](../src/sqpopt_qp_reduced_hessian_module.f90#L286-L291) | |
+| B11 | **The active-set QPs are not robust to degenerate or infeasible subproblems.** Phase 1 is two projections, not a real feasibility phase. An inconsistent linearization is never detected. `dense_null_space` assumes the working set has full row rank (wrong `n_z` when rows are dependent or `n_active>n`). The Gram-matrix Cholesky is silently perturbed. There is no anti-cycling. | [sqpopt_qp_dense_module.f90:141-160](../src/sqpopt_qp_dense_module.f90#L141-L160), [sqpopt_dense_linalg_module.f90:36-96](../src/sqpopt_dense_linalg_module.f90#L36-L96) | |
+| B12 | **An indefinite reduced Hessian gives huge steps.** Modified Cholesky floors non-positive pivots at `1e-10`, so a negative-curvature direction is scaled by ~1e10 and only `max_step` catches it. This matters for SR1 and a future exact Hessian. | [sqpopt_dense_linalg_module.f90:122](../src/sqpopt_dense_linalg_module.f90#L122) | |
+| B13 | **SOC is always run and not bound-safe.** It runs every iteration (2 extra `f` and 2 extra `c` evaluations plus an LSQR solve) even when the full step would be accepted. `x+p_soc` is not projected onto the variable bounds, it corrects inactive inequality rows too, and the line search then backtracks along `p_soc` rather than the SOC arc. The standard approach: try SOC only after the full step is rejected, use active rows only, and project onto the bounds. | [sqpopt_soc_module.f90](../src/sqpopt_soc_module.f90), [sqpopt_iterate_module.f90:185](../src/sqpopt_iterate_module.f90#L185) | |
+| B14 | **The filter deviates from the theory.** Every accepted *trial* point is added (instead of `x_k`, and only on h-type iterations). There is no switching condition or Armijo test on f-type iterations, and the stored `q` is from the previous step. This explains the filter's high evaluation counts. Replace it with the Wächter–Biegler rules (see F6). | [sqpopt_linesearch_module.f90:626-656](../src/sqpopt_linesearch_module.f90#L626-L656) | |
+| B15 | Smaller issues. The descent safeguard re-solves the QP without re-updating the penalty and returns early without updating `x_prev`. After a watchdog backtrack to `x_opt`, the multipliers still come from the current point. The trust region's `pred` is ℓ1-based even with the AL merit (the ratio is inconsistent) and it runs SOC on every retry. The penalty only ever increases. | [sqpopt_iterate_module.f90:167-176](../src/sqpopt_iterate_module.f90#L167-L176), [sqpopt_trust_region_module.f90:146-171](../src/sqpopt_trust_region_module.f90#L146-L171) | |
+| B16 | **No input validation.** Nothing checks `n≤0`, `lb>ub`, Jacobian indices out of range, `size(x0)/=n`, missing callbacks (a null procedure pointer segfaults), or `lbfgs_memory≤0` (`push_pair` writes column 0). `x0` is not projected onto its bounds, so the functions can be evaluated outside them. | [sqpopt_problem_module.f90](../src/sqpopt_problem_module.f90), [sqpopt_hessian_module.f90:166-177](../src/sqpopt_hessian_module.f90#L166-L177) | |
+| B17 | Documentation and behavior disagree. `sqpopt_hessian_exact` silently falls back to BFGS (`eval_hess` is never called). The README says "damped BFGS", but only a skip rule exists. `m_eq`/`m_ineq` are unused (only `m` is), and the "equalities first" ordering is neither required nor used. | various | |
+
+## 3. Efficiency
+
+| # | Issue | Fix |
+|---|---|---|
+| E1 | `f` and `c` are re-evaluated at the start of each major iteration at the point the line search just evaluated. SOC adds 2+2 more evaluations per iteration. | Carry `f`/`c` for the accepted point out of the line search. Make SOC conditional (B13). |
+| E2 | `hv_product` rebuilds and factors the `2k×2k` middle matrix on **every call**, which costs `O(k²n+k³)`. PCG and the dense QP's densify step (`n` calls) make it hot. | Cache `SᵀS`, `L`, `D` and the factorization, and update them only in `update_*`. |
+| E3 | `sparse_dot_row` scans all `nnz` for each row, so the reduced-Hessian ratio test costs `O((m+n)·nnz)` per active-set step. This defeats the large-scale mode. | Build a CSR row-pointer copy of `J` once per major iteration. |
+| E4 | Both active-set QPs cold-start from an empty working set every major iteration. | Warm-start from the previous major iteration's working set. This is the single biggest QP speedup near convergence (SNOPT/SLSQP do it). |
+| E5 | The Jacobian `irow`/`icol` are copied and reallocated every iteration, and `push_pair` shifts every column (`O(nk)`). | Keep the structure in solver state. Use a circular buffer index. |
+| E6 | The dense QP recomputes a full QR for each working-set change (`O(n³)`). | Acceptable for small `n`. Use QR updates later if dense-mode sizes grow. |
+
+## 4. Architecture and API gaps (production-readiness)
+
+- **Results and diagnostics.** Return iteration count, function and
+  derivative evaluation counts, final objective, `c(x)`, KKT and
+  feasibility residuals, and **multipliers for variable bounds** (not
+  returned today). Add a `status_message(istat)` function.
+- **Status codes.** Add `stalled`, `infeasible` (locally infeasible, with
+  the point that minimizes infeasibility), `unbounded` (objective below
+  a limit), `eval_error`, and `invalid_input`. Make `max_iter` the only
+  "ran out of budget" code.
+- **Callback design.** The user cannot signal an evaluation failure
+  (NaN or a domain error), and there is no way to pass user data except
+  module globals or internal procedures. Options:
+  (a) add an optional `status` argument and pass `class(*)` user data;
+  (b) switch to an **abstract `sqpopt_problem_class`** with deferred
+  type-bound `eval_*` methods. Option (b) is the idiomatic modern-Fortran
+  choice and also enables combined `f+c` / `g+J` evaluation
+  (see `notes.txt`). *Decision needed: this breaks the API.*
+- **Non-finite handling.** If a trial point yields NaN/Inf, backtrack
+  (line search) or shrink (trust region) instead of propagating it.
+- **Options.** Tuning knobs are spread across five types, and some are
+  silently overwritten from `options` at `solve()`. Consolidate the
+  commonly used ones, validate every option, and document precedence.
+- **Output.** Add a configurable output unit and a proper iteration table
+  with a header (iter, f, ‖c‖, KKT, α, penalty, #active, QP iterations,
+  flags), plus a final summary. Today it prints two lines per iteration,
+  both labelled `f`.
+- **Scaling.** Nothing is scaled and all tolerances are absolute. Add
+  automatic gradient-based scaling of the objective and constraints
+  (IPOPT-style) and optional user variable scaling.
+- **Dependencies.** `lusol`/`LSMR` are only used by
+  `solve_sparse_linear_system`, which nothing calls. `lbfgsb` is unused.
+  Either put them to work (F1) or drop them.
+
+## 5. Features toward state of the art
+
+- **F1: a real QP as the default, and a real large-scale QP.** The
+  composite step should become "legacy/experimental" (it can't survive
+  the B2 fix; see §1). Short term: make `sqpopt_qp_dense` the default for
+  small `n` and `sqpopt_qp_reduced_hessian` the default for large `n`
+  (auto-select by `n`/`nnz`). Longer term: build a **sparse KKT
+  active-set QP**. PLAN.md §3's "fundamental mismatch" is not
+  fundamental: the compact L-BFGS form is `B = θI − W M Wᵀ` (sparse plus
+  rank-`2k`), so the KKT system can be solved directly by a sparse
+  factorization of the `θI` + `J_A` augmented system (`lusol`, which is
+  already a dependency) plus a `2k×2k` Woodbury correction, or by
+  bordering. This gives direct rather than LSQR-iterative accuracy at
+  scale.
+- **F2: elastic mode and infeasibility detection.** Use SNOPT-style ℓ1
+  elastic QPs when the linearization is inconsistent, plus a feasibility
+  phase. This produces a real `sqpopt_infeasible` status (B6, B11).
+- **F3: Powell-damped BFGS.** It is cheap once B1 is fixed (one
+  `hv_product` gives `sᵀBs`). Keep the skip rule as a fallback. This is
+  needed on non-convex problems, where skipped updates leave `H` stale.
+- **F4: a principled merit and penalty.** Implement the full
+  Gill–Murray–Saunders–Wright augmented Lagrangian: joint `(x, λ, s)`
+  step, the `ρ̂` threshold from Lemma 4.3, and allowing ρ to decrease.
+  Real-QP multipliers now make this possible (PLAN.md §6.1's caveat is
+  resolved). Alternatively, use the Byrd–Nocedal model-reduction penalty
+  update for ℓ1.
+- **F5: SOC done right** (B13): only after a rejected full step, active
+  rows only, bound-projected, and integrated into both the merit and the
+  filter tests.
+- **F6: the Wächter–Biegler filter line search**: switching condition,
+  Armijo on f-type steps, filter augmentation only on h-type steps,
+  `θ_min/θ_max` margins, and a feasibility restoration phase (shared with
+  F2).
+- **F7: exact Hessian mode.** A user sparse Hessian or a Hessian-vector
+  callback. With the matrix-free option it works immediately in the
+  reduced-Hessian QP's PCG (which already truncates on negative
+  curvature). A sparse-factorization path needs inertia control, which
+  means an LDLᵀ solver; that is an optional external dependency and a
+  decision point.
+- **F8: derivative checking and finite differences.** Add a derivative
+  verifier (SNOPT "Verify level") and a finite-difference fallback with
+  automatic sparsity detection. `NumDiff` is already a dev-dependency;
+  consider promoting it to a runtime dependency.
+- **F9: warm start.** Accept user-supplied `λ₀` (and bound multipliers)
+  and an initial Hessian scaling. Hot-start the QP working set across
+  major iterations (E4) and across repeated `solve()` calls.
+- **F10: termination options.** Scaled KKT tolerances, IPOPT-style
+  "acceptable level" termination, a maximum number of function
+  evaluations, maximum wall time, and an objective lower limit
+  (unboundedness).
+- **F11: linear constraints.** Flag rows as linear so the solver keeps
+  them satisfied once feasible, skips SOC on them, and never
+  re-linearizes them.
+- **F12: interoperability.** A `bind(c)` C API, then a thin Python
+  wrapper. This is how SLSQP-style solvers get adopted.
+
+## 6. Testing and infrastructure
+
+- **Promote the review probes to regression tests** (they were throwaway
+  programs built against the library):
+  - `test_hessian_consistency`: secant condition for the newest pair and
+    `‖B·H⁻¹v−v‖` for BFGS and SR1 (catches B1, B4).
+  - `test_kkt_sign`: the `min −x₁−x₂`, `0≤xᵢ≤10` problem from `x=0`,
+    where every mode must reach `(10,10)` (catches B3).
+  - `test_infeasible`: `x₁∈[0,1]` and `x₁∈[2,3]`, which must return
+    `sqpopt_infeasible` (B6, F2).
+  - `test_infinite_bounds`: `±huge` and `±1e20` bounds under
+    `-ffpe-trap=invalid,zero,overflow` (B5).
+  - `test_resolve`: two `solve()` calls on one object must give
+    identical results and evaluation counts in every line-search and
+    trust-region mode (B9).
+  - A random-QP fuzz test that checks the QP solvers against a dense
+    reference on primal feasibility, dual feasibility, complementarity,
+    and multiplier signs, including degenerate and dependent-row cases
+    (B10, B11).
+- **Tighten existing tests.** `test_hs71` accepts `x_error<0.5` with
+  `istat=max_iter` for the composite, AL, and watchdog variants. After
+  F1 every mode should be required to reach `sqpopt_success`.
+- **A benchmark suite.** Port roughly 40–60 Hock–Schittkowski problems
+  plus a few scalable sparse problems (a discretized optimal-control
+  problem, chained Rosenbrock with constraints). Record success rate and
+  evaluation counts per mode as a checked-in baseline, compare against
+  `slsqp`/`psqp` (already dev-dependencies), and finish `test_dg.f90`
+  (Duran–Grossmann from the FilterSQP manual).
+- **CI** (none today): GitHub Actions running gfortran (two versions)
+  and ifx, with debug `-fcheck=all -ffpe-trap=invalid,zero,overflow`
+  and release builds, plus the `REAL32` and `REAL128` precision
+  variants. Run the benchmark on a schedule.
+- **Documentation.** Once the fixes land, update the README (defaults,
+  "damped BFGS" claim, status codes) and PLAN.md §3 (where the
+  "mismatch" claim and the lessons learned under B2 are now outdated).
+
+## 7. Proposed order of work
+
+**Phase 0: correctness (small diffs, very large payoff).** B1, then B2
+together with switching the default QP (F1, short-term part), then B3,
+B4, B5, B6/B7 (status plumbing), B9, B10, B16. Land each one with its
+§6 regression test. Expected result: every mode converges on HS71 in
+about 20–30 evaluations, and failures are reported honestly.
+
+**Phase 1: robustness.** F3 (damping), B8 plus F5 (no forced acceptance,
+proper SOC), F2 (elastic mode, infeasibility), B11/B12 (degenerate and
+indefinite QP handling), non-finite evaluation handling, and F6.
+
+**Phase 2: efficiency.** E1–E5, then measure on the benchmark suite.
+
+**Phase 3: API and usability.** Results and diagnostics object, bound
+multipliers, iteration log and output unit, the callback redesign (§4
+decision), option consolidation and validation, scaling, F8, F9, F10.
+
+**Phase 4: large scale and advanced.** The sparse KKT active-set QP
+(F1, long-term part), F4, F7, F11, F12.
+
+**Phase 5 (runs alongside every phase):** CI, the benchmark suite, and
+documentation.
+
+## 8. Open decisions
+
+1. **Default QP solver.** Proposed: auto-select dense for small `n` and
+   reduced-Hessian for large `n`, with composite demoted (or removed).
+2. **Callback API.** An abstract problem class (breaks the API, cleaner)
+   or procedure pointers plus a `class(*)` context argument (additive).
+3. **External sparse LDLᵀ** (e.g. MUMPS, as an optional dependency)
+   for exact-Hessian inertia control. Alternatively, stay matrix-free
+   with PCG only.
+4. **Dependency trim.** Keep `lusol` for F1's sparse KKT solve, or drop
+   `lusol`/`LSMR`/`lbfgsb`.
