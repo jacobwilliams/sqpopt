@@ -86,9 +86,54 @@ do_re = re.compile(r'^DO(\d+),?([A-Z]\w*)=(.*)$')
 goto_re = re.compile(r'GOTO(\d+)')
 cgoto_re = re.compile(r'GOTO\(([\d,]+)\)')
 
-stats = dict(arith_if=0, do=0, decl=0, labels=0, continues=0)
+stats = dict(arith_if=0, do=0, decl=0, labels=0, continues=0, entry=0)
+
+entry_re = re.compile(r'^ENTRY(\w+)\(MODE\)$')
+host_re = re.compile(r'^SUBROUTINE(\w+)\(MODE\)$')
+spec_re = re.compile(r'^(SUBROUTINE|FUNCTION|DOUBLEPRECISION|REAL|INTEGER|LOGICAL|CHARACTER|IMPLICIT|COMMON|'
+                     r'DIMENSION|EXTERNAL|INTRINSIC|SAVE|PARAMETER|EQUIVALENCE|DATA)')
+
+def remove_entries(unit):
+    """replace the ENTRY statements of a `TPnnn(MODE)` routine (which are
+    obsolescent, and which gfortran compiles into a "master" function that
+    breaks `--coverage`): the routine becomes `TPnnn_SHARED(MODE,IENTRY)`,
+    each ENTRY a labeled CONTINUE that the start of its executable part
+    jumps to (for `IENTRY>0`), and every entry point (including the
+    original routine) a one-line wrapper around it. Returns the new unit
+    and the wrappers."""
+    stmts = [it for it in unit if it[0] == 'stmt']
+    entries = [entry_re.match(code(it)).group(1) for it in stmts if entry_re.match(code(it))]
+    if not entries:
+        return unit, []
+    host = host_re.match(code(stmts[0])).group(1)
+    used = {it[1] for it in stmts if it[1]}
+    labels = [str(l) for l in range(9001, 9100) if str(l) not in used][:len(entries)]
+    shared = host + '_SHARED'
+    out, k, dispatched = [], 0, False
+    for it in unit:
+        if it[0] == 'stmt':
+            c = code(it)
+            if it is stmts[0]:
+                out.append(new_stmt(it[1], f'SUBROUTINE {shared}(MODE,IENTRY)'))
+                continue
+            if not dispatched and not spec_re.match(c):
+                out.append(new_stmt('', 'INTEGER, INTENT(IN) :: IENTRY'))
+                out.extend(new_stmt('', f'IF (IENTRY == {j+1}) GOTO {lab}') for j, lab in enumerate(labels))
+                dispatched = True
+            if entry_re.match(c):
+                out.append(new_stmt(labels[k], 'CONTINUE'))
+                k += 1
+                stats['entry'] += 1
+                continue
+        out.append(it)
+    wrappers = [('blank',)]
+    for j, name in enumerate([host] + entries):
+        wrappers += [new_stmt('', f'SUBROUTINE {name}(MODE)'), new_stmt('', f'CALL {shared}(MODE,{j})'),
+                     new_stmt('', 'END'), ('blank',)]
+    return out, wrappers
 
 def modernize(unit):
+    unit, wrappers = remove_entries(unit)
     out = []
     for it in unit:
         if it[0] != 'stmt':
@@ -167,7 +212,7 @@ def modernize(unit):
                 continue
             it = [it[0], '', it[2]] + it[3:]
         final.append(it)
-    return final
+    return final + wrappers
 
 def emit(items):
     lines = []
@@ -231,7 +276,10 @@ header = """!*******************************************************************
 !    functions removed;
 !  * labeled DO loops (including shared and non-CONTINUE terminations)
 !    rewritten as `DO`/`END DO`, arithmetic IFs as logical IFs, and labels
-!    that are no longer referenced removed.
+!    that are no longer referenced removed;
+!  * ENTRY statements removed: a routine with alternate entry points
+!    becomes `TPnnn_SHARED(MODE,IENTRY)`, which jumps to the code at entry
+!    point `IENTRY`, and each entry point a one-line wrapper around it.
 !
 !  The problems' code is otherwise unchanged. It still communicates through
 !  the original COMMON blocks, and keeps its original implicit typing --

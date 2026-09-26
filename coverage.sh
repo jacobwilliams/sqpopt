@@ -14,6 +14,9 @@ echo "================================================"
 echo "Running tests with coverage..."
 echo "================================================"
 
+# Clear the execution counts of any previous run (so they don't accumulate)
+find build -name "*.gcda" -delete 2>/dev/null || true
+
 # Build and run tests with coverage flags
 fpm test --flag "--coverage"
 
@@ -22,9 +25,15 @@ echo "================================================"
 echo "Generating coverage report with lcov..."
 echo "================================================"
 
-# Create coverage directory and move build artifacts
+# Create a fresh coverage directory and copy the build artifacts into it. Only
+# from the build just made: older coverage builds (with a different build-flag
+# hash, e.g. after an fpm.toml change) hold stale data for the same files.
+LATEST_GCNO=$(ls -t build/gfortran_*/*/*.gcno | head -1)
+BUILD_DIR=$(dirname "$(dirname "$LATEST_GCNO")")
+echo "Using build directory: $BUILD_DIR"
+rm -rf "$COV_DIR"
 mkdir -p "$COV_DIR"
-cp -r build/gfortran_*/*/* "$COV_DIR/" 2>/dev/null || true
+cp -r "$BUILD_DIR"/*/* "$COV_DIR/" 2>/dev/null || true
 # we want to skip the files that start with 'build_dependencies' because they are not part of the source code
 find "$COV_DIR" -name "build_dependencies*" -exec rm -rf {} +
 
