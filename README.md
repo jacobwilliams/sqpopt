@@ -235,7 +235,11 @@ exactly, and share the same robustness features:
   linearized constraints are inconsistent and the QP returns
   `sqpopt_infeasible`, and the major iteration takes a feasibility-
   restoration step instead.
-- Rows join the working set only if linearly independent of it;
+- Rows join the working set only if linearly independent of it (the
+  sparse solver picks the initial working set from the rows at a bound
+  with one rank-revealing `LUSOL` factorization, preferring equality
+  rows, then bounds, then inequalities, so duplicated or dependent
+  constraints are handled);
   directions of zero or negative curvature (an indefinite SR1 Hessian, or
   along an elastic slack) are followed to the nearest blocking constraint
   rather than producing a huge Newton step; and all tolerances are
@@ -380,7 +384,7 @@ This package depends on the following external libraries (which will be automati
 
 * [LSQR](https://github.com/jacobwilliams/LSQR) -- iterative solver for sparse linear systems and least-squares problems
 * [LSMR](https://github.com/jacobwilliams/LSMR) -- iterative solver for sparse linear systems and least-squares problems, similar to LSQR but with improved numerical stability (not yet used; see `plan/ROADMAP.md` F14)
-* [lusol](https://github.com/jacobwilliams/lusol) -- sparse LU factorization library (not yet used; see `plan/ROADMAP.md` F13)
+* [lusol](https://github.com/jacobwilliams/lusol) -- sparse LU factorization library (rank-revealing factorization for the sparse QP's working set)
 * [fmin](https://github.com/jacobwilliams/fmin.git) -- derivative-free minimization routine used for exact line search
 
 

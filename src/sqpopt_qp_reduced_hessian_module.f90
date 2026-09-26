@@ -25,9 +25,11 @@
 !  CG stops on
 !  (relative) convergence, and follows any direction of nonpositive
 !  curvature (e.g. along an elastic slack, or an indefinite SR1 Hessian) to
-!  the nearest blocking row. Rows are only added to the initial working
-!  set if they are (numerically) linearly independent of it (rows that were
-!  in the previous solve's final working set are trusted to be).
+!  the nearest blocking row. The initial working set is a linearly
+!  independent subset of the rows at a bound, picked by one rank-revealing
+!  sparse LU factorization (`LUSOL`); every row added after that is
+!  independent by construction (a blocking row is never in the span of
+!  the working set).
 
     module sqpopt_qp_reduced_hessian_module
 
@@ -35,6 +37,7 @@
     use sqpopt_types_module,   only: sqpopt_sparse_matrix, sqpopt_success, sqpopt_qp_solve_failed, &
                                      sqpopt_infeasible, sqpopt_infinity
     use sqpopt_hessian_module, only: sqpopt_hessian_type
+    use sqpopt_linalg_module,  only: independent_columns
     use lsqr_module,           only: lsqr_solver_ez
 
     implicit none
@@ -82,8 +85,6 @@
 
         ! internal state (the working set at the end of the previous solve, for warm starts):
         integer, dimension(:), allocatable :: warm_status !! side (-1/0/+1) of each general row and variable bound
-        logical :: warm_independent = .false. !! whether that working set is known to be linearly independent in
-                                              !! `p`-space (true if the previous solve had no elastic slacks)
 
         contains
 
@@ -326,11 +327,8 @@
         if (coeff_idx(k) <= m) lambda(coeff_idx(k)) = coeff(k)
     end do
 
-    ! remember the final working set (general rows and variable bounds) for a
-    ! warm start. It is linearly independent, but if there were elastic slacks,
-    ! only in the extended space (dependent rows may each have had a slack):
-    me%warm_status      = status(1:m+n)
-    me%warm_independent = nv == 0
+    ! remember the final working set (general rows and variable bounds) for a warm start:
+    me%warm_status = status(1:m+n)
 
     contains
 
@@ -607,45 +605,98 @@
         end subroutine ratio_test
 
         subroutine initial_working_set()
-        !! add the rows that are at a bound at `u` (equality rows and bounds
-        !! first) to the working set, skipping any whose component outside the
-        !! span of the rows already added is negligible (i.e., that is linearly
-        !! dependent). Each check costs an `LSQR` solve, so rows that were in
-        !! the previous solve's final working set -- which was independent by
-        !! construction (in `p`-space, if that solve had no elastic slacks) --
-        !! are trusted and added without it; with a warm start from a settled
-        !! active set, almost nothing needs checking.
-        type(sqpopt_sparse_matrix) :: ja_cur
-        integer, dimension(:), allocatable :: idx_cur
-        logical, dimension(:), allocatable :: fixed_cur
-        logical, dimension(mtot) :: trusted
-        real(wp), dimension(nt) :: a, r
-        integer :: kk, pass, side, na, j
-        trusted = .false.
-        if (me%warm_start .and. me%warm_independent .and. allocated(me%warm_status)) then
-            if (size(me%warm_status) == m+n) trusted(1:m+n) = me%warm_status /= 0
-        end if
+        !! add a linearly independent subset of the rows that are at a bound
+        !! at `u` to the working set. The subset is picked by one rank-revealing
+        !! LU factorization of the candidate rows (see [[independent_columns]]),
+        !! each normalized and then scaled by its priority: equality rows (kept
+        !! first), then variable bounds, then inequality rows. If the
+        !! factorization fails, the rows are checked one at a time instead
+        !! (with an `LSQR` projection each).
+        real(wp), parameter :: w_bound = 1.0e-2_wp  !! priority weight of an (inequality) variable bound
+        real(wp), parameter :: w_ineq  = 1.0e-4_wp  !! priority weight of an inequality general row
+        integer,  dimension(mtot) :: cand, cside
+        integer,  dimension(:), allocatable :: ir, ic
+        real(wp), dimension(:), allocatable :: vv
+        logical,  dimension(:), allocatable :: indep
+        real(wp) :: wt, rn
+        integer  :: kk, pass, side, nc, nz, j, l, lu_stat
+
+        ! the candidates: rows at a bound (equality rows and bounds first, as
+        ! for the fallback below):
+        nc = 0
         do pass = 1, 2
             do kk = 1, mtot
                 if (status(kk) /= 0) cycle
                 if ((pass == 1) .neqv. (is_equality(kk) .or. kk > m)) cycle
                 side = at_bound(kk)
                 if (side == 0) cycle
-                if (trusted(kk)) then
-                    status(kk) = side
-                    cycle
-                end if
-                a = 0.0_wp
-                do j = rows%ptr(kk), rows%ptr(kk+1)-1
-                    a(rows%col(j)) = rows%val(j)
-                end do
-                call build_working_set(rows, status, m, ja_cur, fixed_cur, idx_cur, na)
-                if (na >= nt) return
-                call project_null(ja_cur, fixed_cur, a, r)
-                if (norm2(r) > 1.0e-8_wp*norm2(a)) status(kk) = side
+                nc = nc + 1
+                cand(nc)  = kk
+                cside(nc) = side
             end do
         end do
+        if (nc == 0) return
+
+        ! the candidates as the columns of an `nt x nc` matrix:
+        nz = 0
+        do j = 1, nc
+            nz = nz + rows%ptr(cand(j)+1) - rows%ptr(cand(j))
+        end do
+        allocate(ir(nz), ic(nz), vv(nz), indep(nc))
+        nz = 0
+        do j = 1, nc
+            kk = cand(j)
+            if (is_equality(kk)) then
+                wt = 1.0_wp
+            else if (kk > m) then
+                wt = w_bound
+            else
+                wt = w_ineq
+            end if
+            rn = row_norm(rows, kk)
+            if (rn > 0.0_wp) wt = wt/rn
+            do l = rows%ptr(kk), rows%ptr(kk+1)-1
+                nz = nz + 1
+                ir(nz) = rows%col(l)
+                ic(nz) = j
+                vv(nz) = wt*rows%val(l)
+            end do
+        end do
+        call independent_columns(nt, nc, ir, ic, vv, 1.0e-8_wp, epsilon(1.0_wp)**0.67_wp*w_ineq, indep, lu_stat)
+
+        if (lu_stat == 0) then
+            do j = 1, nc
+                if (indep(j)) status(cand(j)) = cside(j)
+            end do
+        else
+            call add_independent_rows_lsqr(cand(1:nc), cside(1:nc))
+        end if
+
         end subroutine initial_working_set
+
+        subroutine add_independent_rows_lsqr(cand, cside)
+        !! the fallback for [[initial_working_set]]: add the candidate rows `cand`
+        !! (at bound side `cside`) in order, skipping any whose component outside
+        !! the span of the rows already added is negligible (i.e., that is
+        !! linearly dependent). Each check costs an `LSQR` solve.
+        integer, dimension(:), intent(in) :: cand, cside
+        type(sqpopt_sparse_matrix) :: ja_cur
+        integer, dimension(:), allocatable :: idx_cur
+        logical, dimension(:), allocatable :: fixed_cur
+        real(wp), dimension(nt) :: a, r
+        integer :: jj, kk, na, j
+        do jj = 1, size(cand)
+            kk = cand(jj)
+            a = 0.0_wp
+            do j = rows%ptr(kk), rows%ptr(kk+1)-1
+                a(rows%col(j)) = rows%val(j)
+            end do
+            call build_working_set(rows, status, m, ja_cur, fixed_cur, idx_cur, na)
+            if (na >= nt) return
+            call project_null(ja_cur, fixed_cur, a, r)
+            if (norm2(r) > 1.0e-8_wp*norm2(a)) status(kk) = cside(jj)
+        end do
+        end subroutine add_independent_rows_lsqr
 
         integer function at_bound(kk)
         !! -1 or +1 if row `kk` is at its lower or upper bound at `u`, else 0

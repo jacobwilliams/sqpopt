@@ -14,6 +14,8 @@
 
     use sqpopt_kinds, only: wp => sqpopt_module_wp
     use sqpopt_types_module, only: sqpopt_sparse_matrix
+    use lusol,               only: lu1fac
+    use lusol_precision,     only: ip, rp
 
     implicit none
 
@@ -21,6 +23,7 @@
 
     public :: sparse_matvec
     public :: sparse_matvec_transpose
+    public :: independent_columns
 
     contains
 !*******************************************************************************
@@ -65,6 +68,95 @@
     end do
 
     end subroutine sparse_matvec_transpose
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  find a maximal linearly independent subset of the columns of the sparse
+!  matrix `A` (`nrows x ncols`, COO triplets), with one rank-revealing
+!  sparse LU factorization (`LUSOL`'s `lu1fac` with threshold complete
+!  pivoting).
+!
+!  Column `j` is judged dependent if it gets no pivot, or if its diagonal
+!  of `U` is at most `rel_tol` times the largest element of its column of
+!  `U` (or at most `abs_tol`).
+!
+!  Which columns of a dependent group are kept is up to the pivoting, but
+!  it can be steered. Unit columns (a single entry of exactly `+/-1`) are
+!  always kept first (at most one per row), and complete pivoting prefers
+!  large elements, so columns scaled up are preferred over columns scaled
+!  down. (Scaling doesn't affect the relative test.)
+!
+!  `istat` is `0` on success, or else `lu1fac`'s `inform` code (it is never
+!  `1`, which only means that some columns are dependent).
+
+    subroutine independent_columns(nrows, ncols, irow, icol, val, rel_tol, abs_tol, independent, istat)
+
+    integer,                intent(in)  :: nrows       !! number of rows of `A`
+    integer,                intent(in)  :: ncols       !! number of columns of `A`
+    integer,  dimension(:), intent(in)  :: irow        !! row indices of the nonzeros of `A`
+    integer,  dimension(:), intent(in)  :: icol        !! column indices of the nonzeros of `A`
+    real(wp), dimension(:), intent(in)  :: val         !! the nonzeros of `A` (no duplicate `(irow,icol)` pairs)
+    real(wp),               intent(in)  :: rel_tol     !! relative singularity tolerance (e.g. `1e-8`)
+    real(wp),               intent(in)  :: abs_tol     !! absolute singularity tolerance
+    logical,  dimension(:), intent(out) :: independent !! `dimension(ncols)`: whether each column is in the subset
+    integer,                intent(out) :: istat       !! status (0 = success)
+
+    integer(ip) :: m, n, nelem, lena, inform, attempt
+    integer(ip) :: luparm(30)
+    real(rp)    :: parmlu(30)
+    real(rp),    dimension(:), allocatable :: a, w
+    integer(ip), dimension(:), allocatable :: indc, indr, p, q, lenc, lenr, locc, locr, &
+                                              iploc, iqloc, ipinv, iqinv
+
+    independent = .false.
+    istat = 0
+    if (ncols == 0) return
+    if (nrows == 0 .or. size(val) == 0) return   ! (every column is zero)
+
+    m     = nrows
+    n     = ncols
+    nelem = size(val)
+    lena  = 1 + max(5*nelem, 10*m, 10*n, 10000_ip)
+    allocate(p(m), q(n), lenc(n), lenr(m), locc(n), locr(m), &
+             iploc(n), iqloc(m), ipinv(m), iqinv(n), w(n))
+
+    do attempt = 1, 3   ! (enlarging the workspace if `lu1fac` asks for it)
+        if (allocated(a)) deallocate(a, indc, indr)
+        allocate(a(lena), indc(lena), indr(lena))
+        a(1:nelem)    = real(val, rp)
+        indc(1:nelem) = irow   ! (LUSOL: row indices in `indc`, column indices in `indr`)
+        indr(1:nelem) = icol
+
+        luparm = 0
+        luparm(1) = 6      ! nout
+        luparm(2) = -1     ! lprint: no output (not even the "singular" message)
+        luparm(3) = 5      ! maxcol
+        luparm(6) = 2      ! TCP: threshold complete pivoting (rank revealing)
+        luparm(8) = 1      ! keepLU (needed for the relative singularity test)
+        parmlu = 0.0_rp
+        parmlu(1) = 5.0_rp                          ! Ltol1 (small, for a reliable rank)
+        parmlu(2) = 5.0_rp                          ! Ltol2
+        parmlu(3) = epsilon(1.0_rp)**0.8_rp         ! small: entries treated as zero
+        parmlu(4) = real(abs_tol, rp)               ! Utol1
+        parmlu(5) = real(rel_tol, rp)               ! Utol2
+        parmlu(6) = 3.0_rp                          ! Uspace
+        parmlu(7) = 0.3_rp                          ! dens1
+        parmlu(8) = 0.5_rp                          ! dens2
+
+        call lu1fac(m, n, nelem, lena, luparm, parmlu, a, indc, indr, p, q, &
+                    lenc, lenr, locc, locr, iploc, iqloc, ipinv, iqinv, w, inform)
+        if (inform /= 7) exit
+        lena = max(2*lena, luparm(13) + 1)
+    end do
+
+    if (inform == 0 .or. inform == 1) then
+        independent = w > 0.0_rp
+    else
+        istat = int(inform)
+    end if
+
+    end subroutine independent_columns
 !*******************************************************************************
 
     end module sqpopt_linalg_module

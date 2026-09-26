@@ -430,6 +430,33 @@ later:
 - the sparse direct KKT factorization of F1, which would replace most of
   these iterative projections.
 
+## Phase 4 status: in progress
+
+**F13 done (2026-09-26).** The reduced-Hessian QP's initial working set
+is now picked by one rank-revealing `lu1fac` (threshold complete
+pivoting, `keepLU=1` for the relative singularity test) on all the
+candidate rows at once, via the new `independent_columns` in
+`sqpopt_linalg_module`:
+- Each candidate row is normalized and scaled by its priority (equality
+  rows 1, variable bounds 1e-2, inequality rows 1e-4). Complete pivoting
+  prefers large elements, so this steers which row of a dependent group
+  is kept; LUSOL also keeps exact unit columns (equality bounds) first.
+  A row is dependent if its diagonal of `U` is ≤ 1e-8 times the largest
+  element of its column of `U` (as the old LSQR test's 1e-8).
+- This replaces the per-row LSQR independence check and the Phase 2
+  "trust the previous working set" shortcut (and `warm_independent`),
+  so dependent and duplicated constraints are handled the same way on
+  warm and cold starts. The old LSQR loop is kept only as a fallback if
+  the factorization fails.
+- Results: `test_qp_fuzz` passes 5,000/5,000 for both solvers (400 in the
+  regular suite). The benchmark's iterations are unchanged and its time
+  is within noise (the shortcut had already removed most of the checks'
+  cost). The HS suite with the sparse QP forced has identical outcomes on
+  all 305 problems (245 solved; evaluation counts changed on 4). New
+  `test_independent_columns` unit test.
+- Not done: flagging redundant equality constraints at the start of a
+  solve with the same factorization (the QP already copes with them).
+
 ## 2. Bugs: correctness (fix first)
 
 | # | Issue | Where | Evidence |
@@ -582,7 +609,8 @@ later:
 - **F12: interoperability.** A `bind(c)` C API, then a thin Python
   wrapper. This is how SLSQP-style solvers get adopted.
 
-- **F13: LUSOL rank detection for the working set.** This is a small,
+- **F13: LUSOL rank detection for the working set.** *(Done
+  2026-09-26; see "Phase 4 status".)* This is a small,
   standalone first use of `lusol`, and a stepping stone to F1:
   - one `lu1fac` with threshold rook or complete pivoting (TRP/TCP,
     which reveal rank) on the candidate rows picks a linearly
@@ -690,7 +718,7 @@ documentation.
    with PCG only.
 4. **Dependency trim.** Keep `lusol` for F1's sparse KKT solve, or drop
    `lusol`/`LSMR`/`lbfgsb`. *Recommendation (2026-09-26):*
-   - keep `lusol`, for F13 and then F1;
+   - keep `lusol`, for F13 *(done: now used)* and then F1;
    - keep `LSMR` only if F14 shows a real benchmark gain, otherwise drop
      it (which also fixes the `REAL32` build);
    - drop `lbfgsb`, which is unused and has no identified role *(done)*;
