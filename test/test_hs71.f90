@@ -44,7 +44,7 @@ program test_hs71
     use sqpopt_linesearch_module, only: sqpopt_merit_l1, sqpopt_merit_augmented_lagrangian, &
                                         sqpopt_linesearch_armijo, sqpopt_linesearch_watchdog, sqpopt_linesearch_filter
     use sqpopt_qp_solver_module, only: sqpopt_qp_auto, sqpopt_qp_dense, sqpopt_qp_reduced_hessian, sqpopt_qp_solver_type
-    use sqpopt_types_module,   only: sqpopt_success
+    use sqpopt_types_module,   only: sqpopt_success, sqpopt_results_type
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
 
     implicit none
@@ -121,7 +121,11 @@ program test_hs71
     call solver%initialize(problem=problem, options=options, qp_solver=qp_solver)
     call solver%solve(x0, istat)
     call solver%get_solution(xsol, lam)
-    call obj(xsol, fsol)
+    block
+        type(sqpopt_results_type) :: results
+        call solver%get_results(results)
+        fsol = results%f
+    end block
 
     print '(3A)',       'test_hs71 [', trim(label), ']'
     print '(A,4F12.7)', 'x       = ', xsol
@@ -146,17 +150,21 @@ program test_hs71
 
     end subroutine run_hs71
 
-    subroutine obj(x, f)
+    subroutine obj(x, f, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp),                intent(out) :: f
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     f = x(1)*x(4)*(x(1)+x(2)+x(3)) + x(3)
     i_obj = i_obj + 1
     if (any(x < 1.0_wp) .or. any(x > 5.0_wp)) outside_bounds = .true.
     end subroutine obj
 
-    subroutine grad(x, g)
+    subroutine grad(x, g, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp), dimension(:), intent(out) :: g
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     g(1) = x(4)*(2.0_wp*x(1)+x(2)+x(3))
     g(2) = x(1)*x(4)
     g(3) = x(1)*x(4) + 1.0_wp
@@ -165,18 +173,22 @@ program test_hs71
     if (any(x < 1.0_wp) .or. any(x > 5.0_wp)) outside_bounds = .true.
     end subroutine grad
 
-    subroutine cons(x, c)
+    subroutine cons(x, c, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp), dimension(:), intent(out) :: c
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     c(1) = x(1)**2 + x(2)**2 + x(3)**2 + x(4)**2
     c(2) = x(1)*x(2)*x(3)*x(4)
     i_cons = i_cons + 1
     if (any(x < 1.0_wp) .or. any(x > 5.0_wp)) outside_bounds = .true.
     end subroutine cons
 
-    subroutine jacv(x, jac_val)
+    subroutine jacv(x, jac_val, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp), dimension(:), intent(out) :: jac_val
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     ! order matches set_jacobian_sparsity: rows [1,1,1,1,2,2,2,2], cols [1,2,3,4,1,2,3,4]
     jac_val(1) = 2.0_wp*x(1)
     jac_val(2) = 2.0_wp*x(2)

@@ -49,7 +49,7 @@ program test_medium
     use sqpopt_problem_module, only: sqpopt_problem_type
     use sqpopt_options_module, only: sqpopt_options_type
     use sqpopt_qp_solver_module, only: sqpopt_qp_solver_type
-    use sqpopt_types_module,   only: sqpopt_success
+    use sqpopt_types_module,   only: sqpopt_success, sqpopt_results_type
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
 
     implicit none
@@ -100,7 +100,11 @@ program test_medium
     call solver%initialize(problem=problem, options=options, qp_solver=qp_solver)
     call solver%solve(x0, istat)
     call solver%get_solution(xsol, lam)
-    call obj(xsol, fsol)
+    block
+        type(sqpopt_results_type) :: results
+        call solver%get_results(results)
+        fsol = results%f
+    end block
 
     print '(A,10F10.5)', 'test_medium: x       = ', xsol
     print '(A,10F10.5)', 'test_medium: x_true  = ', xexpect
@@ -116,9 +120,11 @@ program test_medium
 
     contains
 
-    subroutine obj(x, f)
+    subroutine obj(x, f, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp),                intent(out) :: f
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     n_evals = n_evals + 1
     f = (x(1)-1.0_wp)**2 + (x(2)-2.0_wp)**2 + (x(3)-2.0_wp)**2 &
       + (x(4)-3.0_wp)**2 + (x(5)-3.0_wp)**2 &
@@ -127,9 +133,11 @@ program test_medium
       + (x(10)-5.0_wp)**2
     end subroutine obj
 
-    subroutine grad(x, g)
+    subroutine grad(x, g, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp), dimension(:), intent(out) :: g
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     n_evals = n_evals + 1
     g(1)  = 2.0_wp*(x(1)-1.0_wp)
     g(2)  = 2.0_wp*(x(2)-2.0_wp)
@@ -143,9 +151,11 @@ program test_medium
     g(10) = 2.0_wp*(x(10)-5.0_wp)
     end subroutine grad
 
-    subroutine cons(x, c)
+    subroutine cons(x, c, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp), dimension(:), intent(out) :: c
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     n_evals = n_evals + 1
     c(1) = x(1)**2 + x(2)**2 + x(3)**2
     c(2) = x(4)*x(5)
@@ -154,9 +164,11 @@ program test_medium
     c(5) = x(10)**2
     end subroutine cons
 
-    subroutine jacv(x, jac_val)
+    subroutine jacv(x, jac_val, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp), dimension(:), intent(out) :: jac_val
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     n_evals = n_evals + 1
     ! order matches set_jacobian_sparsity: rows [1,1,1,2,2,3,3,4,4,5]
     jac_val(1)  = 2.0_wp*x(1)

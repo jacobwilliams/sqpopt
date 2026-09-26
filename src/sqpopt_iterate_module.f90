@@ -12,7 +12,8 @@
 
     use sqpopt_kinds,             only: wp => sqpopt_module_wp
     use sqpopt_types_module,      only: sqpopt_sparse_matrix, sqpopt_success, sqpopt_user_requested_stop, sqpopt_report_func, &
-                                         sqpopt_infeasible, sqpopt_function_error, sqpopt_all_finite
+                                         sqpopt_infeasible, sqpopt_function_error, sqpopt_all_finite, sqpopt_unbounded, &
+                                         sqpopt_acceptable, sqpopt_infinity
     use sqpopt_problem_module,    only: sqpopt_problem_type
     use sqpopt_options_module,    only: sqpopt_options_type, sqpopt_hessian_sr1
     use sqpopt_hessian_module,    only: sqpopt_hessian_type
@@ -28,7 +29,21 @@
 
     private
 
-    public :: sqpopt_iterate
+    public :: sqpopt_iterate, sqpopt_evaluate_point
+
+    type, public :: sqpopt_iter_info
+        !! information about one major iteration, for the iteration log
+        real(wp) :: f         = 0.0_wp  !! objective at the start of the iteration (of the scaled problem)
+        real(wp) :: kkt       = 0.0_wp  !! KKT error there (see [[check_convergence]])
+        real(wp) :: feas      = 0.0_wp  !! feasibility error there
+        real(wp) :: alpha     = 0.0_wp  !! step length taken
+        real(wp) :: step_norm = 0.0_wp  !! \( \lVert x_{k+1}-x_k \rVert_2 \)
+        real(wp) :: penalty   = 0.0_wp  !! merit function penalty parameter
+        integer  :: qp_istat  = 0       !! status of the QP solve
+        integer  :: qp_iter   = 0       !! active-set iterations of the QP solve
+        logical  :: restoration = .false. !! whether a feasibility-restoration step was taken
+        logical  :: stepped   = .false. !! whether the iteration got as far as computing a step
+    end type sqpopt_iter_info
 
     contains
 !*******************************************************************************
@@ -47,8 +62,13 @@
 !  On exit, `done` is true if the solver should stop at the (unchanged)
 !  input point `x`, with the reason in `istat`: `sqpopt_success`,
 !  `sqpopt_stalled`, or `sqpopt_infeasible` (from [[check_convergence]]),
-!  `sqpopt_user_requested_stop`, or `sqpopt_function_error` (a problem
-!  function returned a non-finite value at `x`). Otherwise `istat` reports
+!  `sqpopt_acceptable` (the acceptable-level test held for
+!  `options%acceptable_iter` consecutive iterations, counted in
+!  `n_acceptable`), `sqpopt_unbounded` (the objective is below
+!  `options%obj_lower_limit` at a feasible point),
+!  `sqpopt_user_requested_stop` (from the `report` callback, or a user
+!  function returning `status<0`), or `sqpopt_function_error` (a problem
+!  function returned a non-finite value, or failed, at `x`). Otherwise `istat` reports
 !  how the step went: `sqpopt_success`, `sqpopt_qp_solve_failed` (the QP
 !  solver hit its iteration limit, and its last step was used anyway), or
 !  `sqpopt_line_search_failed` (no acceptable step was found, so `x` is
@@ -58,7 +78,7 @@
 !  "no change") is skipped on the next iteration.
 
     subroutine sqpopt_iterate(problem, options, hessian, qp_solver, linesearch, trust_region, &
-                               x, lambda, x_prev, gl_prev, f_prev, jac, iter, report, done, istat)
+                               x, lambda, x_prev, gl_prev, f_prev, jac, n_acceptable, iter, report, done, istat, info)
 
     type(sqpopt_problem_type),    intent(inout) :: problem     !! problem definition
     type(sqpopt_options_type),    intent(in)    :: options     !! solver options
@@ -75,10 +95,13 @@
     type(sqpopt_sparse_matrix),          intent(inout) :: jac     !! workspace for the constraint Jacobian: its sparsity
                                                                   !! structure is set on the first call (when `jac%val` is
                                                                   !! unallocated) and reused, and its values are updated
+    integer,                intent(inout) :: n_acceptable !! number of consecutive iterations (so far) at which the
+                                                          !! acceptable-level test has held (`0` before the 1st call)
     integer,                intent(in)    :: iter      !! major iteration number (starts at 1), passed to `report`
     procedure(sqpopt_report_func), optional, pointer :: report !! optional user progress-reporting callback (see [[sqpopt_types_module]])
     logical,                 intent(out)   :: done      !! true if the solver should stop at `x` (see `istat` for why)
     integer,                 intent(out)   :: istat     !! status code (see above and [[sqpopt_types_module]])
+    type(sqpopt_iter_info),  intent(out)   :: info      !! information about this iteration, for the log
 
     real(wp) :: f !! current objective function value
     real(wp), dimension(problem%n) :: g, gl, p, x_new
@@ -91,7 +114,7 @@
 
     ! evaluate the problem functions and the sparse Jacobian at the current point:
     call problem%f(x, f)
-    call problem%eval_g(x, g)
+    call problem%g(x, g)
     call problem%c(x, c)
     if (.not. allocated(jac%val)) then
         jac%nrows = problem%m
@@ -101,10 +124,19 @@
         jac%icol  = problem%jac_icol
         allocate(jac%val(problem%jac_nnz))
     end if
-    call problem%eval_jac(x, jac%val)
+    call problem%jac(x, jac%val)
+    info%f = f
+
+    ! a user function asked to stop:
+    if (problem%stop_requested) then
+        istat = sqpopt_user_requested_stop
+        done  = .true.
+        return
+    end if
 
     ! every accepted trial point had finite `f` and `c`, so a non-finite
-    ! value here is either at the starting point or in the derivatives:
+    ! value (or a failed evaluation) here is either at the starting point or
+    ! in the derivatives:
     if (.not. (sqpopt_all_finite([f]) .and. sqpopt_all_finite(g) .and. &
                sqpopt_all_finite(c) .and. sqpopt_all_finite(jac%val))) then
         istat = sqpopt_function_error
@@ -115,12 +147,20 @@
     ! report progress on the current iterate, if the user has supplied a
     ! callback, before doing any further work this iteration -- this
     ! reports every major iterate, including the initial guess (iter=1,
-    ! before any step has been taken) and the final, converged point:
+    ! before any step has been taken) and the final, converged point.
+    ! The values are converted back to the original (unscaled) problem:
     if (present(report)) then
         if (associated(report)) then
             block
                 logical :: user_stop
-                call report(iter, x, f, c, lambda, user_stop)
+                user_stop = .false.
+                if (associated(problem%user_data)) then
+                    call report(iter, x, f/problem%f_scale, c/problem%c_scale, &
+                                lambda*problem%c_scale/problem%f_scale, user_stop, problem%user_data)
+                else
+                    call report(iter, x, f/problem%f_scale, c/problem%c_scale, &
+                                lambda*problem%c_scale/problem%f_scale, user_stop)
+                end if
                 if (user_stop) then
                     istat = sqpopt_user_requested_stop
                     done  = .true.
@@ -138,9 +178,33 @@
     ! absent for an optional dummy argument):
     call check_convergence(x, g, jac, c, problem%x_lb, problem%x_ub, problem%c_lb, problem%c_ub, &
                             lambda, options%ktol, options%ctol, done, istat, &
-                            f=f, f_prev=f_prev, x_prev=x_prev, ftol=options%ftol, xtol=options%xtol)
-    if (options%print_level >= 1) write(*,'(A,I5,A,ES13.5,A,L1)') ' sqpopt iter ', iter, ': f = ', f, ', converged = ', done
+                            f=f, f_prev=f_prev, x_prev=x_prev, ftol=options%ftol, xtol=options%xtol, &
+                            kkt_error=info%kkt, feas_error=info%feas)
     if (done) return
+
+    ! unbounded: the objective is below its limit at a feasible point:
+    if (options%obj_lower_limit > -sqpopt_infinity .and. info%feas <= options%ctol) then
+        if (f/problem%f_scale < options%obj_lower_limit) then
+            istat = sqpopt_unbounded
+            done  = .true.
+            return
+        end if
+    end if
+
+    ! acceptable-level convergence (as in IPOPT): the looser tolerances have
+    ! held for `acceptable_iter` consecutive iterations:
+    if (options%acceptable_iter > 0) then
+        if (info%kkt <= options%acceptable_ktol .and. info%feas <= options%acceptable_ctol) then
+            n_acceptable = n_acceptable + 1
+        else
+            n_acceptable = 0
+        end if
+        if (n_acceptable >= options%acceptable_iter) then
+            istat = sqpopt_acceptable
+            done  = .true.
+            return
+        end if
+    end if
 
     ! Lagrangian gradient at the current point, with the current multipliers
     ! (the multipliers the previous iteration's `gl_prev` was also formed with):
@@ -245,6 +309,13 @@
 
     end if
 
+    ! a user function asked to stop during the step (the point is left unchanged):
+    if (problem%stop_requested) then
+        istat = sqpopt_user_requested_stop
+        done  = .true.
+        return
+    end if
+
     ! save the current point/objective for the next stalled-progress test,
     ! and the Lagrangian gradient at the current point *evaluated with the
     ! new multipliers*, so that the next quasi-Newton pair is
@@ -264,6 +335,14 @@
     ! earlier best point on backtrack). This update is never skipped based
     ! on the status, since `alpha`/`x_new` are always meaningful regardless of
     ! whether the sufficient-decrease test was satisfied:
+    info%stepped     = .true.
+    info%alpha       = alpha
+    info%step_norm   = norm2(x_new - x)
+    info%penalty     = linesearch%penalty
+    info%qp_istat    = qp_istat
+    info%qp_iter     = qp_solver%n_iter
+    info%restoration = restore
+
     x      = x_new
     lambda = new_lambda
 
@@ -275,9 +354,6 @@
         call hessian%reset()
         if (allocated(f_prev)) deallocate(f_prev)
     end if
-
-    if (options%print_level >= 1) write(*,'(A,I5,A,ES13.5,A,ES10.2,A,I0,A,L1)') &
-        ' sqpopt iter ', iter, ': f = ', f, ', alpha = ', alpha, ', qp_istat = ', qp_istat, ', restoration = ', restore
 
     ! report the first failure, if any (a QP that stopped at its iteration
     ! limit still produced a usable step, so it's reported below a line-search
@@ -317,6 +393,58 @@
         end subroutine soc
 
     end subroutine sqpopt_iterate
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  evaluate the (scaled) problem at `x`, and the resulting KKT and
+!  feasibility errors and variable-bound multipliers `z` (with the
+!  constraint multipliers `lambda`): \( z = g - J^T\lambda \) for a variable
+!  at one of its bounds, zero otherwise (for the Lagrangian
+!  \( f - \lambda^Tc - z^Tx \)). Used to report the final state of a solve.
+
+    subroutine sqpopt_evaluate_point(problem, options, x, lambda, jac, f, c, kkt, feas, z)
+
+    type(sqpopt_problem_type),  intent(inout) :: problem !! problem definition
+    type(sqpopt_options_type),  intent(in)    :: options !! solver options
+    real(wp), dimension(:),     intent(in)    :: x       !! point `dimension(n)`
+    real(wp), dimension(:),     intent(in)    :: lambda  !! constraint multipliers `dimension(m)`
+    type(sqpopt_sparse_matrix), intent(inout) :: jac     !! Jacobian workspace (as for [[sqpopt_iterate]])
+    real(wp),                   intent(out)   :: f       !! objective at `x`
+    real(wp), dimension(:),     intent(out)   :: c       !! constraints at `x` `dimension(m)`
+    real(wp),                   intent(out)   :: kkt     !! KKT error at `x`
+    real(wp),                   intent(out)   :: feas    !! feasibility error at `x`
+    real(wp), dimension(:),     intent(out)   :: z       !! variable-bound multipliers `dimension(n)`
+
+    real(wp), dimension(size(x)) :: g, jtlam
+    logical :: converged
+    integer :: istat, j
+
+    call problem%f(x, f)
+    call problem%g(x, g)
+    call problem%c(x, c)
+    if (.not. allocated(jac%val)) then
+        jac%nrows = problem%m
+        jac%ncols = problem%n
+        jac%nnz   = problem%jac_nnz
+        jac%irow  = problem%jac_irow
+        jac%icol  = problem%jac_icol
+        allocate(jac%val(problem%jac_nnz))
+    end if
+    call problem%jac(x, jac%val)
+
+    call check_convergence(x, g, jac, c, problem%x_lb, problem%x_ub, problem%c_lb, problem%c_ub, &
+                            lambda, options%ktol, options%ctol, converged, istat, &
+                            kkt_error=kkt, feas_error=feas)
+
+    call sparse_matvec_transpose(jac, lambda, jtlam)
+    z = 0.0_wp
+    do j = 1, size(x)
+        if (x(j) - problem%x_lb(j) <= options%ctol .or. problem%x_ub(j) - x(j) <= options%ctol) &
+            z(j) = g(j) - jtlam(j)
+    end do
+
+    end subroutine sqpopt_evaluate_point
 !*******************************************************************************
 
 !*******************************************************************************

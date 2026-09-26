@@ -28,11 +28,11 @@ program benchmark
     use sqpopt_module,         only: sqpopt_type
     use sqpopt_problem_module, only: sqpopt_problem_type
     use sqpopt_options_module, only: sqpopt_options_type
+    use sqpopt_types_module,   only: sqpopt_results_type
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
 
     implicit none
 
-    integer :: n_f, n_g, n_c, n_j  !! evaluation counters
     integer :: nsteps               !! `control`: number of steps `N`
     real(wp) :: h                   !! `control`: step size
 
@@ -47,18 +47,16 @@ program benchmark
 
     contains
 
-    subroutine report(name, size_param, n, m, istat, t, f)
+    subroutine report(name, size_param, n, m, solver)
+    !! print one line of results (from the solver's results object)
     character(len=*), intent(in) :: name
-    integer, intent(in) :: size_param, n, m, istat
-    real(wp), intent(in) :: t, f
-    write(*,'(A12,I8,I6,I6,I6,I8,I8,I8,I8,F10.3,ES16.8)') name, size_param, n, m, istat, n_f, n_g, n_c, n_j, t, f
+    integer, intent(in) :: size_param, n, m
+    type(sqpopt_type), intent(in) :: solver
+    type(sqpopt_results_type) :: r
+    call solver%get_results(r)
+    write(*,'(A12,I8,I6,I6,I6,I8,I8,I8,I8,F10.3,ES16.8)') name, size_param, n, m, r%istat, &
+        r%n_eval_f, r%n_eval_g, r%n_eval_c, r%n_eval_jac, r%time, r%f
     end subroutine report
-
-    real(wp) function wall_time()
-    integer(8) :: count, rate
-    call system_clock(count, rate)
-    wall_time = real(count, wp)/real(rate, wp)
-    end function wall_time
 
     !------------------------------------------------------------------------
     ! control problem
@@ -69,11 +67,9 @@ program benchmark
     type(sqpopt_type)         :: solver
     type(sqpopt_problem_type) :: problem
     type(sqpopt_options_type) :: options
-    real(wp), dimension(:), allocatable :: x, lam, x_lb, x_ub
+    real(wp), dimension(:), allocatable :: x, x_lb, x_ub
     integer, dimension(:), allocatable :: irow, icol
     integer :: n, m, k, nnz, istat
-    real(wp) :: t0, f
-
     nsteps = nn
     h = 5.0_wp/nsteps
     n = 2*nsteps + 1
@@ -102,51 +98,51 @@ program benchmark
     call problem%set_functions(f=f_control, g=g_control, c=c_control, jac=j_control)
 
     options%max_iter = 2000
-    allocate(x(n), lam(m))
+    allocate(x(n))
     x = 0.0_wp
     x(1:nsteps+1) = 1.0_wp
 
-    n_f = 0; n_g = 0; n_c = 0; n_j = 0
-    t0 = wall_time()
     call solver%initialize(problem=problem, options=options)
     call solver%solve(x, istat)
-    call solver%get_solution(x, lam)
-    call f_control(x, f); n_f = n_f - 1
-    call report('control', nsteps, n, m, istat, wall_time()-t0, f)
+    call report('control', nsteps, n, m, solver)
 
     end subroutine run_control
 
-    subroutine f_control(x, f)
+    subroutine f_control(x, f, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp),               intent(out) :: f
-    n_f = n_f + 1
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     f = 0.5_wp*h*(sum(x(1:nsteps)**2) + sum(x(nsteps+2:)**2)) + x(nsteps+1)**2
     end subroutine f_control
 
-    subroutine g_control(x, g)
+    subroutine g_control(x, g, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp), dimension(:), intent(out) :: g
-    n_g = n_g + 1
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     g = h*x
     g(nsteps+1) = 2.0_wp*x(nsteps+1)
     end subroutine g_control
 
-    subroutine c_control(x, c)
+    subroutine c_control(x, c, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp), dimension(:), intent(out) :: c
     integer :: k
-    n_c = n_c + 1
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     c(1) = x(1)
     do k = 0, nsteps-1
         c(k+2) = x(k+2) - x(k+1) - h*(x(nsteps+2+k) - x(k+1)**3)
     end do
     end subroutine c_control
 
-    subroutine j_control(x, jac)
+    subroutine j_control(x, jac, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp), dimension(:), intent(out) :: jac
     integer :: k
-    n_j = n_j + 1
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     jac(1) = 1.0_wp
     do k = 0, nsteps-1
         jac(2+3*k) = 1.0_wp
@@ -164,11 +160,9 @@ program benchmark
     type(sqpopt_type)         :: solver
     type(sqpopt_problem_type) :: problem
     type(sqpopt_options_type) :: options
-    real(wp), dimension(:), allocatable :: x, lam
+    real(wp), dimension(:), allocatable :: x
     integer, dimension(:), allocatable :: irow, icol
     integer :: m, i, istat
-    real(wp) :: t0, f
-
     m = n/2
     allocate(irow(2*m), icol(2*m))
     do i = 1, m
@@ -182,56 +176,56 @@ program benchmark
     call problem%set_functions(f=f_rosen, g=g_rosen, c=c_rosen, jac=j_rosen)
 
     options%max_iter = 2000
-    allocate(x(n), lam(m))
+    allocate(x(n))
     do i = 1, n
         x(i) = merge(-1.2_wp, 1.0_wp, mod(i,2) == 1)
     end do
 
-    n_f = 0; n_g = 0; n_c = 0; n_j = 0
-    t0 = wall_time()
     call solver%initialize(problem=problem, options=options)
     call solver%solve(x, istat)
-    call solver%get_solution(x, lam)
-    call f_rosen(x, f); n_f = n_f - 1
-    call report('rosenbrock', n, n, m, istat, wall_time()-t0, f)
+    call report('rosenbrock', n, n, m, solver)
 
     end subroutine run_rosenbrock
 
-    subroutine f_rosen(x, f)
+    subroutine f_rosen(x, f, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp),               intent(out) :: f
     integer :: n
-    n_f = n_f + 1
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     n = size(x)
     f = sum(100.0_wp*(x(2:n)-x(1:n-1)**2)**2 + (1.0_wp-x(1:n-1))**2)
     end subroutine f_rosen
 
-    subroutine g_rosen(x, g)
+    subroutine g_rosen(x, g, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp), dimension(:), intent(out) :: g
     integer :: n
-    n_g = n_g + 1
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     n = size(x)
     g = 0.0_wp
     g(1:n-1) = -400.0_wp*x(1:n-1)*(x(2:n)-x(1:n-1)**2) - 2.0_wp*(1.0_wp-x(1:n-1))
     g(2:n)   = g(2:n) + 200.0_wp*(x(2:n)-x(1:n-1)**2)
     end subroutine g_rosen
 
-    subroutine c_rosen(x, c)
+    subroutine c_rosen(x, c, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp), dimension(:), intent(out) :: c
     integer :: i
-    n_c = n_c + 1
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     do i = 1, size(c)
         c(i) = x(2*i-1)**2 + x(2*i)**2
     end do
     end subroutine c_rosen
 
-    subroutine j_rosen(x, jac)
+    subroutine j_rosen(x, jac, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp), dimension(:), intent(out) :: jac
     integer :: i
-    n_j = n_j + 1
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     do i = 1, size(jac)/2
         jac(2*i-1) = 2.0_wp*x(2*i-1)
         jac(2*i)   = 2.0_wp*x(2*i)

@@ -45,13 +45,53 @@ integer  :: istat
 call problem%set_problem_size(n, m_eq, m_ineq)
 call problem%set_bounds(x_lb, x_ub, c_lb, c_ub)
 call problem%set_jacobian_sparsity(nnz, irow, icol)  ! fixed sparsity pattern
-call problem%set_functions(f=obj, g=grad, c=cons, jac=jacv)
+call problem%set_functions(f=obj, g=grad, c=cons, jac=jacv)   ! optionally also data=...
 
 call solver%initialize(problem=problem, options=options)
-call solver%solve(x0, istat)
-call solver%get_solution(x, lambda)
-print *, solver%status_message()   ! e.g. 'converged successfully'
+call solver%solve(x0, istat)            ! optionally also lambda0=...
+call solver%get_solution(x, lambda)     ! optionally also z (bound multipliers)
+print *, solver%status_message()        ! e.g. 'converged successfully'
 ```
+
+Each user function has the form (here, the objective):
+
+```fortran
+subroutine obj(x, f, status, data)
+    real(wp), dimension(:), intent(in)    :: x
+    real(wp),               intent(out)   :: f
+    integer,                intent(inout) :: status  ! 0 on entry
+    class(*), optional,     intent(inout) :: data
+    f = ...
+end subroutine obj
+```
+
+(`grad`, `cons`, and `jacv` are the same, with an array output `g(n)`,
+`c(m)`, or `jac_val(nnz)`.) The two trailing arguments are:
+
+- `status`: leave it `0` on success. Set it `> 0` if the function can't
+  be evaluated at `x` (e.g. a domain error): the solver treats that point
+  like one where the function returned NaN, and backs off from it. Set it
+  `< 0` to stop the solver (`sqpopt_user_requested_stop`); no user
+  function is called again after that.
+- `data`: the object passed as `set_functions(..., data=my_data)` (absent
+  if none was given), for passing any context to the functions without
+  module variables. Access it with `select type`. It is *pointed to*, not
+  copied, so the caller's object needs the `target` attribute; updates
+  the functions make to it are seen by the caller. It is also passed to
+  the `report` callback.
+
+After a solve, `solver%get_results(results)` returns a
+`sqpopt_results_type` (from `sqpopt_types_module`) containing:
+- the status and message, and the number of iterations;
+- the evaluation counts of each user function, and the run time;
+- the final `x`, `f`, and `c`;
+- the constraint multipliers `lambda` and the variable-bound multipliers
+  `z`;
+- the KKT and feasibility errors.
+
+All of these are for the original problem, even when automatic scaling
+is on. The Lagrangian is \( f - \lambda^T c - z^T x \), so a multiplier is
+`>= 0` at a lower bound and `<= 0` at an upper bound.
 
 Before iterating, `solve` validates the problem definition and options
 (returning `istat=sqpopt_invalid_input`, with the reason in
@@ -73,10 +113,14 @@ previous solve.
 | `sqpopt_infeasible` (`2`) | the constraints are violated at a point that is stationary for the constraint violation: the problem appears to be (locally) infeasible |
 | `sqpopt_line_search_failed` (`3`) | `max_consecutive_failures` consecutive iterations failed to find an acceptable step |
 | `sqpopt_qp_solve_failed` (`4`) | `max_consecutive_failures` consecutive QP subproblem solves failed |
-| `sqpopt_user_requested_stop` (`5`) | the `report` callback asked the solver to stop |
+| `sqpopt_user_requested_stop` (`5`) | the `report` callback, or a user function (`status < 0`), asked the solver to stop |
 | `sqpopt_invalid_input` (`6`) | the problem definition or options are invalid (see `status_message()`) |
 | `sqpopt_stalled` (`7`) | feasible, but the objective and variables have stopped changing (see `ftol`/`xtol`) before the KKT test was satisfied; usually an acceptable, if less precise, solution |
-| `sqpopt_function_error` (`8`) | a problem function returned a non-finite value (NaN or Inf) at the current point (at a *trial* point, a non-finite value just makes the line search/trust region reject that point and back off) |
+| `sqpopt_function_error` (`8`) | a problem function returned a non-finite value (NaN or Inf), or `status > 0`, at the current point (at a *trial* point, that just makes the line search/trust region reject the point and back off) |
+| `sqpopt_max_evals_reached` (`9`) | `max_evals` objective evaluations were performed |
+| `sqpopt_time_limit_reached` (`10`) | the `max_time` limit was reached |
+| `sqpopt_unbounded` (`11`) | the objective fell below `obj_lower_limit` at a feasible point |
+| `sqpopt_acceptable` (`12`) | the looser `acceptable_ktol`/`acceptable_ctol` tests held for `acceptable_iter` consecutive iterations (as in IPOPT), but the normal ones did not |
 
 See [test/test_basic.f90](test/test_basic.f90), [test/test_hs71.f90](test/test_hs71.f90),
 and [test/test_medium.f90](test/test_medium.f90) for complete worked examples.
@@ -86,7 +130,9 @@ and [test/test_medium.f90](test/test_medium.f90) for complete worked examples.
 `solver%initialize(problem=..., options=..., hessian=..., qp_solver=...,
 linesearch=..., trust_region=..., report=...)` accepts one instance of
 each sub-component, all optional (defaults are used for anything
-omitted). `sqpopt_options_type` covers the most commonly-tuned,
+omitted). Every setting of every component is checked when `solve`
+starts; an invalid value gives `sqpopt_invalid_input`, and
+`status_message()` says which setting it was. `sqpopt_options_type` covers the most commonly-tuned,
 algorithm-*selecting* settings and is copied down into the other
 components' `mode`-like fields at the start of every `solve()` call; the
 other types (`sqpopt_hessian_type`, `sqpopt_qp_solver_type`,
@@ -120,7 +166,8 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 | option | default | description |
 |---|---|---|
 | `max_iter` | `100` | maximum number of major SQP iterations |
-| `print_level` | `0` | amount of diagnostic printing to `stdout` (`0` = silent, `>=1` = one summary line per major iteration) |
+| `print_level` | `0` | `0` = no output; `1` = an iteration table (iteration, objective, infeasibility, KKT error, step length, and flags: `R` restoration step, `Q` QP failed, `F` no acceptable step) plus a final summary; `2` = also the penalty parameter, step norm, and QP iterations |
+| `output_unit` | standard output | Fortran unit the output is written to |
 | `hessian_mode` | `sqpopt_hessian_bfgs` | Hessian approximation strategy (see the [Hessian approximation](#hessian-approximation-sqpopt_hessian_type) table below) |
 | `lbfgs_memory` | `10` | number of `(s,y)` vector pairs retained by the limited-memory Hessian |
 | `qp_solver_mode` | `sqpopt_qp_auto` | QP subproblem algorithm (see the [QP subproblem solver](#qp-subproblem-solver-sqpopt_qp_solver_type) tables below) |
@@ -129,6 +176,12 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 | `max_consecutive_failures` | `5` | stop (with `sqpopt_line_search_failed` or `sqpopt_qp_solve_failed`) after this many consecutive major iterations whose QP solve or line search/trust-region step failed |
 | `ftol`, `xtol` | `1e-8` | once feasible, also stop (with `istat=sqpopt_stalled`) if the objective's and the variables' relative change from the previous iterate are both below these tolerances (a safeguard against looping to `max_iter` on marginal steps when the KKT test in `ktol` never quite converges) |
 | `ctol` | `1e-8` | feasibility tolerance on the constraint violation |
+| `acceptable_ktol`, `acceptable_ctol`, `acceptable_iter` | `1e-4`, `1e-6`, `15` | if the KKT test with these looser tolerances holds for `acceptable_iter` consecutive iterations, stop with `sqpopt_acceptable` (`acceptable_iter=0` disables this) |
+| `max_evals` | `0` | stop after this many objective evaluations (`0` = no limit) |
+| `max_time` | `0` | stop after this much wall-clock time, in seconds (`0` = no limit) |
+| `obj_lower_limit` | `-sqpopt_infinity` | stop (`sqpopt_unbounded`) if the objective falls below this at a feasible point |
+| `scaling`, `scaling_max_gradient` | `.true.`, `100` | gradient-based scaling (as in IPOPT): at the starting point, the objective and each constraint whose gradient has an element larger than `scaling_max_gradient` is scaled down so that its largest element equals it. `ktol`/`ctol` then apply to the scaled problem; all results are for the original one |
+| `hessian_scale0` | `1` | the initial Hessian approximation is `hessian_scale0` times the identity |
 | `ktol` | `1e-6` | tolerance on the KKT optimality test: stationarity of the projected Lagrangian gradient, plus the sign and complementarity of the constraint multipliers (scaled up only when the average multiplier magnitude exceeds 100, as in IPOPT) |
 
 `hessian_mode`/`lbfgs_memory`, `qp_solver_mode`, `linesearch_mode`, and

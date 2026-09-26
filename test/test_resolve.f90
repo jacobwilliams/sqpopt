@@ -69,29 +69,37 @@ program test_resolve
 
     contains
 
-    subroutine obj(x, f)
+    subroutine obj(x, f, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp),               intent(out) :: f
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     n_f = n_f + 1
     f = (1.0_wp-x(1))**2 + 100.0_wp*(x(2)-x(1)**2)**2
     end subroutine obj
 
-    subroutine grad(x, g)
+    subroutine grad(x, g, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp), dimension(:), intent(out) :: g
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     g(1) = -2.0_wp*(1.0_wp-x(1)) - 400.0_wp*x(1)*(x(2)-x(1)**2)
     g(2) = 200.0_wp*(x(2)-x(1)**2)
     end subroutine grad
 
-    subroutine cons(x, c)
+    subroutine cons(x, c, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp), dimension(:), intent(out) :: c
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     c(1) = x(1)**2 + x(2)**2
     end subroutine cons
 
-    subroutine jacv(x, jac_val)
+    subroutine jacv(x, jac_val, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp), dimension(:), intent(out) :: jac_val
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     jac_val = 2.0_wp*x
     end subroutine jacv
 

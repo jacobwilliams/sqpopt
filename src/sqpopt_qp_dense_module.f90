@@ -91,6 +91,8 @@
         logical  :: warm_start = .true.            !! start from the previous solve's final working set, if the
                                                    !! problem size is unchanged (see the module-level documentation)
 
+        integer :: n_iter = 0 !! number of active-set iterations taken by the last solve (output)
+
         ! internal state (the working set at the end of the previous solve, for warm starts):
         integer, dimension(:), allocatable :: warm_status !! side (-1/0/+1) of each general row and variable bound
 
@@ -357,6 +359,7 @@
 
     end do
 
+    me%n_iter = min(it, maxit)
     p = u(1:n)
     lambda = 0.0_wp
     do k = 1, size(coeff_idx)

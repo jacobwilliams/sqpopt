@@ -280,6 +280,81 @@ enter elastic mode when the multipliers exceed it, instead of raising
 multipliers are huge at "convergence". Add this problem to the
 benchmark suite.
 
+## Phase 3 status: done (2026-09-25)
+
+**Decisions.**
+- **Callbacks (§8.2):** keep procedure pointers and add `status` and
+  `class(*)` data arguments. The API is intentionally broken for this.
+- **F8 (the derivative checker and the finite-difference fallback):**
+  both dropped at the user's request.
+
+What changed:
+- **Callback API.** Every user function (`f`, `g`, `c`, `jac`, `hess`)
+  now takes `(..., status, data)`, and `report` takes `data`:
+  - `status` is `0` on entry;
+  - `> 0` means the function can't be evaluated at this `x`, so the
+    point is treated like a NaN and rejected;
+  - `< 0` requests a stop (`sqpopt_user_requested_stop`), after which no
+    user function is called again (uncached evaluations return NaN);
+  - `data` is `class(*)`, optional, and is the object given to
+    `set_functions(..., data=)`. It is held by pointer, so the caller's
+    object needs `target`, and updates to it are visible to the caller.
+- **Evaluation layer.** `sqpopt_problem_type`'s `f`/`c`/`g`/`jac`
+  methods now:
+  - handle `status` and `data`;
+  - count calls (`n_eval_f`/`g`/`c`/`jac`);
+  - cache results (4 entries for `f` and `c`, 1 for `g` and `jac`);
+  - apply scaling.
+
+  The line search now uses internal `(x, f)`/`(x, c)` interfaces.
+- **Results.** `sqpopt_results_type` (in `sqpopt_types_module`) and
+  `solver%get_results` report the status and message, the iterations,
+  the evaluation counts, the time, `x`, `f`, `c`, `lambda`, the bound
+  multipliers `z` (new), and the KKT and feasibility errors. Everything
+  is unscaled. `get_solution(x, lambda, z)` now takes an optional `z`.
+- **Log.** `print_level` 1 prints an iteration table (objective,
+  infeasibility, KKT error, α, and flags `R`/`Q`/`F`) plus a summary; 2
+  adds the penalty, step norm, and QP iterations. Output goes to
+  `output_unit`. The QP solvers now report `n_iter`.
+- **Termination (F10).** New options `max_evals`, `max_time`,
+  `obj_lower_limit`, and `acceptable_ktol`/`acceptable_ctol`/
+  `acceptable_iter` (IPOPT-style). They come with new statuses 9–12:
+  `max_evals_reached`, `time_limit_reached`, `unbounded`, `acceptable`.
+- **Scaling (§4).** `options%scaling` is on by default, with
+  `scaling_max_gradient` = 100. It uses IPOPT's gradient-based rule at
+  `x0`: `s_f`, and each `s_c,i`, is `min(1, 100/‖∇‖∞)`, and the finite
+  constraint bounds are scaled to match. The evaluations it needs are
+  cached, so they aren't repeated. `lambda`, `z`, `f`, and `c` are
+  unscaled on output and in the `report` callback. Tolerances apply to
+  the scaled problem.
+- **Warm start (F9).** `solve(x0, istat, lambda0=...)` and
+  `options%hessian_scale0` (B₀ = scale·I; `hessian%initialize` has a new
+  `scale0` argument). QP warm-start state still does not carry over
+  between `solve` calls, which keeps B9's determinism.
+- **Validation.** Every component's settings are checked at `solve`:
+  line search, filter, trust region, the QP solver and both QP backends,
+  and the new options (including that `output_unit` is open when
+  printing). The problem is restored from a pristine copy (`problem0`)
+  on each `solve`, since scaling changes the working copy's bounds.
+- **Tests.**
+  - `test_callbacks`: user data reaching every function and `report`,
+    `status > 0` avoidance, and `status < 0` stopping with no further
+    calls. This caught the line search calling `f` again after a stop
+    request.
+  - `test_results`: λ and `z` against hand-computed values, for problem
+    scales 1 and 1e4 with scaling on and off; evaluation counts against
+    the callbacks' own counters; a `lambda0` warm start converging in 1
+    iteration.
+  - `test_termination`: all four new criteria, plus logging to a scratch
+    unit.
+  - `test_input_validation` gained 6 cases for component settings and
+    `lambda0` size.
+
+  All 45 test programs pass under `-fcheck=all -ffpe-trap=...`.
+- **Not done:** consolidating the knobs spread across the components
+  into `sqpopt_options_type`. They are validated and documented, but
+  still live on their components.
+
 ## Phase 2 status: done (2026-09-25)
 
 A new scalable benchmark, `example/benchmark.f90`
@@ -533,6 +608,7 @@ indefinite QP handling), non-finite evaluation handling, and F6.
 **Phase 3: API and usability.** Results and diagnostics object, bound
 multipliers, iteration log and output unit, the callback redesign (§4
 decision), option consolidation and validation, scaling, F8, F9, F10.
+*(Done; F8 dropped. See "Phase 3 status".)*
 
 **Phase 4: large scale and advanced.** The sparse KKT active-set QP
 (F1, long-term part), F4, F7, F11, F12.

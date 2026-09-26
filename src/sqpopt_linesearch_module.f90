@@ -69,7 +69,6 @@
 
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
     use sqpopt_types_module,   only: sqpopt_success, sqpopt_line_search_failed, sqpopt_sparse_matrix, sqpopt_all_finite
-    use sqpopt_problem_module, only: sqpopt_objective_func, sqpopt_constraint_func
     use sqpopt_linalg_module,  only: sparse_matvec_transpose
     use fmin_module,           only: fmin
 
@@ -88,6 +87,20 @@
     integer, parameter, public :: sqpopt_merit_augmented_lagrangian = 2  !! smooth augmented Lagrangian merit function (NPSOL/SNOPT-style)
 
     abstract interface
+        subroutine sqpopt_ls_objective_func(x, f)
+            !! evaluates the (scaled) objective at `x` (NaN if it can't be evaluated)
+            import :: wp
+            implicit none
+            real(wp), dimension(:), intent(in)  :: x
+            real(wp),               intent(out) :: f
+        end subroutine sqpopt_ls_objective_func
+        subroutine sqpopt_ls_constraint_func(x, c)
+            !! evaluates the (scaled) constraints at `x` (NaN if they can't be evaluated)
+            import :: wp
+            implicit none
+            real(wp), dimension(:), intent(in)  :: x
+            real(wp), dimension(:), intent(out) :: c
+        end subroutine sqpopt_ls_constraint_func
         subroutine sqpopt_soc_func(p, c_trial, p_soc, ok)
             !! computes the second-order-corrected version `p_soc` of a
             !! rejected trial step `p`, given the constraint values
@@ -296,8 +309,8 @@
     subroutine line_search(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, alpha, x_new, istat, soc)
 
     class(sqpopt_linesearch_type), intent(inout) :: me
-    procedure(sqpopt_objective_func)  :: eval_f  !! evaluates \( f(x) \)
-    procedure(sqpopt_constraint_func) :: eval_c  !! evaluates \( c(x) \)
+    procedure(sqpopt_ls_objective_func)  :: eval_f  !! evaluates \( f(x) \)
+    procedure(sqpopt_ls_constraint_func) :: eval_c  !! evaluates \( c(x) \)
     real(wp), dimension(:), intent(in)  :: x      !! current point `dimension(n)`
     real(wp), dimension(:), intent(in)  :: p      !! search direction `dimension(n)`
     real(wp),                intent(in)  :: f      !! objective function value at `x`
@@ -386,8 +399,8 @@
 
     subroutine eval_fc(eval_f, eval_c, x_trial, f_trial, c_trial, ok)
 
-    procedure(sqpopt_objective_func)  :: eval_f
-    procedure(sqpopt_constraint_func) :: eval_c
+    procedure(sqpopt_ls_objective_func)  :: eval_f
+    procedure(sqpopt_ls_constraint_func) :: eval_c
     real(wp), dimension(:), intent(in)  :: x_trial !! trial point `dimension(n)`
     real(wp),               intent(out) :: f_trial !! objective function value at `x_trial`
     real(wp), dimension(:), intent(out) :: c_trial !! constraint values at `x_trial` `dimension(m)`
@@ -408,8 +421,8 @@
     subroutine eval_trial(me, eval_f, eval_c, x_trial, c_lb, c_ub, lambda, c_trial, phi_trial, ok)
 
     class(sqpopt_linesearch_type), intent(inout) :: me
-    procedure(sqpopt_objective_func)  :: eval_f
-    procedure(sqpopt_constraint_func) :: eval_c
+    procedure(sqpopt_ls_objective_func)  :: eval_f
+    procedure(sqpopt_ls_constraint_func) :: eval_c
     real(wp), dimension(:), intent(in)  :: x_trial   !! trial point `dimension(n)`
     real(wp), dimension(:), intent(in)  :: c_lb      !! constraint lower bounds `dimension(m)`
     real(wp), dimension(:), intent(in)  :: c_ub      !! constraint upper bounds `dimension(m)`
@@ -449,8 +462,8 @@
                                 alpha, x_new, phi_new, accepted, soc)
 
     class(sqpopt_linesearch_type), intent(inout) :: me
-    procedure(sqpopt_objective_func)  :: eval_f
-    procedure(sqpopt_constraint_func) :: eval_c
+    procedure(sqpopt_ls_objective_func)  :: eval_f
+    procedure(sqpopt_ls_constraint_func) :: eval_c
     real(wp), dimension(:), intent(in)  :: x        !! current point `dimension(n)`
     real(wp), dimension(:), intent(in)  :: p        !! search direction `dimension(n)`
     real(wp),               intent(in)  :: alpha0   !! initial trial step length
@@ -527,8 +540,8 @@
     subroutine armijo_line_search(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, alpha, x_new, istat, soc)
 
     class(sqpopt_linesearch_type), intent(inout) :: me
-    procedure(sqpopt_objective_func)  :: eval_f
-    procedure(sqpopt_constraint_func) :: eval_c
+    procedure(sqpopt_ls_objective_func)  :: eval_f
+    procedure(sqpopt_ls_constraint_func) :: eval_c
     real(wp), dimension(:), intent(in) :: x !! current point `x`
     real(wp), dimension(:), intent(in) :: p !! search direction `p`
     real(wp), dimension(:), intent(in) :: g !! gradient of the objective at `x`
@@ -579,8 +592,8 @@
     subroutine exact_line_search(me, eval_f, eval_c, x, p, f, c, lambda, c_lb, c_ub, alpha, x_new, istat, soc)
 
     class(sqpopt_linesearch_type), intent(inout) :: me
-    procedure(sqpopt_objective_func)  :: eval_f  !! evaluates \( f(x) \)
-    procedure(sqpopt_constraint_func) :: eval_c  !! evaluates \( c(x) \)
+    procedure(sqpopt_ls_objective_func)  :: eval_f  !! evaluates \( f(x) \)
+    procedure(sqpopt_ls_constraint_func) :: eval_c  !! evaluates \( c(x) \)
     real(wp), dimension(:), intent(in)  :: x      !! current point `dimension(n)`
     real(wp), dimension(:), intent(in)  :: p      !! search direction `dimension(n)`
     real(wp),               intent(in)  :: f      !! objective function value at `x`
@@ -671,8 +684,8 @@
     subroutine watchdog_line_search(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, alpha, x_new, istat, soc)
 
     class(sqpopt_linesearch_type), intent(inout) :: me
-    procedure(sqpopt_objective_func)  :: eval_f
-    procedure(sqpopt_constraint_func) :: eval_c
+    procedure(sqpopt_ls_objective_func)  :: eval_f
+    procedure(sqpopt_ls_constraint_func) :: eval_c
     real(wp), dimension(:), intent(in)  :: x !! current point in the search space
     real(wp), dimension(:), intent(in)  :: p !! search direction
     real(wp), dimension(:), intent(in)  :: g !! gradient of the objective function at `x`
@@ -801,8 +814,8 @@
     subroutine filter_line_search(me, eval_f, eval_c, x, p, f, g, c, c_lb, c_ub, alpha, x_new, istat, soc)
 
     class(sqpopt_linesearch_type), intent(inout) :: me
-    procedure(sqpopt_objective_func)  :: eval_f
-    procedure(sqpopt_constraint_func) :: eval_c
+    procedure(sqpopt_ls_objective_func)  :: eval_f
+    procedure(sqpopt_ls_constraint_func) :: eval_c
     real(wp), dimension(:), intent(in)  :: x      !! current point `dimension(n)`
     real(wp), dimension(:), intent(in)  :: p      !! search direction `dimension(n)`
     real(wp),               intent(in)  :: f      !! objective function value at `x`

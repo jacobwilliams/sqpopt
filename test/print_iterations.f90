@@ -45,39 +45,48 @@ program print_iterations
 
     contains
 
-    subroutine report(iter, x, f, c, lambda, user_stop)
+    subroutine report(iter, x, f, c, lambda, user_stop, data)
     integer,                intent(in)  :: iter
     real(wp), dimension(:), intent(in)  :: x
     real(wp),               intent(in)  :: f
     real(wp), dimension(:), intent(in)  :: c
     real(wp), dimension(:), intent(in)  :: lambda
     logical,                intent(out) :: user_stop
+    class(*), optional,     intent(inout) :: data
     print '(I5,2F12.6,F12.6,F12.6)', iter, x, f, c
     user_stop = .false.
     end subroutine report
 
-    subroutine obj(x, f)
+    subroutine obj(x, f, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp),                intent(out) :: f
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     f = (x(1)-2.0_wp)**2 + (x(2)-3.0_wp)**2
     end subroutine obj
 
-    subroutine grad(x, g)
+    subroutine grad(x, g, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp), dimension(:), intent(out) :: g
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     g(1) = 2.0_wp*(x(1)-2.0_wp)
     g(2) = 2.0_wp*(x(2)-3.0_wp)
     end subroutine grad
 
-    subroutine cons(x, c)
+    subroutine cons(x, c, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp), dimension(:), intent(out) :: c
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     c(1) = x(1) + x(2)
     end subroutine cons
 
-    subroutine jacv(x, jac_val)
+    subroutine jacv(x, jac_val, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp), dimension(:), intent(out) :: jac_val
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     jac_val = [1.0_wp, 1.0_wp]
     end subroutine jacv
 

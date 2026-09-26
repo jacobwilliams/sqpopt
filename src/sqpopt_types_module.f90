@@ -30,6 +30,12 @@
     integer, parameter, public :: sqpopt_function_error       = 8  !! stopped: the problem functions returned a non-finite value
                                                                     !! (NaN or Inf) at the current point (trial points with
                                                                     !! non-finite values are rejected instead)
+    integer, parameter, public :: sqpopt_max_evals_reached    = 9  !! stopped: maximum number of function evaluations reached
+    integer, parameter, public :: sqpopt_time_limit_reached   = 10 !! stopped: time limit reached
+    integer, parameter, public :: sqpopt_unbounded            = 11 !! stopped: the objective fell below its lower limit at a
+                                                                    !! feasible point (the problem appears to be unbounded)
+    integer, parameter, public :: sqpopt_acceptable           = 12 !! converged to the "acceptable" (looser) tolerances, for
+                                                                    !! several consecutive iterations, but not to the normal ones
     integer, parameter, public :: sqpopt_error                = -1 !! stopped: an unspecified error occurred
 
     real(wp), parameter, public :: sqpopt_infinity = 1.0e20_wp !! any bound with magnitude `>= sqpopt_infinity` is treated
@@ -49,21 +55,47 @@
         real(wp), dimension(:), allocatable :: val   !! nonzero values `dimension(nnz)`
     end type sqpopt_sparse_matrix
 
+    type, public :: sqpopt_results_type
+        !! the outcome of a solve (see `sqpopt_type%get_results`). Values are
+        !! for the original (unscaled) problem.
+        integer  :: istat      = 0       !! status code
+        character(len=:), allocatable :: message !! description of the status
+        integer  :: iterations = 0       !! number of major iterations performed
+        integer  :: n_eval_f   = 0       !! number of calls of the objective function
+        integer  :: n_eval_g   = 0       !! number of calls of the gradient function
+        integer  :: n_eval_c   = 0       !! number of calls of the constraint function
+        integer  :: n_eval_jac = 0       !! number of calls of the Jacobian function
+        real(wp) :: f          = 0.0_wp  !! objective function value at `x`
+        real(wp) :: kkt_error  = 0.0_wp  !! KKT (stationarity/complementarity) error at `x` (of the scaled problem,
+                                          !! as used by the convergence test)
+        real(wp) :: feasibility_error = 0.0_wp !! largest violation of a constraint or variable bound at `x`
+        real(wp) :: time       = 0.0_wp  !! wall-clock time of the solve (seconds)
+        real(wp), dimension(:), allocatable :: x      !! final point `dimension(n)`
+        real(wp), dimension(:), allocatable :: c      !! constraint values at `x` `dimension(m)`
+        real(wp), dimension(:), allocatable :: lambda !! constraint multipliers `dimension(m)` (for the Lagrangian
+                                                      !! \( f - \lambda^T c - z^T x \): \( \lambda_i \ge 0 \) at a lower
+                                                      !! bound, \( \le 0 \) at an upper bound)
+        real(wp), dimension(:), allocatable :: z      !! variable-bound multipliers `dimension(n)` (same sign convention;
+                                                      !! zero for a variable not at a bound)
+    end type sqpopt_results_type
+
     abstract interface
-        subroutine sqpopt_report_func(iter, x, f, c, lambda, user_stop)
+        subroutine sqpopt_report_func(iter, x, f, c, lambda, user_stop, data)
             !! user-supplied callback invoked once per major SQP iteration
             !! for progress monitoring (see `sqpopt_type%initialize`'s
             !! `report` argument). Set `user_stop=.true.` to have the
             !! solver stop after the current iteration
-            !! (`istat=sqpopt_user_requested_stop`).
+            !! (`istat=sqpopt_user_requested_stop`). The values are for the
+            !! original (unscaled) problem.
             import :: wp
             implicit none
-            integer,                intent(in)  :: iter      !! major iteration number (starts at 1)
-            real(wp), dimension(:), intent(in)  :: x         !! current optimization variables `dimension(n)`
-            real(wp),               intent(in)  :: f         !! current objective function value
-            real(wp), dimension(:), intent(in)  :: c         !! current constraint values `dimension(m)`
-            real(wp), dimension(:), intent(in)  :: lambda    !! current Lagrange multiplier estimate `dimension(m)`
-            logical,                intent(out) :: user_stop !! set `.true.` to request the solver stop
+            integer,                intent(in)    :: iter      !! major iteration number (starts at 1)
+            real(wp), dimension(:), intent(in)    :: x         !! current optimization variables `dimension(n)`
+            real(wp),               intent(in)    :: f         !! current objective function value
+            real(wp), dimension(:), intent(in)    :: c         !! current constraint values `dimension(m)`
+            real(wp), dimension(:), intent(in)    :: lambda    !! current Lagrange multiplier estimate `dimension(m)`
+            logical,                intent(out)   :: user_stop !! set `.true.` to request the solver stop
+            class(*), optional,     intent(inout) :: data      !! the user data given to `set_functions`
         end subroutine sqpopt_report_func
     end interface
 
@@ -90,7 +122,12 @@
     case (sqpopt_user_requested_stop); msg = 'user requested stop'
     case (sqpopt_invalid_input);       msg = 'invalid problem definition or options'
     case (sqpopt_stalled);             msg = 'feasible, but no further progress is being made'
-    case (sqpopt_function_error);      msg = 'the problem functions returned a non-finite value (NaN or Inf)'
+    case (sqpopt_function_error);      msg = 'the problem functions returned a non-finite value (NaN or Inf), '// &
+                                               'or could not be evaluated, at the current point'
+    case (sqpopt_max_evals_reached);   msg = 'maximum number of function evaluations reached'
+    case (sqpopt_time_limit_reached);  msg = 'time limit reached'
+    case (sqpopt_unbounded);           msg = 'the objective fell below its lower limit (the problem appears to be unbounded)'
+    case (sqpopt_acceptable);          msg = 'converged to an acceptable level'
     case (sqpopt_error);               msg = 'an unspecified error occurred'
     case default;                      msg = 'unknown status code'
     end select

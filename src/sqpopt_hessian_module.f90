@@ -40,7 +40,8 @@
         real(wp), dimension(:,:), allocatable :: s     !! stored step vectors `dimension(n,max_history)`
         real(wp), dimension(:,:), allocatable :: y     !! stored Lagrangian gradient-change vectors `dimension(n,max_history)`
         real(wp), dimension(:),   allocatable :: rho   !! `1/(y^T s)` for each stored pair `dimension(max_history)` (BFGS)
-        real(wp) :: gamma = 1.0_wp  !! scaling of the initial Hessian \( H_0 = \gamma I \)
+        real(wp) :: gamma  = 1.0_wp !! scaling of the initial Hessian \( H_0 = \gamma I \)
+        real(wp) :: gamma0 = 1.0_wp !! `gamma` before any update (and after a [[hessian_reset]])
 
         ! cached LU factorization of the compact representation's middle matrix
         ! (internal; rebuilt by [[hessian_vector_product]] when `mid_valid` is false):
@@ -68,18 +69,21 @@
 !  initialize the limited-memory Hessian approximation (equivalent to
 !  \( H_0 = \gamma I \), with no `(s,y)` pairs stored).
 
-    subroutine hessian_initialize(me, n, max_history, use_sr1)
+    subroutine hessian_initialize(me, n, max_history, use_sr1, scale0)
 
     class(sqpopt_hessian_type), intent(inout) :: me
     integer, intent(in) :: n            !! problem size
     integer, intent(in) :: max_history  !! number of `(s,y)` pairs to retain
     logical, intent(in), optional :: use_sr1  !! if true, use SR1 instead of BFGS (default `.false.`)
+    real(wp), intent(in), optional :: scale0  !! initial Hessian approximation \( B_0 = \) `scale0` \( I \) (default 1)
 
     me%n           = n
     me%max_history = max_history
     me%n_history   = 0
     me%first       = 1
-    me%gamma       = 1.0_wp
+    me%gamma0      = 1.0_wp
+    if (present(scale0)) me%gamma0 = 1.0_wp/scale0
+    me%gamma       = me%gamma0
     me%mid_valid   = .false.
     me%use_sr1     = .false.
     if (present(use_sr1)) me%use_sr1 = use_sr1
@@ -501,7 +505,7 @@
 
     me%n_history = 0
     me%first     = 1
-    me%gamma     = 1.0_wp
+    me%gamma     = me%gamma0
     me%mid_valid = .false.
 
     end subroutine hessian_reset

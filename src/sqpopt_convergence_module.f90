@@ -60,7 +60,7 @@
 !  `converged` is true in all three cases (i.e. it means "stop here").
 
     subroutine check_convergence(x, g, jac, c, x_lb, x_ub, c_lb, c_ub, lambda, ktol, ctol, converged, istat, &
-                                  f, f_prev, x_prev, ftol, xtol)
+                                  f, f_prev, x_prev, ftol, xtol, kkt_error, feas_error)
 
     real(wp), dimension(:),     intent(in)  :: x         !! current point `dimension(n)`
     real(wp), dimension(:),     intent(in)  :: g         !! objective gradient at `x` `dimension(n)`
@@ -82,6 +82,10 @@
                                                                  !! stalled-progress test with `xtol`, and the infeasibility test)
     real(wp),                     optional, intent(in) :: ftol   !! relative objective-change tolerance for the stalled-progress test
     real(wp),                     optional, intent(in) :: xtol   !! relative variable-change tolerance for the stalled-progress test
+    real(wp),                     optional, intent(out) :: kkt_error  !! the KKT error: the larger of the stationarity and
+                                                                      !! complementarity residuals, divided by their scaling
+                                                                      !! (so it is directly comparable to `ktol`)
+    real(wp),                     optional, intent(out) :: feas_error !! the largest violation of a constraint or variable bound
 
     real(wp), parameter :: s_max = 100.0_wp !! multiplier-scaling threshold (see above)
 
@@ -118,6 +122,8 @@
     c_viol = 0.0_wp
     if (size(c) > 0) c_viol = maxval(max(c_lb-c, 0.0_wp) + max(c-c_ub, 0.0_wp))
     x_viol = maxval(max(x_lb-x, 0.0_wp) + max(x-x_ub, 0.0_wp))
+    if (present(kkt_error))  kkt_error  = max(kkt_res, dual_res)/lam_scale
+    if (present(feas_error)) feas_error = max(c_viol, x_viol)
 
     if (kkt_res <= ktol*lam_scale .and. dual_res <= ktol*lam_scale .and. &
         c_viol <= ctol .and. x_viol <= ctol) then

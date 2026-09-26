@@ -10,6 +10,9 @@ program test_input_validation
     use sqpopt_problem_module, only: sqpopt_problem_type
     use sqpopt_options_module, only: sqpopt_options_type
     use sqpopt_types_module,   only: sqpopt_invalid_input, sqpopt_success
+    use sqpopt_linesearch_module,   only: sqpopt_linesearch_type
+    use sqpopt_trust_region_module, only: sqpopt_trust_region_type
+    use sqpopt_qp_solver_module,    only: sqpopt_qp_solver_type
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
 
     implicit none
@@ -58,6 +61,38 @@ program test_input_validation
     options = sqpopt_options_type()
     options%ktol = 0.0_wp
     call expect_invalid('ktol = 0', problem, options, [0.0_wp, 0.0_wp])
+    options = sqpopt_options_type()
+    options%acceptable_iter = -1
+    call expect_invalid('acceptable_iter = -1', problem, options, [0.0_wp, 0.0_wp])
+    options = sqpopt_options_type()
+    options%print_level = 1
+    options%output_unit = 98765   ! (not an open unit)
+    call expect_invalid('output_unit not open', problem, options, [0.0_wp, 0.0_wp])
+
+    ! invalid component settings:
+    block
+        type(sqpopt_linesearch_type)   :: ls
+        type(sqpopt_trust_region_type) :: tr
+        type(sqpopt_qp_solver_type)    :: qp
+        ls%sigma = 1.5_wp
+        call expect_invalid('linesearch%sigma = 1.5', problem, sqpopt_options_type(), [0.0_wp, 0.0_wp], linesearch=ls)
+        tr%enabled = .true.
+        tr%eta1 = 0.9_wp
+        tr%eta2 = 0.5_wp
+        call expect_invalid('trust_region eta1 > eta2', problem, sqpopt_options_type(), [0.0_wp, 0.0_wp], trust_region=tr)
+        qp%max_step = 0.0_wp
+        call expect_invalid('qp_solver%max_step = 0', problem, sqpopt_options_type(), [0.0_wp, 0.0_wp], qp_solver=qp)
+    end block
+
+    ! wrong-size initial multipliers:
+    block
+        type(sqpopt_type) :: solver
+        integer :: istat
+        call solver%initialize(problem=problem)
+        call solver%solve([0.0_wp, 0.0_wp], istat, lambda0=[1.0_wp, 2.0_wp])
+        print '(A,I0,2A)', 'size(lambda0) /= m: istat=', istat, '  ', solver%status_message()
+        if (istat /= sqpopt_invalid_input) error stop 'test_input_validation FAILED: size(lambda0) /= m'
+    end block
 
     ! a valid problem, started outside the bounds [-2,2]: x0 is projected
     ! onto the bounds before anything is evaluated:
@@ -81,14 +116,18 @@ program test_input_validation
 
     contains
 
-    subroutine expect_invalid(label, problem, options, x0)
+    subroutine expect_invalid(label, problem, options, x0, linesearch, trust_region, qp_solver)
     character(len=*),          intent(in) :: label
     type(sqpopt_problem_type), intent(in) :: problem
     type(sqpopt_options_type), intent(in) :: options
     real(wp), dimension(:),    intent(in) :: x0
+    type(sqpopt_linesearch_type),   intent(in), optional :: linesearch
+    type(sqpopt_trust_region_type), intent(in), optional :: trust_region
+    type(sqpopt_qp_solver_type),    intent(in), optional :: qp_solver
     type(sqpopt_type) :: solver
     integer :: istat
-    call solver%initialize(problem=problem, options=options)
+    call solver%initialize(problem=problem, options=options, linesearch=linesearch, trust_region=trust_region, &
+                           qp_solver=qp_solver)
     call solver%solve(x0, istat)
     print '(A,A,I0,2A)', label, ': istat=', istat, '  ', solver%status_message()
     if (istat /= sqpopt_invalid_input) error stop 'test_input_validation FAILED: '//label
@@ -109,30 +148,38 @@ program test_input_validation
     if (any(abs(x) > 2.0_wp)) outside_bounds = .true.
     end subroutine note_bounds
 
-    subroutine obj(x, f)
+    subroutine obj(x, f, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp),               intent(out) :: f
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     call note_bounds(x)
     f = x(1) + x(2)
     end subroutine obj
 
-    subroutine grad(x, g)
+    subroutine grad(x, g, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp), dimension(:), intent(out) :: g
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     call note_bounds(x)
     g = 1.0_wp
     end subroutine grad
 
-    subroutine cons(x, c)
+    subroutine cons(x, c, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp), dimension(:), intent(out) :: c
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     call note_bounds(x)
     c(1) = x(1)**2 + x(2)**2
     end subroutine cons
 
-    subroutine jacv(x, jac_val)
+    subroutine jacv(x, jac_val, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp), dimension(:), intent(out) :: jac_val
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     call note_bounds(x)
     jac_val = 2.0_wp*x
     end subroutine jacv

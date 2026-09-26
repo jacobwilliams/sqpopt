@@ -78,6 +78,8 @@
                                          !! warm starts work the same way here, with `LSQR` computing the
                                          !! minimum-norm starting step)
 
+        integer :: n_iter = 0 !! number of active-set iterations taken by the last solve (output)
+
         ! internal state (the working set at the end of the previous solve, for warm starts):
         integer, dimension(:), allocatable :: warm_status !! side (-1/0/+1) of each general row and variable bound
         logical :: warm_independent = .false. !! whether that working set is known to be linearly independent in
@@ -317,6 +319,7 @@
 
     end do
 
+    me%n_iter = min(it, maxit)
     p = u(1:n)
     lambda = 0.0_wp
     do k = 1, size(coeff_idx)

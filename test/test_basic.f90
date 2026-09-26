@@ -70,44 +70,56 @@ program test_basic
 
     end subroutine test_equality_constrained
 
-    subroutine obj1(x, f)
+    subroutine obj1(x, f, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp),                intent(out) :: f
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     f = (x(1)-2.0_wp)**2 + (x(2)-3.0_wp)**2
     end subroutine obj1
 
-    subroutine grad1(x, g)
+    subroutine grad1(x, g, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp), dimension(:), intent(out) :: g
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     g(1) = 2.0_wp*(x(1)-2.0_wp)
     g(2) = 2.0_wp*(x(2)-3.0_wp)
     end subroutine grad1
 
     !> no constraints (used for the bounds-only test, where m=0)
-    subroutine cons0(x, c)
+    subroutine cons0(x, c, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp), dimension(:), intent(out) :: c
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     associate(unused => x); end associate
     associate(unused => c); end associate
     end subroutine cons0
 
     !> no constraints (used for the bounds-only test, where m=0)
-    subroutine jacv0(x, jac_val)
+    subroutine jacv0(x, jac_val, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp), dimension(:), intent(out) :: jac_val
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     associate(unused => x); end associate
     associate(unused => jac_val); end associate
     end subroutine jacv0
 
-    subroutine cons1(x, c)
+    subroutine cons1(x, c, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp), dimension(:), intent(out) :: c
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     c(1) = x(1) + x(2)
     end subroutine cons1
 
-    subroutine jacv1(x, jac_val)
+    subroutine jacv1(x, jac_val, status, data)
     real(wp), dimension(:), intent(in)  :: x
     real(wp), dimension(:), intent(out) :: jac_val
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
     jac_val = [1.0_wp, 1.0_wp]
     end subroutine jacv1
 

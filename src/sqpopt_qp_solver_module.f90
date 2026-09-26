@@ -107,6 +107,7 @@
                                                                  !! `sqpopt_bounds_*` constants); not used by `sqpopt_qp_dense`/
                                                                  !! `sqpopt_qp_reduced_hessian`, which enforce bounds exactly
                                                                  !! as part of the QP solve itself
+        integer :: n_iter = 0 !! number of active-set iterations taken by the last QP solve (output; 0 for the composite step)
         type(sqpopt_dense_qp_type)           :: dense_qp    !! the dense QP solver (used only when `mode==sqpopt_qp_dense`)
         type(sqpopt_reduced_hessian_qp_type) :: sparse_qp   !! the sparse QP solver (used only when `mode==sqpopt_qp_reduced_hessian`)
 
@@ -147,14 +148,17 @@
     select case (resolved_mode(me, size(g)))
     case (sqpopt_qp_dense)
         call me%dense_qp%solve(hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
+        me%n_iter = me%dense_qp%n_iter
         ! the dense solver enforces bounds/constraints exactly, but still apply the
         ! same trust-region cap as the composite step, for a consistent step-size safeguard:
         if (norm2(p) > me%max_step) p = p*(me%max_step/norm2(p))
     case (sqpopt_qp_reduced_hessian)
         call me%sparse_qp%solve(hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
+        me%n_iter = me%sparse_qp%n_iter
         if (norm2(p) > me%max_step) p = p*(me%max_step/norm2(p))
     case default
         call solve_composite_step(me, hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
+        me%n_iter = 0
     end select
 
     ! the active-set solvers only satisfy the bounds to within their own
