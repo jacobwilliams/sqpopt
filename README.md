@@ -296,7 +296,9 @@ exactly, and share the same robustness features:
 | `penalty_rho` | `0.1` | `sqpopt_penalty_model` with `sqpopt_merit_l1`: the fraction of the linearized violation reduction the penalty must credit |
 | `major_step_limit` | `2.0` | caps the *initial* trial step length (before any backtracking), used by all three modes, so that no variable changes by more than this factor relative to \( \max(1,\lvert x_j\rvert) \) (SNOPT's "Major step limit" option); guards against divergence from a QP step that is technically feasible but unreasonably large |
 | `sigma` | `0.1` | Armijo sufficient-decrease parameter, \( 0<\sigma<1 \) (`sqpopt_linesearch_armijo`/`sqpopt_linesearch_watchdog` modes) |
-| `backtrack` | `0.5` | step-length reduction factor at each backtracking step (`sqpopt_linesearch_armijo`/`sqpopt_linesearch_watchdog` modes) |
+| `backtrack` | `0.5` | step-length reduction factor at each backtracking step (when `interpolate` is off, or the interpolation has no minimizer) |
+| `interpolate` | `.true.` | choose each backtracking step length by safeguarded quadratic interpolation of the merit function (or, in the filter search, of the violation if the trial made it worse, else the objective), within \( [0.1\alpha, 0.5\alpha] \), as in NLPQLP (`armijo`/`watchdog`/`filter` modes) |
+| `nonmonotone_len` | `0` | if `> 0`, a failed search is retried non-monotonically, as in NLPQLP: against the worst merit value (filter search: the worst violation and objective) of the last `nonmonotone_len` iterates instead of the current one (`armijo`/`filter` modes). Helps the merit-function searches on hard problems; not the filter search |
 | `alpha_min` | `1e-10` | minimum step length: if no acceptable step is found before `alpha` would drop below this, the search fails and no step is taken (`armijo`/`watchdog`/`filter` modes) |
 | `max_ls_iter` | `40` | maximum number of trial step lengths per search (`armijo`/`watchdog`/`filter` modes) |
 | `tol` | `1e-4` | desired tolerance on the minimizer (`sqpopt_linesearch_exact` mode) |
@@ -335,12 +337,16 @@ On the Hock-Schittkowski test set (`test/test_hs_suite.f90`, 305 problems):
 
 | line search / merit / penalty | solved | local | failed | `f` evaluations (solved) |
 |---|--:|--:|--:|--:|
-| **filter** (default) | **273** | 32 | **0** | **10,593** |
+| **filter** (default, with interpolation) | **274** | 31 | **0** | **10,369** |
+| filter, without interpolation | 273 | 32 | 0 | 10,593 |
 | Armijo / \( \ell_1 \) / multipliers | 269 | 32 | 4 | 28,555 |
 | Armijo / \( \ell_1 \) / model (Byrd-Nocedal) | 271 | 32 | 2 | 31,154 |
 | Armijo / augmented Lagrangian / multipliers | 270 | 33 | 2 | 10,960 |
+| Armijo / augmented Lagrangian / multipliers, interpolation + non-monotone (10) | 273 | 31 | 1 | 11,442 |
 | Armijo / augmented Lagrangian / model (GMSW) | 266 | 34 | 5 | 14,198 |
 | watchdog / \( \ell_1 \) / model | 271 | 32 | 2 | 34,286 |
+
+(The merit-function rows are without interpolation, except where noted. With interpolation, Armijo / \( \ell_1 \) / multipliers needs 18,317 `f` evaluations instead of 28,555, but fails on one more problem.)
 
 **Second-order correction.** In every line search, and in the trust
 region, when the first (full) trial step

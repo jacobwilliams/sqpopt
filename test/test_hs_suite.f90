@@ -42,6 +42,7 @@ program test_hs_suite
     use sqpopt_module,         only: sqpopt_type
     use sqpopt_problem_module, only: sqpopt_problem_type
     use sqpopt_options_module, only: sqpopt_options_type
+    use sqpopt_linesearch_module, only: sqpopt_linesearch_type
     use sqpopt_types_module,   only: sqpopt_results_type, sqpopt_success, sqpopt_stalled, sqpopt_acceptable, &
                                      sqpopt_status_message
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
@@ -53,11 +54,11 @@ program test_hs_suite
 
     !> problems not (yet) solved by `sqpopt` with the default options -- the
     !! regression baseline (see the program documentation). As of 2026-09-26:
-    !! 273 of the 305 problems solved, 32 local solutions, 0 failures.
+    !! 274 of the 305 problems solved, 31 local solutions, 0 failures.
     integer, dimension(*), parameter :: known_unsolved = [ &
           2,  16,  25,  33,  38,  54,  55,  57,  59,  87,  97,  98, 105, 109, 202, &
-        213, 236, 239, 259, 265, 272, 283, 287, 304, 305, 312, 327, 338, 340, 362, &
-        373, 379 ]
+        213, 236, 239, 265, 272, 283, 287, 304, 305, 312, 327, 338, 340, 362, 373, &
+        379 ]
 
     type :: problem_context
         !! the user data passed to the problem functions
@@ -143,6 +144,7 @@ program test_hs_suite
     type(sqpopt_type)         :: solver
     type(sqpopt_problem_type) :: problem
     type(sqpopt_options_type) :: options
+    type(sqpopt_linesearch_type) :: linesearch
     type(sqpopt_results_type) :: r
     integer, dimension(:), allocatable :: irow, icol
     integer  :: i, j, nnz, istat
@@ -170,7 +172,7 @@ program test_hs_suite
     call problem%set_functions(f=obj, g=grad, c=cons, jac=jacv, data=ctx)
     options%max_iter = 1000
 
-    call solver%initialize(problem=problem, options=options)
+    call solver%initialize(problem=problem, options=options, linesearch=linesearch)
     call solver%solve(real(p%x0, wp), istat)
     call solver%get_results(r)
 

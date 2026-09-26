@@ -637,6 +637,26 @@ not worse in practice here. **The filter line search is now the default**
 (`options%linesearch_mode`), which also avoids the merit functions'
 penalty growth; the scalable benchmark is as fast or faster.
 
+**NLPQLP line-search options (2026-09-26)**, from the NLPQLP 4.2 user's
+guide (`references/NLPQLP.pdf`), on the line search type:
+- `interpolate` (**default on**): each backtracking step length is the
+  minimizer of the quadratic through `φ(0)`, `φ'(0)`, `φ(α)`, safeguarded
+  to `[0.1α, 0.5α]` (NLPQLP's Algorithm 2.1), instead of `α/2`. In the
+  filter search it interpolates the violation if the trial made it worse
+  (slope `−θ₀`), else the objective. HS suite, filter: 273 → **274**
+  solved (TP259), `f` 10,593 → 10,369, no regressions (TP332 250 → 123,
+  TP355 501 → 391). With the ℓ1 merit: `f` 28,555 → 18,317 (TP61 7,368 →
+  466), but TP268 and TP375 then fail. Benchmark neutral or better
+  (rosenbrock N=2000 80 → 65 `f`).
+- `nonmonotone_len` (default 0 = off): a failed search is retried against
+  the worst merit value (filter: the worst `θ` and `f`, within `θ_max`) of
+  the last `nonmonotone_len` iterates (NLPQLP's MAXNM, used only in the
+  error situation). No gain for the filter search (10: same results, 10%
+  more `f`; 40: TP214 fails); with the merit searches it helps: ℓ1 270
+  solved (TP332), augmented Lagrangian with interpolation 270 → 273.
+  NLPQLP's case for it is noisy functions (its Table 2), which the HS
+  suite doesn't test yet.
+
 ## 2. Bugs: correctness (fix first)
 
 | # | Issue | Where | Evidence |

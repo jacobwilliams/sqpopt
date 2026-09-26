@@ -430,6 +430,9 @@
     if (.not. (ls%penalty >= 0.0_wp) .or. ls%watchdog_relaxed_len < 0 .or. ls%watchdog_cooldown_len < 0) then
         msg = 'linesearch%penalty, watchdog_relaxed_len, and watchdog_cooldown_len must be >= 0'; return
     end if
+    if (ls%nonmonotone_len < 0 .or. .not. (ls%penalty_rho > 0.0_wp .and. ls%penalty_rho < 1.0_wp)) then
+        msg = 'linesearch%nonmonotone_len must be >= 0, and penalty_rho in (0,1)'; return
+    end if
     if (.not. (ls%filter_gamma_theta > 0.0_wp .and. ls%filter_gamma_theta < 1.0_wp .and. &
                ls%filter_gamma_phi > 0.0_wp .and. ls%filter_delta > 0.0_wp .and. &
                ls%filter_s_theta > 1.0_wp .and. ls%filter_s_phi > 1.0_wp .and. &

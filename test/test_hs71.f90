@@ -21,12 +21,13 @@ program test_hs71
     !! (a corner point); every run below is required to reach
     !! `sqpopt_success` tightly.
     !!
-    !! Run nine ways, to compare the available merit functions, penalty
+    !! Run eleven ways, to compare the available merit functions, penalty
     !! updates, line searches, and QP solvers on this problem: the \(\ell_1\)
     !! merit with the Armijo line search and `sqpopt_qp_auto` (which picks
     !! the dense QP solver for a problem this small), the model-based penalty
     !! updates (`sqpopt_penalty_model`: Byrd-Nocedal for \(\ell_1\), and
-    !! Gill-Murray-Saunders-Wright for the augmented Lagrangian),
+    !! Gill-Murray-Saunders-Wright for the augmented Lagrangian), the
+    !! non-monotone line search retry (`nonmonotone_len`),
     !! `sqpopt_merit_augmented_lagrangian` (see PLAN.md section 6.1),
     !! `sqpopt_linesearch_watchdog` (Powell's VF13 watchdog technique, see
     !! PLAN.md section 6.3), `sqpopt_qp_dense` and
@@ -42,7 +43,7 @@ program test_hs71
     use sqpopt_options_module, only: sqpopt_options_type
     use sqpopt_linesearch_module, only: sqpopt_merit_l1, sqpopt_merit_augmented_lagrangian, &
                                         sqpopt_linesearch_armijo, sqpopt_linesearch_watchdog, sqpopt_linesearch_filter, &
-                                        sqpopt_penalty_multipliers, sqpopt_penalty_model
+                                        sqpopt_penalty_multipliers, sqpopt_penalty_model, sqpopt_linesearch_type
     use sqpopt_qp_solver_module, only: sqpopt_qp_auto, sqpopt_qp_dense, sqpopt_qp_reduced_hessian, sqpopt_qp_solver_type
     use sqpopt_types_module,   only: sqpopt_success, sqpopt_results_type
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
@@ -64,6 +65,10 @@ program test_hs71
                   penalty_update=sqpopt_penalty_model)
     call run_hs71('AL, GMSW penalty',       sqpopt_merit_augmented_lagrangian, sqpopt_linesearch_armijo,   sqpopt_qp_auto, &
                   penalty_update=sqpopt_penalty_model)
+    call run_hs71('l1, non-monotone',       sqpopt_merit_l1,                   sqpopt_linesearch_armijo,   sqpopt_qp_auto, &
+                  nonmonotone_len=10)
+    call run_hs71('filter, non-monotone',   sqpopt_merit_l1,                   sqpopt_linesearch_filter,   sqpopt_qp_auto, &
+                  nonmonotone_len=10)
     call run_hs71('watchdog',               sqpopt_merit_l1,                   sqpopt_linesearch_watchdog, sqpopt_qp_auto)
     call run_hs71('dense QP',               sqpopt_merit_l1,                   sqpopt_linesearch_armijo,   sqpopt_qp_dense)
     call run_hs71('reduced-Hessian QP',     sqpopt_merit_l1,                   sqpopt_linesearch_armijo,   sqpopt_qp_reduced_hessian)
@@ -80,7 +85,8 @@ program test_hs71
 
     contains
 
-    subroutine run_hs71(label, merit_mode, linesearch_mode, qp_mode, lsqr_atol, lsqr_btol, lsqr_itnlim, penalty_update)
+    subroutine run_hs71(label, merit_mode, linesearch_mode, qp_mode, lsqr_atol, lsqr_btol, lsqr_itnlim, penalty_update, &
+                        nonmonotone_len)
 
     character(len=*), intent(in) :: label
     integer,           intent(in) :: merit_mode
@@ -89,11 +95,13 @@ program test_hs71
     real(wp), intent(in), optional :: lsqr_atol, lsqr_btol !! LSQR tuning (sqpopt_qp_reduced_hessian mode only)
     integer,  intent(in), optional :: lsqr_itnlim          !! LSQR tuning (sqpopt_qp_reduced_hessian mode only)
     integer,  intent(in), optional :: penalty_update       !! penalty update rule (default `sqpopt_penalty_multipliers`)
+    integer,  intent(in), optional :: nonmonotone_len      !! non-monotone retry queue length (default 0 = off)
 
     type(sqpopt_type)         :: solver
     type(sqpopt_problem_type) :: problem
     type(sqpopt_options_type) :: options
     type(sqpopt_qp_solver_type) :: qp_solver
+    type(sqpopt_linesearch_type) :: linesearch
     real(wp) :: x0(4), xsol(4), lam(2)
     real(wp), parameter :: xexpect(4) = [1.0_wp, 4.7429994_wp, 3.8211500_wp, 1.3794083_wp]
     real(wp), parameter :: fexpect = 17.0140173_wp
@@ -125,7 +133,8 @@ program test_hs71
     if (present(lsqr_itnlim)) qp_solver%sparse_qp%lsqr_itnlim = lsqr_itnlim
     x0 = [1.0_wp, 5.0_wp, 5.0_wp, 1.0_wp]
 
-    call solver%initialize(problem=problem, options=options, qp_solver=qp_solver)
+    if (present(nonmonotone_len)) linesearch%nonmonotone_len = nonmonotone_len
+    call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, linesearch=linesearch)
     call solver%solve(x0, istat)
     call solver%get_solution(xsol, lam)
     block

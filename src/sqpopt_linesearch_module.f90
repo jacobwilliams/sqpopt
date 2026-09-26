@@ -65,6 +65,18 @@
 !    fewest function evaluations, of all the line search / merit function /
 !    penalty combinations (and it has no penalty parameter to tune).
 !
+!  Two options from NLPQLP (Schittkowski) apply to the backtracking
+!  searches: `interpolate` (on by default) chooses each backtracking step
+!  length by safeguarded quadratic interpolation (see
+!  [[next_step_length]]) rather than a fixed factor; and `nonmonotone_len`
+!  (off by default) retries a failed search non-monotonically, against the
+!  worst of the recent iterates. On the Hock-Schittkowski test set the
+!  interpolation solves one more problem with the filter search, with
+!  fewer function evaluations (and a third fewer with the \( \ell_1 \)
+!  merit function); the non-monotone retry doesn't help the filter search,
+!  but does help the merit-function ones (e.g. with the augmented
+!  Lagrangian and interpolation, 273 solved instead of 270).
+!
 !  All three of the merit-function-based modes start each search from an
 !  initial trial step length
 !  \( \alpha_0 \le 1 \) (see [[initial_step_length]]) rather than always
@@ -156,6 +168,13 @@
                                              !! fails (no step is taken, `istat=sqpopt_line_search_failed`) if no
                                              !! acceptable step is found before `alpha` would drop below this
         integer  :: max_ls_iter = 40        !! maximum number of trial step lengths per search (`armijo`/`watchdog`/`filter` modes)
+        logical  :: interpolate = .true.    !! choose each backtracking step length by safeguarded quadratic
+                                            !! interpolation (as in NLPQLP) instead of the fixed factor `backtrack`
+                                            !! (see [[next_step_length]]; `armijo`/`watchdog`/`filter` modes)
+        integer  :: nonmonotone_len = 0     !! if `>0`, when a search fails it is retried non-monotonically
+                                            !! (as in NLPQLP): against the worst merit value (`filter` mode: the
+                                            !! worst violation and objective) of the last `nonmonotone_len`
+                                            !! iterates instead of the current one (`armijo`/`filter` modes)
         real(wp) :: major_step_limit = 2.0_wp !! caps the *initial* trial step length (before any backtracking) so that
                                               !! no variable changes by more than this fraction of \( \max(1,|x_j|) \)
                                               !! (SNOPT's "Major step limit" option): the search starts from
@@ -188,6 +207,11 @@
         real(wp), dimension(:), allocatable :: s0      !! the slacks at the start of the step `dimension(m)`
         real(wp), dimension(:), allocatable :: q       !! the slacks' change per unit step `dimension(m)`
         real(wp) :: penalty_floor = 1.0e-2_wp !! the penalty can only decrease above this, which doubles each time
+
+        ! internal state for the non-monotone fallback (not user options): the merit values (`armijo`), or
+        ! the violations and objective values (`filter`), at the most recent iterates
+        integer  :: nm_count = 0
+        real(wp), dimension(:), allocatable :: nm_phi, nm_theta, nm_f
 
         ! internal state for the filter (not user options -- persists across major iterations):
         logical  :: filter_ready = .false.        !! whether the filter below has been initialized
@@ -656,7 +680,7 @@
 !  present, the second-order-corrected step is also tried at that point.
 
     subroutine backtrack_search(me, eval_f, eval_c, x, p, alpha0, phi0, dphi0, c, c_lb, c_ub, lambda, &
-                                alpha, x_new, phi_new, accepted, soc)
+                                alpha, x_new, phi_new, accepted, soc, phi_ref)
 
     class(sqpopt_linesearch_type), intent(inout) :: me
     procedure(sqpopt_ls_objective_func)  :: eval_f
@@ -675,15 +699,19 @@
     real(wp),               intent(out) :: phi_new  !! merit function value at `x_new` (meaningful only if `accepted`)
     logical,                intent(out) :: accepted !! true if a step satisfying the Armijo test was found
     procedure(sqpopt_soc_func), optional :: soc     !! computes a second-order-corrected step
+    real(wp), optional,     intent(in)  :: phi_ref  !! reference value for the sufficient-decrease test, instead of
+                                                    !! `phi0` (the non-monotone retry, see `nonmonotone_len`)
 
     real(wp), dimension(size(x)) :: x_trial, p_soc
     real(wp), dimension(size(c)) :: c_trial
-    real(wp) :: phi_trial, slope, slack
+    real(wp) :: phi_trial, slope, slack, phi_r
     logical  :: ok, soc_ok
     integer  :: it
 
     slope    = min(dphi0, 0.0_wp)
-    slack    = merit_slack(phi0)
+    phi_r    = phi0
+    if (present(phi_ref)) phi_r = max(phi0, phi_ref)
+    slack    = merit_slack(phi_r)
     accepted = .false.
     alpha    = alpha0
 
@@ -691,7 +719,7 @@
 
         x_trial = x + alpha*p
         call eval_trial(me, eval_f, eval_c, x_trial, c_lb, c_ub, lambda, c_trial, phi_trial, ok, alpha)
-        if (ok .and. phi_trial <= phi0 + me%sigma*alpha*slope + slack) then
+        if (ok .and. phi_trial <= phi_r + me%sigma*alpha*slope + slack) then
             accepted = .true.
             exit
         end if
@@ -705,7 +733,7 @@
                 if (soc_ok) then
                     x_trial = x + p_soc
                     call eval_trial(me, eval_f, eval_c, x_trial, c_lb, c_ub, lambda, c_trial, phi_trial, ok, alpha)
-                    if (ok .and. phi_trial <= phi0 + me%sigma*alpha*slope + slack) then
+                    if (ok .and. phi_trial <= phi_r + me%sigma*alpha*slope + slack) then
                         accepted = .true.
                         exit
                     end if
@@ -713,7 +741,11 @@
             end if
         end if
 
-        alpha = me%backtrack*alpha
+        if (ok) then
+            alpha = next_step_length(me, alpha, phi0, slope, phi_trial)
+        else
+            alpha = me%backtrack*alpha
+        end if
         if (alpha < me%alpha_min) exit
 
     end do
@@ -761,6 +793,15 @@
 
     call backtrack_search(me, eval_f, eval_c, x, p, initial_step_length(x, p, me%major_step_limit), &
                           phi0, dphi0, c, c_lb, c_ub, lambda, alpha, x_new, phi_new, accepted, soc)
+
+    if (.not. accepted .and. me%nonmonotone_len > 0 .and. me%nm_count > 0) then
+        ! the non-monotone retry: against the worst merit value of the recent iterates
+        if (maxval(me%nm_phi(1:me%nm_count)) > phi0) &
+            call backtrack_search(me, eval_f, eval_c, x, p, initial_step_length(x, p, me%major_step_limit), &
+                                  phi0, dphi0, c, c_lb, c_ub, lambda, alpha, x_new, phi_new, accepted, soc, &
+                                  phi_ref=maxval(me%nm_phi(1:me%nm_count)))
+    end if
+    call nonmonotone_push(me, phi0, 0.0_wp, f)
 
     if (accepted) then
         istat = sqpopt_success
@@ -1068,10 +1109,52 @@
             end if
         end if
 
-        alpha = me%backtrack*alpha
+        if (ok .and. me%interpolate) then
+            ! interpolate the violation if the trial made it worse (the usual reason
+            ! for rejection; its slope along a QP step is -theta0), else the objective
+            if (theta_t > theta0 .and. theta0 > 0.0_wp) then
+                alpha = next_step_length(me, alpha, theta0, -theta0, theta_t)
+            else
+                alpha = next_step_length(me, alpha, f, min(gtp, 0.0_wp), f_trial)
+            end if
+        else
+            alpha = me%backtrack*alpha
+        end if
         if (alpha < alpha_lim) exit
 
     end do
+
+    if (me%nonmonotone_len > 0 .and. me%nm_count > 0) then
+        ! the non-monotone retry: accept a point no worse, in both the violation
+        ! and the objective (with an Armijo margin), than the worst of the
+        ! recent iterates (and within theta_max)
+        block
+            real(wp) :: theta_ref, f_ref
+            theta_ref = max(theta0, maxval(me%nm_theta(1:me%nm_count)))
+            f_ref     = max(f, maxval(me%nm_f(1:me%nm_count)))
+            if (theta_ref > theta0 .or. f_ref > f) then
+                alpha = initial_step_length(x, p, me%major_step_limit)
+                do it = 1, me%max_ls_iter
+                    x_trial = x + alpha*p
+                    call eval_fc(eval_f, eval_c, x_trial, f_trial, c_trial, ok)
+                    if (ok) then
+                        theta_t = l1_violation(c_trial, c_lb, c_ub)
+                        if (theta_t <= theta_ref .and. theta_t <= me%filter_theta_max .and. &
+                            f_trial <= f_ref + me%filter_eta_phi*alpha*min(gtp, 0.0_wp)) then
+                            call nonmonotone_push(me, 0.0_wp, theta0, f)
+                            call me%filter_record(theta0, f)
+                            x_new = x_trial
+                            istat = sqpopt_success
+                            return
+                        end if
+                    end if
+                    alpha = me%backtrack*alpha
+                    if (alpha < me%alpha_min) exit
+                end do
+            end if
+        end block
+    end if
+    call nonmonotone_push(me, 0.0_wp, theta0, f)
 
     ! no acceptable point was found: no step is taken
     alpha = 0.0_wp
@@ -1082,12 +1165,75 @@
 
         subroutine accept()
         !! accept `x_trial`, augmenting the filter unless it was an f-type step
+        call nonmonotone_push(me, 0.0_wp, theta0, f)
         if (.not. f_type) call me%filter_record(theta0, f)
         x_new = x_trial
         istat = sqpopt_success
         end subroutine accept
 
     end subroutine filter_line_search
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the next trial step length after `alpha` was rejected: `backtrack*alpha`,
+!  or, if `interpolate`, the minimizer of the quadratic interpolating
+!  \( \phi(0) \), \( \phi'(0) \), and \( \phi(\alpha) \) (as in NLPQLP),
+!  $$ \bar\alpha = \frac{-\tfrac12\alpha^2\phi'(0)}{\phi(\alpha)-\phi(0)-\alpha\phi'(0)} $$
+!  safeguarded to \( [0.1\alpha, 0.5\alpha] \) (and `backtrack*alpha` if the
+!  quadratic has no minimizer, e.g. \( \phi'(0) \ge 0 \)).
+
+    pure function next_step_length(me, alpha, phi0, dphi0, phi_a) result(alpha_new)
+
+    class(sqpopt_linesearch_type), intent(in) :: me
+    real(wp), intent(in) :: alpha  !! the rejected step length
+    real(wp), intent(in) :: phi0   !! \( \phi(0) \)
+    real(wp), intent(in) :: dphi0  !! \( \phi'(0) \)
+    real(wp), intent(in) :: phi_a  !! \( \phi(\alpha) \)
+    real(wp) :: alpha_new
+
+    real(wp) :: curv
+
+    alpha_new = me%backtrack*alpha
+    if (.not. me%interpolate .or. dphi0 >= 0.0_wp) return
+    curv = phi_a - phi0 - alpha*dphi0
+    if (curv <= 0.0_wp) return
+    alpha_new = min(max(-0.5_wp*alpha**2*dphi0/curv, 0.1_wp*alpha), 0.5_wp*alpha)
+
+    end function next_step_length
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  add the current iterate's merit value (`armijo` mode), or violation and
+!  objective value (`filter` mode), to the queue used by the non-monotone
+!  retry (keeping the most recent `nonmonotone_len`).
+
+    subroutine nonmonotone_push(me, phi, theta, f)
+
+    class(sqpopt_linesearch_type), intent(inout) :: me
+    real(wp), intent(in) :: phi, theta, f
+
+    integer :: n
+
+    n = me%nonmonotone_len
+    if (n <= 0) return
+    if (.not. allocated(me%nm_phi)) then
+        allocate(me%nm_phi(n), me%nm_theta(n), me%nm_f(n))
+        me%nm_count = 0
+    end if
+    if (me%nm_count == n) then
+        me%nm_phi(1:n-1)   = me%nm_phi(2:n)
+        me%nm_theta(1:n-1) = me%nm_theta(2:n)
+        me%nm_f(1:n-1)     = me%nm_f(2:n)
+    else
+        me%nm_count = me%nm_count + 1
+    end if
+    me%nm_phi(me%nm_count)   = phi
+    me%nm_theta(me%nm_count) = theta
+    me%nm_f(me%nm_count)     = f
+
+    end subroutine nonmonotone_push
 !*******************************************************************************
 
 !*******************************************************************************
