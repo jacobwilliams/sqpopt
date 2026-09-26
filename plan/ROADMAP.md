@@ -280,6 +280,83 @@ enter elastic mode when the multipliers exceed it, instead of raising
 multipliers are huge at "convergence". Add this problem to the
 benchmark suite.
 
+## Phase 2 status: done (2026-09-25)
+
+A new scalable benchmark, `example/benchmark.f90`
+(`fpm run --example benchmark --profile release`), measures evaluations
+and time on two problems:
+- a nonlinear optimal-control problem with `n = 2N+1` and `m = N+1`
+  equalities, plus bounded controls;
+- a chained Rosenbrock problem with `n/2` coupled circle constraints.
+
+Each is run at a size where `sqpopt_qp_auto` picks the dense QP and at
+one where it picks the reduced-Hessian QP.
+
+| problem | before Phase 2 | after |
+|---|---|---|
+| control N=50 (n=101, dense QP) | 0.86 s, 50 f-evals | **0.038 s** (23×), 25 f-evals |
+| control N=150 (n=301, RH QP) | 9.66 s, 63 f-evals, `stalled` | **0.51 s** (19×), 23 f-evals, `success` |
+| rosenbrock n=40 (dense QP) | 0.018 s, 104 f-evals | 0.016 s, 54 f-evals |
+| rosenbrock n=300 (RH QP) | 0.066 s, 111 f-evals | 0.041 s, 64 f-evals |
+
+Test-suite evaluation counts also dropped. HS71 went from 14–18
+evaluations to 8–10, `test_medium` from 41 to 29, and the Maratos problem
+from 8 to 5.
+
+What changed:
+- **E1: evaluation cache.** `sqpopt_problem_type` keeps the last 4
+  evaluations of `f` and of `c` (the `f`/`c` methods), matched on the
+  exact bits of `x`. The major iteration, all line searches, the trust
+  region, and the restoration step go through it. The accepted point is
+  one of the line search's trial points, so this removes one `f` and one
+  `c` evaluation per iteration. It also provides the evaluation counters
+  `n_eval_f`/`n_eval_c` (for Phase 3's statistics). The cache is reset at
+  every `solve`.
+- **E2: cached middle matrix.** The L-BFGS/L-SR1 compact-representation
+  middle matrix is LU-factored once per pair or `gamma` change, not per
+  product, so `hv_product` costs O(nk). The singularity test is now
+  relative. This turned out not to be the bottleneck (about 4% here), but
+  it removes an O(k²n+k³) cost from every CG iteration.
+- **E4: crash and warm starts.** This was the big win. Profiling showed
+  that each reduced-Hessian QP took about 150 active-set iterations,
+  because every dynamics equality started with its own elastic slack.
+  Both QPs now start from the minimum-norm step satisfying an initial
+  working-set guess:
+  - the guess is the previous QP's final working set (a warm start, on
+    by default, with `warm_start`), or else the equalities and fixed
+    variables (a crash start);
+  - violated bounds are added to the guess over up to 4 rounds, then the
+    step is clipped;
+  - elastic slacks are created only for rows still violated after that.
+
+  In the reduced-Hessian QP, the initial working set's per-row LSQR
+  independence check is skipped for rows of the previous working set,
+  when that solve had no elastic slacks. Rows that had slacks were only
+  independent in the extended space; trusting those broke the fuzz test,
+  which is how this was found. The QP solver's state is reset on each
+  `solve` (`qp_solver0`, like the line search's). `test_qp_fuzz` now
+  solves every QP twice with the same object, so it also checks warm
+  starts. It passes 400/400, and 3,000/3,000 in the n ≤ 12, m ≤ 15
+  stress run.
+- **E5: storage.** The L-BFGS pairs are in a circular buffer, so no
+  columns are shifted. `test_hessian_consistency` checks a wrapped BFGS
+  buffer. The Jacobian's sparsity structure is set once per `solve`, and
+  only its values are refreshed each iteration.
+- **E3** was already done in Phase 1 (the reduced-Hessian rows are in
+  CSR form).
+- **E6 (dense QR updates) is deferred.** At `n ≤ 200` the dense QP isn't
+  a bottleneck; the dense control problem takes 38 ms in total.
+
+**Where the time goes now** (control N=150): about 90% is in LSQR,
+through the reduced-Hessian QP's null-space projections, both in
+projected CG and in the remaining independence checks. Options for
+later:
+- a looser default LSQR tolerance, tied to the QP's own relative
+  tolerance;
+- reusing LSQR work across CG iterations;
+- the sparse direct KKT factorization of F1, which would replace most of
+  these iterative projections.
+
 ## 2. Bugs: correctness (fix first)
 
 | # | Issue | Where | Evidence |

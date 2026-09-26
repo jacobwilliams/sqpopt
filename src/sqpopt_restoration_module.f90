@@ -88,7 +88,7 @@
     if (dh0 < 0.0_wp) then
         do it = 1, max_ls
             x_trial = x + alpha*p
-            call problem%eval_c(x_trial, c_trial)
+            call problem%c(x_trial, c_trial)
             if (sqpopt_all_finite(c_trial)) then
                 rc = violation(c_trial, problem%c_lb, problem%c_ub)
                 h_trial = 0.5_wp*dot_product(rc, rc)

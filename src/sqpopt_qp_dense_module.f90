@@ -37,6 +37,19 @@
 !  (which minimizes the \( \ell_1 \) violation of the linearized
 !  constraints, then the QP objective).
 !
+!  **Crash and warm start.** Rather than from `p=0`, the iterations start
+!  from the minimum-norm step that satisfies an initial guess of the
+!  working set: the previous solve's final working set (a *warm start*,
+!  when `warm_start` is on and the problem size is unchanged -- near an SQP
+!  solution the active set settles, and the QP then finishes in one or two
+!  iterations), or else the equality constraints and fixed variables (a
+!  *crash* start, so equality constraints don't each need an elastic slack
+!  and an iteration to remove it). Any variable bounds this step violates
+!  are added to the guess and the step recomputed (a few rounds), then it
+!  is clipped to the bounds; only the rows it still violates get elastic
+!  slacks. The guess only sets the starting point: optimality is still
+!  established by the active-set iterations.
+!
 !  **Robustness.** Rows are only ever added to the working set if they are
 !  linearly independent of it (the initial working set is built with a
 !  Gram-Schmidt independence check; a row blocking a step along a
@@ -75,6 +88,11 @@
                                                    !! \( \max(1,\lVert g \rVert_\infty) \)
         real(wp) :: elastic_weight_max = 1.0e10_wp !! largest elastic penalty weight tried (same scaling) before the
                                                    !! linearized constraints are declared inconsistent
+        logical  :: warm_start = .true.            !! start from the previous solve's final working set, if the
+                                                   !! problem size is unchanged (see the module-level documentation)
+
+        ! internal state (the working set at the end of the previous solve, for warm starts):
+        integer, dimension(:), allocatable :: warm_status !! side (-1/0/+1) of each general row and variable bound
 
         contains
 
@@ -109,8 +127,10 @@
     integer,                    intent(out)   :: istat   !! status code (see [[sqpopt_types_module]])
 
     integer :: n, m, nv, nt, mtot, k, i, it, n_z, n_active, maxit
-    real(wp), dimension(:,:), allocatable :: h, arows, ja, z
+    real(wp), dimension(:,:), allocatable :: h, arows, ja, z, jd
     real(wp), dimension(:),   allocatable :: row_lb, row_ub, u, gext, hu_g, rg, dvec, coeff, s_sign, rhs_active, s0
+    real(wp), dimension(size(g)) :: p0
+    real(wp), dimension(:),   allocatable :: jp0
     integer,  dimension(:),   allocatable :: status, orig_idx, coeff_idx, slack_row
     logical,  dimension(:),   allocatable :: is_equality
     real(wp) :: rho, rho_max, gscale, alpha, alpha_cap, scale
@@ -120,32 +140,42 @@
     n = size(g)
     m = size(c)
 
-    ! ---- elastic slacks: one for each general row violated at p=0 ----
+    ! ---- the dense Jacobian ----
+    allocate(jd(m,n)); jd = 0.0_wp
+    do k = 1, jac%nnz
+        jd(jac%irow(k), jac%icol(k)) = jd(jac%irow(k), jac%icol(k)) + jac%val(k)
+    end do
+
+    ! ---- starting step: crash or warm start (see the module docs) ----
+    call starting_step(p0)
+
+    ! ---- elastic slacks: one for each general row violated at p0 ----
     allocate(row_lb(m), row_ub(m))
     row_lb = c_lb - c
     row_ub = c_ub - c
-    allocate(s_sign(m), slack_row(m))
+    allocate(s_sign(m), slack_row(m), s0(m))
+    jp0 = matmul(jd, p0)
     nv = 0
     do i = 1, m
         s_sign(i) = 0.0_wp
-        if (row_lb(i) > me%feas_tol*max(1.0_wp, abs(row_lb(i)))) then
+        if (jp0(i) < row_lb(i) - me%feas_tol*max(1.0_wp, abs(row_lb(i)))) then
             s_sign(i) = 1.0_wp       ! J_i p + s >= row_lb, i.e. s makes up the shortfall
-        else if (row_ub(i) < -me%feas_tol*max(1.0_wp, abs(row_ub(i)))) then
+        else if (jp0(i) > row_ub(i) + me%feas_tol*max(1.0_wp, abs(row_ub(i)))) then
             s_sign(i) = -1.0_wp      ! J_i p - s <= row_ub
         end if
         if (s_sign(i) /= 0.0_wp) then
             nv = nv + 1
             slack_row(nv) = i
+            s0(nv) = merge(row_lb(i) - jp0(i), jp0(i) - row_ub(i), s_sign(i) > 0.0_wp)
         end if
     end do
+    s0 = s0(1:nv)
     nt   = n + nv       ! unknowns: p, then the slacks
     mtot = m + nt       ! rows: general constraints, then bounds on every unknown
 
     ! ---- the combined constraint rows ----
     allocate(arows(mtot,nt)); arows = 0.0_wp
-    do k = 1, jac%nnz
-        arows(jac%irow(k), jac%icol(k)) = arows(jac%irow(k), jac%icol(k)) + jac%val(k)
-    end do
+    arows(1:m,1:n) = jd
     do k = 1, nv
         arows(slack_row(k), n+k) = s_sign(slack_row(k))
     end do
@@ -181,14 +211,10 @@
     gext(1:n)    = g
     gext(n+1:nt) = rho
 
-    ! ---- feasible starting point: p=0, slacks just large enough ----
-    allocate(u(nt)); u = 0.0_wp
-    u(1:n) = min(max(0.0_wp, row_lb(m+1:m+n)), row_ub(m+1:m+n))  ! (x is within its bounds, so this is 0)
-    do k = 1, nv
-        i = slack_row(k)
-        u(n+k) = merge(row_lb(i), -row_ub(i), s_sign(i) > 0.0_wp)
-    end do
-    s0 = u(n+1:nt)  ! (initial violations, used to scale the final slack test)
+    ! ---- feasible starting point: p0, with the slacks just large enough ----
+    allocate(u(nt))
+    u(1:n)    = p0
+    u(n+1:nt) = s0
 
     ! ---- initial working set: rows at a bound at u, if linearly independent ----
     allocate(status(mtot)); status = 0
@@ -337,7 +363,93 @@
         if (coeff_idx(k) <= m) lambda(coeff_idx(k)) = coeff(k)
     end do
 
+    ! remember the final working set (general rows and variable bounds) for a warm start:
+    me%warm_status = status(1:m+n)
+
     contains
+
+        subroutine starting_step(p0)
+        !! the minimum-norm step satisfying the initial working-set guess (the
+        !! previous solve's final working set, or the equality constraints and
+        !! fixed variables), with any violated variable bounds added to the
+        !! guess (up to 4 rounds), then clipped to the bounds
+        real(wp), dimension(n), intent(out) :: p0
+        real(wp), dimension(n) :: blb, bub
+        integer,  dimension(m+n) :: guess   ! side (-1/+1, 0 = not in the guess) of each general row / bound
+        real(wp), dimension(n, n) :: qb     ! orthonormal basis of the selected rows
+        real(wp), dimension(n, n) :: t      ! lower-triangular coefficients: row_j = sum_i t(j,i) qb(:,i)
+        real(wp), dimension(n) :: a, r, y, bsel
+        real(wp) :: target
+        integer :: kk, nb, round, j, jj
+        logical :: added
+
+        blb = x_lb - x
+        bub = x_ub - x
+        guess = 0
+        if (me%warm_start .and. allocated(me%warm_status)) then
+            if (size(me%warm_status) == m+n) guess = me%warm_status
+        end if
+        if (all(guess == 0)) then
+            do kk = 1, m
+                if (c_ub(kk) - c_lb(kk) <= 0.0_wp) guess(kk) = -1   ! equality constraint
+            end do
+            do kk = 1, n
+                if (bub(kk) - blb(kk) <= 0.0_wp) guess(m+kk) = -1   ! fixed variable
+            end do
+        end if
+
+        do round = 1, 4
+            ! select a linearly independent subset of the guessed rows (modified
+            ! Gram-Schmidt, with reorthogonalization), recording the coefficients:
+            nb = 0
+            do kk = 1, m+n
+                if (guess(kk) == 0 .or. nb >= n) cycle
+                if (kk <= m) then
+                    a = jd(kk,:)
+                    target = merge(c_lb(kk)-c(kk), c_ub(kk)-c(kk), guess(kk) == -1)
+                else
+                    a = 0.0_wp; a(kk-m) = 1.0_wp
+                    target = merge(blb(kk-m), bub(kk-m), guess(kk) == -1)
+                end if
+                if (abs(target) >= sqpopt_infinity) cycle
+                r = a
+                t(nb+1,:) = 0.0_wp
+                do jj = 1, 2
+                    do j = 1, nb
+                        y(1) = dot_product(qb(:,j), r)
+                        t(nb+1,j) = t(nb+1,j) + y(1)
+                        r = r - y(1)*qb(:,j)
+                    end do
+                end do
+                if (norm2(r) > 1.0e-10_wp*norm2(a)) then
+                    nb = nb + 1
+                    t(nb,nb) = norm2(r)
+                    qb(:,nb) = r/t(nb,nb)
+                    bsel(nb) = target
+                end if
+            end do
+            ! minimum-norm solution of (selected rows)*p0 = targets: p0 = qb*y,
+            ! with t*y = targets (forward substitution):
+            do j = 1, nb
+                y(j) = (bsel(j) - dot_product(t(j,1:j-1), y(1:j-1)))/t(j,j)
+            end do
+            p0 = 0.0_wp
+            if (nb > 0) p0 = matmul(qb(:,1:nb), y(1:nb))
+            ! add any violated variable bounds to the guess, and try again:
+            added = .false.
+            do kk = 1, n
+                if (guess(m+kk) /= 0) cycle
+                if (p0(kk) < blb(kk)) then
+                    guess(m+kk) = -1; added = .true.
+                else if (p0(kk) > bub(kk)) then
+                    guess(m+kk) = 1; added = .true.
+                end if
+            end do
+            if (.not. added) exit
+        end do
+        p0 = min(max(p0, blb), bub)
+
+        end subroutine starting_step
 
         function gradient(v) result(gr)
         !! the gradient of the (elastic) QP objective at `v`: `H*v_p + g`, then `rho` for each slack

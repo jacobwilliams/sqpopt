@@ -19,7 +19,10 @@ program test_qp_fuzz
     !! * nonconvex QPs (an indefinite SR1 `B`, with every variable boxed so
     !!   the QP is bounded) must still return a KKT point;
     !! * QPs with two contradictory rows must be reported as
-    !!   `sqpopt_infeasible`.
+    !!   `sqpopt_infeasible`;
+    !! * every QP is solved twice by the same solver object, the second time
+    !!   warm-started from the first solve's final working set, and both
+    !!   solutions must pass the checks.
     !!
     !! The random sequence is fixed (seeded), so failures are reproducible.
 
@@ -98,7 +101,7 @@ program test_qp_fuzz
     type(sqpopt_sparse_matrix) :: jac
     type(sqpopt_dense_qp_type) :: dense_qp
     type(sqpopt_reduced_hessian_qp_type) :: rh_qp
-    integer :: istat
+    integer :: istat, pass
     real(wp) :: tol, scale
     logical :: nonconvex, infeasible
 
@@ -229,6 +232,9 @@ program test_qp_fuzz
     allocate(p(n), lambda(m), zero_n(n), zero_m(m))
     zero_n = 0.0_wp
     zero_m = 0.0_wp
+    trial_ok  = .true.
+    trial_why = ''
+    do pass = 1, 2   ! (pass 2 is warm-started from pass 1's working set)
     if (solver == solver_dense) then
         call dense_qp%solve(hess, jac, zero_n, g, zero_m, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
         tol = 1.0e-6_wp
@@ -238,8 +244,6 @@ program test_qp_fuzz
         tol = 1.0e-5_wp
     end if
 
-    trial_ok  = .true.
-    trial_why = ''
     if (infeasible) then
         if (istat /= sqpopt_infeasible) call fail('infeasible QP not reported as sqpopt_infeasible')
     else if (istat /= sqpopt_success) then
@@ -250,7 +254,7 @@ program test_qp_fuzz
         jp = matmul(jd, p)
         if (any(p < x_lb - tol) .or. any(p > x_ub + tol))  call fail('variable bound violated')
         if (any(jp < c_lb - tol) .or. any(jp > c_ub + tol)) call fail('constraint violated')
-        allocate(r(n))
+        if (.not. allocated(r)) allocate(r(n))
         r = matmul(bd, p) + g - matmul(transpose(jd), lambda)
         do j = 1, n
             if (x_ub(j) - x_lb(j) <= tol) cycle                          ! fixed: free multiplier
@@ -268,6 +272,11 @@ program test_qp_fuzz
             if (lambda(i) < -tol*scale .and. abs(jp(i)-c_ub(i)) > tol) call fail('lambda<0 off the upper bound')
         end do
     end if
+    if (.not. trial_ok) then
+        if (pass == 2) trial_why = trial_why//' (warm start)'
+        exit
+    end if
+    end do
 
     ok = trial_ok
     if (.not. ok) print '(A,I0,A,I0,A,A,A,I0,A,I0,A,I0,2A)', 'trial ', trial, ' (kind ', kind, ', ', &

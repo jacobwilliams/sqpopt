@@ -190,6 +190,12 @@ exactly, and share the same robustness features:
   along an elastic slack) are followed to the nearest blocking constraint
   rather than producing a huge Newton step; and all tolerances are
   relative to the problem's scale.
+- **Crash and warm starts.** The iterations start from the minimum-norm
+  step satisfying an initial working-set guess -- the previous QP's final
+  working set (`warm_start`, on by default: near a solution the active set
+  settles and the QP finishes in one or two iterations), or else the
+  equality constraints and fixed variables -- rather than from `p=0`, so
+  only the constraints that guess leaves violated need elastic slacks.
 - Both are checked against the KKT conditions on thousands of random
   convex, nonconvex, degenerate, and infeasible QPs (`test/test_qp_fuzz.f90`).
 
@@ -210,6 +216,7 @@ exactly, and share the same robustness features:
 | `feas_tol` | `1e-6` | an elastic slack larger than `feas_tol*max(1,\|initial violation\|)` at the solution counts as a violated linearized constraint |
 | `elastic_weight` | `1e4` | initial elastic penalty weight, relative to \( \max(1,\lVert g \rVert_\infty) \) |
 | `elastic_weight_max` | `1e10` | largest elastic penalty weight tried (same scaling) before the linearization is declared inconsistent |
+| `warm_start` | `.true.` | start each QP from the previous QP's final working set (within one `solve`) |
 
 **Sparse (projected-CG) active-set QP options (`qp_solver%sparse_qp`, used when `mode==sqpopt_qp_reduced_hessian`):**
 
@@ -223,6 +230,7 @@ exactly, and share the same robustness features:
 | `feas_tol` | `1e-6` | as for the dense solver |
 | `elastic_weight` | `1e4` | as for the dense solver |
 | `elastic_weight_max` | `1e8` | as for the dense solver (lower, since the iterative projections' accuracy is relative to the weight) |
+| `warm_start` | `.true.` | as for the dense solver |
 | `lsqr_atol`, `lsqr_btol`, `lsqr_conlim` | `0.0` | `LSQR` relative error tolerances in `A`/`b`, and the upper limit on `cond(Abar)` (`0` means "let `LSQR` use its own machine-precision-based default", which is tighter than usually necessary); loosening these is the main lever for trading QP-solve accuracy for speed in this mode |
 | `lsqr_itnlim` | `0` | `LSQR` maximum iterations per solve (`<=0` means `2*(rows+columns)+10`) |
 
@@ -313,6 +321,14 @@ Use the `pixi` environment and the Fortran Package Manager (FPM):
 pixi shell
 fpm build --profile release
 fpm test --profile release
+```
+
+A scalable benchmark (function evaluations and run time on a nonlinear
+optimal-control problem and a constrained chained-Rosenbrock problem, at
+sizes that exercise both QP solvers) is in `example/benchmark.f90`:
+
+```
+fpm run --example benchmark --profile release
 ```
 
 ### Dependencies of this package

@@ -7,8 +7,14 @@
 !  the last `max_history` step/gradient-change vector pairs \( (s,y) \)
 !  are kept (`max_history` is a small constant, independent of `n`), and
 !  Hessian(-inverse)-vector products are formed matrix-free using the
-!  standard two-loop recursion. Supports (Powell-damped) BFGS and SR1
-!  updates.
+!  compact representations and the standard two-loop recursion. Supports
+!  (Powell-damped) BFGS and SR1 updates.
+!
+!  The pairs are kept in a circular buffer (no data is moved when the
+!  oldest pair is discarded), and the small `2k x 2k` (BFGS) or `k x k`
+!  (SR1) middle matrix of the compact representation is formed and
+!  LU-factored only when the pairs or the scaling change, not on every
+!  product, so each [[hessian_vector_product]] costs only `O(nk)`.
 
     module sqpopt_hessian_module
 
@@ -29,10 +35,19 @@
         logical :: damping     = .true.  !! if true, use Powell's damped BFGS update (see [[hessian_update_bfgs]]),
                                          !! else skip any update that fails the curvature condition
 
+        integer :: first       = 1  !! column of `s`/`y` holding the oldest pair (the buffer is circular:
+                                    !! the `i`-th oldest pair is in column [[pair_col]]`(i)`)
         real(wp), dimension(:,:), allocatable :: s     !! stored step vectors `dimension(n,max_history)`
         real(wp), dimension(:,:), allocatable :: y     !! stored Lagrangian gradient-change vectors `dimension(n,max_history)`
         real(wp), dimension(:),   allocatable :: rho   !! `1/(y^T s)` for each stored pair `dimension(max_history)` (BFGS)
         real(wp) :: gamma = 1.0_wp  !! scaling of the initial Hessian \( H_0 = \gamma I \)
+
+        ! cached LU factorization of the compact representation's middle matrix
+        ! (internal; rebuilt by [[hessian_vector_product]] when `mid_valid` is false):
+        logical  :: mid_valid = .false.  !! whether `mid_lu`/`mid_piv` match the current pairs and `gamma`
+        logical  :: mid_ok    = .false.  !! whether the middle matrix is nonsingular
+        real(wp), dimension(:,:), allocatable :: mid_lu  !! LU factors of the middle matrix
+        integer,  dimension(:),   allocatable :: mid_piv !! row pivots of the LU factorization
 
         contains
 
@@ -63,7 +78,9 @@
     me%n           = n
     me%max_history = max_history
     me%n_history   = 0
+    me%first       = 1
     me%gamma       = 1.0_wp
+    me%mid_valid   = .false.
     me%use_sr1     = .false.
     if (present(use_sr1)) me%use_sr1 = use_sr1
 
@@ -126,7 +143,7 @@
     if (sty <= 1.0e-10_wp*max(norm2(s)*norm2(y_used), 1.0_wp)) return
 
     call hessian_push_pair(me, s, y_used)
-    me%rho(me%n_history) = 1.0_wp/sty
+    me%rho(pair_col(me, me%n_history)) = 1.0_wp/sty
 
     yty = dot_product(y_used, y_used)
     if (yty > 0.0_wp) me%gamma = sty/yty
@@ -174,7 +191,8 @@
 !*******************************************************************************
 !>
 !  push a new `(s,y)` pair into the circular history buffer, discarding
-!  the oldest pair if `max_history` pairs are already stored.
+!  the oldest pair if `max_history` pairs are already stored (by
+!  overwriting its column and advancing `first`, so no data is moved).
 
     subroutine hessian_push_pair(me, s, y)
 
@@ -183,17 +201,30 @@
     real(wp), dimension(:), intent(in) :: y  !! Lagrangian gradient change `dimension(n)`
 
     if (me%n_history == me%max_history) then
-        ! buffer full: discard the oldest pair (column 1), shift the rest down:
-        me%s(:,1:me%max_history-1)     = me%s(:,2:me%max_history)
-        me%y(:,1:me%max_history-1)     = me%y(:,2:me%max_history)
-        me%rho(1:me%max_history-1)     = me%rho(2:me%max_history)
+        me%first = mod(me%first, me%max_history) + 1   ! the oldest pair's column becomes the newest
     else
         me%n_history = me%n_history + 1
     end if
-    me%s(:,me%n_history) = s
-    me%y(:,me%n_history) = y
+    me%s(:,pair_col(me, me%n_history)) = s
+    me%y(:,pair_col(me, me%n_history)) = y
+    me%mid_valid = .false.
 
     end subroutine hessian_push_pair
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the column of `s`/`y`/`rho` holding the `i`-th oldest stored pair
+!  (`i=1` is the oldest, `i=n_history` the newest).
+
+    pure integer function pair_col(me, i)
+
+    class(sqpopt_hessian_type), intent(in) :: me
+    integer,                    intent(in) :: i
+
+    pair_col = mod(me%first + i - 2, me%max_history) + 1
+
+    end function pair_col
 !*******************************************************************************
 
 !*******************************************************************************
@@ -201,9 +232,9 @@
 !  compute the matrix-free Hessian-vector product \( h_v = H v \), used
 !  by the QP subproblem solver in place of an explicit dense matrix.
 !  Uses the compact representation of either the BFGS or the SR1
-!  matrix (Byrd, Nocedal & Schnabel, 1994), depending on `use_sr1`. Both
-!  are rebuilt from the stored `(s,y)` pairs and the *current* scaling
-!  `gamma` on every call, so the product is always consistent with them.
+!  matrix (Byrd, Nocedal & Schnabel, 1994), depending on `use_sr1`, with
+!  its small middle matrix factored once (see [[factor_middle_matrix]])
+!  and reused until the pairs or `gamma` change.
 
     subroutine hessian_vector_product(me, v, hv)
 
@@ -211,90 +242,46 @@
     real(wp), dimension(:), intent(in)  :: v   !! input vector `dimension(n)`
     real(wp), dimension(:), intent(out) :: hv  !! result `dimension(n)`
 
-    integer :: i, k, k2
-    real(wp), dimension(:,:), allocatable :: mid   !! the `2k x 2k` middle matrix
-    real(wp), dimension(:), allocatable :: rhs, sol
+    integer :: i, k, c
+    real(wp), dimension(:), allocatable :: w
     real(wp) :: theta
-    logical :: ok
 
     k = me%n_history
+    theta = 1.0_wp/me%gamma
+    hv = theta*v
+    if (k == 0) return
+
+    if (.not. me%mid_valid) call factor_middle_matrix(me)
+    if (.not. me%mid_ok) return  ! singular middle matrix: fall back to the (safe) initial scaling
 
     if (me%use_sr1) then
 
-        ! compact SR1 representation (Byrd, Nocedal & Schnabel, 1994):
         ! B*v = theta*v + Psi * M^{-1} * Psi^T v, with Psi = Y - theta*S
-        ! and M = D + L + L^T - theta*S^T S:
-        theta = 1.0_wp/me%gamma
-        if (k == 0) then
-            hv = theta*v
-            return
-        end if
-        allocate(mid(k,k), rhs(k), sol(k))
-        block
-            integer :: p, q
-            do p = 1, k
-                rhs(p) = dot_product(me%y(:,p) - theta*me%s(:,p), v)
-                do q = 1, k
-                    ! s_max(p,q)^T y_min(p,q) covers D (p==q) and L + L^T (p/=q):
-                    mid(p,q) = dot_product(me%s(:,max(p,q)), me%y(:,min(p,q))) &
-                               - theta*dot_product(me%s(:,p), me%s(:,q))
-                end do
-            end do
-        end block
-        call hessian_solve_small_system(k, mid, rhs, sol, ok)
-        hv = theta*v
-        if (ok) then
-            do i = 1, k
-                hv = hv + (me%y(:,i) - theta*me%s(:,i))*sol(i)
-            end do
-        end if
-        deallocate(mid, rhs, sol)
+        allocate(w(k))
+        do i = 1, k
+            c = pair_col(me, i)
+            w(i) = dot_product(me%y(:,c), v) - theta*dot_product(me%s(:,c), v)
+        end do
+        call lu_solve(me%mid_lu, me%mid_piv, w)
+        do i = 1, k
+            c = pair_col(me, i)
+            hv = hv + (me%y(:,c) - theta*me%s(:,c))*w(i)
+        end do
 
     else
 
-        theta = 1.0_wp/me%gamma
-        if (k == 0) then
-            hv = theta*v
-            return
-        end if
-
-        ! compact BFGS representation (Byrd, Nocedal & Schnabel, 1994):
         ! B*v = theta*v - [theta*S Y] * M^{-1} * [theta*S^T v; Y^T v]
-        k2 = 2*k
-        allocate(mid(k2,k2), rhs(k2), sol(k2))
-        mid = 0.0_wp
+        allocate(w(2*k))
         do i = 1, k
-            rhs(i)   = theta*dot_product(me%s(:,i), v)
-            rhs(k+i) = dot_product(me%y(:,i), v)
+            c = pair_col(me, i)
+            w(i)   = theta*dot_product(me%s(:,c), v)
+            w(k+i) = dot_product(me%y(:,c), v)
         end do
-        block
-            integer :: p, q
-            do p = 1, k
-                do q = 1, k
-                    mid(p,q) = theta*dot_product(me%s(:,p), me%s(:,q))  !! theta*S^T S block
-                end do
-            end do
-            do p = 1, k
-                do q = 1, p-1
-                    ! L(p,q) = s_p^T y_q for p>q goes in the upper-right block,
-                    ! and L^T in the lower-left block:
-                    mid(p,k+q) = dot_product(me%s(:,p), me%y(:,q))      !! L (upper-right block)
-                    mid(k+q,p) = mid(p,k+q)                             !! L^T (lower-left block)
-                end do
-                mid(k+p,k+p) = -dot_product(me%s(:,p), me%y(:,p))       !! -D (diagonal)
-            end do
-        end block
-
-        call hessian_solve_small_system(k2, mid, rhs, sol, ok)
-        if (.not. ok) then
-            hv = theta*v  !! fall back to the (safe) initial scaling if the small system is singular
-        else
-            hv = theta*v
-            do i = 1, k
-                hv = hv - theta*me%s(:,i)*sol(i) - me%y(:,i)*sol(k+i)
-            end do
-        end if
-        deallocate(mid, rhs, sol)
+        call lu_solve(me%mid_lu, me%mid_piv, w)
+        do i = 1, k
+            c = pair_col(me, i)
+            hv = hv - theta*me%s(:,c)*w(i) - me%y(:,c)*w(k+i)
+        end do
 
     end if
 
@@ -303,53 +290,122 @@
 
 !*******************************************************************************
 !>
-!  solve the small (`k2 x k2`, `k2 = 2*max_history` at most) dense linear
-!  system arising in the compact BFGS representation, via Gaussian
-!  elimination with partial pivoting. `k2` is a small constant
-!  independent of the problem size `n`.
+!  form and LU-factor the middle matrix of the compact representation for
+!  the current pairs and `gamma` (\( \theta = 1/\gamma \)):
+!
+!  * BFGS: \( M = \begin{bmatrix} \theta S^TS & L \\ L^T & -D \end{bmatrix} \)
+!  * SR1: \( M = D + L + L^T - \theta S^TS \)
+!
+!  with \( L_{pq} = s_p^Ty_q \) for \( p>q \) and \( D = \text{diag}(s_p^Ty_p) \).
 
-    subroutine hessian_solve_small_system(k2, a, b, x, ok)
+    subroutine factor_middle_matrix(me)
 
-    integer, intent(in) :: k2 !! order of the small dense system
-    real(wp), dimension(k2,k2), intent(inout) :: a !! coefficient matrix of the small dense system
-    real(wp), dimension(k2), intent(inout)    :: b !! right-hand side vector of the small dense system
-    real(wp), dimension(k2), intent(out)      :: x !! solution vector of the small dense system
-    logical, intent(out) :: ok !! indicates whether the small system was solved successfully
+    class(sqpopt_hessian_type), intent(inout) :: me
 
-    integer :: i, p, piv
-    real(wp) :: fac, amax
+    integer :: k, p, q, cp, cq
+    real(wp) :: theta
 
-    ok = .true.
-    do p = 1, k2
-        piv = p
-        amax = abs(a(p,p))
-        do i = p+1, k2
-            if (abs(a(i,p)) > amax) then
-                amax = abs(a(i,p))
-                piv = i
-            end if
+    k = me%n_history
+    theta = 1.0_wp/me%gamma
+    if (allocated(me%mid_lu))  deallocate(me%mid_lu)
+    if (allocated(me%mid_piv)) deallocate(me%mid_piv)
+
+    if (me%use_sr1) then
+        allocate(me%mid_lu(k,k), me%mid_piv(k))
+        do p = 1, k
+            cp = pair_col(me, p)
+            do q = 1, k
+                cq = pair_col(me, q)
+                ! s_max(p,q)^T y_min(p,q) covers D (p==q) and L + L^T (p/=q):
+                me%mid_lu(p,q) = dot_product(me%s(:,pair_col(me, max(p,q))), me%y(:,pair_col(me, min(p,q)))) &
+                                 - theta*dot_product(me%s(:,cp), me%s(:,cq))
+            end do
         end do
-        if (amax < 1.0e-13_wp) then
+    else
+        allocate(me%mid_lu(2*k,2*k), me%mid_piv(2*k))
+        me%mid_lu = 0.0_wp
+        do p = 1, k
+            cp = pair_col(me, p)
+            do q = 1, k
+                cq = pair_col(me, q)
+                me%mid_lu(p,q) = theta*dot_product(me%s(:,cp), me%s(:,cq))  ! theta*S^T S
+            end do
+            do q = 1, p-1
+                cq = pair_col(me, q)
+                me%mid_lu(p,k+q) = dot_product(me%s(:,cp), me%y(:,cq))      ! L (upper-right block)
+                me%mid_lu(k+q,p) = me%mid_lu(p,k+q)                          ! L^T (lower-left block)
+            end do
+            me%mid_lu(k+p,k+p) = -dot_product(me%s(:,cp), me%y(:,cp))       ! -D
+        end do
+    end if
+
+    call lu_factor(me%mid_lu, me%mid_piv, me%mid_ok)
+    me%mid_valid = .true.
+
+    end subroutine factor_middle_matrix
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  in-place LU factorization with partial pivoting of a small dense
+!  matrix `a` (the order is `2*max_history` at most, independent of `n`).
+!  `ok` is false if a pivot is negligible relative to the matrix's largest
+!  element.
+
+    pure subroutine lu_factor(a, piv, ok)
+
+    real(wp), dimension(:,:), intent(inout) :: a   !! matrix, overwritten by its `L` (unit, below the diagonal) and `U` factors
+    integer,  dimension(:),   intent(out)   :: piv !! `piv(p)` is the row swapped with row `p` at step `p`
+    logical,                  intent(out)   :: ok  !! false if `a` is (numerically) singular
+
+    integer :: i, p, k2
+    real(wp) :: amax, tol
+
+    k2 = size(a,1)
+    ok = .true.
+    tol = 1.0e-14_wp*max(maxval(abs(a)), tiny(1.0_wp))
+    do p = 1, k2
+        piv(p) = p - 1 + maxloc(abs(a(p:k2,p)), dim=1)
+        amax = abs(a(piv(p),p))
+        if (amax <= tol) then
             ok = .false.
-            x = 0.0_wp
             return
         end if
-        if (piv /= p) then
-            a([p,piv],:) = a([piv,p],:)
-            b([p,piv])   = b([piv,p])
-        end if
+        if (piv(p) /= p) a([p,piv(p)],:) = a([piv(p),p],:)
         do i = p+1, k2
-            fac = a(i,p)/a(p,p)
-            a(i,p:k2) = a(i,p:k2) - fac*a(p,p:k2)
-            b(i)      = b(i) - fac*b(p)
+            a(i,p) = a(i,p)/a(p,p)
+            a(i,p+1:k2) = a(i,p+1:k2) - a(i,p)*a(p,p+1:k2)
         end do
     end do
 
+    end subroutine lu_factor
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  solve \( A x = b \) in place (`b` is overwritten by `x`), given the LU
+!  factors from [[lu_factor]].
+
+    pure subroutine lu_solve(a, piv, b)
+
+    real(wp), dimension(:,:), intent(in)    :: a   !! LU factors
+    integer,  dimension(:),   intent(in)    :: piv !! row pivots
+    real(wp), dimension(:),   intent(inout) :: b   !! right-hand side, overwritten by the solution
+
+    integer :: i, k2
+
+    k2 = size(a,1)
+    do i = 1, k2
+        if (piv(i) /= i) b([i,piv(i)]) = b([piv(i),i])
+    end do
+    do i = 2, k2
+        b(i) = b(i) - dot_product(a(i,1:i-1), b(1:i-1))
+    end do
     do i = k2, 1, -1
-        x(i) = (b(i) - dot_product(a(i,i+1:k2), x(i+1:k2)))/a(i,i)
+        b(i) = (b(i) - dot_product(a(i,i+1:k2), b(i+1:k2)))/a(i,i)
     end do
 
-    end subroutine hessian_solve_small_system
+    end subroutine lu_solve
 !*******************************************************************************
 
 !*******************************************************************************
@@ -368,6 +424,8 @@
     real(wp), dimension(me%n_history) :: alpha !! temporary storage for the two-loop recursion coefficients in L-BFGS
     real(wp), dimension(me%n) :: q !! temporary vector used in the two-loop recursion
     integer :: i !! loop index for the two-loop recursion
+    integer :: c !! column of the `i`-th pair
+    real(wp) :: beta
 
     if (me%use_sr1) then
         call hessian_cg_solve(me, v, d)
@@ -377,18 +435,17 @@
     ! standard L-BFGS two-loop recursion:
     q = v
     do i = me%n_history, 1, -1
-        alpha(i) = me%rho(i)*dot_product(me%s(:,i), q)
-        q = q - alpha(i)*me%y(:,i)
+        c = pair_col(me, i)
+        alpha(i) = me%rho(c)*dot_product(me%s(:,c), q)
+        q = q - alpha(i)*me%y(:,c)
     end do
 
     d = me%gamma*q
 
     do i = 1, me%n_history
-        block
-            real(wp) :: beta
-            beta = me%rho(i)*dot_product(me%y(:,i), d)
-            d = d + me%s(:,i)*(alpha(i) - beta)
-        end block
+        c = pair_col(me, i)
+        beta = me%rho(c)*dot_product(me%y(:,c), d)
+        d = d + me%s(:,c)*(alpha(i) - beta)
     end do
 
     end subroutine hessian_inverse_vector_product
@@ -443,7 +500,9 @@
     class(sqpopt_hessian_type), intent(inout) :: me
 
     me%n_history = 0
+    me%first     = 1
     me%gamma     = 1.0_wp
+    me%mid_valid = .false.
 
     end subroutine hessian_reset
 !*******************************************************************************

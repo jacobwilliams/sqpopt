@@ -35,6 +35,8 @@
 
     private
 
+    integer, parameter :: cache_size = 4 !! number of recent evaluations of `f` (and of `c`) kept
+
     public :: sqpopt_objective_func, sqpopt_gradient_func, sqpopt_constraint_func
     public :: sqpopt_jacobian_func, sqpopt_hessian_func
 
@@ -70,6 +72,16 @@
         procedure(sqpopt_jacobian_func),  pointer, nopass :: eval_jac  => null() !! evaluates the nonzero values of the Jacobian of \( c(x) \)
         procedure(sqpopt_hessian_func),   pointer, nopass :: eval_hess => null() !! evaluates the nonzero values of the Hessian of the Lagrangian (only used when an exact Hessian is requested)
 
+        ! a small cache of the most recent evaluations of `f` and `c` (internal; see [[eval_f_cached]]):
+        integer :: n_eval_f = 0 !! number of calls of the user's `eval_f` since the last [[reset_cache]]
+        integer :: n_eval_c = 0 !! number of calls of the user's `eval_c` since the last [[reset_cache]]
+        integer :: cache_nf = 0, cache_next_f = 1 !! entries used, and the slot for the next one, in the `f` cache
+        integer :: cache_nc = 0, cache_next_c = 1 !! the same, for the `c` cache
+        real(wp), dimension(:,:), allocatable :: cache_xf !! points at which `f` was evaluated `dimension(n,cache_size)`
+        real(wp), dimension(:),   allocatable :: cache_f  !! `f` at those points `dimension(cache_size)`
+        real(wp), dimension(:,:), allocatable :: cache_xc !! points at which `c` was evaluated `dimension(n,cache_size)`
+        real(wp), dimension(:,:), allocatable :: cache_c  !! `c` at those points `dimension(m,cache_size)`
+
         contains
 
         procedure, public :: set_problem_size      !! set the problem dimensions and allocate the bound arrays
@@ -78,6 +90,9 @@
         procedure, public :: set_hessian_sparsity  !! set the (fixed) sparsity pattern of the Lagrangian Hessian
         procedure, public :: set_functions         !! attach the user-supplied evaluation procedures
         procedure, public :: validate              !! check the problem definition and normalize infinite bounds
+        procedure, public :: f => eval_f_cached    !! evaluate `f(x)`, reusing a recent evaluation at the same `x`
+        procedure, public :: c => eval_c_cached    !! evaluate `c(x)`, reusing a recent evaluation at the same `x`
+        procedure, public :: reset_cache           !! empty the evaluation cache and reset the counters
 
     end type sqpopt_problem_type
 
@@ -333,6 +348,96 @@
     if (present(hess)) me%eval_hess => hess
 
     end subroutine set_functions
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  evaluate the objective \( f(x) \), reusing the value from one of the
+!  last few evaluations if `x` is exactly (bitwise) the same point. The
+!  solver evaluates `f` at each trial point during a line search and then
+!  again at the start of the next major iteration, at the accepted point
+!  (which *is* one of those trial points), so this saves one call per
+!  major iteration.
+
+    subroutine eval_f_cached(me, x, f)
+
+    class(sqpopt_problem_type), intent(inout) :: me
+    real(wp), dimension(:),     intent(in)    :: x  !! point `dimension(n)`
+    real(wp),                   intent(out)   :: f  !! objective function value at `x`
+
+    integer :: k
+
+    if (.not. allocated(me%cache_xf)) call reset_cache(me)
+    do k = 1, me%cache_nf
+        if (all(me%cache_xf(:,k) == x)) then
+            f = me%cache_f(k)
+            return
+        end if
+    end do
+
+    call me%eval_f(x, f)
+    me%n_eval_f = me%n_eval_f + 1
+    me%cache_xf(:,me%cache_next_f) = x
+    me%cache_f(me%cache_next_f)    = f
+    me%cache_nf     = min(me%cache_nf + 1, cache_size)
+    me%cache_next_f = mod(me%cache_next_f, cache_size) + 1
+
+    end subroutine eval_f_cached
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  evaluate the constraints \( c(x) \), reusing the values from one of the
+!  last few evaluations if `x` is exactly the same point (see
+!  [[eval_f_cached]]).
+
+    subroutine eval_c_cached(me, x, c)
+
+    class(sqpopt_problem_type), intent(inout) :: me
+    real(wp), dimension(:),     intent(in)    :: x  !! point `dimension(n)`
+    real(wp), dimension(:),     intent(out)   :: c  !! constraint values at `x` `dimension(m)`
+
+    integer :: k
+
+    if (.not. allocated(me%cache_xc)) call reset_cache(me)
+    do k = 1, me%cache_nc
+        if (all(me%cache_xc(:,k) == x)) then
+            c = me%cache_c(:,k)
+            return
+        end if
+    end do
+
+    call me%eval_c(x, c)
+    me%n_eval_c = me%n_eval_c + 1
+    me%cache_xc(:,me%cache_next_c) = x
+    me%cache_c(:,me%cache_next_c)  = c
+    me%cache_nc     = min(me%cache_nc + 1, cache_size)
+    me%cache_next_c = mod(me%cache_next_c, cache_size) + 1
+
+    end subroutine eval_c_cached
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  empty the evaluation cache (sizing it for the current `n` and `m`) and
+!  reset the evaluation counters.
+
+    subroutine reset_cache(me)
+
+    class(sqpopt_problem_type), intent(inout) :: me
+
+    if (allocated(me%cache_xf)) deallocate(me%cache_xf)
+    if (allocated(me%cache_f))  deallocate(me%cache_f)
+    if (allocated(me%cache_xc)) deallocate(me%cache_xc)
+    if (allocated(me%cache_c))  deallocate(me%cache_c)
+    allocate(me%cache_xf(me%n,cache_size), me%cache_f(cache_size))
+    allocate(me%cache_xc(me%n,cache_size), me%cache_c(me%m,cache_size))
+    me%cache_nf = 0; me%cache_next_f = 1
+    me%cache_nc = 0; me%cache_next_c = 1
+    me%n_eval_f = 0
+    me%n_eval_c = 0
+
+    end subroutine reset_cache
 !*******************************************************************************
 
     end module sqpopt_problem_module

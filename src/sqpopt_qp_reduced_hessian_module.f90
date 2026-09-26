@@ -17,7 +17,7 @@
 !  and bounds are uniform two-sided "rows" (stored in compressed-row form,
 !  so each row's product costs only its own nonzeros), and every general
 !  constraint violated at `p=0` gets an elastic slack with an \( \ell_1 \)
-!  penalty, so `p=0` plus those slacks is a feasible starting point and
+!  penalty, so the starting step plus those slacks is feasible, and
 !  inconsistent linearized constraints are detected (the penalty weight is
 !  raised up to `elastic_weight_max`, then `istat=sqpopt_infeasible`); see
 !  [[sqpopt_qp_dense_module]] for the details (here, the slacks also get a
@@ -25,8 +25,9 @@
 !  CG stops on
 !  (relative) convergence, and follows any direction of nonpositive
 !  curvature (e.g. along an elastic slack, or an indefinite SR1 Hessian) to
-!  the nearest blocking row. Rows are only added to the initial working set
-!  if they are (numerically) linearly independent of it.
+!  the nearest blocking row. Rows are only added to the initial working
+!  set if they are (numerically) linearly independent of it (rows that were
+!  in the previous solve's final working set are trusted to be).
 
     module sqpopt_qp_reduced_hessian_module
 
@@ -72,6 +73,16 @@
         real(wp) :: lsqr_conlim = 0.0_wp !! `LSQR` upper limit on `cond(Abar)` (0 => `LSQR` default)
         integer  :: lsqr_itnlim = 0      !! `LSQR` maximum iterations per solve (`<=0` => `2*(rows+columns)+10`)
 
+        logical  :: warm_start = .true.  !! start from the previous solve's final working set, if the problem
+                                         !! size is unchanged (see [[sqpopt_qp_dense_module]]: the crash and
+                                         !! warm starts work the same way here, with `LSQR` computing the
+                                         !! minimum-norm starting step)
+
+        ! internal state (the working set at the end of the previous solve, for warm starts):
+        integer, dimension(:), allocatable :: warm_status !! side (-1/0/+1) of each general row and variable bound
+        logical :: warm_independent = .false. !! whether that working set is known to be linearly independent in
+                                              !! `p`-space (true if the previous solve had no elastic slacks)
+
         contains
 
         procedure, public :: solve => solve_reduced_hessian_qp
@@ -113,7 +124,8 @@
     integer :: n, m, nv, nt, mtot, k, i, it, maxit, max_pcg, itnlim
     type(csr_rows) :: rows
     type(sqpopt_sparse_matrix) :: ja   !! the working set's general rows, restricted to the free unknowns
-    real(wp), dimension(:), allocatable :: row_lb, row_ub, u, hu_g, gproj, d_total, d_extra, coeff, s_sign, s0
+    real(wp), dimension(:), allocatable :: row_lb, row_ub, u, hu_g, gproj, d_total, d_extra, coeff, s_sign, s0, jp0
+    real(wp), dimension(size(g)) :: p0
     integer,  dimension(:), allocatable :: status, orig_idx, coeff_idx, slack_row
     logical,  dimension(:), allocatable :: is_equality, fixed
     real(wp) :: rho, rho_max, gscale, alpha, alpha_cap, scale
@@ -123,23 +135,32 @@
     n = size(g)
     m = size(c)
 
-    ! ---- elastic slacks: one for each general row violated at p=0 ----
-    allocate(row_lb(m), row_ub(m), s_sign(m), slack_row(m))
+    ! ---- starting step: crash or warm start (see [[sqpopt_qp_dense_module]]) ----
+    call starting_step(p0)
+
+    ! ---- elastic slacks: one for each general row violated at p0 ----
+    allocate(row_lb(m), row_ub(m), s_sign(m), slack_row(m), s0(m), jp0(m))
     row_lb = c_lb - c
     row_ub = c_ub - c
+    jp0 = 0.0_wp
+    do k = 1, jac%nnz
+        jp0(jac%irow(k)) = jp0(jac%irow(k)) + jac%val(k)*p0(jac%icol(k))
+    end do
     nv = 0
     do i = 1, m
         s_sign(i) = 0.0_wp
-        if (row_lb(i) > me%feas_tol*max(1.0_wp, abs(row_lb(i)))) then
+        if (jp0(i) < row_lb(i) - me%feas_tol*max(1.0_wp, abs(row_lb(i)))) then
             s_sign(i) = 1.0_wp
-        else if (row_ub(i) < -me%feas_tol*max(1.0_wp, abs(row_ub(i)))) then
+        else if (jp0(i) > row_ub(i) + me%feas_tol*max(1.0_wp, abs(row_ub(i)))) then
             s_sign(i) = -1.0_wp
         end if
         if (s_sign(i) /= 0.0_wp) then
             nv = nv + 1
             slack_row(nv) = i
+            s0(nv) = merge(row_lb(i) - jp0(i), jp0(i) - row_ub(i), s_sign(i) > 0.0_wp)
         end if
     end do
+    s0 = s0(1:nv)
     nt   = n + nv
     mtot = m + nt
     max_pcg = merge(me%max_pcg_iter, 2*nt, me%max_pcg_iter > 0)
@@ -159,14 +180,10 @@
     rho     = me%elastic_weight*gscale
     rho_max = me%elastic_weight_max*gscale
 
-    ! ---- feasible starting point: p=0, slacks just large enough ----
-    allocate(u(nt)); u = 0.0_wp
-    u(1:n) = min(max(0.0_wp, row_lb(m+1:m+n)), row_ub(m+1:m+n))
-    do k = 1, nv
-        i = slack_row(k)
-        u(n+k) = merge(row_lb(i), -row_ub(i), s_sign(i) > 0.0_wp)
-    end do
-    s0 = u(n+1:nt)
+    ! ---- feasible starting point: p0, with the slacks just large enough ----
+    allocate(u(nt))
+    u(1:n)    = p0
+    u(n+1:nt) = s0
 
     ! ---- initial working set ----
     allocate(status(mtot)); status = 0
@@ -306,7 +323,117 @@
         if (coeff_idx(k) <= m) lambda(coeff_idx(k)) = coeff(k)
     end do
 
+    ! remember the final working set (general rows and variable bounds) for a
+    ! warm start. It is linearly independent, but if there were elastic slacks,
+    ! only in the extended space (dependent rows may each have had a slack):
+    me%warm_status      = status(1:m+n)
+    me%warm_independent = nv == 0
+
     contains
+
+        subroutine starting_step(p0)
+        !! the minimum-norm step satisfying the initial working-set guess (the
+        !! previous solve's final working set, or the equality constraints and
+        !! fixed variables): guessed bounds fix their variables, and `LSQR`
+        !! gives the minimum-norm solution for the free ones of the guessed
+        !! general rows. Any violated variable bounds are added to the guess
+        !! (up to 4 rounds), then the step is clipped to the bounds.
+        real(wp), dimension(n), intent(out) :: p0
+        real(wp), dimension(n) :: blb, bub
+        integer,  dimension(m+n) :: guess
+        logical,  dimension(n) :: fix
+        integer,  dimension(m) :: gmap
+        real(wp), dimension(:), allocatable :: rhs, pf
+        integer,  dimension(:), allocatable :: ir, ic
+        real(wp), dimension(:), allocatable :: vv
+        type(lsqr_solver_ez) :: lsqr
+        integer :: kk, round, ng, nnz_g, istop
+        logical :: added
+
+        blb = x_lb - x
+        bub = x_ub - x
+        guess = 0
+        if (me%warm_start .and. allocated(me%warm_status)) then
+            if (size(me%warm_status) == m+n) guess = me%warm_status
+        end if
+        if (all(guess == 0)) then
+            do kk = 1, m
+                if (c_ub(kk) - c_lb(kk) <= 0.0_wp) guess(kk) = -1   ! equality constraint
+            end do
+            do kk = 1, n
+                if (bub(kk) - blb(kk) <= 0.0_wp) guess(m+kk) = -1   ! fixed variable
+            end do
+        end if
+        ! (a guessed side whose bound is infinite can't be targeted)
+        do kk = 1, m
+            if (guess(kk) == -1 .and. c_lb(kk)-c(kk) <= -sqpopt_infinity) guess(kk) = 0
+            if (guess(kk) ==  1 .and. c_ub(kk)-c(kk) >=  sqpopt_infinity) guess(kk) = 0
+        end do
+        do kk = 1, n
+            if (guess(m+kk) == -1 .and. blb(kk) <= -sqpopt_infinity) guess(m+kk) = 0
+            if (guess(m+kk) ==  1 .and. bub(kk) >=  sqpopt_infinity) guess(m+kk) = 0
+        end do
+
+        do round = 1, 4
+            ! the fixed variables, at their guessed bounds:
+            p0 = 0.0_wp
+            fix = guess(m+1:m+n) /= 0
+            where (guess(m+1:m+n) == -1) p0 = blb
+            where (guess(m+1:m+n) ==  1) p0 = bub
+            ! minimum-norm solution for the free variables of the guessed general rows:
+            ng = 0
+            gmap = 0
+            do kk = 1, m
+                if (guess(kk) /= 0) then
+                    ng = ng + 1
+                    gmap(kk) = ng
+                end if
+            end do
+            if (ng > 0) then
+                allocate(rhs(ng))
+                do kk = 1, m
+                    if (gmap(kk) > 0) rhs(gmap(kk)) = merge(c_lb(kk)-c(kk), c_ub(kk)-c(kk), guess(kk) == -1)
+                end do
+                nnz_g = 0
+                do kk = 1, jac%nnz
+                    if (gmap(jac%irow(kk)) == 0) cycle
+                    if (fix(jac%icol(kk))) then
+                        rhs(gmap(jac%irow(kk))) = rhs(gmap(jac%irow(kk))) - jac%val(kk)*p0(jac%icol(kk))
+                    else
+                        nnz_g = nnz_g + 1
+                    end if
+                end do
+                if (nnz_g > 0) then
+                    allocate(ir(nnz_g), ic(nnz_g), vv(nnz_g), pf(n))
+                    nnz_g = 0
+                    do kk = 1, jac%nnz
+                        if (gmap(jac%irow(kk)) == 0 .or. fix(jac%icol(kk))) cycle
+                        nnz_g = nnz_g + 1
+                        ir(nnz_g) = gmap(jac%irow(kk)); ic(nnz_g) = jac%icol(kk); vv(nnz_g) = jac%val(kk)
+                    end do
+                    call lsqr%initialize(ng, n, vv, ir, ic, atol=me%lsqr_atol, btol=me%lsqr_btol, &
+                                          conlim=me%lsqr_conlim, itnlim=2*(ng+n)+10)
+                    call lsqr%solve(rhs, 0.0_wp, pf, istop)
+                    where (.not. fix) p0 = pf
+                    deallocate(ir, ic, vv, pf)
+                end if
+                deallocate(rhs)
+            end if
+            ! add any violated variable bounds to the guess, and try again:
+            added = .false.
+            do kk = 1, n
+                if (guess(m+kk) /= 0) cycle
+                if (p0(kk) < blb(kk)) then
+                    guess(m+kk) = -1; added = .true.
+                else if (p0(kk) > bub(kk)) then
+                    guess(m+kk) = 1; added = .true.
+                end if
+            end do
+            if (.not. added) exit
+        end do
+        p0 = min(max(p0, blb), bub)
+
+        end subroutine starting_step
 
         subroutine build_rows()
         !! the combined rows: `J` (plus the slack columns), then a unit row per unknown
@@ -477,25 +604,32 @@
         end subroutine ratio_test
 
         subroutine initial_working_set()
-        !! add the rows that are at a bound at `u` (equality rows first) to the
-        !! working set, skipping any whose component outside the span of the
-        !! rows already added is negligible (i.e., that are linearly dependent)
+        !! add the rows that are at a bound at `u` (equality rows and bounds
+        !! first) to the working set, skipping any whose component outside the
+        !! span of the rows already added is negligible (i.e., that is linearly
+        !! dependent). Each check costs an `LSQR` solve, so rows that were in
+        !! the previous solve's final working set -- which was independent by
+        !! construction (in `p`-space, if that solve had no elastic slacks) --
+        !! are trusted and added without it; with a warm start from a settled
+        !! active set, almost nothing needs checking.
         type(sqpopt_sparse_matrix) :: ja_cur
         integer, dimension(:), allocatable :: idx_cur
         logical, dimension(:), allocatable :: fixed_cur
+        logical, dimension(mtot) :: trusted
         real(wp), dimension(nt) :: a, r
-        real(wp) :: val
         integer :: kk, pass, side, na, j
+        trusted = .false.
+        if (me%warm_start .and. me%warm_independent .and. allocated(me%warm_status)) then
+            if (size(me%warm_status) == m+n) trusted(1:m+n) = me%warm_status /= 0
+        end if
         do pass = 1, 2
             do kk = 1, mtot
                 if (status(kk) /= 0) cycle
-                if ((pass == 1) .neqv. is_equality(kk)) cycle
-                val = row_dot(rows, kk, u)
-                if (abs(val-row_lb(kk)) <= me%active_tol*max(1.0_wp, abs(row_lb(kk)))) then
-                    side = -1
-                else if (abs(val-row_ub(kk)) <= me%active_tol*max(1.0_wp, abs(row_ub(kk)))) then
-                    side = 1
-                else
+                if ((pass == 1) .neqv. (is_equality(kk) .or. kk > m)) cycle
+                side = at_bound(kk)
+                if (side == 0) cycle
+                if (trusted(kk)) then
+                    status(kk) = side
                     cycle
                 end if
                 a = 0.0_wp
@@ -509,6 +643,20 @@
             end do
         end do
         end subroutine initial_working_set
+
+        integer function at_bound(kk)
+        !! -1 or +1 if row `kk` is at its lower or upper bound at `u`, else 0
+        integer, intent(in) :: kk
+        real(wp) :: val
+        val = row_dot(rows, kk, u)
+        if (abs(val-row_lb(kk)) <= me%active_tol*max(1.0_wp, abs(row_lb(kk)))) then
+            at_bound = -1
+        else if (abs(val-row_ub(kk)) <= me%active_tol*max(1.0_wp, abs(row_ub(kk)))) then
+            at_bound = 1
+        else
+            at_bound = 0
+        end if
+        end function at_bound
 
     end subroutine solve_reduced_hessian_qp
 !*******************************************************************************

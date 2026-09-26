@@ -221,8 +221,8 @@
         logical,                intent(out) :: accept
         real(wp) :: phi_trial, ared
 
-        call problem%eval_f(x_trial, f_trial)
-        call problem%eval_c(x_trial, c_trial)
+        call problem%f(x_trial, f_trial)
+        call problem%c(x_trial, c_trial)
         ok = sqpopt_all_finite([f_trial]) .and. sqpopt_all_finite(c_trial)
         accept = .false.
         f_type = .false.

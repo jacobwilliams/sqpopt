@@ -18,7 +18,7 @@
     use sqpopt_kinds,             only: wp => sqpopt_module_wp
     use sqpopt_types_module,      only: sqpopt_success, sqpopt_max_iter_reached, &
                                          sqpopt_user_requested_stop, sqpopt_report_func, &
-                                         sqpopt_invalid_input, sqpopt_status_message
+                                         sqpopt_invalid_input, sqpopt_status_message, sqpopt_sparse_matrix
     use sqpopt_problem_module,    only: sqpopt_problem_type
     use sqpopt_options_module,    only: sqpopt_options_type, sqpopt_hessian_bfgs, sqpopt_hessian_sr1, sqpopt_hessian_exact
     use sqpopt_hessian_module,    only: sqpopt_hessian_type
@@ -46,6 +46,8 @@
         type(sqpopt_linesearch_type)   :: linesearch0   !! `linesearch` as given to `initialize`: restored at the start of
                                                         !! every `solve`, so no state (penalty, filter, watchdog) carries over
         type(sqpopt_trust_region_type) :: trust_region0 !! `trust_region` as given to `initialize` (same reason)
+        type(sqpopt_qp_solver_type)    :: qp_solver0    !! `qp_solver` as given to `initialize` (same reason: no QP
+                                                        !! warm-start state carries over)
 
         real(wp), dimension(:), allocatable :: x       !! current/final optimization variables
         real(wp), dimension(:), allocatable :: lambda  !! current/final Lagrange multipliers
@@ -103,6 +105,7 @@
     if (present(trust_region)) then; me%trust_region = trust_region; else; me%trust_region = sqpopt_trust_region_type(); end if
     me%linesearch0   = me%linesearch
     me%trust_region0 = me%trust_region
+    me%qp_solver0    = me%qp_solver
     me%report => null()
     if (present(report)) then
         if (associated(report)) me%report => report
@@ -131,6 +134,7 @@
 
     real(wp), dimension(:), allocatable :: x_prev, gl_prev  !! quasi-Newton state (unallocated until the 2nd iteration)
     real(wp), allocatable :: f_prev  !! previous objective value, for the `options%ftol` stalled-progress test (unallocated until the 2nd iteration)
+    type(sqpopt_sparse_matrix) :: jac !! Jacobian workspace (structure set once, values updated each iteration)
     logical :: done
     integer :: iter_istat, iter, n_fail
     character(len=:), allocatable :: msg
@@ -158,9 +162,11 @@
     me%x = min(max(x0, me%problem%x_lb), me%problem%x_ub)
 
     ! start every solve from the components exactly as configured (no
-    ! state from a previous solve carries over):
+    ! state from a previous solve carries over), with an empty evaluation cache:
+    call me%problem%reset_cache()
     me%linesearch   = me%linesearch0
     me%trust_region = me%trust_region0
+    me%qp_solver    = me%qp_solver0
     call me%hessian%initialize(me%problem%n, me%options%lbfgs_memory, &
                                 use_sr1=(me%options%hessian_mode == sqpopt_hessian_sr1))
     me%qp_solver%mode               = me%options%qp_solver_mode
@@ -171,7 +177,7 @@
     do iter = 1, me%options%max_iter
         me%iter = iter
         call sqpopt_iterate(me%problem, me%options, me%hessian, me%qp_solver, me%linesearch, me%trust_region, &
-                             me%x, me%lambda, x_prev, gl_prev, f_prev, iter, me%report, done, iter_istat)
+                             me%x, me%lambda, x_prev, gl_prev, f_prev, jac, iter, me%report, done, iter_istat)
         if (done) then
             ! converged, stalled, infeasible, or user stop:
             call finish(iter_istat)

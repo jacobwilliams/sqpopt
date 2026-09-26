@@ -58,7 +58,7 @@
 !  "no change") is skipped on the next iteration.
 
     subroutine sqpopt_iterate(problem, options, hessian, qp_solver, linesearch, trust_region, &
-                               x, lambda, x_prev, gl_prev, f_prev, iter, report, done, istat)
+                               x, lambda, x_prev, gl_prev, f_prev, jac, iter, report, done, istat)
 
     type(sqpopt_problem_type),    intent(inout) :: problem     !! problem definition
     type(sqpopt_options_type),    intent(in)    :: options     !! solver options
@@ -72,6 +72,9 @@
     real(wp), dimension(:), allocatable, intent(inout) :: x_prev  !! previous point (unallocated before the 1st call)
     real(wp), dimension(:), allocatable, intent(inout) :: gl_prev !! previous Lagrangian gradient (unallocated before the 1st call)
     real(wp),               allocatable, intent(inout) :: f_prev  !! previous objective value (unallocated before the 1st call)
+    type(sqpopt_sparse_matrix),          intent(inout) :: jac     !! workspace for the constraint Jacobian: its sparsity
+                                                                  !! structure is set on the first call (when `jac%val` is
+                                                                  !! unallocated) and reused, and its values are updated
     integer,                intent(in)    :: iter      !! major iteration number (starts at 1), passed to `report`
     procedure(sqpopt_report_func), optional, pointer :: report !! optional user progress-reporting callback (see [[sqpopt_types_module]])
     logical,                 intent(out)   :: done      !! true if the solver should stop at `x` (see `istat` for why)
@@ -80,7 +83,6 @@
     real(wp) :: f !! current objective function value
     real(wp), dimension(problem%n) :: g, gl, p, x_new
     real(wp), dimension(problem%m) :: c, new_lambda
-    type(sqpopt_sparse_matrix) :: jac
     real(wp) :: alpha
     integer :: qp_istat, step_istat
     logical :: restore
@@ -88,15 +90,17 @@
     done = .false.
 
     ! evaluate the problem functions and the sparse Jacobian at the current point:
-    call problem%eval_f(x, f)
+    call problem%f(x, f)
     call problem%eval_g(x, g)
-    call problem%eval_c(x, c)
-    jac%nrows = problem%m
-    jac%ncols = problem%n
-    jac%nnz   = problem%jac_nnz
-    jac%irow  = problem%jac_irow
-    jac%icol  = problem%jac_icol
-    allocate(jac%val(problem%jac_nnz))
+    call problem%c(x, c)
+    if (.not. allocated(jac%val)) then
+        jac%nrows = problem%m
+        jac%ncols = problem%n
+        jac%nnz   = problem%jac_nnz
+        jac%irow  = problem%jac_irow
+        jac%icol  = problem%jac_icol
+        allocate(jac%val(problem%jac_nnz))
+    end if
     call problem%eval_jac(x, jac%val)
 
     ! every accepted trial point had finite `f` and `c`, so a non-finite
@@ -213,10 +217,10 @@
             ! curvature (the Maratos effect), the line search also tries its
             ! second-order correction (see `soc` below):
             if (problem%m > 0) then
-                call linesearch%search(problem%eval_f, problem%eval_c, x, p, f, g, c, jac, new_lambda, &
+                call linesearch%search(eval_f_cached, eval_c_cached, x, p, f, g, c, jac, new_lambda, &
                                         problem%c_lb, problem%c_ub, alpha, x_new, step_istat, soc=soc)
             else
-                call linesearch%search(problem%eval_f, problem%eval_c, x, p, f, g, c, jac, new_lambda, &
+                call linesearch%search(eval_f_cached, eval_c_cached, x, p, f, g, c, jac, new_lambda, &
                                         problem%c_lb, problem%c_ub, alpha, x_new, step_istat)
             end if
 
@@ -287,6 +291,20 @@
     end if
 
     contains
+
+        subroutine eval_f_cached(xx, ff)
+        !! `f`, through the problem's evaluation cache (see [[sqpopt_problem_module]])
+        real(wp), dimension(:), intent(in)  :: xx
+        real(wp),               intent(out) :: ff
+        call problem%f(xx, ff)
+        end subroutine eval_f_cached
+
+        subroutine eval_c_cached(xx, cc)
+        !! `c`, through the problem's evaluation cache (see [[sqpopt_problem_module]])
+        real(wp), dimension(:), intent(in)  :: xx
+        real(wp), dimension(:), intent(out) :: cc
+        call problem%c(xx, cc)
+        end subroutine eval_c_cached
 
         subroutine soc(p_trial, c_trial, p_soc, ok)
         !! the second-order correction of a rejected trial step, given to

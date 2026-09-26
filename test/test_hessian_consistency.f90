@@ -6,7 +6,8 @@ program test_hessian_consistency
     !!
     !! * BFGS: the forward product `B*v` must satisfy the secant condition
     !!   for the newest pair (`B s_k = y_k`), and must be the exact inverse
-    !!   of the two-loop-recursion product `H*v` (`B*(H*v) = v`).
+    !!   of the two-loop-recursion product `H*v` (`B*(H*v) = v`), also once
+    !!   the circular history buffer has wrapped around.
     !! * SR1: the compact L-SR1 product must satisfy the secant condition for
     !!   *every* stored pair, including after the oldest pair has been
     !!   discarded from a full history buffer.
@@ -60,6 +61,19 @@ program test_hessian_consistency
     call h%hv_product(d, bv)
     print '(A,ES10.2)', 'BFGS ||B*(H*v) - v||            = ', norm2(bv - v)
     if (norm2(bv - v) > tol*norm2(v)) error stop 'test_hessian_consistency FAILED: BFGS forward/inverse mismatch'
+
+    ! ---- BFGS with a full (wrapped-around) circular history buffer ----
+    call h%initialize(n, 3)
+    do k = 1, n_pairs
+        call h%update_bfgs(ss(:,k), yy(:,k))
+    end do
+    if (h%n_history /= 3) error stop 'test_hessian_consistency FAILED: BFGS pairs not stored (wrapped buffer)'
+    call h%hv_product(ss(:,n_pairs), bs)
+    call h%inverse_vector_product(v, d)
+    call h%hv_product(d, bv)
+    print '(A,2ES10.2)', 'BFGS (wrapped buffer) secant, ||B*(H*v) - v|| = ', norm2(bs - yy(:,n_pairs)), norm2(bv - v)
+    if (norm2(bs - yy(:,n_pairs)) > tol .or. norm2(bv - v) > tol*norm2(v)) &
+        error stop 'test_hessian_consistency FAILED: BFGS with a wrapped buffer'
 
     ! ---- Powell damping: a negative-curvature pair ----
     block
