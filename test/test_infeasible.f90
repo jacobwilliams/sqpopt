@@ -12,23 +12,18 @@ program test_infeasible
     !!
     !! Run with both the (default) Armijo line search and the filter line
     !! search (whose failure path goes through feasibility restoration).
-    !!
-    !! The legacy composite-step heuristic (`sqpopt_qp_composite`) cannot tell
-    !! an inconsistent linearization from a consistent one, so it is only
-    !! required to stop with a failure status (not success, and not by
-    !! running to `max_iter`).
 
     use sqpopt_module,           only: sqpopt_type
     use sqpopt_problem_module,   only: sqpopt_problem_type
     use sqpopt_options_module,   only: sqpopt_options_type
-    use sqpopt_qp_solver_module, only: sqpopt_qp_auto, sqpopt_qp_composite, sqpopt_qp_dense, sqpopt_qp_reduced_hessian
-    use sqpopt_types_module,     only: sqpopt_infeasible, sqpopt_success, sqpopt_max_iter_reached
+    use sqpopt_qp_solver_module, only: sqpopt_qp_auto, sqpopt_qp_dense, sqpopt_qp_reduced_hessian
+    use sqpopt_types_module,     only: sqpopt_infeasible
     use sqpopt_linesearch_module, only: sqpopt_linesearch_armijo, sqpopt_linesearch_filter
     use sqpopt_kinds,            only: wp => sqpopt_module_wp
 
     implicit none
 
-    integer, parameter :: modes(4) = [sqpopt_qp_auto, sqpopt_qp_composite, sqpopt_qp_dense, sqpopt_qp_reduced_hessian]
+    integer, parameter :: modes(3) = [sqpopt_qp_auto, sqpopt_qp_dense, sqpopt_qp_reduced_hessian]
 
     type(sqpopt_type)         :: solver
     type(sqpopt_problem_type) :: problem
@@ -57,13 +52,8 @@ program test_infeasible
         print '(A,I0,A,I0,A,2F10.4,A,I0,2A)', 'linesearch_mode=', options%linesearch_mode, &
             ' qp_solver_mode=', modes(i), ': x=', xsol, &
             '  istat=', istat, '  ', solver%status_message()
-        if (modes(i) == sqpopt_qp_composite) then
-            if (istat == sqpopt_success .or. istat == sqpopt_max_iter_reached) &
-                error stop 'test_infeasible FAILED: composite mode did not stop with a failure status'
-        else
-            if (istat /= sqpopt_infeasible) error stop 'test_infeasible FAILED: infeasibility not detected'
-            if (abs(xsol(1)-1.5_wp) > 1.0e-4_wp) error stop 'test_infeasible FAILED: not at the least-infeasible point'
-        end if
+        if (istat /= sqpopt_infeasible) error stop 'test_infeasible FAILED: infeasibility not detected'
+        if (abs(xsol(1)-1.5_wp) > 1.0e-4_wp) error stop 'test_infeasible FAILED: not at the least-infeasible point'
     end do
     end do
 

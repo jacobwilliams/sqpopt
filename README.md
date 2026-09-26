@@ -213,8 +213,6 @@ matrix); `solve()` always (re)initializes it from `options%lbfgs_memory`/
 | `mode` | `sqpopt_qp_auto` | which QP algorithm to use (overwritten from `options%qp_solver_mode` at the start of `solve()`) -- see the mode table below |
 | `auto_dense_max_n` | `200` | `mode=sqpopt_qp_auto` uses `sqpopt_qp_dense` for problems with at most this many variables, else `sqpopt_qp_reduced_hessian` |
 | `max_step` | `2.0` | trust-region-style cap on \|\|p\|\|₂ applied after every QP solve, regardless of `mode` |
-| `active_tol` | `1e-6` | tolerance used by the composite step (`mode=sqpopt_qp_composite`) to decide whether an inequality constraint is part of the active set |
-| `bound_enforcement` | `sqpopt_bounds_scalar` | how the composite step (`mode=sqpopt_qp_composite` only) corrects a bound violation in its computed step -- see the mode table below; not used by `sqpopt_qp_dense`/`sqpopt_qp_reduced_hessian`, which enforce bounds exactly as part of the QP solve itself |
 | `dense_qp` | -- | the dense active-set QP solver's own options (used only when `mode==sqpopt_qp_dense`); see table below |
 | `sparse_qp` | -- | the sparse active-set QP solver's own options (used only when `mode==sqpopt_qp_reduced_hessian`); see table below |
 
@@ -223,7 +221,6 @@ matrix); `solve()` always (re)initializes it from `options%lbfgs_memory`/
 | value | description |
 |---|---|
 | `sqpopt_qp_auto` | (default) `sqpopt_qp_dense` if `n <= auto_dense_max_n`, else `sqpopt_qp_reduced_hessian` |
-| `sqpopt_qp_composite` | *legacy/experimental* matrix-free composite-step heuristic (multiplier estimate + normal step + tangential step, all via `LSQR`); does not enforce the linearized general-constraint bounds exactly, and its least-squares multipliers are not true QP multipliers, so it can fail on harder problems (e.g. HS71) and cannot detect infeasibility |
 | `sqpopt_qp_dense` | dense active-set QP (Householder QR null space, Cholesky of the reduced Hessian); forms `O(n^2)`/`O(mn)` dense arrays each call, so best for small-to-moderate problems |
 | `sqpopt_qp_reduced_hessian` | sparse/matrix-free active-set QP (projected conjugate gradients, `LSQR`-based null-space projections, active bounds handled by fixing variables); never forms a dense array, so it scales to larger problems |
 
@@ -251,13 +248,6 @@ exactly, and share the same robustness features:
   only the constraints that guess leaves violated need elastic slacks.
 - Both are checked against the KKT conditions on thousands of random
   convex, nonconvex, degenerate, and infeasible QPs (`test/test_qp_fuzz.f90`).
-
-**`bound_enforcement` values (`qp_solver%bound_enforcement`, `sqpopt_qp_composite` mode only):**
-
-| value | description |
-|---|---|
-| `sqpopt_bounds_scalar` | (default) clip only the violating components of `x+p` to their bound; the other components of `p` are left unchanged |
-| `sqpopt_bounds_vector` | rescale the *entire* step `p` by the same factor so that `x+p` just touches the first bound it would otherwise violate, preserving `p`'s direction exactly |
 
 **Dense active-set QP options (`qp_solver%dense_qp`, used when `mode==sqpopt_qp_dense`):**
 
@@ -389,8 +379,8 @@ fpm run --example benchmark --profile release
 This package depends on the following external libraries (which will be automatically fetched and built by FPM):
 
 * [LSQR](https://github.com/jacobwilliams/LSQR) -- iterative solver for sparse linear systems and least-squares problems
-* [LSMR](https://github.com/jacobwilliams/LSMR) -- iterative solver for sparse linear systems and least-squares problems, similar to LSQR but with improved numerical stability
-* [lusol](https://github.com/jacobwilliams/lusol) -- sparse LU factorization library
+* [LSMR](https://github.com/jacobwilliams/LSMR) -- iterative solver for sparse linear systems and least-squares problems, similar to LSQR but with improved numerical stability (not yet used; see `plan/ROADMAP.md` F14)
+* [lusol](https://github.com/jacobwilliams/lusol) -- sparse LU factorization library (not yet used; see `plan/ROADMAP.md` F13)
 * [fmin](https://github.com/jacobwilliams/fmin.git) -- derivative-free minimization routine used for exact line search
 
 

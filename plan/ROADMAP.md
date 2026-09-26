@@ -101,10 +101,8 @@ to 65 evaluations.
   rather than a false success, but they still don't reach the optimum
   (−0.707, −0.707). An elastic-mode QP or multiplier safeguarding should
   fix this. The case is worth adding to the benchmark suite.
-- **Composite can't detect infeasibility.** It ends with
-  `sqpopt_line_search_failed`, not `sqpopt_infeasible`, on infeasible
-  problems (`test_infeasible` allows for this). It is legacy, so this is
-  low priority. Consider removing the composite mode entirely after F1.
+- ~~**Composite can't detect infeasibility.**~~ Moot: the composite mode
+  was removed (2026-09-26).
 - **`REAL32` builds fail inside the `LSMR` dependency** (`Real constant
   overflows its kind` in `lsmrModule.f90`), which nothing in sqpopt
   calls. Add this to the dependency-trim decision (§8.4) and to the CI
@@ -495,18 +493,17 @@ later:
 - **Scaling.** Nothing is scaled and all tolerances are absolute. Add
   automatic gradient-based scaling of the objective and constraints
   (IPOPT-style) and optional user variable scaling.
-- **Dependencies.** `lusol`/`LSMR` are only used by
-  `solve_sparse_linear_system`, which nothing calls. `lbfgsb` is unused.
-  Either put them to work (F1, F13, F14) or drop them. Whichever is
-  chosen, remove the unused `solve_sparse_linear_system` wrapper and the
-  `sqpopt_linsolve_*` constants (or replace them with whatever uses the
-  LU factors directly).
+- **Dependencies.** *Partly done (2026-09-26):* the unused
+  `solve_sparse_linear_system` wrapper and the `sqpopt_linsolve_*`
+  constants are removed, and `lbfgsb` is dropped. `lusol` and `LSMR` are
+  still dependencies but unused until F13/F14 put them to work (or they
+  are dropped).
 
 ## 5. Features toward state of the art
 
 - **F1: a real QP as the default, and a real large-scale QP.** The
-  composite step should become "legacy/experimental" (it can't survive
-  the B2 fix; see §1). Short term: make `sqpopt_qp_dense` the default for
+  composite step was removed (2026-09-26; it couldn't survive the B2
+  fix, see §1). Short term (done): make `sqpopt_qp_dense` the default for
   small `n` and `sqpopt_qp_reduced_hessian` the default for large `n`
   (auto-select by `n`/`nnz`). Longer term: build a **sparse KKT
   active-set QP**. PLAN.md §3's "fundamental mismatch" is not
@@ -683,8 +680,9 @@ documentation.
 
 ## 8. Open decisions
 
-1. **Default QP solver.** Proposed: auto-select dense for small `n` and
-   reduced-Hessian for large `n`, with composite demoted (or removed).
+1. **Default QP solver.** *Decided:* auto-select dense for small `n` and
+   reduced-Hessian for large `n` (`sqpopt_qp_auto`); the composite mode
+   was removed (2026-09-26).
 2. **Callback API.** An abstract problem class (breaks the API, cleaner)
    or procedure pointers plus a `class(*)` context argument (additive).
 3. **External sparse LDLᵀ** (e.g. MUMPS, as an optional dependency)
@@ -695,5 +693,6 @@ documentation.
    - keep `lusol`, for F13 and then F1;
    - keep `LSMR` only if F14 shows a real benchmark gain, otherwise drop
      it (which also fixes the `REAL32` build);
-   - drop `lbfgsb`, which is unused and has no identified role;
-   - either way, remove the unused `solve_sparse_linear_system` wrapper.
+   - drop `lbfgsb`, which is unused and has no identified role *(done)*;
+   - either way, remove the unused `solve_sparse_linear_system` wrapper
+     *(done)*.

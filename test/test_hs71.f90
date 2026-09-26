@@ -18,11 +18,8 @@ program test_hs71
     !! `slsqp`'s slack-variable reformulation)
     !!
     !! @note At this solution *both* constraints are simultaneously active
-    !! (a corner point). The legacy composite-step QP heuristic
-    !! (`sqpopt_qp_composite`) cannot converge on this problem (its
-    !! least-squares multiplier estimates are not true QP multipliers), so it
-    !! is not run here; every run below uses a genuine active-set QP solve
-    !! and is required to reach `sqpopt_success` tightly.
+    !! (a corner point); every run below is required to reach
+    !! `sqpopt_success` tightly.
     !!
     !! Run seven ways, to compare the available merit functions, line
     !! searches, and QP solvers on this problem: the defaults

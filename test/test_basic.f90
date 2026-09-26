@@ -5,8 +5,7 @@ program test_basic
     use sqpopt_options_module, only: sqpopt_options_type, sqpopt_hessian_sr1
     use sqpopt_linesearch_module, only: sqpopt_linesearch_exact, sqpopt_linesearch_watchdog, sqpopt_merit_augmented_lagrangian, &
                                          sqpopt_linesearch_type, sqpopt_linesearch_filter
-    use sqpopt_qp_solver_module, only: sqpopt_qp_dense, sqpopt_qp_reduced_hessian, sqpopt_qp_solver_type, sqpopt_bounds_vector, &
-                                        sqpopt_qp_composite
+    use sqpopt_qp_solver_module, only: sqpopt_qp_dense, sqpopt_qp_reduced_hessian
     use sqpopt_types_module,   only: sqpopt_success, sqpopt_stalled
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
@@ -28,7 +27,6 @@ program test_basic
     call test_augmented_lagrangian_merit()
     call test_dense_qp_mode()
     call test_reduced_hessian_qp_mode()
-    call test_vector_bound_enforcement()
     call test_major_step_limit()
     call test_print_level_and_stalled_progress()
     call test_filter_linesearch_mode()
@@ -464,7 +462,7 @@ program test_basic
     end subroutine test_augmented_lagrangian_merit
 
     !> same problem as `test_inequality_constrained`, but using the dense
-    !! active-set QP solver instead of the default v1 composite step.
+    !! dense active-set QP solver explicitly (instead of `sqpopt_qp_auto`).
     subroutine test_dense_qp_mode()
 
     type(sqpopt_type)         :: solver
@@ -529,43 +527,6 @@ program test_basic
 
     end subroutine test_reduced_hessian_qp_mode
 
-    !> same problem as `test_inequality_constrained`, but using the
-    !! composite-step QP's `sqpopt_bounds_vector` bound-enforcement mode
-    !! (uniformly rescale the whole step, instead of clipping only the
-    !! violating components) instead of the default `sqpopt_bounds_scalar`.
-    subroutine test_vector_bound_enforcement()
-
-    type(sqpopt_type)         :: solver
-    type(sqpopt_problem_type) :: problem
-    type(sqpopt_options_type) :: options
-    type(sqpopt_qp_solver_type) :: qp_solver
-    real(wp) :: x0(2), xsol(2), lam(1)
-    real(wp), parameter :: xexpect(2) = [1.0_wp, 2.0_wp]
-    integer :: istat
-
-    call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
-    call problem%set_bounds(x_lb=[0.0_wp,0.0_wp], x_ub=[big,big], c_lb=[-big], c_ub=[3.0_wp])
-    call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
-    call problem%set_functions(f=obj1, g=grad1, c=cons1, jac=jacv1)
-
-    options%max_iter = 100
-    options%qp_solver_mode = sqpopt_qp_composite  !! `bound_enforcement` only applies to the composite step
-    qp_solver%bound_enforcement = sqpopt_bounds_vector
-    x0 = [0.0_wp, 0.0_wp]
-
-    call solver%initialize(problem=problem, options=options, qp_solver=qp_solver)
-    call solver%solve(x0, istat)
-    call solver%get_solution(xsol, lam)
-
-    print '(A,2F12.6)', 'test_vector_bound_enforcement: x      = ', xsol
-    print '(A,2F12.6)', 'test_vector_bound_enforcement: x_true = ', xexpect
-    print '(A,I0)',     'test_vector_bound_enforcement: istat  = ', istat
-
-    if (maxval(abs(xsol-xexpect)) > 1.0e-3_wp) error stop 'test_vector_bound_enforcement FAILED'
-    print *, 'test_vector_bound_enforcement PASSED'
-
-    end subroutine test_vector_bound_enforcement
-
     !> same problem as `test_inequality_constrained`, but with a tight
     !! `major_step_limit` (SNOPT-inspired option) that forces the very
     !! first major iteration's step to be shrunk well below what the
@@ -605,7 +566,7 @@ program test_basic
 
     !> same problem as `test_equality_constrained`, but with `print_level=1`
     !! (confirms the per-iteration diagnostic printing doesn't break anything)
-    !! and a very tight `ktol`, using the composite step. On this quadratic
+    !! and a very tight `ktol`. On this quadratic
     !! problem the KKT residual can reach exactly zero, so the run may end
     !! either on the KKT test (`sqpopt_success`) or on the `ftol`/`xtol`
     !! stalled-progress test (`sqpopt_stalled`); both are accepted here (the
@@ -627,7 +588,6 @@ program test_basic
     options%max_iter    = 100
     options%print_level = 1
     options%ktol         = 1.0e-15_wp
-    options%qp_solver_mode = sqpopt_qp_composite
     options%ftol         = 1.0e-8_wp
     options%xtol         = 1.0e-8_wp
     x0 = [0.0_wp, 0.0_wp]

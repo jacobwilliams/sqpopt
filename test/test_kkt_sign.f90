@@ -15,13 +15,13 @@ program test_kkt_sign
     use sqpopt_module,           only: sqpopt_type
     use sqpopt_problem_module,   only: sqpopt_problem_type
     use sqpopt_options_module,   only: sqpopt_options_type
-    use sqpopt_qp_solver_module, only: sqpopt_qp_auto, sqpopt_qp_composite, sqpopt_qp_dense, sqpopt_qp_reduced_hessian
+    use sqpopt_qp_solver_module, only: sqpopt_qp_auto, sqpopt_qp_dense, sqpopt_qp_reduced_hessian
     use sqpopt_types_module,     only: sqpopt_success
     use sqpopt_kinds,            only: wp => sqpopt_module_wp
 
     implicit none
 
-    integer, parameter :: modes(4) = [sqpopt_qp_auto, sqpopt_qp_composite, sqpopt_qp_dense, sqpopt_qp_reduced_hessian]
+    integer, parameter :: modes(3) = [sqpopt_qp_auto, sqpopt_qp_dense, sqpopt_qp_reduced_hessian]
     real(wp), parameter :: xexpect(2) = [10.0_wp, 10.0_wp]
 
     type(sqpopt_type)         :: solver

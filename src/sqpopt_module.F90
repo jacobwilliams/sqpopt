@@ -25,8 +25,8 @@
     use sqpopt_problem_module,    only: sqpopt_problem_type
     use sqpopt_options_module,    only: sqpopt_options_type, sqpopt_hessian_bfgs, sqpopt_hessian_sr1, sqpopt_hessian_exact
     use sqpopt_hessian_module,    only: sqpopt_hessian_type
-    use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type, sqpopt_qp_auto, sqpopt_qp_reduced_hessian, &
-                                         sqpopt_bounds_vector, sqpopt_bounds_scalar
+    use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type, sqpopt_qp_auto, sqpopt_qp_dense, &
+                                         sqpopt_qp_reduced_hessian
     use sqpopt_linesearch_module, only: sqpopt_linesearch_type, sqpopt_linesearch_armijo, sqpopt_linesearch_filter, &
                                          sqpopt_merit_l1, sqpopt_merit_augmented_lagrangian
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
@@ -381,7 +381,7 @@
     if (o%hessian_mode < sqpopt_hessian_bfgs .or. o%hessian_mode > sqpopt_hessian_exact) then
         msg = 'options%hessian_mode is not a valid sqpopt_hessian_* value'; return
     end if
-    if (o%qp_solver_mode < sqpopt_qp_auto .or. o%qp_solver_mode > sqpopt_qp_reduced_hessian) then
+    if (all(o%qp_solver_mode /= [sqpopt_qp_auto, sqpopt_qp_dense, sqpopt_qp_reduced_hessian])) then
         msg = 'options%qp_solver_mode is not a valid sqpopt_qp_* value'; return
     end if
     if (o%linesearch_mode < sqpopt_linesearch_armijo .or. o%linesearch_mode > sqpopt_linesearch_filter) then
@@ -447,11 +447,8 @@
     end if
 
     ! ---- QP solver ----
-    if (.not. (qp%max_step > 0.0_wp .and. qp%active_tol > 0.0_wp) .or. qp%auto_dense_max_n < 0) then
-        msg = 'qp_solver%max_step and active_tol must be > 0, and auto_dense_max_n >= 0'; return
-    end if
-    if (qp%bound_enforcement /= sqpopt_bounds_vector .and. qp%bound_enforcement /= sqpopt_bounds_scalar) then
-        msg = 'qp_solver%bound_enforcement is not a valid sqpopt_bounds_* value'; return
+    if (.not. qp%max_step > 0.0_wp .or. qp%auto_dense_max_n < 0) then
+        msg = 'qp_solver%max_step must be > 0, and auto_dense_max_n >= 0'; return
     end if
     associate (d => qp%dense_qp, r => qp%sparse_qp)
     if (.not. (d%active_tol > 0.0_wp .and. d%opt_tol > 0.0_wp .and. d%feas_tol > 0.0_wp .and. &
