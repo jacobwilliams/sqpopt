@@ -57,7 +57,10 @@ Before iterating, `solve` validates the problem definition and options
 (returning `istat=sqpopt_invalid_input`, with the reason in
 `status_message()`, if anything is wrong), and moves `x0` inside the
 variable bounds, so the user functions are never evaluated outside them.
-Every call to `solve` starts from the configuration given to `initialize`:
+If no acceptable step can be found along a search direction, no step is
+taken (the point is never moved to one that makes the merit function
+worse); the Hessian approximation is reset so the next iteration tries a
+different direction. Every call to `solve` starts from the configuration given to `initialize`:
 no state (penalty parameter, filter, Hessian, ...) carries over from a
 previous solve.
 
@@ -73,6 +76,7 @@ previous solve.
 | `sqpopt_user_requested_stop` (`5`) | the `report` callback asked the solver to stop |
 | `sqpopt_invalid_input` (`6`) | the problem definition or options are invalid (see `status_message()`) |
 | `sqpopt_stalled` (`7`) | feasible, but the objective and variables have stopped changing (see `ftol`/`xtol`) before the KKT test was satisfied; usually an acceptable, if less precise, solution |
+| `sqpopt_function_error` (`8`) | a problem function returned a non-finite value (NaN or Inf) at the current point (at a *trial* point, a non-finite value just makes the line search/trust region reject that point and back off) |
 
 See [test/test_basic.f90](test/test_basic.f90), [test/test_hs71.f90](test/test_hs71.f90),
 and [test/test_medium.f90](test/test_medium.f90) for complete worked examples.
@@ -139,13 +143,15 @@ directly, since `sqpopt_options_type` has no field for it.
 
 A limited-memory quasi-Newton approximation (never a dense `n x n`
 matrix); `solve()` always (re)initializes it from `options%lbfgs_memory`/
-`options%hessian_mode` at the start of every call, so the only way to
-configure it is via those two `options` fields:
+`options%hessian_mode` at the start of every call. Apart from those two
+`options` fields, only `damping` is configurable, on a directly-constructed
+`sqpopt_hessian_type`:
 
 | option | default | description |
 |---|---|---|
-| `hessian_mode` (`sqpopt_options_type`) | `sqpopt_hessian_bfgs` | `sqpopt_hessian_bfgs` (limited-memory BFGS, skipping updates that fail the curvature condition), `sqpopt_hessian_sr1` (limited-memory symmetric rank-1), or `sqpopt_hessian_exact` (not yet implemented, falls back to BFGS) |
+| `hessian_mode` (`sqpopt_options_type`) | `sqpopt_hessian_bfgs` | `sqpopt_hessian_bfgs` (limited-memory Powell-damped BFGS), `sqpopt_hessian_sr1` (limited-memory symmetric rank-1), or `sqpopt_hessian_exact` (not yet implemented, falls back to BFGS) |
 | `lbfgs_memory` (`sqpopt_options_type`) | `10` | number of `(s,y)` vector pairs retained, independent of the problem size `n` |
+| `damping` | `.true.` | Powell's damped BFGS update: when \( s^Ty < 0.2\,s^TBs \), `y` is blended with `Bs` so the update keeps `B` positive definite while still using the new curvature information; if `.false.`, such updates are skipped instead |
 
 #### QP subproblem solver (`sqpopt_qp_solver_type`)
 
@@ -206,8 +212,8 @@ configure it is via those two `options` fields:
 | `major_step_limit` | `2.0` | caps the *initial* trial step length (before any backtracking), used by all three modes, so that no variable changes by more than this factor relative to \( \max(1,\lvert x_j\rvert) \) (SNOPT's "Major step limit" option); guards against divergence from a QP step that is technically feasible but unreasonably large |
 | `sigma` | `0.1` | Armijo sufficient-decrease parameter, \( 0<\sigma<1 \) (`sqpopt_linesearch_armijo`/`sqpopt_linesearch_watchdog` modes) |
 | `backtrack` | `0.5` | step-length reduction factor at each backtracking step (`sqpopt_linesearch_armijo`/`sqpopt_linesearch_watchdog` modes) |
-| `alpha_min` | `0.1` | minimum step length; backtracking never goes below this, and accepts it outright if the floor is reached without satisfying the sufficient-decrease test (`sqpopt_linesearch_armijo`/`sqpopt_linesearch_watchdog` modes) |
-| `max_ls_iter` | `20` | maximum number of backtracking steps (`sqpopt_linesearch_armijo`/`sqpopt_linesearch_watchdog` modes) |
+| `alpha_min` | `1e-10` | minimum step length: if no acceptable step is found before `alpha` would drop below this, the search fails and no step is taken (`armijo`/`watchdog`/`filter` modes) |
+| `max_ls_iter` | `40` | maximum number of trial step lengths per search (`armijo`/`watchdog`/`filter` modes) |
 | `tol` | `1e-4` | desired tolerance on the minimizer (`sqpopt_linesearch_exact` mode) |
 | `watchdog_relaxed_len` | `2` | number of relaxed steps tolerated before requiring a new best point (`sqpopt_linesearch_watchdog` mode) |
 | `watchdog_cooldown_len` | `10` | number of iterations relaxed acceptance is disabled for after a backtrack (`sqpopt_linesearch_watchdog` mode) |
@@ -230,7 +236,15 @@ configure it is via those two `options` fields:
 | value | description |
 |---|---|
 | `sqpopt_merit_l1` | (default) non-smooth \( \ell_1 \) exact penalty function (as in `slsqp`) |
-| `sqpopt_merit_augmented_lagrangian` | smooth augmented Lagrangian merit function (Gill, Murray, Saunders & Wright; the merit function used in NPSOL and, in spirit, SNOPT) -- twice continuously differentiable, which avoids the Maratos effect without needing a second-order correction |
+| `sqpopt_merit_augmented_lagrangian` | smooth augmented Lagrangian merit function (Gill, Murray, Saunders & Wright; the merit function used in NPSOL and, in spirit, SNOPT) -- twice continuously differentiable, which helps avoid the Maratos effect |
+
+**Second-order correction.** In the `armijo`, `watchdog`, and `filter`
+line searches, and in the trust region, when the first (full) trial step
+is rejected without reducing the constraint violation -- the signature of
+the Maratos effect near curved constraints -- a second-order-corrected
+step (a minimum-norm correction for the true constraint values at the
+trial point, using the current Jacobian, kept within the bounds) is tried
+before backtracking. See `sqpopt_soc_module`.
 
 #### Trust-region globalization (`sqpopt_trust_region_type`)
 

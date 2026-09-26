@@ -10,6 +10,9 @@ program test_hessian_consistency
     !! * SR1: the compact L-SR1 product must satisfy the secant condition for
     !!   *every* stored pair, including after the oldest pair has been
     !!   discarded from a full history buffer.
+    !! * Powell-damped BFGS: a negative-curvature pair (`s^T y < 0`) is still
+    !!   used (after damping, `s^T B s = 0.2 s^T B_old s`) and `B` stays
+    !!   positive definite; with damping off, the pair is skipped instead.
 
     use sqpopt_hessian_module, only: sqpopt_hessian_type
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
@@ -57,6 +60,35 @@ program test_hessian_consistency
     call h%hv_product(d, bv)
     print '(A,ES10.2)', 'BFGS ||B*(H*v) - v||            = ', norm2(bv - v)
     if (norm2(bv - v) > tol*norm2(v)) error stop 'test_hessian_consistency FAILED: BFGS forward/inverse mismatch'
+
+    ! ---- Powell damping: a negative-curvature pair ----
+    block
+        real(wp) :: s_neg(n), sbs_old, sbs_new, vbv
+        call h%initialize(n, 10)
+        call h%update_bfgs(ss(:,1), yy(:,1))
+        call h%update_bfgs(ss(:,2), yy(:,2))
+        s_neg = ss(:,3)
+        call h%hv_product(s_neg, bs)
+        sbs_old = dot_product(s_neg, bs)
+        call h%update_bfgs(s_neg, -s_neg)
+        if (h%n_history /= 3) error stop 'test_hessian_consistency FAILED: damped pair not stored'
+        call h%hv_product(s_neg, bs)
+        sbs_new = dot_product(s_neg, bs)
+        print '(A,ES10.2)', 'damped BFGS s^T B s / (0.2 s^T B_old s) - 1 = ', sbs_new/(0.2_wp*sbs_old) - 1.0_wp
+        if (abs(sbs_new/(0.2_wp*sbs_old) - 1.0_wp) > tol) error stop 'test_hessian_consistency FAILED: damping'
+        do i = 1, n  ! positive definiteness, spot-checked on the unit vectors and v
+            d = 0.0_wp; d(i) = 1.0_wp
+            call h%hv_product(d, bv)
+            vbv = dot_product(d, bv)
+            if (vbv <= 0.0_wp) error stop 'test_hessian_consistency FAILED: damped B not positive definite'
+        end do
+        call h%hv_product(v, bv)
+        if (dot_product(v, bv) <= 0.0_wp) error stop 'test_hessian_consistency FAILED: damped B not positive definite'
+
+        h%damping = .false.
+        call h%update_bfgs(ss(:,4), -ss(:,4))
+        if (h%n_history /= 3) error stop 'test_hessian_consistency FAILED: undamped negative-curvature pair not skipped'
+    end block
 
     ! ---- SR1 (history of 3, so the oldest of the 4 pairs is discarded) ----
     call h%initialize(n, 3, use_sr1=.true.)

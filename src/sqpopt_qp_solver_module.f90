@@ -157,6 +157,12 @@
         call solve_composite_step(me, hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
     end select
 
+    ! the active-set solvers only satisfy the bounds to within their own
+    ! tolerances, so make sure `x+p` (and hence every `x+alpha*p`,
+    ! `0<=alpha<=1`) is exactly within them -- the user functions must
+    ! never be evaluated outside the variable bounds:
+    p = min(max(x + p, x_lb), x_ub) - x
+
     end subroutine solve_qp_subproblem
 !*******************************************************************************
 

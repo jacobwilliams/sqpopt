@@ -15,7 +15,7 @@
 !    the merit function used in NPSOL/NPSQP and, in spirit, SNOPT). Unlike
 !    the \( \ell_1 \) function, it is twice continuously differentiable,
 !    which is the reason SNOPT-family solvers do not need a second-order
-!    correction (see [[sqpopt_iterate_module]]) to avoid the Maratos effect.
+!    correction (see [[sqpopt_soc_module]]) to avoid the Maratos effect.
 !
 !  Three line search strategies are available (`sqpopt_linesearch_type%mode`):
 !
@@ -71,7 +71,7 @@
     module sqpopt_linesearch_module
 
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
-    use sqpopt_types_module,   only: sqpopt_success, sqpopt_line_search_failed, sqpopt_sparse_matrix
+    use sqpopt_types_module,   only: sqpopt_success, sqpopt_line_search_failed, sqpopt_sparse_matrix, sqpopt_all_finite
     use sqpopt_problem_module, only: sqpopt_objective_func, sqpopt_constraint_func
     use sqpopt_linalg_module,  only: sparse_matvec_transpose
     use fmin_module,           only: fmin
@@ -90,6 +90,22 @@
     integer, parameter, public :: sqpopt_merit_l1                   = 1  !! non-smooth \( \ell_1 \) exact penalty merit function (default)
     integer, parameter, public :: sqpopt_merit_augmented_lagrangian = 2  !! smooth augmented Lagrangian merit function (NPSOL/SNOPT-style)
 
+    abstract interface
+        subroutine sqpopt_soc_func(p, c_trial, p_soc, ok)
+            !! computes the second-order-corrected version `p_soc` of a
+            !! rejected trial step `p`, given the constraint values
+            !! `c_trial` at `x+p` (see [[sqpopt_soc_module]]); `ok` is false
+            !! if no usable correction is available
+            import :: wp
+            implicit none
+            real(wp), dimension(:), intent(in)  :: p       !! the rejected trial step `dimension(n)`
+            real(wp), dimension(:), intent(in)  :: c_trial !! constraint values at `x+p` `dimension(m)`
+            real(wp), dimension(:), intent(out) :: p_soc   !! the corrected step `dimension(n)`
+            logical,                intent(out) :: ok      !! true if `p_soc` is usable
+        end subroutine sqpopt_soc_func
+    end interface
+    public :: sqpopt_soc_func
+
     type, public :: sqpopt_linesearch_type
         !! options and state for the merit function and line search.
 
@@ -101,11 +117,10 @@
         real(wp) :: tol         = 1.0e-4_wp !! desired tolerance on the minimizer (`sqpopt_linesearch_exact` mode)
         real(wp) :: sigma       = 0.1_wp    !! Armijo sufficient-decrease parameter, \( 0 < \sigma < 1 \) (`sqpopt_linesearch_armijo` mode)
         real(wp) :: backtrack   = 0.5_wp    !! step-length reduction factor at each backtracking step (`sqpopt_linesearch_armijo` mode)
-        real(wp) :: alpha_min   = 0.1_wp    !! minimum step length, \( 0 < \alpha_{min} < 1 \) (`sqpopt_linesearch_armijo` mode):
-                                            !! backtracking never goes below this; if the floor is reached without
-                                            !! satisfying the sufficient-decrease test, `alpha_min` is accepted anyway
-                                            !! (this avoids ever taking a useless near-zero step)
-        integer  :: max_ls_iter = 20        !! maximum number of Armijo backtracking steps (`sqpopt_linesearch_armijo` mode)
+        real(wp) :: alpha_min   = 1.0e-10_wp !! minimum step length (`armijo`/`watchdog`/`filter` modes): the search
+                                             !! fails (no step is taken, `istat=sqpopt_line_search_failed`) if no
+                                             !! acceptable step is found before `alpha` would drop below this
+        integer  :: max_ls_iter = 40        !! maximum number of trial step lengths per search (`armijo`/`watchdog`/`filter` modes)
         real(wp) :: major_step_limit = 2.0_wp !! caps the *initial* trial step length (before any backtracking) so that
                                               !! no variable changes by more than this fraction of \( \max(1,|x_j|) \)
                                               !! (SNOPT's "Major step limit" option): the search starts from
@@ -267,8 +282,19 @@
 !>
 !  perform a line search along the direction `p` to find an accepted step
 !  length `alpha`, dispatching to the strategy selected by `me%mode`.
+!
+!  If no acceptable step is found, `istat=sqpopt_line_search_failed` and
+!  `x_new=x` (no step is taken; in `sqpopt_linesearch_watchdog` mode a
+!  failed relaxed window instead returns the best point found so far).
+!  Trial points where `f` or `c` is not finite (NaN or Inf) are always
+!  rejected, so the search backtracks away from them.
+!
+!  If `soc` is present, a second-order correction of the *first* trial
+!  step is also tried when that step is rejected and did not reduce the
+!  constraint violation (see [[sqpopt_soc_module]]); not used by
+!  `sqpopt_linesearch_exact`.
 
-    subroutine line_search(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, q, alpha, x_new, istat)
+    subroutine line_search(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, q, alpha, x_new, istat, soc)
 
     class(sqpopt_linesearch_type), intent(inout) :: me
     procedure(sqpopt_objective_func)  :: eval_f  !! evaluates \( f(x) \)
@@ -287,21 +313,21 @@
     real(wp),                intent(in)  :: q      !! the QP's predicted decrease in `f` along `p`,
                                                     !! \( q = -\left(g^Tp + \tfrac{1}{2}p^THp\right) \)
                                                     !! (only used by `sqpopt_linesearch_filter`)
-    real(wp),                intent(out) :: alpha  !! accepted step length
+    real(wp),                intent(out) :: alpha  !! accepted step length (`0` if no step was taken)
     real(wp), dimension(:), intent(out) :: x_new   !! the accepted new point `dimension(n)` (normally
-                                                    !! `x + alpha*p`, except `sqpopt_linesearch_watchdog`
-                                                    !! may instead return an earlier best point on backtrack)
+                                                    !! `x + alpha*p`; see above for the exceptions)
     integer,                  intent(out) :: istat  !! status code (see [[sqpopt_types_module]])
+    procedure(sqpopt_soc_func), optional :: soc     !! computes a second-order-corrected step
 
     select case (me%mode)
     case (sqpopt_linesearch_exact)
-        call exact_line_search(me, eval_f, eval_c, x, p, lambda, c_lb, c_ub, alpha, x_new, istat)
+        call exact_line_search(me, eval_f, eval_c, x, p, f, c, lambda, c_lb, c_ub, alpha, x_new, istat)
     case (sqpopt_linesearch_watchdog)
-        call watchdog_line_search(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, alpha, x_new, istat)
+        call watchdog_line_search(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, alpha, x_new, istat, soc)
     case (sqpopt_linesearch_filter)
-        call filter_line_search(me, eval_f, eval_c, x, p, f, c, lambda, c_lb, c_ub, q, alpha, x_new, istat)
+        call filter_line_search(me, eval_f, eval_c, x, p, f, c, lambda, c_lb, c_ub, q, alpha, x_new, istat, soc)
     case default
-        call armijo_line_search(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, alpha, x_new, istat)
+        call armijo_line_search(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, alpha, x_new, istat, soc)
     end select
 
     end subroutine line_search
@@ -331,8 +357,9 @@
         rmax = max(rmax, abs(p(k))/max(1.0_wp, abs(x(k))))
     end do
 
-    if (rmax > 0.0_wp) then
-        alpha0 = min(1.0_wp, step_limit/rmax)
+    ! (written so that `step_limit=huge(1.0_wp)` can't overflow)
+    if (rmax > step_limit) then
+        alpha0 = step_limit/rmax
     else
         alpha0 = 1.0_wp
     end if
@@ -342,20 +369,166 @@
 
 !*******************************************************************************
 !>
-!  backtracking line search with an Armijo-type sufficient-decrease test
-!  on the merit function (as used by default in `slsqp`):
-!  starting from \( \alpha_0 \) (see [[initial_step_length]], normally `1`
-!  unless capped by `major_step_limit`), `alpha` is repeatedly reduced by
-!  `backtrack` until
-!  $$ \phi(x+\alpha p) \le \phi(x) + \sigma \alpha D(\phi;p) $$
-!  `alpha` never goes below `alpha_min`: if the floor is reached without
-!  satisfying the test (which can happen since `p` is only an approximate
-!  QP solution, so is not guaranteed to be a descent direction for `phi` in
-!  every case), `alpha_min` is accepted anyway -- this is much cheaper than
-!  falling back to an exact line search, and still guarantees the step
-!  never shrinks to a useless near-zero value.
+!  the roundoff-level slack allowed when comparing a trial merit function
+!  value against the current one, \( 10 \epsilon \max(1,|\phi_0|) \) (as
+!  in IPOPT's `Compare_le`).
 
-    subroutine armijo_line_search(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, alpha, x_new, istat)
+    pure function merit_slack(phi0) result(slack)
+
+    real(wp), intent(in) :: phi0 !! merit function value at the current point
+    real(wp) :: slack
+
+    slack = 10.0_wp*epsilon(1.0_wp)*max(1.0_wp, abs(phi0))
+
+    end function merit_slack
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  evaluate `f` and `c` at a trial point; `ok` is false if any value is
+!  not finite (NaN or Inf), in which case the point must be rejected.
+
+    subroutine eval_fc(eval_f, eval_c, x_trial, f_trial, c_trial, ok)
+
+    procedure(sqpopt_objective_func)  :: eval_f
+    procedure(sqpopt_constraint_func) :: eval_c
+    real(wp), dimension(:), intent(in)  :: x_trial !! trial point `dimension(n)`
+    real(wp),               intent(out) :: f_trial !! objective function value at `x_trial`
+    real(wp), dimension(:), intent(out) :: c_trial !! constraint values at `x_trial` `dimension(m)`
+    logical,                intent(out) :: ok      !! true if `f_trial` and `c_trial` are all finite
+
+    call eval_f(x_trial, f_trial)
+    call eval_c(x_trial, c_trial)
+    ok = sqpopt_all_finite([f_trial]) .and. sqpopt_all_finite(c_trial)
+
+    end subroutine eval_fc
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  evaluate `f`, `c`, and the merit function at a trial point; `ok` is
+!  false (and `phi_trial=huge`) if any value is not finite.
+
+    subroutine eval_trial(me, eval_f, eval_c, x_trial, c_lb, c_ub, lambda, c_trial, phi_trial, ok)
+
+    class(sqpopt_linesearch_type), intent(inout) :: me
+    procedure(sqpopt_objective_func)  :: eval_f
+    procedure(sqpopt_constraint_func) :: eval_c
+    real(wp), dimension(:), intent(in)  :: x_trial   !! trial point `dimension(n)`
+    real(wp), dimension(:), intent(in)  :: c_lb      !! constraint lower bounds `dimension(m)`
+    real(wp), dimension(:), intent(in)  :: c_ub      !! constraint upper bounds `dimension(m)`
+    real(wp), dimension(:), intent(in)  :: lambda    !! Lagrange multiplier estimate `dimension(m)`
+    real(wp), dimension(:), intent(out) :: c_trial   !! constraint values at `x_trial` `dimension(m)`
+    real(wp),               intent(out) :: phi_trial !! merit function value at `x_trial`
+    logical,                intent(out) :: ok        !! true if everything is finite
+
+    real(wp) :: f_trial
+
+    call eval_fc(eval_f, eval_c, x_trial, f_trial, c_trial, ok)
+    if (ok) then
+        call me%eval_merit(f_trial, c_trial, c_lb, c_ub, lambda, phi_trial)
+        ok = sqpopt_all_finite([phi_trial])
+    end if
+    if (.not. ok) phi_trial = huge(1.0_wp)
+
+    end subroutine eval_trial
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the backtracking Armijo search shared by [[armijo_line_search]] and
+!  [[watchdog_line_search]]: starting from `alpha0`, `alpha` is reduced by
+!  `backtrack` until
+!  $$ \phi(x+\alpha p) \le \phi(x) + \sigma \alpha \min(D(\phi;p),0) $$
+!  (the `min` keeps a non-descent `p` from loosening the test), for at most
+!  `max_ls_iter` trials and not below `alpha_min`. The comparison allows a
+!  roundoff-level slack (see [[merit_slack]]), so that near a solution,
+!  where the change in the merit function is at the level of rounding
+!  error, a good step isn't rejected (which would otherwise backtrack
+!  `alpha` to a uselessly tiny value). If the first trial is
+!  rejected without reducing the constraint violation and `soc` is
+!  present, the second-order-corrected step is also tried at that point.
+
+    subroutine backtrack_search(me, eval_f, eval_c, x, p, alpha0, phi0, dphi0, c, c_lb, c_ub, lambda, &
+                                alpha, x_new, phi_new, accepted, soc)
+
+    class(sqpopt_linesearch_type), intent(inout) :: me
+    procedure(sqpopt_objective_func)  :: eval_f
+    procedure(sqpopt_constraint_func) :: eval_c
+    real(wp), dimension(:), intent(in)  :: x        !! current point `dimension(n)`
+    real(wp), dimension(:), intent(in)  :: p        !! search direction `dimension(n)`
+    real(wp),               intent(in)  :: alpha0   !! initial trial step length
+    real(wp),               intent(in)  :: phi0     !! merit function value at `x`
+    real(wp),               intent(in)  :: dphi0    !! directional derivative of the merit function along `p`
+    real(wp), dimension(:), intent(in)  :: c        !! constraint values at `x` `dimension(m)`
+    real(wp), dimension(:), intent(in)  :: c_lb     !! constraint lower bounds `dimension(m)`
+    real(wp), dimension(:), intent(in)  :: c_ub     !! constraint upper bounds `dimension(m)`
+    real(wp), dimension(:), intent(in)  :: lambda   !! Lagrange multiplier estimate `dimension(m)`
+    real(wp),               intent(out) :: alpha    !! accepted step length (meaningful only if `accepted`)
+    real(wp), dimension(:), intent(out) :: x_new    !! accepted point `dimension(n)` (meaningful only if `accepted`)
+    real(wp),               intent(out) :: phi_new  !! merit function value at `x_new` (meaningful only if `accepted`)
+    logical,                intent(out) :: accepted !! true if a step satisfying the Armijo test was found
+    procedure(sqpopt_soc_func), optional :: soc     !! computes a second-order-corrected step
+
+    real(wp), dimension(size(x)) :: x_trial, p_soc
+    real(wp), dimension(size(c)) :: c_trial
+    real(wp) :: phi_trial, slope, slack
+    logical  :: ok, soc_ok
+    integer  :: it
+
+    slope    = min(dphi0, 0.0_wp)
+    slack    = merit_slack(phi0)
+    accepted = .false.
+    alpha    = alpha0
+
+    do it = 1, me%max_ls_iter
+
+        x_trial = x + alpha*p
+        call eval_trial(me, eval_f, eval_c, x_trial, c_lb, c_ub, lambda, c_trial, phi_trial, ok)
+        if (ok .and. phi_trial <= phi0 + me%sigma*alpha*slope + slack) then
+            accepted = .true.
+            exit
+        end if
+
+        if (it == 1 .and. ok .and. present(soc)) then
+            if (l1_violation(c_trial, c_lb, c_ub) >= l1_violation(c, c_lb, c_ub)) then
+                ! the full step didn't reduce the constraint violation, so its
+                ! rejection may be due to constraint curvature (the Maratos
+                ! effect): try the second-order-corrected step before backtracking:
+                call soc(alpha*p, c_trial, p_soc, soc_ok)
+                if (soc_ok) then
+                    x_trial = x + p_soc
+                    call eval_trial(me, eval_f, eval_c, x_trial, c_lb, c_ub, lambda, c_trial, phi_trial, ok)
+                    if (ok .and. phi_trial <= phi0 + me%sigma*alpha*slope + slack) then
+                        accepted = .true.
+                        exit
+                    end if
+                end if
+            end if
+        end if
+
+        alpha = me%backtrack*alpha
+        if (alpha < me%alpha_min) exit
+
+    end do
+
+    if (accepted) then
+        x_new   = x_trial
+        phi_new = phi_trial
+    end if
+
+    end subroutine backtrack_search
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  backtracking line search with an Armijo-type sufficient-decrease test
+!  on the merit function (see [[backtrack_search]]), starting from
+!  \( \alpha_0 \) (see [[initial_step_length]], normally `1` unless capped
+!  by `major_step_limit`). If no acceptable step is found, no step is taken
+!  (`x_new=x`, `istat=sqpopt_line_search_failed`).
+
+    subroutine armijo_line_search(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, alpha, x_new, istat, soc)
 
     class(sqpopt_linesearch_type), intent(inout) :: me
     procedure(sqpopt_objective_func)  :: eval_f
@@ -369,38 +542,27 @@
     real(wp), dimension(:), intent(in) :: c_ub   !! upper bounds on the constraints
     type(sqpopt_sparse_matrix), intent(in) :: jac    !! constraint Jacobian at `x` (`dimension(m,n)`)
     real(wp),                   intent(in)  :: f     !! objective function value at `x`
-    real(wp),                   intent(out) :: alpha !! step length along `p`
-    real(wp), dimension(:),     intent(out) :: x_new !! new point `x + alpha*p`
+    real(wp),                   intent(out) :: alpha !! step length along `p` (`0` if no step was taken)
+    real(wp), dimension(:),     intent(out) :: x_new !! new point `x + alpha*p` (or the corrected step)
     integer,                    intent(out) :: istat !! status of the line search (success or failure)
+    procedure(sqpopt_soc_func), optional :: soc      !! computes a second-order-corrected step
 
-    real(wp), dimension(size(x)) :: x_trial !! trial point `x + alpha*p`
-    real(wp), dimension(size(c)) :: c_trial !! constraint values at the trial point
-    real(wp) :: phi0, dphi0, phi_trial, f_trial !! merit function values and directional derivative
-    integer :: it !! iteration counter for the line search loop
+    real(wp) :: phi0, dphi0, phi_new
+    logical  :: accepted
 
     call me%eval_merit(f, c, c_lb, c_ub, lambda, phi0)
     call me%directional_derivative(jac, g, p, c, c_lb, c_ub, lambda, dphi0)
 
-    alpha = initial_step_length(x, p, me%major_step_limit)
-    do it = 1, me%max_ls_iter
-        x_trial = x + alpha*p
-        call eval_f(x_trial, f_trial)
-        call eval_c(x_trial, c_trial)
-        call me%eval_merit(f_trial, c_trial, c_lb, c_ub, lambda, phi_trial)
-        if (phi_trial <= phi0 + me%sigma*alpha*dphi0) then
-            istat = sqpopt_success
-            x_new = x_trial
-            return
-        end if
-        if (alpha <= me%alpha_min) exit
-        alpha = max(me%backtrack*alpha, me%alpha_min)
-    end do
+    call backtrack_search(me, eval_f, eval_c, x, p, initial_step_length(x, p, me%major_step_limit), &
+                          phi0, dphi0, c, c_lb, c_ub, lambda, alpha, x_new, phi_new, accepted, soc)
 
-    ! backtracking reached the floor without satisfying the Armijo test;
-    ! accept `alpha_min` anyway rather than continuing to shrink toward zero:
-    alpha = me%alpha_min
-    x_new = x_trial
-    istat = sqpopt_line_search_failed
+    if (accepted) then
+        istat = sqpopt_success
+    else
+        alpha = 0.0_wp
+        x_new = x
+        istat = sqpopt_line_search_failed
+    end if
 
     end subroutine armijo_line_search
 !*******************************************************************************
@@ -408,47 +570,60 @@
 !*******************************************************************************
 !>
 !  (approximately) minimize the merit function along `p` using the
-!  derivative-free 1-D minimizer [[fmin]].
+!  derivative-free 1-D minimizer [[fmin]]. The step is only accepted if it
+!  does not increase the merit function by more than roundoff (see
+!  [[merit_slack]]; otherwise no step is taken and
+!  `istat=sqpopt_line_search_failed`); non-finite trial values are treated
+!  as `huge` by the 1-D minimization.
 
-    subroutine exact_line_search(me, eval_f, eval_c, x, p, lambda, c_lb, c_ub, alpha, x_new, istat)
+    subroutine exact_line_search(me, eval_f, eval_c, x, p, f, c, lambda, c_lb, c_ub, alpha, x_new, istat)
 
     class(sqpopt_linesearch_type), intent(inout) :: me
     procedure(sqpopt_objective_func)  :: eval_f  !! evaluates \( f(x) \)
     procedure(sqpopt_constraint_func) :: eval_c  !! evaluates \( c(x) \)
     real(wp), dimension(:), intent(in)  :: x      !! current point `dimension(n)`
     real(wp), dimension(:), intent(in)  :: p      !! search direction `dimension(n)`
+    real(wp),               intent(in)  :: f      !! objective function value at `x`
+    real(wp), dimension(:), intent(in)  :: c      !! constraint values at `x` `dimension(m)`
     real(wp), dimension(:), intent(in)  :: lambda !! Lagrange multiplier estimate `dimension(m)`
     real(wp), dimension(:), intent(in)  :: c_lb   !! constraint lower bounds `dimension(m)`
     real(wp), dimension(:), intent(in)  :: c_ub   !! constraint upper bounds `dimension(m)`
-    real(wp),                intent(out) :: alpha  !! accepted step length
+    real(wp),                intent(out) :: alpha  !! accepted step length (`0` if no step was taken)
     real(wp), dimension(:), intent(out) :: x_new   !! the accepted new point `dimension(n)`
     integer,                  intent(out) :: istat  !! status code (see [[sqpopt_types_module]])
 
+    real(wp) :: phi0, phi
+
+    call me%eval_merit(f, c, c_lb, c_ub, lambda, phi0)
     alpha = fmin(merit_along_direction, 0.0_wp, initial_step_length(x, p, me%major_step_limit), me%tol)
-    x_new = x + alpha*p
-    istat = sqpopt_success
+    phi   = merit_along_direction(alpha)
+
+    if (phi < phi0 + merit_slack(phi0)) then
+        x_new = x + alpha*p
+        istat = sqpopt_success
+    else
+        alpha = 0.0_wp
+        x_new = x
+        istat = sqpopt_line_search_failed
+    end if
 
     contains
 
     !*******************************************************************************
     !>
     !  the merit function \( \phi(x + \alpha p) \) along the search direction,
-    !  in the form required by [[fmin]]. Uses the host-associated variables
-    !  set by [[exact_line_search]].
+    !  in the form required by [[fmin]] (`huge` at a non-finite trial point).
+    !  Uses the host-associated variables set by [[exact_line_search]].
 
         function merit_along_direction(alpha) result(phi)
 
         real(wp), intent(in) :: alpha !! step length along the search direction
         real(wp) :: phi !! merit function value at the trial point
 
-        real(wp), dimension(size(x)) :: x_trial
         real(wp), dimension(size(c_lb)) :: c_trial
-        real(wp) :: f_trial
+        logical :: ok
 
-        x_trial = x + alpha*p
-        call eval_f(x_trial, f_trial)
-        call eval_c(x_trial, c_trial)
-        call me%eval_merit(f_trial, c_trial, c_lb, c_ub, lambda, phi)
+        call eval_trial(me, eval_f, eval_c, x + alpha*p, c_lb, c_ub, lambda, c_trial, phi, ok)
 
         end function merit_along_direction
     !*******************************************************************************
@@ -463,13 +638,15 @@
 !  [[armijo_line_search]] that, once a genuine improvement has been made,
 !  allows a bounded number of subsequent *relaxed* steps -- accepting the
 !  full step `x+p` outright even if it does not satisfy the sufficient-
-!  decrease test -- rather than stalling near a curved or simultaneously-
-!  active constraint boundary (the Maratos effect). If none of those
-!  relaxed steps beats the best point found so far, the search backtracks
-!  all the way to that best point and disables relaxed acceptance for
-!  `watchdog_cooldown_len` further calls.
+!  decrease test (but never a step to a non-finite point) -- rather than
+!  stalling near a curved or simultaneously-active constraint boundary (the
+!  Maratos effect). If none of those relaxed steps beats the best point
+!  found so far, the search backtracks all the way to that best point and
+!  disables relaxed acceptance for `watchdog_cooldown_len` further calls.
+!  If the standard search fails with no relaxed window available, no step
+!  is taken.
 
-    subroutine watchdog_line_search(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, alpha, x_new, istat)
+    subroutine watchdog_line_search(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, alpha, x_new, istat, soc)
 
     class(sqpopt_linesearch_type), intent(inout) :: me
     procedure(sqpopt_objective_func)  :: eval_f
@@ -486,12 +663,11 @@
     real(wp),                   intent(out) :: alpha !! step length found by the line search
     real(wp), dimension(:),     intent(out) :: x_new !! new point after the line search
     integer,                    intent(out) :: istat !! status of the line search (0 if successful)
+    procedure(sqpopt_soc_func), optional :: soc      !! computes a second-order-corrected step
 
-    real(wp), dimension(size(x)) :: x_trial !! trial point during the line search
     real(wp), dimension(size(c)) :: c_trial !! constraint values at the trial point
-    real(wp) :: phi0, dphi0, phi_trial, f_trial, alpha0 !! merit function values, directional derivative, trial objective, initial step length
-    logical :: standard_ok, relaxed_used !! flags indicating if standard or relaxed line search succeeded
-    integer :: it !! iteration counter for the line search loop
+    real(wp) :: phi0, dphi0, phi_trial, alpha0 !! merit function values, directional derivative, initial step length
+    logical :: standard_ok, relaxed_used, ok !! flags indicating if standard or relaxed line search succeeded
 
     call me%eval_merit(f, c, c_lb, c_ub, lambda, phi0)
     call me%directional_derivative(jac, g, p, c, c_lb, c_ub, lambda, dphi0)
@@ -506,36 +682,29 @@
 
     ! standard backtracking Armijo search, exactly as in [[armijo_line_search]]:
     alpha0 = initial_step_length(x, p, me%major_step_limit)
-    alpha = alpha0
-    standard_ok = .false.
-    do it = 1, me%max_ls_iter
-        x_trial = x + alpha*p
-        call eval_f(x_trial, f_trial)
-        call eval_c(x_trial, c_trial)
-        call me%eval_merit(f_trial, c_trial, c_lb, c_ub, lambda, phi_trial)
-        if (phi_trial <= phi0 + me%sigma*alpha*dphi0) then
-            standard_ok = .true.
-            exit
-        end if
-        if (alpha <= me%alpha_min) exit
-        alpha = max(me%backtrack*alpha, me%alpha_min)
-    end do
+    call backtrack_search(me, eval_f, eval_c, x, p, alpha0, phi0, dphi0, c, c_lb, c_ub, lambda, &
+                          alpha, x_new, phi_trial, standard_ok, soc)
 
     relaxed_used = .false.
     if (.not. standard_ok .and. me%watchdog_relaxed_remaining > 0 .and. me%watchdog_cooldown_remaining == 0) then
-        ! the standard sufficient-decrease test failed even at `alpha_min`;
-        ! the watchdog technique allows a relaxed step here instead of
-        ! stalling (the merit function may temporarily get worse), still
-        ! capped by the major step limit like the initial standard-search step:
+        ! the standard sufficient-decrease test failed; the watchdog
+        ! technique allows a relaxed step here instead of stalling (the
+        ! merit function may temporarily get worse), still capped by the
+        ! major step limit like the initial standard-search step:
         alpha = alpha0
-        x_trial = x + alpha*p
-        call eval_f(x_trial, f_trial)
-        call eval_c(x_trial, c_trial)
-        call me%eval_merit(f_trial, c_trial, c_lb, c_ub, lambda, phi_trial)
-        relaxed_used = .true.
+        x_new = x + alpha*p
+        call eval_trial(me, eval_f, eval_c, x_new, c_lb, c_ub, lambda, c_trial, phi_trial, ok)
+        relaxed_used = ok
     end if
 
-    x_new = x_trial
+    if (.not. (standard_ok .or. relaxed_used)) then
+        ! plain Armijo search failed, with no (usable) relaxed window: no step
+        alpha = 0.0_wp
+        x_new = x
+        istat = sqpopt_line_search_failed
+        return
+    end if
+
     istat = sqpopt_success
 
     block
@@ -573,9 +742,6 @@
                     istat = sqpopt_line_search_failed
                 end if
             end if
-        else if (.not. standard_ok) then
-            ! plain Armijo floor reached, with no relaxed window available:
-            istat = sqpopt_line_search_failed
         end if
     end block
 
@@ -592,11 +758,12 @@
 !  accepted iterate's `(f,h)` pair (the "filter"), using the paper's
 !  eqs. (3)-(4) sufficient-reduction envelope so that points arbitrarily
 !  close to an existing filter entry are excluded (see [[filter_acceptable]]).
-!  No merit function or penalty parameter is used. If no trial `alpha`
-!  is accepted before `alpha_min`, that floor is accepted anyway (as in
-!  [[armijo_line_search]]) and still recorded in the filter.
+!  No merit function or penalty parameter is used. If the first trial is
+!  rejected without reducing `h`, the second-order-corrected step is also
+!  tried (if `soc` is present). If no acceptable point is found before
+!  `alpha_min`, no step is taken (`istat=sqpopt_line_search_failed`).
 
-    subroutine filter_line_search(me, eval_f, eval_c, x, p, f, c, lambda, c_lb, c_ub, q, alpha, x_new, istat)
+    subroutine filter_line_search(me, eval_f, eval_c, x, p, f, c, lambda, c_lb, c_ub, q, alpha, x_new, istat, soc)
 
     class(sqpopt_linesearch_type), intent(inout) :: me
     procedure(sqpopt_objective_func)  :: eval_f
@@ -607,11 +774,12 @@
     real(wp),                intent(out) :: alpha
     real(wp), dimension(:), intent(out) :: x_new
     integer,                  intent(out) :: istat
+    procedure(sqpopt_soc_func), optional :: soc     !! computes a second-order-corrected step
 
-    real(wp), dimension(size(x)) :: x_trial
+    real(wp), dimension(size(x)) :: x_trial, p_soc
     real(wp), dimension(size(c)) :: c_trial
     real(wp) :: f_trial, h_trial, h0, mu, alpha0
-    logical :: both_feasible, accept
+    logical :: both_feasible, ok, soc_ok
     integer :: it
 
     h0 = l1_violation(c, c_lb, c_ub)
@@ -624,36 +792,67 @@
     alpha0 = initial_step_length(x, p, me%major_step_limit)
     alpha = alpha0
     do it = 1, me%max_ls_iter
-        x_trial = x + alpha*p
-        call eval_f(x_trial, f_trial)
-        call eval_c(x_trial, c_trial)
-        h_trial = l1_violation(c_trial, c_lb, c_ub)
 
-        accept = filter_acceptable(me, f_trial, h_trial)
-        if (accept .and. both_feasible .and. h_trial <= me%filter_feas_tol) then
+        x_trial = x + alpha*p
+        call eval_fc(eval_f, eval_c, x_trial, f_trial, c_trial, ok)
+        if (ok) then
+            h_trial = l1_violation(c_trial, c_lb, c_ub)
+            if (acceptable(f_trial, h_trial)) then
+                call accept(f_trial, h_trial)
+                return
+            end if
+        end if
+
+        if (it == 1 .and. ok .and. present(soc)) then
+            if (h_trial >= h0) then
+                ! the full step didn't reduce the constraint violation: try
+                ! the second-order-corrected step before backtracking:
+                call soc(alpha*p, c_trial, p_soc, soc_ok)
+                if (soc_ok) then
+                    x_trial = x + p_soc
+                    call eval_fc(eval_f, eval_c, x_trial, f_trial, c_trial, ok)
+                    if (ok) then
+                        h_trial = l1_violation(c_trial, c_lb, c_ub)
+                        if (acceptable(f_trial, h_trial)) then
+                            call accept(f_trial, h_trial)
+                            return
+                        end if
+                    end if
+                end if
+            end if
+        end if
+
+        alpha = me%backtrack*alpha
+        if (alpha < me%alpha_min) exit
+
+    end do
+
+    ! no acceptable point was found: no step is taken
+    alpha = 0.0_wp
+    x_new = x
+    istat = sqpopt_line_search_failed
+
+    contains
+
+        logical function acceptable(f_t, h_t)
+        !! whether `(f_t,h_t)` is acceptable to the filter
+        real(wp), intent(in) :: f_t, h_t
+        acceptable = filter_acceptable(me, f_t, h_t)
+        if (acceptable .and. both_feasible .and. h_t <= me%filter_feas_tol) then
             ! both the current and trial points are essentially feasible, so
             ! h stays at/near zero and the filter test alone is vacuous (see
             ! the module docs) -- also require plain descent in `f`:
-            accept = f_trial < f
+            acceptable = f_t < f
         end if
+        end function acceptable
 
-        if (accept) then
-            call filter_add(me, f_trial, h_trial, q, mu)
-            x_new = x_trial
-            istat = sqpopt_success
-            return
-        end if
-        if (alpha <= me%alpha_min) exit
-        alpha = max(me%backtrack*alpha, me%alpha_min)
-    end do
-
-    ! backtracking reached the floor without an acceptable point; accept
-    ! `alpha_min` anyway (as in [[armijo_line_search]]) and still record it
-    ! in the filter so later iterations don't keep proposing the same point:
-    alpha = me%alpha_min
-    x_new = x_trial
-    call filter_add(me, f_trial, h_trial, q, mu)
-    istat = sqpopt_line_search_failed
+        subroutine accept(f_t, h_t)
+        !! accept `x_trial` and record it in the filter
+        real(wp), intent(in) :: f_t, h_t
+        call filter_add(me, f_t, h_t, q, mu)
+        x_new = x_trial
+        istat = sqpopt_success
+        end subroutine accept
 
     end subroutine filter_line_search
 !*******************************************************************************

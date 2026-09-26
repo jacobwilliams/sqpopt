@@ -22,7 +22,7 @@
     module sqpopt_restoration_module
 
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
-    use sqpopt_types_module,   only: sqpopt_sparse_matrix, sqpopt_success, sqpopt_line_search_failed
+    use sqpopt_types_module,   only: sqpopt_sparse_matrix, sqpopt_success, sqpopt_line_search_failed, sqpopt_all_finite
     use sqpopt_problem_module, only: sqpopt_problem_type
     use lsqr_module,           only: lsqr_solver_ez
 
@@ -89,8 +89,12 @@
         do it = 1, max_ls
             x_trial = x + alpha*p
             call problem%eval_c(x_trial, c_trial)
-            rc = violation(c_trial, problem%c_lb, problem%c_ub)
-            h_trial = 0.5_wp*dot_product(rc, rc)
+            if (sqpopt_all_finite(c_trial)) then
+                rc = violation(c_trial, problem%c_lb, problem%c_ub)
+                h_trial = 0.5_wp*dot_product(rc, rc)
+            else
+                h_trial = huge(1.0_wp)  ! a non-finite trial point is always rejected
+            end if
             if (h_trial <= h0 + sigma*alpha*dh0) then
                 x_new = x_trial
                 istat = sqpopt_success

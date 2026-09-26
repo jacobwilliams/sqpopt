@@ -110,6 +110,76 @@ to 65 evaluations.
   calls. Add this to the dependency-trim decision (§8.4) and to the CI
   precision matrix.
 
+## Phase 1 status: items 1–4 done (2026-09-25)
+
+Done: F3 (damping), B8 (no forced acceptance), F5/B13 (SOC done right),
+and non-finite handling. The trust region's merit-model mismatch (part
+of B15) is also fixed. Still to do in Phase 1: items 5–7 (B11/B12 with
+the random-QP fuzz test, F2 elastic mode, and F6 Wächter–Biegler filter).
+
+What changed:
+- **Damped BFGS (F3).** `sqpopt_hessian_type%damping` (default on)
+  applies Powell's damping, per Nocedal & Wright Proc. 18.2. A
+  negative-curvature pair is now used, not skipped, and `B` stays
+  positive definite. Tested in `test_hessian_consistency`.
+- **No forced acceptance (B8).**
+  - A failed line search or trust-region step takes **no step**
+    (`x_new=x`). This applies to Armijo, exact, the watchdog's
+    no-window case, the filter, and the trust region.
+  - The iteration then resets the Hessian, so the next direction
+    differs, and skips the stalled-progress test once, since "no move"
+    is not convergence.
+  - New defaults: `alpha_min` 0.1 → 1e-10 and `max_ls_iter` 20 → 40.
+  - The Armijo test uses `min(dphi0,0)`, so a non-descent direction
+    can't loosen it.
+  - Merit comparisons allow a roundoff slack of `10·ε·max(1,|φ₀|)`
+    (IPOPT's `Compare_le`). Without it, near a solution the line search
+    backtracked about 29 times to α≈1e-9 on every iteration.
+- **SOC (F5/B13).** [sqpopt_soc_module.f90](../src/sqpopt_soc_module.f90)
+  is rewritten as `soc_step`. It corrects only rows that are active in
+  the linearization or violated at the trial point, and projects the
+  corrected step onto the variable bounds.
+  - It is tried only after the first trial step is rejected **and** did
+    not reduce the constraint violation.
+  - The line searches receive it as an optional `soc` procedure (Armijo,
+    watchdog, filter). The trust region calls it directly, within its
+    box.
+  - It no longer runs on every iteration, which saves 2 `f` and 2 `c`
+    evaluations per iteration.
+- **Steps stay within the bounds.** The QP dispatcher now clips every
+  QP step onto the bounds it was given. The active-set QPs had been
+  returning steps up to about 1e-11 outside them. `test_hs71` now
+  asserts that no function is ever evaluated outside the bounds.
+- **Non-finite values.** Trial points with a non-finite `f` or `c` are
+  rejected everywhere: all line searches, the trust region, and the
+  restoration step. Checks use `ieee_is_finite`, so there are no NaN
+  comparisons, and the suite passes under `-ffpe-trap=invalid`. A
+  non-finite `f`, `g`, `c`, or `J` at the current point stops the run
+  with the new status **`sqpopt_function_error` (8)**. Tested in
+  `test_nonfinite`.
+- **Trust-region `pred` (part of B15).** It is now
+  `φ(x) − φ(model)`, with the model's `f−q` and `c+Jp`, for either
+  merit function. Previously it was ℓ1-based even with the AL merit,
+  which made trust region + AL fail on the Maratos test.
+- **`major_step_limit = huge` overflowed** in `initial_step_length`
+  even though the docs recommend that value to disable the limit.
+  Fixed.
+- **New test `test_maratos`** (Nocedal & Wright Ex. 15.4). Every line
+  search × merit combination, with and without the trust region,
+  converges in 8–9 evaluations.
+
+Results: HS71 needs 14–17 evaluations (22 after Phase 0),
+`test_medium` 41 (65), and the constrained Rosenbrock problem in
+`test_resolve` 70–87 (73–195).
+
+**New finding, for item 5.** The QP solvers' `opt_tol` is absolute, so
+near a solution, where steps are about 1e-7, the QP direction is only
+roughly correct. With the reduced-Hessian QP, the multipliers are then
+too imprecise for the KKT test to certify the final point. HS71 with
+that solver reaches 3e-7 error but ends as `sqpopt_stalled`, which
+`test_hs71` now accepts for that variant. Make the QP tolerances
+relative to the step and gradient size.
+
 ## 2. Bugs: correctness (fix first)
 
 | # | Issue | Where | Evidence |

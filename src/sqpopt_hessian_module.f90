@@ -7,8 +7,8 @@
 !  the last `max_history` step/gradient-change vector pairs \( (s,y) \)
 !  are kept (`max_history` is a small constant, independent of `n`), and
 !  Hessian(-inverse)-vector products are formed matrix-free using the
-!  standard two-loop recursion. Supports BFGS (with a curvature-condition
-!  skip rule) and SR1 updates.
+!  standard two-loop recursion. Supports (Powell-damped) BFGS and SR1
+!  updates.
 
     module sqpopt_hessian_module
 
@@ -26,6 +26,8 @@
         integer :: max_history = 0  !! number of `(s,y)` pairs retained (independent of `n`)
         integer :: n_history   = 0  !! number of pairs currently stored (`<= max_history`)
         logical :: use_sr1     = .false. !! if true, use the limited-memory SR1 update instead of BFGS
+        logical :: damping     = .true.  !! if true, use Powell's damped BFGS update (see [[hessian_update_bfgs]]),
+                                         !! else skip any update that fails the curvature condition
 
         real(wp), dimension(:,:), allocatable :: s     !! stored step vectors `dimension(n,max_history)`
         real(wp), dimension(:,:), allocatable :: y     !! stored Lagrangian gradient-change vectors `dimension(n,max_history)`
@@ -79,9 +81,18 @@
 !  update the limited-memory Hessian approximation using the BFGS
 !  update formula, given the step \( s = x_{k+1} - x_k \) and the change
 !  in the Lagrangian gradient \( y = \nabla_x \mathcal{L}_{k+1} - \nabla_x \mathcal{L}_k \).
-!  The update is skipped if the curvature condition \( s^T y \) is not
-!  sufficiently positive (standard "cautious update" safeguard). The
-!  oldest pair is discarded once `max_history` pairs are stored.
+!
+!  The Hessian of the Lagrangian need not be positive definite, so
+!  \( s^T y \) can be small or negative. If `damping` is on (the
+!  default), Powell's damping (as in `slsqp` and Nocedal & Wright, Proc.
+!  18.2) is applied: when \( s^T y < 0.2\, s^T B s \), `y` is replaced by
+!  \( \theta y + (1-\theta) B s \) with
+!  \( \theta = 0.8\, s^T B s / (s^T B s - s^T y) \), so that
+!  \( s^T y = 0.2\, s^T B s > 0 \) and the update keeps `B` positive
+!  definite while still using the new curvature information. Otherwise,
+!  or if `damping` is off, the update is skipped when \( s^T y \) is not
+!  sufficiently positive. The oldest pair is discarded once `max_history`
+!  pairs are stored.
 
     subroutine hessian_update_bfgs(me, s, y)
 
@@ -89,21 +100,35 @@
     real(wp), dimension(:), intent(in) :: s  !! step vector `dimension(n)`
     real(wp), dimension(:), intent(in) :: y  !! Lagrangian gradient change `dimension(n)`
 
-    real(wp) :: sty, yty
+    real(wp), dimension(size(s)) :: y_used, bs
+    real(wp) :: sty, yty, sbs, theta
 
     ! a near-zero step carries no reliable curvature information and risks
     ! an ill-conditioned (huge `rho`) update, so skip it outright:
     if (norm2(s) <= 1.0e-10_wp) return
 
-    sty = dot_product(s, y)
+    y_used = y
+    sty    = dot_product(s, y)
+
+    if (me%damping) then
+        ! Powell's damping: blend `y` with `B*s` so that `s^T y = 0.2 s^T B s`
+        ! whenever the curvature condition is (nearly) violated:
+        call hessian_vector_product(me, s, bs)
+        sbs = dot_product(s, bs)
+        if (sbs > 0.0_wp .and. sty < 0.2_wp*sbs) then
+            theta  = 0.8_wp*sbs/(sbs - sty)
+            y_used = theta*y + (1.0_wp - theta)*bs
+            sty    = dot_product(s, y_used)
+        end if
+    end if
 
     ! skip the update if the curvature condition is not sufficiently satisfied:
-    if (sty <= 1.0e-10_wp*max(norm2(s)*norm2(y), 1.0_wp)) return
+    if (sty <= 1.0e-10_wp*max(norm2(s)*norm2(y_used), 1.0_wp)) return
 
-    call hessian_push_pair(me, s, y)
+    call hessian_push_pair(me, s, y_used)
     me%rho(me%n_history) = 1.0_wp/sty
 
-    yty = dot_product(y, y)
+    yty = dot_product(y_used, y_used)
     if (yty > 0.0_wp) me%gamma = sty/yty
 
     end subroutine hessian_update_bfgs

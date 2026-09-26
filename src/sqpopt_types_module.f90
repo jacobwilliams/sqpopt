@@ -10,6 +10,7 @@
     module sqpopt_types_module
 
     use sqpopt_kinds, only: wp => sqpopt_module_wp
+    use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
 
     implicit none
 
@@ -26,6 +27,9 @@
     integer, parameter, public :: sqpopt_stalled              = 7  !! stopped: the point is feasible but the objective and variables
                                                                     !! have stopped changing (see `ftol`/`xtol`) before the KKT test
                                                                     !! was satisfied -- usually an acceptable, if imprecise, solution
+    integer, parameter, public :: sqpopt_function_error       = 8  !! stopped: the problem functions returned a non-finite value
+                                                                    !! (NaN or Inf) at the current point (trial points with
+                                                                    !! non-finite values are rejected instead)
     integer, parameter, public :: sqpopt_error                = -1 !! stopped: an unspecified error occurred
 
     real(wp), parameter, public :: sqpopt_infinity = 1.0e20_wp !! any bound with magnitude `>= sqpopt_infinity` is treated
@@ -33,6 +37,7 @@
                                                                 !! sqpopt_infinity]` so that e.g. `-huge(1.0_wp)` is safe to use)
 
     public :: sqpopt_status_message
+    public :: sqpopt_all_finite
 
     type, public :: sqpopt_sparse_matrix
         !! a sparse matrix stored in coordinate (COO) format
@@ -85,11 +90,27 @@
     case (sqpopt_user_requested_stop); msg = 'user requested stop'
     case (sqpopt_invalid_input);       msg = 'invalid problem definition or options'
     case (sqpopt_stalled);             msg = 'feasible, but no further progress is being made'
+    case (sqpopt_function_error);      msg = 'the problem functions returned a non-finite value (NaN or Inf)'
     case (sqpopt_error);               msg = 'an unspecified error occurred'
     case default;                      msg = 'unknown status code'
     end select
 
     end function sqpopt_status_message
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  true if every element of `v` is finite (not NaN or +/-Inf). Uses
+!  `ieee_is_finite`, which (unlike an ordinary comparison) does not
+!  raise an IEEE invalid exception on a NaN.
+
+    pure logical function sqpopt_all_finite(v)
+
+    real(wp), dimension(:), intent(in) :: v
+
+    sqpopt_all_finite = all(ieee_is_finite(v))
+
+    end function sqpopt_all_finite
 !*******************************************************************************
 
     end module sqpopt_types_module

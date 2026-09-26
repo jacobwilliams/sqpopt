@@ -12,7 +12,7 @@
 
     use sqpopt_kinds,             only: wp => sqpopt_module_wp
     use sqpopt_types_module,      only: sqpopt_sparse_matrix, sqpopt_success, sqpopt_user_requested_stop, sqpopt_report_func, &
-                                         sqpopt_infeasible
+                                         sqpopt_infeasible, sqpopt_function_error, sqpopt_all_finite
     use sqpopt_problem_module,    only: sqpopt_problem_type
     use sqpopt_options_module,    only: sqpopt_options_type, sqpopt_hessian_sr1
     use sqpopt_hessian_module,    only: sqpopt_hessian_type
@@ -20,7 +20,7 @@
     use sqpopt_linesearch_module, only: sqpopt_linesearch_type, sqpopt_linesearch_filter
     use sqpopt_linalg_module,     only: sparse_matvec_transpose
     use sqpopt_convergence_module, only: check_convergence
-    use sqpopt_soc_module,        only: second_order_correction
+    use sqpopt_soc_module,        only: soc_step
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
     use sqpopt_restoration_module,  only: restoration_step
 
@@ -47,10 +47,15 @@
 !  On exit, `done` is true if the solver should stop at the (unchanged)
 !  input point `x`, with the reason in `istat`: `sqpopt_success`,
 !  `sqpopt_stalled`, or `sqpopt_infeasible` (from [[check_convergence]]),
-!  or `sqpopt_user_requested_stop`. Otherwise a step was taken and `istat`
-!  reports how it went: `sqpopt_success`, `sqpopt_qp_solve_failed` (the QP
+!  `sqpopt_user_requested_stop`, or `sqpopt_function_error` (a problem
+!  function returned a non-finite value at `x`). Otherwise `istat` reports
+!  how the step went: `sqpopt_success`, `sqpopt_qp_solve_failed` (the QP
 !  solver hit its iteration limit, and its last step was used anyway), or
-!  `sqpopt_line_search_failed` (no acceptable step length was found).
+!  `sqpopt_line_search_failed` (no acceptable step was found, so `x` is
+!  unchanged). After a failed step the Hessian approximation is reset, so
+!  the next iteration tries a different direction, and `f_prev` is
+!  deallocated, so the stalled-progress test (which would otherwise see
+!  "no change") is skipped on the next iteration.
 
     subroutine sqpopt_iterate(problem, options, hessian, qp_solver, linesearch, trust_region, &
                                x, lambda, x_prev, gl_prev, f_prev, iter, report, done, istat)
@@ -94,6 +99,15 @@
     allocate(jac%val(problem%jac_nnz))
     call problem%eval_jac(x, jac%val)
 
+    ! every accepted trial point had finite `f` and `c`, so a non-finite
+    ! value here is either at the starting point or in the derivatives:
+    if (.not. (sqpopt_all_finite([f]) .and. sqpopt_all_finite(g) .and. &
+               sqpopt_all_finite(c) .and. sqpopt_all_finite(jac%val))) then
+        istat = sqpopt_function_error
+        done  = .true.
+        return
+    end if
+
     ! report progress on the current iterate, if the user has supplied a
     ! callback, before doing any further work this iteration -- this
     ! reports every major iterate, including the initial guess (iter=1,
@@ -112,17 +126,15 @@
         end if
     end if
 
-    ! check convergence at the current point before taking a step (the
-    ! stalled-progress and infeasibility tests also need `f_prev`/`x_prev`,
-    ! so are only available from the 2nd iteration onward):
-    if (allocated(x_prev)) then
-        call check_convergence(x, g, jac, c, problem%x_lb, problem%x_ub, problem%c_lb, problem%c_ub, &
-                                lambda, options%ktol, options%ctol, done, istat, &
-                                f=f, f_prev=f_prev, x_prev=x_prev, ftol=options%ftol, xtol=options%xtol)
-    else
-        call check_convergence(x, g, jac, c, problem%x_lb, problem%x_ub, problem%c_lb, problem%c_ub, &
-                                lambda, options%ktol, options%ctol, done, istat)
-    end if
+    ! check convergence at the current point before taking a step. The
+    ! stalled-progress test also needs `f_prev`/`x_prev`, and the
+    ! infeasibility test `x_prev`, so neither is done on the first iteration;
+    ! the stalled-progress test is also skipped right after a failed step,
+    ! when `f_prev` is deallocated (an unallocated actual argument counts as
+    ! absent for an optional dummy argument):
+    call check_convergence(x, g, jac, c, problem%x_lb, problem%x_ub, problem%c_lb, problem%c_ub, &
+                            lambda, options%ktol, options%ctol, done, istat, &
+                            f=f, f_prev=f_prev, x_prev=x_prev, ftol=options%ftol, xtol=options%xtol)
     if (options%print_level >= 1) write(*,'(A,I5,A,ES13.5,A,L1)') ' sqpopt iter ', iter, ': f = ', f, ', converged = ', done
     if (done) return
 
@@ -195,23 +207,14 @@
 
         else
 
-            ! second-order correction (SOC): for strongly nonlinear constraints, the
-            ! full step `p` can be rejected by the merit function even when it is a
-            ! genuinely good step, because the *linearized* constraint prediction
-            ! differs from the true (nonlinear) constraint value at `x+p` (the
-            ! "Maratos effect"). Correct for this by solving for an additional small
-            ! step that accounts for the true constraint residual at `x+p`, and use
-            ! the corrected step if it has a better merit function value:
-            if (problem%m > 0) then
-                call second_order_correction(problem, linesearch, jac, x, c, new_lambda, p)
-            end if
-
             ! line search along `p` to (approximately) minimize the merit function
             ! (or, in `sqpopt_linesearch_filter` mode, to find a point acceptable
             ! to the filter -- that mode needs the QP's own predicted decrease in
             ! `f`, `q = -(g^Tp + 0.5*p^THp)`, computed here since only this routine
             ! has access to `hessian`; skipped for the other modes, which ignore
-            ! `q`, since `hv_product` isn't free):
+            ! `q`, since `hv_product` isn't free). If the full step is rejected
+            ! because of constraint curvature (the Maratos effect), the line
+            ! search also tries its second-order correction (see `soc` below):
             block
                 real(wp) :: q
                 q = 0.0_wp
@@ -222,8 +225,13 @@
                         q = -(dot_product(g, p) + 0.5_wp*dot_product(p, hp))
                     end block
                 end if
-                call linesearch%search(problem%eval_f, problem%eval_c, x, p, f, g, c, jac, new_lambda, &
-                                        problem%c_lb, problem%c_ub, q, alpha, x_new, step_istat)
+                if (problem%m > 0) then
+                    call linesearch%search(problem%eval_f, problem%eval_c, x, p, f, g, c, jac, new_lambda, &
+                                            problem%c_lb, problem%c_ub, q, alpha, x_new, step_istat, soc=soc)
+                else
+                    call linesearch%search(problem%eval_f, problem%eval_c, x, p, f, g, c, jac, new_lambda, &
+                                            problem%c_lb, problem%c_ub, q, alpha, x_new, step_istat)
+                end if
             end block
 
         end if
@@ -252,6 +260,15 @@
     x      = x_new
     lambda = new_lambda
 
+    if (step_istat /= sqpopt_success) then
+        ! no (acceptable) step was found along this direction: start the
+        ! next iteration from a fresh Hessian approximation, so it computes
+        ! a different direction, and don't let the stalled-progress test
+        ! mistake "no step taken" for convergence:
+        call hessian%reset()
+        if (allocated(f_prev)) deallocate(f_prev)
+    end if
+
     if (options%print_level >= 1) write(*,'(A,I5,A,ES13.5,A,ES10.2,A,I0,A,L1)') &
         ' sqpopt iter ', iter, ': f = ', f, ', alpha = ', alpha, ', qp_istat = ', qp_istat, ', restoration = ', restore
 
@@ -265,6 +282,18 @@
     else
         istat = sqpopt_success
     end if
+
+    contains
+
+        subroutine soc(p_trial, c_trial, p_soc, ok)
+        !! the second-order correction of a rejected trial step, given to
+        !! the line search (see [[sqpopt_soc_module]])
+        real(wp), dimension(:), intent(in)  :: p_trial !! the rejected trial step
+        real(wp), dimension(:), intent(in)  :: c_trial !! constraint values at `x+p_trial`
+        real(wp), dimension(:), intent(out) :: p_soc   !! the corrected step
+        logical,                intent(out) :: ok      !! true if `p_soc` is usable
+        call soc_step(jac, x, p_trial, c, c_trial, problem%c_lb, problem%c_ub, problem%x_lb, problem%x_ub, p_soc, ok)
+        end subroutine soc
 
     end subroutine sqpopt_iterate
 !*******************************************************************************
