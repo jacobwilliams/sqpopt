@@ -497,7 +497,10 @@ later:
   (IPOPT-style) and optional user variable scaling.
 - **Dependencies.** `lusol`/`LSMR` are only used by
   `solve_sparse_linear_system`, which nothing calls. `lbfgsb` is unused.
-  Either put them to work (F1) or drop them.
+  Either put them to work (F1, F13, F14) or drop them. Whichever is
+  chosen, remove the unused `solve_sparse_linear_system` wrapper and the
+  `sqpopt_linsolve_*` constants (or replace them with whatever uses the
+  LU factors directly).
 
 ## 5. Features toward state of the art
 
@@ -513,6 +516,33 @@ later:
   already a dependency) plus a `2k×2k` Woodbury correction, or by
   bordering. This gives direct rather than LSQR-iterative accuracy at
   scale.
+
+  **The recommended approach: SQOPT-style basis partitioning with
+  `lusol`** (reviewed 2026-09-26).
+  - Split the active general rows, restricted to the free variables,
+    into a square nonsingular basis `B` plus the rest `S`. The null-space
+    basis is then `Z = [−B⁻¹S; I]`, so every projection is one exact
+    solve with `B`'s LU factors, instead of an LSQR solve to a
+    tolerance.
+  - When a variable enters or leaves the basis, update the factors with
+    `lu8rpc` (column replacement, a Bartels–Golub-type update) instead
+    of refactoring.
+  - Handle the reduced Hessian `ZᵀHZ` densely when the null space is
+    small (SQOPT's "Cholesky" option) and with CG otherwise (its "CG"
+    option).
+
+  This targets the measured hotspot: after Phase 2, about 90% of the
+  large control benchmark's time is LSQR inside the reduced-Hessian QP.
+  It also removes the iterative-accuracy problems patched in Phases 1–2
+  (penalty-scaled roundoff, CG losing null-space membership, LSQR's
+  early stop on dependent rows). It needs only `lu1fac`, `lu6sol`, and
+  `lu8rpc`, which the dependency exports.
+
+  LUSOL does not export row/column additions, so an augmented-system
+  approach that adds constraint rows would have to refactor on every
+  working-set change. That favors the basis partition over the
+  augmented system above. LUSOL also gives no inertia, so it can't
+  provide F7's inertia control (§8.3).
 - **F2: elastic mode and infeasibility detection.** Use SNOPT-style ℓ1
   elastic QPs when the linearization is inconsistent, plus a feasibility
   phase. This produces a real `sqpopt_infeasible` status (B6, B11).
@@ -554,6 +584,39 @@ later:
   re-linearizes them.
 - **F12: interoperability.** A `bind(c)` C API, then a thin Python
   wrapper. This is how SLSQP-style solvers get adopted.
+
+- **F13: LUSOL rank detection for the working set.** This is a small,
+  standalone first use of `lusol`, and a stepping stone to F1:
+  - one `lu1fac` with threshold rook or complete pivoting (TRP/TCP,
+    which reveal rank) on the candidate rows picks a linearly
+    independent subset directly. That replaces the reduced-Hessian QP's
+    one-LSQR-solve-per-candidate independence check in
+    `initial_working_set`, which was about 50% of QP time before the
+    Phase 2 "trust the previous working set" shortcut;
+  - it handles duplicated and dependent constraints properly. Those
+    broke both that shortcut and LSQR (its early stop on rank-deficient
+    systems);
+  - the same factorization can flag redundant equality constraints at
+    the start of a solve.
+
+  It needs the low-level `lu1fac`/`lu6sol` interface: `lusol_ez%solve`
+  refactors on every call, so it only suits one-off solves.
+- **F14: try LSMR for the reduced-Hessian QP's projections.** This is an
+  optional, benchmarked experiment. LSMR solves the same least-squares
+  problems as LSQR with the same COO interface (`lsmr_ez`), so it is
+  close to a drop-in swap.
+  - Its monotonically decreasing quantity is the normal-equation
+    residual. For a projection that is `J·(projected vector)`, exactly
+    the quantity that must be ≈ 0, so LSMR may stop earlier at the same
+    projection accuracy.
+  - It also offers local reorthogonalization (`localSize`) for
+    ill-conditioned working sets.
+
+  It is still iterative, with the same rank-deficiency guard, so it
+  softens LSQR's problems rather than removing them (F1 does that). It
+  is also what breaks the `REAL32` build (Phase 0 finding): adopting it
+  means fixing that upstream or dropping the `REAL32` option. If the
+  benchmark gain is small, drop LSMR, which also resolves §8.4 for it.
 
 ## 6. Testing and infrastructure
 
@@ -610,8 +673,10 @@ multipliers, iteration log and output unit, the callback redesign (§4
 decision), option consolidation and validation, scaling, F8, F9, F10.
 *(Done; F8 dropped. See "Phase 3 status".)*
 
-**Phase 4: large scale and advanced.** The sparse KKT active-set QP
-(F1, long-term part), F4, F7, F11, F12.
+**Phase 4: large scale and advanced.** F13 first (LUSOL rank detection:
+small, and it exercises the low-level LUSOL interface), then the sparse
+basis-factorization active-set QP (F1, long-term part), plus F4, F7,
+F11, and F12. Try F14 (LSMR) as a benchmarked experiment along the way.
 
 **Phase 5 (runs alongside every phase):** CI, the benchmark suite, and
 documentation.
@@ -626,4 +691,9 @@ documentation.
    for exact-Hessian inertia control. Alternatively, stay matrix-free
    with PCG only.
 4. **Dependency trim.** Keep `lusol` for F1's sparse KKT solve, or drop
-   `lusol`/`LSMR`/`lbfgsb`.
+   `lusol`/`LSMR`/`lbfgsb`. *Recommendation (2026-09-26):*
+   - keep `lusol`, for F13 and then F1;
+   - keep `LSMR` only if F14 shows a real benchmark gain, otherwise drop
+     it (which also fixes the `REAL32` build);
+   - drop `lbfgsb`, which is unused and has no identified role;
+   - either way, remove the unused `solve_sparse_linear_system` wrapper.
