@@ -51,6 +51,7 @@
     <a href="#example">Worked example</a>
     <a href="#results">Results</a>
     <a href="#status-codes">Status codes</a>
+    <a href="#scaling">Scaling</a>
     <p class="toc-group"><svg class="toc-icon" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="15" cy="6" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="17" cy="18" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>Configuration</p>
     <a href="#configuration">How configuration works</a>
     <a href="#problem-definition">Problem definition</a>
@@ -345,6 +346,70 @@ end program hs71</code></pre>
 </tbody>
 </table></div>
 <p class="legend"><span><span class="dot ok"></span>solution found</span> <span><span class="dot warn"></span>stopped by a limit or by you</span> <span><span class="dot bad"></span>failure</span></p>
+
+<!-- ============================================================ -->
+<h2 id="scaling">Scaling</h2>
+
+<p>SQPOPT works best when the variables are of order 1 and of similar magnitude, and when the objective and each constraint change by comparable amounts for a unit change in the variables. It scales the objective and the constraints for you, but not the variables: choosing their units is up to you.</p>
+
+<h3>What is scaled automatically</h3>
+
+<p>With <code>options%scaling</code> (on by default), the objective and each constraint are scaled down at the starting point, so that no element of their gradients is larger than <code>scaling_max_gradient</code> (100); see <a href="#solver-options">Solver options</a>. <code>ktol</code> and <code>ctol</code> then apply to the scaled problem, and all results are reported for the original one. The factors are computed once, at <code>x0</code>, and only ever scale <em>down</em>: a function with tiny gradients isn't scaled up.</p>
+
+<h3>Why the size of the variables matters</h3>
+
+<p>Several parts of the algorithm assume that a unit change means much the same for every variable:</p>
+
+<div class="table-wrap"><table>
+<thead><tr><th>part</th><th>its dependence on the size of the variables</th></tr></thead>
+<tbody>
+<tr><td>KKT test (<code>ktol</code>)</td><td>stationarity is judged by the size of the gradient of the Lagrangian, and multiplying a variable by \( s \) divides its gradient element by \( s \): the same <code>ktol</code> is looser or tighter depending on the variable's units</td></tr>
+<tr><td>stalled-progress test (<code>xtol</code>)</td><td>the change in \( x \) is measured relative to \( \max(1, \lVert x \rVert) \), so large variables mask changes in small ones</td></tr>
+<tr><td>Hessian approximation</td><td>the limited-memory BFGS/SR1 approximation starts from a single multiple of the identity. Variables of very different sizes make it badly conditioned, and it takes many iterations to learn their relative scales.</td></tr>
+<tr><td>step limits</td><td>the QP step cap starts at \( \max(\) <code>qp_solver%max_step</code>\(, \lVert x_0 \rVert_\infty) \), the size of the <em>largest</em> variable. <code>linesearch%major_step_limit</code> is relative to \( \max(1, |x_j|) \), so for variables much smaller than 1 it is an absolute limit.</td></tr>
+<tr><td>trust region</td><td>the radius is in the units of \( x \): <code>radius0</code> = 1, <code>radius_max</code> = 1e3</td></tr>
+<tr><td>feasibility restoration</td><td>its proximal term (stay close to where the phase started) treats all the variables alike</td></tr>
+<tr><td>bounds</td><td>a bound of magnitude \( \ge \) <code>sqpopt_infinity</code> (1e20) is treated as absent</td></tr>
+</tbody>
+</table></div>
+
+<p>(The QP solvers' own tolerances are relative, so the QP subproblems are less sensitive.)</p>
+
+<h3>Scaling the variables yourself</h3>
+
+<p>Choose a typical magnitude \( d_j > 0 \) for each variable, and solve for \( y = x/d \) instead of \( x \). In the user functions, evaluate at \( x = d\,y \), and multiply the objective gradient and each column of the Jacobian by \( d \) (the chain rule, \( \partial f/\partial y_j = d_j\,\partial f/\partial x_j \)). The sparsity pattern doesn't change:</p>
+
+<pre><code class="language-fortran">real(wp), dimension(n) :: d   ! typical magnitude of each variable (e.g. 1e6, 1e-3, 1, ...)
+
+subroutine fc_y(y, f, c, status, data)   ! the problem in y = x/d
+    real(wp), dimension(:), intent(in)    :: y
+    real(wp),               intent(out)   :: f
+    real(wp), dimension(:), intent(out)   :: c
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
+    call fc(d*y, f, c, status, data)
+end subroutine fc_y
+
+subroutine gjac_y(y, g, jac_val, status, data)
+    real(wp), dimension(:), intent(in)    :: y
+    real(wp), dimension(:), intent(out)   :: g, jac_val
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
+    call gjac(d*y, g, jac_val, status, data)
+    ! (icol: the column indices of the Jacobian's sparsity pattern)
+    g       = d*g                 ! df/dy_j   = d_j df/dx_j
+    jac_val = d(icol)*jac_val     ! dc_i/dy_j = d_j dc_i/dx_j
+end subroutine gjac_y</code></pre>
+
+<p>Then divide the variable bounds and the starting point by \( d \) (<code>x_lb/d</code>, <code>x_ub/d</code>, <code>x0/d</code>; leave infinite bounds as they are), solve, and map the results back: \( x = d\,y \). The objective, the constraint values, and their multipliers \( \lambda \) are unchanged, and the variable-bound multipliers are \( z_x = z_y/d \). With an exact Hessian, scale its elements too: \( H^y_{ij} = d_i\,d_j\,H^x_{ij} \).</p>
+
+<h3>Other things to check</h3>
+
+<ul>
+  <li><strong>Constraint units.</strong> The automatic scaling reduces large gradients but doesn't enlarge small ones. A constraint whose values are of order \( 10^{-6} \) is effectively ignored by <code>ctol</code> = 1e-8, so express it in larger units, or multiply it by a constant. (Its multiplier is then divided by the same constant.)</li>
+  <li><strong>The starting point.</strong> The objective and constraint scale factors are computed there, and never updated. At a poor starting point where a gradient is huge, a function can be scaled far down, which makes the tolerances very loose in its original units.</li>
+  <li><strong>Unscaled large variables.</strong> If you do solve with large variables, also enlarge <code>trust_region%radius0</code> and <code>radius_max</code> (when using the trust region), and read <code>ktol</code> and <code>xtol</code> in your variables' units.</li>
+</ul>
 
 <!-- ============================================================ -->
 <h2 id="configuration">How configuration works</h2>
