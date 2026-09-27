@@ -103,14 +103,18 @@ program test_large_sparse
         ' time=', r%time, ' s'
     if (exact .and. r%n_eval_hess == 0) error stop 'test_large_sparse FAILED: '//label//': the Hessian was not used'
     ! (the default mode picks the sparse QP for problems this size)
-    if (qp_mode == sqpopt_qp_auto .and. n <= qp%auto_dense_max_n) &
+    if (qp_mode == sqpopt_qp_auto .and. n <= qp%auto_dense_max_n) then
         error stop 'test_large_sparse FAILED: problem too small for the sparse QP'
-    if (r%istat /= sqpopt_success .and. r%istat /= sqpopt_acceptable .and. r%istat /= sqpopt_stalled) &
+    end if
+    if (r%istat /= sqpopt_success .and. r%istat /= sqpopt_acceptable .and. r%istat /= sqpopt_stalled) then
         error stop 'test_large_sparse FAILED: '//label//': did not converge'
-    if (abs(r%f - f_star) > rel_tol*max(1.0_wp, abs(f_star))) &
+    end if
+    if (abs(r%f - f_star) > rel_tol*max(1.0_wp, abs(f_star))) then
         error stop 'test_large_sparse FAILED: '//label//': wrong objective'
-    if (r%feasibility_error > feas_tol) &
+    end if
+    if (r%feasibility_error > feas_tol) then
         error stop 'test_large_sparse FAILED: '//label//': infeasible'
+    end if
     end subroutine check
 
     !------------------------------------------------------------------------

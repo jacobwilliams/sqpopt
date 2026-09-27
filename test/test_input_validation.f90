@@ -131,8 +131,9 @@ program test_input_validation
         call solver%get_solution(xsol, lam)
         print '(A,2F10.6,A,I0)', 'x0 outside the bounds: x=', xsol, '  istat=', istat
         if (istat /= sqpopt_success) error stop 'test_input_validation FAILED: valid problem did not converge'
-        if (maxval(abs(xsol + 1.0_wp/sqrt(2.0_wp))) > 1.0e-6_wp) &
+        if (maxval(abs(xsol + 1.0_wp/sqrt(2.0_wp))) > 1.0e-6_wp) then
             error stop 'test_input_validation FAILED: valid problem converged to the wrong point'
+        end if
         if (outside_bounds) error stop 'test_input_validation FAILED: a function was evaluated outside the bounds'
     end block
 

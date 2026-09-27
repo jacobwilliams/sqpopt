@@ -475,10 +475,11 @@
 
     if (.not. accepted .and. me%nonmonotone_len > 0 .and. me%nm_count > 0) then
         ! the non-monotone retry: against the worst merit value of the recent iterates
-        if (maxval(me%nm_phi(1:me%nm_count)) > phi0) &
+        if (maxval(me%nm_phi(1:me%nm_count)) > phi0) then
             call backtrack_search(me, eval_f, eval_c, x, p, initial_step_length(x, p, me%major_step_limit), &
                                   phi0, dphi0, c, c_lb, c_ub, lambda, alpha, x_new, phi_new, accepted, soc, &
                                   phi_ref=maxval(me%nm_phi(1:me%nm_count)))
+        end if
     end if
     call nonmonotone_push(me, phi0, 0.0_wp, f)
 

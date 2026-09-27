@@ -116,8 +116,9 @@
     ! switching condition, alpha*(-gtp)^s_phi > delta*theta_k^s_theta
     ! (compared in log space, so the powers can't overflow):
     f_type = gtp < 0.0_wp .and. theta_k <= me%theta_min
-    if (f_type .and. theta_k > 0.0_wp) &
+    if (f_type .and. theta_k > 0.0_wp) then
         f_type = log(alpha) + me%s_phi*log(-gtp) > log(me%delta) + me%s_theta*log(theta_k)
+    end if
 
     if (f_type) then
         ! Armijo condition on the objective (with a roundoff-level slack):

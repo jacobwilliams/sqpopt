@@ -128,8 +128,9 @@
     ! switching condition, pred > delta*theta_k^s_theta (compared in log
     ! space, so the power can't underflow or overflow):
     f_type = pred > 0.0_wp
-    if (f_type .and. theta_k > 0.0_wp) &
+    if (f_type .and. theta_k > 0.0_wp) then
         f_type = log(pred) > log(me%delta) + me%s_theta*log(theta_k)
+    end if
 
     if (f_type) then
         ! Armijo condition on the objective (with a roundoff-level slack):

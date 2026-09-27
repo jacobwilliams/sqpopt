@@ -62,8 +62,9 @@ program test_resolve
 
             print '(A,L1,A,I0,A,2I4,A,2I6,A,ES10.2)', 'trust_region=', tr == 1, ' linesearch_mode=', ls_modes(i), &
                 ': istat=', istat1, istat2, '  n_f=', nf1, nf2, '  |dx|=', maxval(abs(x1-x2))
-            if (istat1 /= istat2 .or. nf1 /= nf2 .or. any(x1 /= x2)) &
+            if (istat1 /= istat2 .or. nf1 /= nf2 .or. any(x1 /= x2)) then
                 error stop 'test_resolve FAILED: second solve differs from the first'
+            end if
         end do
     end do
 

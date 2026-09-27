@@ -216,8 +216,9 @@
     call me%hessian%initialize(me%problem%n, lbfgs_memory(me%options%lbfgs_memory, me%problem%n), &
                                 use_sr1=(me%options%hessian_mode == sqpopt_hessian_sr1), &
                                 scale0=me%options%hessian_scale0)
-    if (me%options%hessian_mode == sqpopt_hessian_exact) &
+    if (me%options%hessian_mode == sqpopt_hessian_exact) then
         call me%hessian%set_exact(me%problem%hess_irow, me%problem%hess_icol)
+    end if
     me%qp_solver%mode        = me%options%qp_solver_mode
     me%linesearch%mode       = me%options%linesearch_mode
     me%linesearch%merit%mode           = me%options%merit_mode
@@ -344,8 +345,9 @@
         flags = ''
         if (info%restoration) flags = trim(flags)//'R'
         if (info%qp_istat == sqpopt_qp_solve_failed) flags = trim(flags)//'Q'
-        if (info%stepped .and. iter_istat /= sqpopt_success .and. iter_istat /= sqpopt_qp_solve_failed) &
+        if (info%stepped .and. iter_istat /= sqpopt_success .and. iter_istat /= sqpopt_qp_solve_failed) then
             flags = trim(flags)//'F'
+        end if
         if (.not. info%stepped) then
             write(u,'(I6,ES18.9,2ES11.2)') iter, info%f/me%problem%f_scale, info%feas, info%kkt
         else if (me%options%print_level >= 2) then
@@ -399,75 +401,95 @@
 
     ! ---- options ----
     if (o%max_iter < 0) then
-        msg = 'options%max_iter must be >= 0'; return
+        msg = 'options%max_iter must be >= 0'
+        return
     end if
     if (o%lbfgs_memory < 0) then
-        msg = 'options%lbfgs_memory must be >= 0 (0: automatic)'; return
+        msg = 'options%lbfgs_memory must be >= 0 (0: automatic)'
+        return
     end if
     if (o%max_consecutive_failures < 1) then
-        msg = 'options%max_consecutive_failures must be >= 1'; return
+        msg = 'options%max_consecutive_failures must be >= 1'
+        return
     end if
     if (o%hessian_mode < sqpopt_hessian_bfgs .or. o%hessian_mode > sqpopt_hessian_exact) then
-        msg = 'options%hessian_mode is not a valid sqpopt_hessian_* value'; return
+        msg = 'options%hessian_mode is not a valid sqpopt_hessian_* value'
+        return
     end if
     if (o%hessian_mode == sqpopt_hessian_exact .and. .not. associated(me%problem%eval_hess)) then
         msg = 'options%hessian_mode = sqpopt_hessian_exact requires the hess function (set_functions) '// &
-              'and its sparsity pattern (set_hessian_sparsity)'; return
+              'and its sparsity pattern (set_hessian_sparsity)'
+        return
     end if
     if (all(o%qp_solver_mode /= [sqpopt_qp_auto, sqpopt_qp_dense, sqpopt_qp_reduced_hessian])) then
-        msg = 'options%qp_solver_mode is not a valid sqpopt_qp_* value'; return
+        msg = 'options%qp_solver_mode is not a valid sqpopt_qp_* value'
+        return
     end if
     if (o%linesearch_mode < sqpopt_linesearch_armijo .or. o%linesearch_mode > sqpopt_linesearch_funnel) then
-        msg = 'options%linesearch_mode is not a valid sqpopt_linesearch_* value'; return
+        msg = 'options%linesearch_mode is not a valid sqpopt_linesearch_* value'
+        return
     end if
     if (o%merit_mode < sqpopt_merit_l1 .or. o%merit_mode > sqpopt_merit_augmented_lagrangian) then
-        msg = 'options%merit_mode is not a valid sqpopt_merit_* value'; return
+        msg = 'options%merit_mode is not a valid sqpopt_merit_* value'
+        return
     end if
     if (all(o%penalty_update /= [sqpopt_penalty_multipliers, sqpopt_penalty_model])) then
-        msg = 'options%penalty_update is not a valid sqpopt_penalty_* value'; return
+        msg = 'options%penalty_update is not a valid sqpopt_penalty_* value'
+        return
     end if
     if (.not. (o%ktol > 0.0_wp .and. o%ctol > 0.0_wp)) then
-        msg = 'options%ktol and options%ctol must be > 0'; return
+        msg = 'options%ktol and options%ctol must be > 0'
+        return
     end if
     if (.not. (o%ftol >= 0.0_wp .and. o%xtol >= 0.0_wp)) then
-        msg = 'options%ftol and options%xtol must be >= 0'; return
+        msg = 'options%ftol and options%xtol must be >= 0'
+        return
     end if
     if (.not. (o%acceptable_ktol > 0.0_wp .and. o%acceptable_ctol > 0.0_wp) .or. o%acceptable_iter < 0 &
         .or. o%stall_iter < 1) then
-        msg = 'options%acceptable_ktol/acceptable_ctol must be > 0, acceptable_iter >= 0, and stall_iter >= 1'; return
+        msg = 'options%acceptable_ktol/acceptable_ctol must be > 0, acceptable_iter >= 0, and stall_iter >= 1'
+        return
     end if
     if (all(o%restoration_mode /= [sqpopt_restoration_phase, sqpopt_restoration_gauss_newton]) .or. &
         .not. (o%restoration_exit_factor > 0.0_wp .and. o%restoration_exit_factor < 1.0_wp) .or. &
         o%restoration_max_iter < 1) then
         msg = 'options%restoration_mode must be a sqpopt_restoration_* value, restoration_exit_factor in (0,1), '// &
-              'and restoration_max_iter >= 1'; return
+              'and restoration_max_iter >= 1'
+        return
     end if
     if (o%max_evals < 0 .or. .not. (o%max_time >= 0.0_wp)) then
-        msg = 'options%max_evals and options%max_time must be >= 0'; return
+        msg = 'options%max_evals and options%max_time must be >= 0'
+        return
     end if
     if (.not. (o%scaling_max_gradient > 0.0_wp .and. o%hessian_scale0 > 0.0_wp)) then
-        msg = 'options%scaling_max_gradient and options%hessian_scale0 must be > 0'; return
+        msg = 'options%scaling_max_gradient and options%hessian_scale0 must be > 0'
+        return
     end if
     if (o%print_level > 0) then
         inquire(unit=o%output_unit, opened=opened)
         if (.not. opened) then
-            msg = 'options%output_unit is not an open unit'; return
+            msg = 'options%output_unit is not an open unit'
+            return
         end if
     end if
 
     ! ---- line search ----
     if (.not. (ls%sigma > 0.0_wp .and. ls%sigma < 1.0_wp .and. ls%backtrack > 0.0_wp .and. ls%backtrack < 1.0_wp)) then
-        msg = 'linesearch%sigma and linesearch%backtrack must be in (0,1)'; return
+        msg = 'linesearch%sigma and linesearch%backtrack must be in (0,1)'
+        return
     end if
     if (.not. (ls%alpha_min > 0.0_wp .and. ls%tol > 0.0_wp .and. ls%major_step_limit > 0.0_wp) &
         .or. ls%max_ls_iter < 1) then
-        msg = 'linesearch%alpha_min, tol, and major_step_limit must be > 0, and max_ls_iter >= 1'; return
+        msg = 'linesearch%alpha_min, tol, and major_step_limit must be > 0, and max_ls_iter >= 1'
+        return
     end if
     if (.not. (ls%merit%penalty >= 0.0_wp) .or. ls%watchdog_relaxed_len < 0 .or. ls%watchdog_cooldown_len < 0) then
-        msg = 'linesearch%merit%penalty, watchdog_relaxed_len, and watchdog_cooldown_len must be >= 0'; return
+        msg = 'linesearch%merit%penalty, watchdog_relaxed_len, and watchdog_cooldown_len must be >= 0'
+        return
     end if
     if (ls%nonmonotone_len < 0 .or. .not. (ls%merit%penalty_rho > 0.0_wp .and. ls%merit%penalty_rho < 1.0_wp)) then
-        msg = 'linesearch%nonmonotone_len must be >= 0, and merit%penalty_rho in (0,1)'; return
+        msg = 'linesearch%nonmonotone_len must be >= 0, and merit%penalty_rho in (0,1)'
+        return
     end if
     if (.not. (ls%filter%gamma_theta > 0.0_wp .and. ls%filter%gamma_theta < 1.0_wp .and. &
                ls%filter%gamma_phi > 0.0_wp .and. ls%filter%delta > 0.0_wp .and. &
@@ -475,7 +497,8 @@
                ls%filter%eta_phi > 0.0_wp .and. ls%filter%eta_phi < 0.5_wp .and. &
                ls%filter%theta_min_fact > 0.0_wp .and. ls%filter%theta_max_fact > ls%filter%theta_min_fact .and. &
                ls%filter%gamma_alpha > 0.0_wp .and. ls%filter%gamma_alpha <= 1.0_wp)) then
-        msg = 'a linesearch%filter parameter is out of range'; return
+        msg = 'a linesearch%filter parameter is out of range'
+        return
     end if
     if (.not. (ls%funnel%width_min > 0.0_wp .and. ls%funnel%width_fact >= 1.0_wp .and. &
                ls%funnel%beta > 0.0_wp .and. ls%funnel%beta < 1.0_wp .and. &
@@ -483,37 +506,43 @@
                ls%funnel%delta > 0.0_wp .and. ls%funnel%s_theta > 1.0_wp .and. &
                ls%funnel%eta > 0.0_wp .and. ls%funnel%eta < 0.5_wp .and. ls%funnel%gamma > 0.0_wp) &
         .or. all(ls%funnel%update /= [1, 2])) then
-        msg = 'a linesearch%funnel parameter is out of range'; return
+        msg = 'a linesearch%funnel parameter is out of range'
+        return
     end if
 
     ! ---- trust region ----
     if (tr%enabled) then
         if (.not. (tr%radius0 > 0.0_wp .and. tr%radius_min > 0.0_wp .and. tr%radius_max >= tr%radius0 .and. &
                    tr%radius0 >= tr%radius_min)) then
-            msg = 'trust_region radii must satisfy 0 < radius_min <= radius0 <= radius_max'; return
+            msg = 'trust_region radii must satisfy 0 < radius_min <= radius0 <= radius_max'
+            return
         end if
         if (.not. (tr%eta1 > 0.0_wp .and. tr%eta1 <= tr%eta2 .and. tr%eta2 < 1.0_wp .and. &
                    tr%shrink_factor > 0.0_wp .and. tr%shrink_factor < 1.0_wp .and. tr%expand_factor >= 1.0_wp) &
             .or. tr%max_retries < 1) then
             msg = 'trust_region: need 0 < eta1 <= eta2 < 1, 0 < shrink_factor < 1, expand_factor >= 1, '// &
-                  'and max_retries >= 1'; return
+                  'and max_retries >= 1'
+            return
         end if
     end if
 
     ! ---- QP solver ----
     if (.not. qp%max_step > 0.0_wp .or. qp%auto_dense_max_n < 0) then
-        msg = 'qp_solver%max_step must be > 0, and auto_dense_max_n >= 0'; return
+        msg = 'qp_solver%max_step must be > 0, and auto_dense_max_n >= 0'
+        return
     end if
     associate (d => qp%dense_qp, r => qp%sparse_qp)
     if (.not. (d%active_tol > 0.0_wp .and. d%opt_tol > 0.0_wp .and. d%feas_tol > 0.0_wp .and. &
                d%elastic_weight > 0.0_wp .and. d%elastic_weight_max >= d%elastic_weight) .or. d%max_iter < 1) then
-        msg = 'a qp_solver%dense_qp setting is out of range'; return
+        msg = 'a qp_solver%dense_qp setting is out of range'
+        return
     end if
     if (.not. (r%active_tol > 0.0_wp .and. r%opt_tol > 0.0_wp .and. r%feas_tol > 0.0_wp .and. &
                r%pcg_rtol > 0.0_wp .and. r%elastic_weight > 0.0_wp .and. r%elastic_weight_max >= r%elastic_weight &
                .and. r%lsqr_atol >= 0.0_wp .and. r%lsqr_btol >= 0.0_wp .and. r%lsqr_conlim >= 0.0_wp) &
         .or. r%max_iter < 1 .or. r%dense_max_ns < 0 .or. all(r%null_space /= [sqpopt_null_space_lu, sqpopt_null_space_lsqr])) then
-        msg = 'a qp_solver%sparse_qp setting is out of range'; return
+        msg = 'a qp_solver%sparse_qp setting is out of range'
+        return
     end if
     end associate
 

@@ -1342,8 +1342,9 @@
             bvar(pp) = q
             nupd = nupd + 1
             stat = 1
-            if (nupd <= max_updates) &
+            if (nupd <= max_updates) then
                 call blu%replace_column(pp, crow(cptr(q):cptr(q+1)-1), cval(cptr(q):cptr(q+1)-1), stat)
+            end if
             if (stat /= 0) then
                 fix = factorize_basis()
                 if (.not. fix) return

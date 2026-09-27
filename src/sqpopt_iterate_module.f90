@@ -390,7 +390,8 @@
                 ! of it): try the QP's elastic step instead, along which the
                 ! violation may still decrease to second order. If this fails
                 ! too, the next iteration's infeasibility test stops at `x`.
-                call restoration_step(problem, jac, x, c, qp_solver%max_step*qp_solver%step_scale, x_new, alpha, step_istat, direction=p)
+                call restoration_step(problem, jac, x, c, qp_solver%max_step*qp_solver%step_scale, &
+                                      x_new, alpha, step_istat, direction=p)
             end if
 
         else
@@ -577,8 +578,9 @@
         real(wp), dimension(problem%m) :: c_new
         logical :: ended
         call restoration%step(problem, jac, x, c, x_new, alpha, step_istat)
-        if (step_istat /= sqpopt_success) &
+        if (step_istat /= sqpopt_success) then
             call restoration_step(problem, jac, x, c, qp_solver%max_step*qp_solver%step_scale, x_new, alpha, step_istat)
+        end if
         if (step_istat == sqpopt_success) then
             call problem%f(x_new, f_new)
             call problem%c(x_new, c_new)
@@ -646,8 +648,9 @@
     call sparse_matvec_transpose(jac, lambda, jtlam)
     z = 0.0_wp
     do j = 1, size(x)
-        if (x(j) - problem%x_lb(j) <= options%ctol .or. problem%x_ub(j) - x(j) <= options%ctol) &
+        if (x(j) - problem%x_lb(j) <= options%ctol .or. problem%x_ub(j) - x(j) <= options%ctol) then
             z(j) = g(j) - jtlam(j)
+        end if
     end do
 
     end subroutine sqpopt_evaluate_point

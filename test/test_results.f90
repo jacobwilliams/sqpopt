@@ -80,8 +80,9 @@ program test_results
     if (r%feasibility_error > tol*s) error stop 'test_results FAILED: feasibility error'
     if (any(r%x /= x) .or. any(r%lambda /= lam) .or. any(r%z /= z)) error stop 'test_results FAILED: inconsistent results'
     ! (each `fc` call calls `obj` and `cons` once, and each `gjac` call `grad` and `jacv`)
-    if (r%n_eval_fc /= n_f .or. r%n_eval_fc /= n_c .or. r%n_eval_gjac /= n_g .or. r%n_eval_gjac /= n_jac) &
+    if (r%n_eval_fc /= n_f .or. r%n_eval_fc /= n_c .or. r%n_eval_gjac /= n_g .or. r%n_eval_gjac /= n_jac) then
         error stop 'test_results FAILED: evaluation counts'
+    end if
 
     ! warm start from the solution and its multipliers: converged at the first iterate
     options%hessian_scale0 = 2.0_wp
