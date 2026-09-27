@@ -32,6 +32,10 @@
 !    with the quadratic model's predicted decrease `q` in place of
 !    \( g^Tp \) in the switching condition) -- a trust-region filter-SQP
 !    method in the spirit of Fletcher & Leyffer (`references/fletcher.pdf`).
+!  * if `linesearch%mode == sqpopt_linesearch_funnel`, acceptance uses the
+!    funnel test of the funnel line search (`linesearch%funnel_accept`,
+!    with `q` as the predicted decrease) -- the trust-region funnel SQP
+!    method of Kiessling, Leyffer & Vanaret (Uno's `funnelsqp` preset).
 !  * otherwise, acceptance uses the classical trust-region-SQP ratio test
 !    (Nocedal & Wright, *Numerical Optimization*, Ch. 18): \( \rho =
 !    \text{ared}/\text{pred} \), the ratio of the actual to the
@@ -57,7 +61,8 @@
     use sqpopt_problem_module,    only: sqpopt_problem_type
     use sqpopt_hessian_module,    only: sqpopt_hessian_type
     use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type
-    use sqpopt_linesearch_module, only: sqpopt_linesearch_type, sqpopt_linesearch_filter, l1_violation
+    use sqpopt_linesearch_module, only: sqpopt_linesearch_type, sqpopt_linesearch_filter, sqpopt_linesearch_funnel, &
+                                         l1_violation
     use sqpopt_linalg_module,     only: sparse_matvec
     use sqpopt_soc_module,        only: soc_step
 
@@ -107,6 +112,7 @@
     type(sqpopt_qp_solver_type),    intent(inout) :: qp_solver
     type(sqpopt_linesearch_type),   intent(inout) :: linesearch  !! supplies `merit_mode`/`eval_merit` (ratio test) or
                                                                   !! the filter (`mode==sqpopt_linesearch_filter`)
+                                                                  !! or funnel (`mode==sqpopt_linesearch_funnel`)
     real(wp), dimension(:),         intent(in)  :: x       !! current point `dimension(n)`
     real(wp), dimension(:),         intent(in)  :: g       !! objective gradient at `x` `dimension(n)`
     real(wp),                       intent(in)  :: f       !! objective value at `x`
@@ -119,7 +125,7 @@
     integer,                        intent(out) :: istat      !! status code (see [[sqpopt_types_module]])
 
     integer :: retry, qp_istat
-    logical :: use_filter, accept, ok, soc_ok, f_type
+    logical :: use_filter, use_funnel, accept, ok, soc_ok, f_type
     real(wp), dimension(size(x)) :: p, p_soc, x_lb2, x_ub2, hp
     real(wp), dimension(size(c)) :: jp, c_trial, c_lin
     real(wp) :: f_trial, h0, h_trial, q, pred, ratio, phi0, phi_model
@@ -129,9 +135,14 @@
         me%ready  = .true.
     end if
 
-    use_filter = (linesearch%mode == sqpopt_linesearch_filter)
+    use_funnel = (linesearch%mode == sqpopt_linesearch_funnel)
+    use_filter = (linesearch%mode == sqpopt_linesearch_filter) .or. use_funnel !! (no merit function in either)
     h0         = l1_violation(c, problem%c_lb, problem%c_ub)
-    if (use_filter) call linesearch%filter_prepare(h0)
+    if (use_funnel) then
+        call linesearch%funnel_prepare(h0)
+    else if (use_filter) then
+        call linesearch%filter_prepare(h0)
+    end if
 
     do retry = 1, me%max_retries
 
@@ -177,8 +188,13 @@
 
         if (accept) then
 
-            ! (a step that isn't f-type adds the current point to the filter)
-            if (use_filter .and. .not. f_type) call linesearch%filter_record(h0, f)
+            ! (a step that isn't f-type adds the current point to the filter,
+            ! or shrinks the funnel)
+            if (use_funnel .and. .not. f_type) then
+                call linesearch%funnel_record(h0, h_trial)
+            else if (use_filter .and. .not. f_type) then
+                call linesearch%filter_record(h0, f)
+            end if
 
             if (maxval(abs(p)) >= 0.99_wp*me%radius) then
                 ! the step used (approximately) the full trust region --
@@ -232,7 +248,11 @@
 
         if (use_filter) then
 
-            accept = linesearch%filter_accept(h0, f, -q, 1.0_wp, h_trial, f_trial, f_type)
+            if (use_funnel) then
+                accept = linesearch%funnel_accept(h0, f, q, h_trial, f_trial, f_type)
+            else
+                accept = linesearch%filter_accept(h0, f, -q, 1.0_wp, h_trial, f_trial, f_type)
+            end if
             ratio = 1.0_wp !! not used for the ratio test in this branch, only for the "grow radius" gate
 
         else

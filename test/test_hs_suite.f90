@@ -43,7 +43,10 @@ program test_hs_suite
     !! **Configuration:** the globalization can be changed from the command
     !! line, for comparisons (see `tools/hs_performance_table.sh`):
     !!
-    !! * `--linesearch=filter|armijo|watchdog|exact` (`options%linesearch_mode`)
+    !! * `--linesearch=filter|funnel|armijo|watchdog|exact` (`options%linesearch_mode`)
+    !! * `--trust-region` (`trust_region%enabled = .true.`: the trust-region
+    !!   globalization, with the filter or funnel test in those modes, else
+    !!   the merit-function ratio test)
     !! * `--merit=l1|al` (`options%merit_mode`)
     !! * `--penalty=multipliers|model` (`options%penalty_update`)
     !! * `--no-interpolate` (`linesearch%interpolate = .false.`)
@@ -72,10 +75,12 @@ program test_hs_suite
     use sqpopt_qp_reduced_hessian_module, only: sqpopt_null_space_lu, sqpopt_null_space_lsqr
     use sqpopt_linesearch_module, only: sqpopt_linesearch_type, sqpopt_linesearch_armijo, sqpopt_linesearch_exact, &
                                         sqpopt_linesearch_watchdog, sqpopt_linesearch_filter, sqpopt_merit_l1, &
+                                        sqpopt_linesearch_funnel, &
                                         sqpopt_merit_augmented_lagrangian, sqpopt_penalty_multipliers, &
                                         sqpopt_penalty_model
     use sqpopt_types_module,   only: sqpopt_results_type, sqpopt_success, sqpopt_stalled, sqpopt_acceptable, &
                                      sqpopt_status_message
+    use sqpopt_trust_region_module, only: sqpopt_trust_region_type
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
 
     implicit none
@@ -126,6 +131,7 @@ program test_hs_suite
     integer :: cfg_penalty     = sqpopt_penalty_multipliers
     logical :: cfg_interpolate = .true.
     integer :: cfg_nonmonotone = 0
+    logical :: cfg_trust_region = .false. !! `--trust-region`
     integer :: cfg_problem     = 0  !! `--problem=N`: solve only this problem (`0` = all)
     integer :: cfg_print       = 0  !! `--print=L`: `options%print_level`
     integer :: cfg_qp          = sqpopt_qp_auto
@@ -205,6 +211,7 @@ program test_hs_suite
         cfg_default = .false.
         select case (trim(arg))
         case ('--linesearch=filter');   cfg_linesearch = sqpopt_linesearch_filter
+        case ('--linesearch=funnel');   cfg_linesearch = sqpopt_linesearch_funnel
         case ('--linesearch=armijo');   cfg_linesearch = sqpopt_linesearch_armijo
         case ('--linesearch=watchdog'); cfg_linesearch = sqpopt_linesearch_watchdog
         case ('--linesearch=exact');    cfg_linesearch = sqpopt_linesearch_exact
@@ -213,6 +220,7 @@ program test_hs_suite
         case ('--penalty=multipliers'); cfg_penalty = sqpopt_penalty_multipliers
         case ('--penalty=model');       cfg_penalty = sqpopt_penalty_model
         case ('--no-interpolate');      cfg_interpolate = .false.
+        case ('--trust-region');        cfg_trust_region = .true.
         case ('--qp=auto');             cfg_qp = sqpopt_qp_auto
         case ('--qp=dense');            cfg_qp = sqpopt_qp_dense
         case ('--qp=sparse');           cfg_qp = sqpopt_qp_reduced_hessian
@@ -247,6 +255,7 @@ program test_hs_suite
     type(sqpopt_options_type) :: options
     type(sqpopt_linesearch_type) :: linesearch
     type(sqpopt_qp_solver_type) :: qp_solver
+    type(sqpopt_trust_region_type) :: trust_region
     type(sqpopt_results_type) :: r
     integer, dimension(:), allocatable :: irow, icol
     integer  :: i, j, nnz, istat
@@ -282,7 +291,10 @@ program test_hs_suite
     linesearch%interpolate     = cfg_interpolate
     linesearch%nonmonotone_len = cfg_nonmonotone
 
-    call solver%initialize(problem=problem, options=options, linesearch=linesearch, qp_solver=qp_solver)
+    trust_region%enabled       = cfg_trust_region
+
+    call solver%initialize(problem=problem, options=options, linesearch=linesearch, qp_solver=qp_solver, &
+                           trust_region=trust_region)
     call solver%solve(real(p%x0, wp), istat)
     call solver%get_results(r)
 

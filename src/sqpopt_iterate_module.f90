@@ -18,7 +18,8 @@
     use sqpopt_options_module,    only: sqpopt_options_type, sqpopt_hessian_sr1
     use sqpopt_hessian_module,    only: sqpopt_hessian_type
     use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type
-    use sqpopt_linesearch_module, only: sqpopt_linesearch_type, sqpopt_linesearch_filter, l1_violation
+    use sqpopt_linesearch_module, only: sqpopt_linesearch_type, sqpopt_linesearch_filter, sqpopt_linesearch_funnel, &
+                                         l1_violation
     use sqpopt_linalg_module,     only: sparse_matvec_transpose
     use sqpopt_convergence_module, only: check_convergence
     use sqpopt_soc_module,        only: soc_step
@@ -337,7 +338,7 @@
         else
 
             ! line search along `p` to (approximately) minimize the merit function
-            ! (or, in `sqpopt_linesearch_filter` mode, to find a point acceptable
+            ! (or, in `sqpopt_linesearch_filter`/`_funnel` mode, to find a point acceptable
             ! to the filter). If the full step is rejected because of constraint
             ! curvature (the Maratos effect), the line search also tries its
             ! second-order correction (see `soc` below):
@@ -372,15 +373,21 @@
                 qp_solver%n_short = 0
             end if
 
-            if (step_istat /= sqpopt_success .and. linesearch%mode == sqpopt_linesearch_filter) then
-                ! the filter line search failed (no acceptable step length): as
-                ! in Wächter & Biegler's method, add the current point to the
-                ! filter and, if infeasible, take a feasibility restoration
-                ! step instead (keeping the current multipliers):
+            if (step_istat /= sqpopt_success .and. (linesearch%mode == sqpopt_linesearch_filter .or. &
+                                                     linesearch%mode == sqpopt_linesearch_funnel)) then
+                ! the filter (or funnel) line search failed (no acceptable step
+                ! length): as in Wächter & Biegler's method, add the current
+                ! point to the filter (or shrink the funnel toward it) and, if
+                ! infeasible, take a feasibility restoration step instead
+                ! (keeping the current multipliers):
                 block
                     real(wp) :: theta
                     theta = l1_violation(c, problem%c_lb, problem%c_ub)
-                    call linesearch%filter_record(theta, f)
+                    if (linesearch%mode == sqpopt_linesearch_funnel) then
+                        call linesearch%funnel_restoration(theta)
+                    else
+                        call linesearch%filter_record(theta, f)
+                    end if
                     if (theta > 0.0_wp) then
                         restore    = .true.
                         new_lambda = lambda

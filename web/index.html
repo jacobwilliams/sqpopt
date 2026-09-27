@@ -103,7 +103,7 @@
   <div class="feature"><h3>SQP method</h3><p>Nonlinear objective, nonlinear equality and inequality constraints, and bounds.</p></div>
   <div class="feature"><h3>Sparse throughout</h3><p>COO constraint Jacobian, matrix-free L-BFGS / L-SR1 Hessian, sparse LU-based QP solver.</p></div>
   <div class="feature"><h3>Modular</h3><p>Problem, options, Hessian, QP solver, line search and convergence are separate modules you can swap independently.</p></div>
-  <div class="feature"><h3>Robust globalization</h3><p>Filter line search (default), Armijo, watchdog, or exact line search, or a trust region; second-order corrections.</p></div>
+  <div class="feature"><h3>Robust globalization</h3><p>Filter line search (default), funnel, Armijo, watchdog, or exact line search, or a trust region; second-order corrections.</p></div>
   <div class="feature"><h3>Selectable precision</h3><p>Single, double, or quadruple precision reals.</p></div>
   <div class="feature"><h3>FPM-native</h3><p>Add it to any project as a Fortran Package Manager dependency.</p></div>
 </div>
@@ -559,10 +559,10 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <tbody>
 <tr><td><code>sigma</code></td><td><code>0.1</code></td><td>Armijo sufficient-decrease parameter, \( 0&lt;\sigma&lt;1 \) <span class="mode-tag">armijo, watchdog</span></td></tr>
 <tr><td><code>backtrack</code></td><td><code>0.5</code></td><td>step-length reduction factor at each backtracking step (when <code>interpolate</code> is off, or the interpolation has no minimizer)</td></tr>
-<tr><td><code>interpolate</code></td><td><code>.true.</code></td><td>choose each backtracking step length by safeguarded quadratic interpolation of the merit function (or, in the filter search, of the violation if the trial made it worse, else the objective), within \( [0.1\alpha,\ 0.5\alpha] \), as in NLPQLP <span class="mode-tag">armijo, watchdog, filter</span></td></tr>
+<tr><td><code>interpolate</code></td><td><code>.true.</code></td><td>choose each backtracking step length by safeguarded quadratic interpolation of the merit function (or, in the filter search, of the violation if the trial made it worse, else the objective), within \( [0.1\alpha,\ 0.5\alpha] \), as in NLPQLP <span class="mode-tag">armijo, watchdog, filter, funnel</span></td></tr>
 <tr><td><code>nonmonotone_len</code></td><td><code>0</code></td><td>if <code>&gt; 0</code>, a failed search is retried non-monotonically, as in NLPQLP: against the worst merit value (filter search: the worst violation and objective) of the last <code>nonmonotone_len</code> iterates instead of the current one. Helps the merit-function searches on hard problems; not the filter search. <span class="mode-tag">armijo, filter</span></td></tr>
-<tr><td><code>alpha_min</code></td><td><code>1e-10</code></td><td>minimum step length: if no acceptable step is found before <code>alpha</code> would drop below this, the search fails and no step is taken <span class="mode-tag">armijo, watchdog, filter</span></td></tr>
-<tr><td><code>max_ls_iter</code></td><td><code>40</code></td><td>maximum number of trial step lengths per search <span class="mode-tag">armijo, watchdog, filter</span></td></tr>
+<tr><td><code>alpha_min</code></td><td><code>1e-10</code></td><td>minimum step length: if no acceptable step is found before <code>alpha</code> would drop below this, the search fails and no step is taken <span class="mode-tag">armijo, watchdog, filter, funnel</span></td></tr>
+<tr><td><code>max_ls_iter</code></td><td><code>40</code></td><td>maximum number of trial step lengths per search <span class="mode-tag">armijo, watchdog, filter, funnel</span></td></tr>
 <tr><td><code>tol</code></td><td><code>1e-4</code></td><td>desired tolerance on the minimizer <span class="mode-tag">exact</span></td></tr>
 </tbody>
 </table></div>
@@ -588,11 +588,25 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 </tbody>
 </table></div>
 
+<h3 class="opt-group">Funnel</h3>
+<div class="table-wrap"><table class="opt-table">
+<thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>funnel_width_min</code>, <code>funnel_width_fact</code></td><td><code>1</code>, <code>1.5</code></td><td>initial funnel width \( \tau_0 = \max(\) <code>funnel_width_min</code>, <code>funnel_width_fact</code> \( \times\,\theta(x_0)) \) <span class="mode-tag">funnel, trust region</span></td></tr>
+<tr><td><code>funnel_delta</code>, <code>funnel_s_theta</code></td><td><code>0.999</code>, <code>2</code></td><td>switching condition \( \alpha(-g^Tp) &gt; \delta\,\theta^{s_\theta} \): when it holds, the step must satisfy an Armijo condition on the objective ("f-type" step) <span class="mode-tag">funnel</span></td></tr>
+<tr><td><code>funnel_eta</code></td><td><code>1e-4</code></td><td>Armijo constant for f-type steps <span class="mode-tag">funnel</span></td></tr>
+<tr><td><code>funnel_beta</code></td><td><code>0.9999</code></td><td>otherwise ("h-type" step), the violation must satisfy \( \theta \le \beta\tau \) <span class="mode-tag">funnel</span></td></tr>
+<tr><td><code>funnel_kappa</code>, <code>funnel_update</code></td><td><code>0.5</code>, <code>1</code></td><td>how an h-type step shrinks the funnel: rule <code>1</code> sets \( \tau = \max(\beta\tau,\ \kappa\theta_k + (1-\kappa)\theta_{new}) \) if the violation decreased, else \( \beta\tau \); rule <code>2</code> sets \( \tau = \kappa\tau + (1-\kappa)\theta_{new} \). Before a restoration step, \( \tau = \kappa\tau + (1-\kappa)\theta_k \). <span class="mode-tag">funnel</span></td></tr>
+<tr><td><code>funnel_require_current</code>, <code>funnel_gamma</code></td><td><code>.false.</code>, <code>1e-3</code></td><td>also require each trial point to improve on the current point: \( \theta &lt; \beta\theta_k \) or \( \varphi \le \varphi_k - \gamma\theta \) <span class="mode-tag">funnel</span></td></tr>
+</tbody>
+</table></div>
+
 <h3 id="linesearch-modes">Line search modes <span class="h-note"><code>options%linesearch_mode</code></span></h3>
 <div class="table-wrap"><table class="opt-table modes">
 <thead><tr><th>value</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>sqpopt_linesearch_filter</code> <span class="badge">default</span></td><td>filter line search (Fletcher &amp; Leyffer's filter, with the globally convergent line-search rules of W&auml;chter &amp; Biegler, as in IPOPT). No merit function or penalty parameter: a trial point is judged by its (violation, objective) pair, which must not be dominated by the filter. A switching condition decides whether the step must reduce the objective (Armijo) or may trade it for feasibility, and only the latter steps enlarge the filter. If no acceptable step is found, a feasibility-restoration step is taken. Ignores <code>merit_mode</code> and <code>penalty</code>.</td></tr>
+<tr><td><code>sqpopt_linesearch_funnel</code></td><td>the funnel method of Kiessling, Leyffer &amp; Vanaret (as in the Uno solver). Like the filter, no merit function or penalty parameter, but the filter's list of points is replaced by a single number: the funnel width, a bound on the violation that shrinks as the iterations progress. A trial point must be inside the funnel. If the switching condition holds, it must reduce the objective (Armijo, "f-type"); otherwise it must be sufficiently inside the funnel ("h-type"), which then shrinks. If no acceptable step is found, the funnel is tightened toward the current violation and a feasibility-restoration step is taken. Ignores <code>merit_mode</code>, <code>penalty</code>, and <code>nonmonotone_len</code>.</td></tr>
 <tr><td><code>sqpopt_linesearch_armijo</code></td><td>standard backtracking line search with an Armijo-type sufficient-decrease test on the merit function (the default in <code>slsqp</code>)</td></tr>
 <tr><td><code>sqpopt_linesearch_exact</code></td><td>(approximately) minimizes the merit function along the search direction using the derivative-free <code>fmin</code> routine</td></tr>
 <tr><td><code>sqpopt_linesearch_watchdog</code></td><td>Powell's watchdog technique: tracks the best point found so far and, for a short window after a genuine improvement, relaxes the sufficient-decrease test (accepting the full step outright) rather than stalling near a curved constraint boundary (the Maratos effect). If the window is used up without a new best point, it backtracks to the best point and disables relaxed acceptance for <code>watchdog_cooldown_len</code> iterations.</td></tr>
@@ -650,6 +664,7 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <p>When the trust region is enabled, <code>linesearch%mode</code> selects <em>which acceptance test</em> to use, not which line search to run (there is no \( \alpha \) to search for):</p>
 <ul>
   <li><code>sqpopt_linesearch_filter</code> uses the same filter acceptance test as the filter line search, with the quadratic model's predicted decrease in the switching condition: a trust-region filter-SQP method in the spirit of Fletcher &amp; Leyffer.</li>
+  <li><code>sqpopt_linesearch_funnel</code> uses the funnel acceptance test, with the quadratic model's predicted decrease: the trust-region funnel-SQP method of Kiessling, Leyffer &amp; Vanaret (Uno's <code>funnelsqp</code> preset).</li>
   <li><code>armijo</code>, <code>exact</code>, and <code>watchdog</code> all use the same classical trust-region SQP ratio test on the merit function selected by <code>merit_mode</code>.</li>
 </ul>
 
@@ -667,6 +682,7 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <tbody>
 <tr class="best"><td><strong>filter</strong> (default, with interpolation)</td><td class="num"><strong>276</strong></td><td class="num">29</td><td class="num"><strong>0</strong></td><td class="num"><strong>9,793</strong></td></tr>
 <tr><td>filter, without interpolation</td><td class="num">275</td><td class="num">30</td><td class="num">0</td><td class="num">10,037</td></tr>
+<tr><td>funnel (with interpolation)</td><td class="num">276</td><td class="num">29</td><td class="num">0</td><td class="num">10,709</td></tr>
 <tr><td>Armijo / \( \ell_1 \) / multipliers</td><td class="num">270</td><td class="num">29</td><td class="num">6</td><td class="num">28,322</td></tr>
 <tr><td>Armijo / \( \ell_1 \) / model (Byrd&ndash;Nocedal)</td><td class="num">272</td><td class="num">29</td><td class="num">4</td><td class="num">38,526</td></tr>
 <tr><td>Armijo / augmented Lagrangian / multipliers</td><td class="num">271</td><td class="num">32</td><td class="num">2</td><td class="num">10,399</td></tr>

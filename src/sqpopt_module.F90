@@ -28,7 +28,7 @@
     use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type, sqpopt_qp_auto, sqpopt_qp_dense, &
                                          sqpopt_qp_reduced_hessian
     use sqpopt_qp_reduced_hessian_module, only: sqpopt_null_space_lu, sqpopt_null_space_lsqr
-    use sqpopt_linesearch_module, only: sqpopt_linesearch_type, sqpopt_linesearch_armijo, sqpopt_linesearch_filter, &
+    use sqpopt_linesearch_module, only: sqpopt_linesearch_type, sqpopt_linesearch_armijo, sqpopt_linesearch_funnel, &
                                          sqpopt_merit_l1, sqpopt_merit_augmented_lagrangian, &
                                          sqpopt_penalty_multipliers, sqpopt_penalty_model
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
@@ -387,7 +387,7 @@
     if (all(o%qp_solver_mode /= [sqpopt_qp_auto, sqpopt_qp_dense, sqpopt_qp_reduced_hessian])) then
         msg = 'options%qp_solver_mode is not a valid sqpopt_qp_* value'; return
     end if
-    if (o%linesearch_mode < sqpopt_linesearch_armijo .or. o%linesearch_mode > sqpopt_linesearch_filter) then
+    if (o%linesearch_mode < sqpopt_linesearch_armijo .or. o%linesearch_mode > sqpopt_linesearch_funnel) then
         msg = 'options%linesearch_mode is not a valid sqpopt_linesearch_* value'; return
     end if
     if (o%merit_mode < sqpopt_merit_l1 .or. o%merit_mode > sqpopt_merit_augmented_lagrangian) then
@@ -440,6 +440,14 @@
                ls%filter_theta_min_fact > 0.0_wp .and. ls%filter_theta_max_fact > ls%filter_theta_min_fact .and. &
                ls%filter_gamma_alpha > 0.0_wp .and. ls%filter_gamma_alpha <= 1.0_wp)) then
         msg = 'a linesearch%filter_* parameter is out of range'; return
+    end if
+    if (.not. (ls%funnel_width_min > 0.0_wp .and. ls%funnel_width_fact >= 1.0_wp .and. &
+               ls%funnel_beta > 0.0_wp .and. ls%funnel_beta < 1.0_wp .and. &
+               ls%funnel_kappa > 0.0_wp .and. ls%funnel_kappa < 1.0_wp .and. &
+               ls%funnel_delta > 0.0_wp .and. ls%funnel_s_theta > 1.0_wp .and. &
+               ls%funnel_eta > 0.0_wp .and. ls%funnel_eta < 0.5_wp .and. ls%funnel_gamma > 0.0_wp) &
+        .or. all(ls%funnel_update /= [1, 2])) then
+        msg = 'a linesearch%funnel_* parameter is out of range'; return
     end if
 
     ! ---- trust region ----

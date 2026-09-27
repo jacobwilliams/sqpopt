@@ -668,6 +668,33 @@ for `c` where `f` was just evaluated is free), and the results report
 counts are ~0.1% above the old `f` counts (where the solver needed only
 `c`, e.g. in restoration).
 
+**Second-order escape before declaring infeasibility (2026-09-26).** TP88
+failed with the sparse QP (`--qp=sparse`): its functions are even in
+`x₂`, an exact QP step landed on `x₂ = 0`, and no first-order step leaves
+that plane, on which the problem is infeasible. The dense QP escaped only
+through roundoff. New `escape_step` (restoration module): before stopping
+with `sqpopt_infeasible`, probe each variable whose Jacobian column is
+negligible in the violated rows (up to 10) by ±0.1%, 1%, 10%, and continue
+from the first point with a lower violation (at most 3 escapes per solve).
+HS suite: `--qp=sparse` 275/29/1 → 276/29/0, `--qp=sparse-lsqr`
+273/31/1 → 274/31/0; the default is unchanged. The harness has new
+`--problem=N` and `--print=L` options for debugging a single problem.
+
+**Funnel method (2026-09-26).** New line search mode
+`sqpopt_linesearch_funnel` (Kiessling, Leyffer & Vanaret, as implemented
+in Uno; see `plan/UNO_COMPARISON.md`): the filter is replaced by one
+number, the funnel width `τ`. A trial point must satisfy `θ ≤ τ`; if the
+switching condition `α(−gᵀp) > δθᵏ^s` holds it needs an Armijo decrease in
+`f` (f-type), otherwise `θ ≤ βτ` (h-type, which shrinks `τ`). A failed
+search shrinks `τ` toward `θₖ` and takes the usual restoration step. The
+trust region supports it too (acceptance with the model decrease `q`).
+Options `funnel_*` on the line search type, with Uno's defaults. HS suite:
+line search 276/29/0 with 10,709 `fc` (filter: 276/29/0, 9,793); trust
+region 253/41/11 (filter: 251/36/18). Uno's other width update rule
+(`funnel_update=2`) fails 2 problems; `funnel_require_current`,
+`s_θ=1.1`, and `κ=0.9` change only the `fc` count (±2%). The harness has
+new `--linesearch=funnel` and `--trust-region` options.
+
 ## 2. Bugs: correctness (fix first)
 
 | # | Issue | Where | Evidence |

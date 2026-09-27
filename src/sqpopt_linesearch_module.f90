@@ -27,7 +27,7 @@
 !  joint step in the variables, multipliers, and slacks, and a penalty
 !  that can decrease).
 !
-!  Four line search strategies are available (`sqpopt_linesearch_type%mode`):
+!  Five line search strategies are available (`sqpopt_linesearch_type%mode`):
 !
 !  * `sqpopt_linesearch_armijo` -- a standard backtracking line search
 !    with an Armijo-type sufficient-decrease test on the merit function (as
@@ -64,13 +64,24 @@
 !    `test/test_hs_suite.f90`) it solves the most problems, with the
 !    fewest function evaluations, of all the line search / merit function /
 !    penalty combinations (and it has no penalty parameter to tune).
+!  * `sqpopt_linesearch_funnel` -- the **funnel** method (Kiessling, Leyffer
+!    & Vanaret, *"A unified funnel restoration SQP algorithm"*, Math.
+!    Program. (2025); as implemented in the Uno solver): like the filter, no
+!    merit function or penalty parameter, but the filter's list of points is
+!    replaced by a single number, the funnel width, a bound on the
+!    \( \ell_1 \) constraint violation that shrinks as the iterations
+!    progress. A trial point must be inside the funnel; the same switching
+!    condition then decides whether it must reduce the objective (an
+!    Armijo test, "f-type") or sufficiently reduce the violation relative
+!    to the funnel ("h-type", which shrinks the funnel). See
+!    [[funnel_line_search]].
 !
 !  Two options from NLPQLP (Schittkowski) apply to the backtracking
 !  searches: `interpolate` (on by default) chooses each backtracking step
 !  length by safeguarded quadratic interpolation (see
 !  [[next_step_length]]) rather than a fixed factor; and `nonmonotone_len`
 !  (off by default) retries a failed search non-monotonically, against the
-!  worst of the recent iterates. On the Hock-Schittkowski test set the
+!  worst of the recent iterates (not used by the funnel search). On the Hock-Schittkowski test set the
 !  interpolation solves one more problem with the filter search, with
 !  fewer function evaluations (and a third fewer with the \( \ell_1 \)
 !  merit function); the non-monotone retry doesn't help the filter search,
@@ -107,6 +118,8 @@
     integer, parameter, public :: sqpopt_linesearch_watchdog = 3  !! Powell's watchdog technique (relaxed acceptance + backtracking, see module docs)
     integer, parameter, public :: sqpopt_linesearch_filter   = 4  !! (default) Fletcher & Leyffer's filter method (no merit
                                                                   !! function/penalty parameter, see module docs)
+    integer, parameter, public :: sqpopt_linesearch_funnel   = 5  !! the funnel method of Kiessling, Leyffer & Vanaret (no
+                                                                  !! merit function/penalty parameter, see module docs)
 
     integer, parameter, public :: sqpopt_merit_l1                   = 1  !! non-smooth \( \ell_1 \) exact penalty merit function (default)
     integer, parameter, public :: sqpopt_merit_augmented_lagrangian = 2  !! smooth augmented Lagrangian merit function (NPSOL/SNOPT-style)
@@ -199,6 +212,27 @@
         real(wp) :: filter_theta_min_fact = 1.0e-4_wp !! \( \theta_{min} = \) this \( \times \max(1,\theta_0) \): below it, f-type steps are allowed
         real(wp) :: filter_gamma_alpha    = 0.05_wp   !! safety factor \( \gamma_\alpha \) in the minimum step length before restoration
 
+        ! funnel parameters (`sqpopt_linesearch_funnel` mode, and trust region with the funnel), with the
+        ! default values of the Uno solver (see [[funnel_line_search]]):
+        real(wp) :: funnel_width_min  = 1.0_wp    !! initial funnel width \( \tau_0 = \max( \) this, `funnel_width_fact`
+                                                  !! \( \times\,\theta_0) \)
+        real(wp) :: funnel_width_fact = 1.5_wp    !! see `funnel_width_min`
+        real(wp) :: funnel_beta       = 0.9999_wp !! an h-type step must reach \( \theta \le \beta\tau \) (\( 0<\beta<1 \))
+        real(wp) :: funnel_kappa      = 0.5_wp    !! after an h-type step, the new width is (at least) the convex
+                                                  !! combination \( \kappa\theta_k + (1-\kappa)\theta_t \) (see `funnel_update`)
+        integer  :: funnel_update     = 1         !! funnel width update after an h-type step: `1` =
+                                                  !! \( \max(\beta\tau, \kappa\theta_k+(1-\kappa)\theta_t) \) if the
+                                                  !! violation decreased, else \( \beta\tau \); `2` = \( \kappa\tau +
+                                                  !! (1-\kappa)\theta_t \)
+        real(wp) :: funnel_delta      = 0.999_wp  !! switching condition constant \( \delta \): an f-type step needs
+                                                  !! \( \alpha(-g^Tp) > \delta\theta_k^{s_\theta} \)
+        real(wp) :: funnel_s_theta    = 2.0_wp    !! switching condition exponent \( s_\theta \)
+        real(wp) :: funnel_eta        = 1.0e-4_wp !! Armijo constant \( \eta \) for f-type steps
+        logical  :: funnel_require_current = .false. !! also require every trial point to be acceptable with respect to
+                                                     !! the current point: \( \theta_t < \beta\theta_k \) or
+                                                     !! \( \varphi_t \le \varphi_k - \gamma\theta_t \)
+        real(wp) :: funnel_gamma      = 1.0e-3_wp !! \( \gamma \) in `funnel_require_current`
+
         ! internal state for `sqpopt_penalty_model` with `sqpopt_merit_augmented_lagrangian` (not user
         ! options): the joint step in the multipliers, and the floor limiting how often the penalty decreases
         logical  :: joint_active  = .false.  !! whether the merit's multipliers move along the step (see
@@ -220,6 +254,10 @@
         real(wp), dimension(:), allocatable :: filter_theta !! constraint-violation value of each filter entry
         real(wp), dimension(:), allocatable :: filter_phi   !! objective value of each filter entry
 
+        ! internal state for the funnel (not user options -- persists across major iterations):
+        logical  :: funnel_ready = .false.  !! whether the funnel width below has been initialized
+        real(wp) :: funnel_width = 0.0_wp   !! the funnel width \( \tau \)
+
         ! internal state for `sqpopt_linesearch_watchdog` mode (not user options -- persists across major iterations):
         logical  :: watchdog_ready               = .false. !! whether the best-point tracking below has been initialized
         integer  :: watchdog_relaxed_remaining   = 0        !! iterations left in the current relaxed window
@@ -236,6 +274,10 @@
         procedure, public :: filter_prepare          => filter_prepare_state
         procedure, public :: filter_accept           => filter_step_acceptable
         procedure, public :: filter_record           => filter_augment
+        procedure, public :: funnel_prepare          => funnel_prepare_state
+        procedure, public :: funnel_accept           => funnel_step_acceptable
+        procedure, public :: funnel_record           => funnel_shrink
+        procedure, public :: funnel_restoration      => funnel_shrink_restoration
 
     end type sqpopt_linesearch_type
 
@@ -551,6 +593,8 @@
         call watchdog_line_search(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, alpha, x_new, istat, soc)
     case (sqpopt_linesearch_filter)
         call filter_line_search(me, eval_f, eval_c, x, p, f, g, c, c_lb, c_ub, alpha, x_new, istat, soc)
+    case (sqpopt_linesearch_funnel)
+        call funnel_line_search(me, eval_f, eval_c, x, p, f, g, c, c_lb, c_ub, alpha, x_new, istat, soc)
     case default
         call armijo_line_search(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, alpha, x_new, istat, soc)
     end select
@@ -1392,6 +1436,239 @@
     alpha_min = me%filter_gamma_alpha*alpha_min
 
     end function filter_min_step
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the funnel line search (see the module-level documentation), with the
+!  rules of Kiessling, Leyffer & Vanaret, as implemented in the Uno solver.
+!  With \( \theta \) the \( \ell_1 \) constraint violation, \( \varphi=f \),
+!  and \( \tau \) the funnel width, a trial point \( x+\alpha p \) is
+!  accepted if it is inside the funnel, \( \theta_t \le \tau \), and either
+!
+!  * (f-type step) the *switching condition*
+!    \( \alpha(-g^Tp) > \delta\theta_k^{s_\theta} \) holds, and the Armijo
+!    condition \( \varphi(x+\alpha p) \le \varphi_k + \eta\alpha g^Tp \)
+!    holds; or
+!  * (h-type step) otherwise, the violation is sufficiently inside the
+!    funnel: \( \theta_t \le \beta\tau \). The funnel then shrinks (see
+!    [[funnel_shrink]]).
+!
+!  (With `funnel_require_current`, the trial point must also be acceptable
+!  with respect to the current point, see [[funnel_step_acceptable]].)
+!  `alpha` is backtracked until acceptance, or until it falls below
+!  `alpha_min`, in which case the search fails
+!  (`istat=sqpopt_line_search_failed`, `x_new=x`); [[sqpopt_iterate_module]]
+!  then shrinks the funnel toward the current violation (so the iterations
+!  can't cycle back to it, see [[funnel_shrink_restoration]]) and takes a
+!  feasibility restoration step. If the first trial is rejected without
+!  reducing \( \theta \), its second-order correction is also tried (if
+!  `soc` is present), with the same acceptance test. The non-monotone retry
+!  (`nonmonotone_len`) is not used.
+
+    subroutine funnel_line_search(me, eval_f, eval_c, x, p, f, g, c, c_lb, c_ub, alpha, x_new, istat, soc)
+
+    class(sqpopt_linesearch_type), intent(inout) :: me
+    procedure(sqpopt_ls_objective_func)  :: eval_f
+    procedure(sqpopt_ls_constraint_func) :: eval_c
+    real(wp), dimension(:), intent(in)  :: x      !! current point `dimension(n)`
+    real(wp), dimension(:), intent(in)  :: p      !! search direction `dimension(n)`
+    real(wp),               intent(in)  :: f      !! objective function value at `x`
+    real(wp), dimension(:), intent(in)  :: g      !! objective gradient at `x` `dimension(n)`
+    real(wp), dimension(:), intent(in)  :: c      !! constraint values at `x` `dimension(m)`
+    real(wp), dimension(:), intent(in)  :: c_lb   !! constraint lower bounds `dimension(m)`
+    real(wp), dimension(:), intent(in)  :: c_ub   !! constraint upper bounds `dimension(m)`
+    real(wp),               intent(out) :: alpha  !! accepted step length (`0` if no step was taken)
+    real(wp), dimension(:), intent(out) :: x_new  !! the accepted new point `dimension(n)`
+    integer,                intent(out) :: istat  !! status code (see [[sqpopt_types_module]])
+    procedure(sqpopt_soc_func), optional :: soc   !! computes a second-order-corrected step
+
+    real(wp), dimension(size(x)) :: x_trial, p_soc
+    real(wp), dimension(size(c)) :: c_trial
+    real(wp) :: f_trial, theta0, theta_t, gtp
+    logical :: ok, soc_ok, f_type
+    integer :: it
+
+    theta0 = l1_violation(c, c_lb, c_ub)
+    call me%funnel_prepare(theta0)
+    gtp = dot_product(g, p)
+
+    alpha = initial_step_length(x, p, me%major_step_limit)
+    do it = 1, me%max_ls_iter
+
+        x_trial = x + alpha*p
+        call eval_fc(eval_f, eval_c, x_trial, f_trial, c_trial, ok)
+        if (ok) then
+            theta_t = l1_violation(c_trial, c_lb, c_ub)
+            if (me%funnel_accept(theta0, f, -alpha*gtp, theta_t, f_trial, f_type)) then
+                call accept()
+                return
+            end if
+        end if
+
+        if (it == 1 .and. ok .and. present(soc)) then
+            if (theta_t >= theta0) then
+                ! the full step didn't reduce the constraint violation: try
+                ! the second-order-corrected step before backtracking:
+                call soc(alpha*p, c_trial, p_soc, soc_ok)
+                if (soc_ok) then
+                    x_trial = x + p_soc
+                    call eval_fc(eval_f, eval_c, x_trial, f_trial, c_trial, ok)
+                    if (ok) then
+                        theta_t = l1_violation(c_trial, c_lb, c_ub)
+                        if (me%funnel_accept(theta0, f, -alpha*gtp, theta_t, f_trial, f_type)) then
+                            call accept()
+                            return
+                        end if
+                    end if
+                end if
+            end if
+        end if
+
+        if (ok .and. me%interpolate) then
+            ! interpolate the violation if the trial made it worse, else the
+            ! objective (as in [[filter_line_search]])
+            if (theta_t > theta0 .and. theta0 > 0.0_wp) then
+                alpha = next_step_length(me, alpha, theta0, -theta0, theta_t)
+            else
+                alpha = next_step_length(me, alpha, f, min(gtp, 0.0_wp), f_trial)
+            end if
+        else
+            alpha = me%backtrack*alpha
+        end if
+        if (alpha < me%alpha_min) exit
+
+    end do
+
+    ! no acceptable point was found: no step is taken
+    alpha = 0.0_wp
+    x_new = x
+    istat = sqpopt_line_search_failed
+
+    contains
+
+        subroutine accept()
+        !! accept `x_trial`, shrinking the funnel after an h-type step
+        if (.not. f_type) call me%funnel_record(theta0, theta_t)
+        x_new = x_trial
+        istat = sqpopt_success
+        end subroutine accept
+
+    end subroutine funnel_line_search
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  initialize the funnel width from the constraint violation `theta0` at
+!  the starting point, the first time it is used:
+!  \( \tau_0 = \max(\) `funnel_width_min`, `funnel_width_fact`
+!  \( \times\,\theta_0) \). After that, it only makes sure the current
+!  point is inside the funnel, \( \tau \ge \theta_k \) (a restoration or
+!  escape step reduces a different measure of the violation, so it can
+!  occasionally end slightly outside). Shared by [[funnel_line_search]] and
+!  the trust region's funnel acceptance.
+
+    subroutine funnel_prepare_state(me, theta_k)
+
+    class(sqpopt_linesearch_type), intent(inout) :: me
+    real(wp),                      intent(in)    :: theta_k !! constraint violation at the current point
+
+    if (.not. me%funnel_ready) then
+        me%funnel_width = max(me%funnel_width_min, me%funnel_width_fact*theta_k)
+        me%funnel_ready = .true.
+    end if
+    me%funnel_width = max(me%funnel_width, theta_k)
+
+    end subroutine funnel_prepare_state
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  whether a trial point with violation `theta_t` and objective `phi_t` is
+!  acceptable to the funnel, from the current point (`theta_k`, `phi_k`)
+!  (see [[funnel_line_search]] for the rules). `pred` is the predicted
+!  decrease in the objective (\( -\alpha g^Tp \) for the line search; the
+!  trust region passes the quadratic model's decrease `q`). `f_type` is set
+!  if the switching condition held (so the step was judged on the objective
+!  alone, and must not shrink the funnel). Doesn't change the funnel: the
+!  caller shrinks it after accepting an h-type step (see [[funnel_shrink]]).
+
+    function funnel_step_acceptable(me, theta_k, phi_k, pred, theta_t, phi_t, f_type) result(ok)
+
+    class(sqpopt_linesearch_type), intent(in) :: me
+    real(wp), intent(in)  :: theta_k, phi_k   !! violation and objective at the current point
+    real(wp), intent(in)  :: pred             !! predicted decrease in the objective
+    real(wp), intent(in)  :: theta_t, phi_t   !! violation and objective at the trial point
+    logical,  intent(out) :: f_type           !! true if the switching condition held
+    logical :: ok
+
+    f_type = .false.
+
+    ! inside the funnel:
+    ok = theta_t <= me%funnel_width
+    if (.not. ok) return
+
+    ! (optionally) acceptable with respect to the current point:
+    if (me%funnel_require_current) then
+        ok = theta_t < me%funnel_beta*theta_k .or. phi_t <= phi_k - me%funnel_gamma*theta_t
+        if (.not. ok) return
+    end if
+
+    ! switching condition, pred > delta*theta_k^s_theta (compared in log
+    ! space, so the power can't underflow or overflow):
+    f_type = pred > 0.0_wp
+    if (f_type .and. theta_k > 0.0_wp) &
+        f_type = log(pred) > log(me%funnel_delta) + me%funnel_s_theta*log(theta_k)
+
+    if (f_type) then
+        ! Armijo condition on the objective (with a roundoff-level slack):
+        ok = phi_t <= phi_k - me%funnel_eta*pred + merit_slack(phi_k)
+    else
+        ! h-type: sufficiently inside the funnel:
+        ok = theta_t <= me%funnel_beta*me%funnel_width
+    end if
+
+    end function funnel_step_acceptable
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  shrink the funnel after an accepted h-type step from violation `theta_k`
+!  to `theta_t` (see `funnel_update` for the two rules).
+
+    subroutine funnel_shrink(me, theta_k, theta_t)
+
+    class(sqpopt_linesearch_type), intent(inout) :: me
+    real(wp),                      intent(in)    :: theta_k !! violation at the current point
+    real(wp),                      intent(in)    :: theta_t !! violation at the accepted point
+
+    if (me%funnel_update == 2) then
+        me%funnel_width = me%funnel_kappa*me%funnel_width + (1.0_wp - me%funnel_kappa)*theta_t
+    else if (theta_t <= theta_k) then
+        me%funnel_width = max(me%funnel_beta*me%funnel_width, &
+                              me%funnel_kappa*theta_k + (1.0_wp - me%funnel_kappa)*theta_t)
+    else
+        me%funnel_width = me%funnel_beta*me%funnel_width
+    end if
+
+    end subroutine funnel_shrink
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  shrink the funnel toward the current violation `theta_k` before a
+!  feasibility restoration step, so the iterations can't cycle back to the
+!  current point: \( \tau = \kappa\tau + (1-\kappa)\theta_k \).
+
+    subroutine funnel_shrink_restoration(me, theta_k)
+
+    class(sqpopt_linesearch_type), intent(inout) :: me
+    real(wp),                      intent(in)    :: theta_k !! violation at the current point
+
+    if (.not. me%funnel_ready) call me%funnel_prepare(theta_k)
+    me%funnel_width = me%funnel_kappa*me%funnel_width + (1.0_wp - me%funnel_kappa)*theta_k
+
+    end subroutine funnel_shrink_restoration
 !*******************************************************************************
 
     end module sqpopt_linesearch_module

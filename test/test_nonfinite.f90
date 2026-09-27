@@ -28,7 +28,8 @@ program test_nonfinite
     use sqpopt_problem_module,      only: sqpopt_problem_type
     use sqpopt_options_module,      only: sqpopt_options_type
     use sqpopt_linesearch_module,   only: sqpopt_linesearch_type, sqpopt_linesearch_armijo, sqpopt_linesearch_exact, &
-                                          sqpopt_linesearch_watchdog, sqpopt_linesearch_filter
+                                          sqpopt_linesearch_watchdog, sqpopt_linesearch_filter, &
+                                          sqpopt_linesearch_funnel
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
     use sqpopt_qp_solver_module,    only: sqpopt_qp_solver_type
     use sqpopt_types_module,        only: sqpopt_success, sqpopt_function_error
@@ -36,8 +37,9 @@ program test_nonfinite
 
     implicit none
 
-    integer,  parameter :: ls_modes(4) = [sqpopt_linesearch_armijo, sqpopt_linesearch_exact, &
-                                          sqpopt_linesearch_watchdog, sqpopt_linesearch_filter]
+    integer,  parameter :: ls_modes(5) = [sqpopt_linesearch_armijo, sqpopt_linesearch_exact, &
+                                          sqpopt_linesearch_watchdog, sqpopt_linesearch_filter, &
+                                          sqpopt_linesearch_funnel]
     real(wp), parameter :: xexpect(2) = [2.5_wp, 0.5_wp]
 
     type(sqpopt_type)              :: solver

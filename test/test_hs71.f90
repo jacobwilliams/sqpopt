@@ -43,6 +43,7 @@ program test_hs71
     use sqpopt_options_module, only: sqpopt_options_type
     use sqpopt_linesearch_module, only: sqpopt_merit_l1, sqpopt_merit_augmented_lagrangian, &
                                         sqpopt_linesearch_armijo, sqpopt_linesearch_watchdog, sqpopt_linesearch_filter, &
+                                        sqpopt_linesearch_funnel, &
                                         sqpopt_penalty_multipliers, sqpopt_penalty_model, sqpopt_linesearch_type
     use sqpopt_qp_solver_module, only: sqpopt_qp_auto, sqpopt_qp_dense, sqpopt_qp_reduced_hessian, sqpopt_qp_solver_type
     use sqpopt_types_module,   only: sqpopt_success, sqpopt_results_type
@@ -82,6 +83,8 @@ program test_hs71
     ! sqpopt_success tightly, confirming the filter line search is a viable
     ! drop-in alternative globalization strategy alongside the merit-based ones:
     call run_hs71('filter + dense QP',      sqpopt_merit_l1,                   sqpopt_linesearch_filter,  sqpopt_qp_dense)
+    ! the funnel method (Kiessling, Leyffer & Vanaret; also no merit function):
+    call run_hs71('funnel',                 sqpopt_merit_l1,                   sqpopt_linesearch_funnel,  sqpopt_qp_auto)
 
     contains
 

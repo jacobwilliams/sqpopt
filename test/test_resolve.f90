@@ -14,14 +14,16 @@ program test_resolve
     use sqpopt_problem_module,      only: sqpopt_problem_type
     use sqpopt_options_module,      only: sqpopt_options_type
     use sqpopt_linesearch_module,   only: sqpopt_linesearch_armijo, sqpopt_linesearch_exact, &
-                                          sqpopt_linesearch_watchdog, sqpopt_linesearch_filter
+                                          sqpopt_linesearch_watchdog, sqpopt_linesearch_filter, &
+                                          sqpopt_linesearch_funnel
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
     use sqpopt_kinds,               only: wp => sqpopt_module_wp
 
     implicit none
 
-    integer, parameter :: ls_modes(4) = [sqpopt_linesearch_armijo, sqpopt_linesearch_exact, &
-                                         sqpopt_linesearch_watchdog, sqpopt_linesearch_filter]
+    integer, parameter :: ls_modes(5) = [sqpopt_linesearch_armijo, sqpopt_linesearch_exact, &
+                                         sqpopt_linesearch_watchdog, sqpopt_linesearch_filter, &
+                                         sqpopt_linesearch_funnel]
 
     type(sqpopt_type)              :: solver
     type(sqpopt_problem_type)      :: problem
