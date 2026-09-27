@@ -192,7 +192,8 @@
     call check_convergence(x, g, jac, c, problem%x_lb, problem%x_ub, problem%c_lb, problem%c_ub, &
                             lambda, options%ktol, options%ctol, done, istat, &
                             f=f, f_prev=f_prev, x_prev=x_prev, ftol=options%ftol, xtol=options%xtol, &
-                            kkt_error=info%kkt, feas_error=info%feas, viol_prev=viol_prev)
+                            kkt_error=info%kkt, feas_error=info%feas, viol_prev=viol_prev, &
+                            dual_inf_tol=options%dual_inf_tol, f_scale=problem%f_scale)
     ! the stalled-progress test must hold for `stall_iter` consecutive
     ! iterations: a single negligible step (e.g. a short line-search step on a
     ! badly scaled problem) is not a stall, and stopping on it made results

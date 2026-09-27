@@ -277,6 +277,11 @@ TOPICS: tuple[Topic, ...] = (
                       'plus the sign and complementarity of the constraint multipliers (scaled up only when the '
                       'average multiplier magnitude exceeds 100, as in IPOPT).'),
             _positive('options%ctol', 1e-8, 'Feasibility tolerance on the constraint violation.'),
+            _positive('options%dual_inf_tol', 1.0,
+                      'Tolerance on the stationarity residual of the unscaled problem (as in IPOPT). With automatic '
+                      'scaling, ktol applies to the scaled problem, so an objective scaled far down (e.g. at a poor '
+                      'starting point) would make ktol very loose in the original units; convergence also requires '
+                      'this.'),
             _positive('options%acceptable_ktol', 1e-4,
                       'Looser "acceptable" KKT tolerance (as in IPOPT): if the KKT test with the acceptable '
                       'tolerances holds for acceptable_iter consecutive iterations, the solver stops with '

@@ -74,6 +74,11 @@
         real(wp) :: ctol  = 1.0e-8_wp   !! feasibility tolerance on the constraint violation
         real(wp) :: ktol  = 1.0e-6_wp   !! tolerance on the KKT optimality conditions
 
+        real(wp) :: dual_inf_tol = 1.0_wp  !! tolerance on the stationarity residual of the *unscaled* problem
+                                           !! (as IPOPT's `dual_inf_tol`): with automatic scaling, `ktol` applies
+                                           !! to the scaled problem, and an objective scaled far down (e.g. at a
+                                           !! poor starting point) would make it very loose in the original
+                                           !! units; convergence also requires this
         real(wp) :: acceptable_ktol = 1.0e-4_wp !! looser "acceptable" KKT tolerance (as in IPOPT): if the KKT test
                                                 !! with `acceptable_ktol`/`acceptable_ctol` holds for `acceptable_iter`
                                                 !! consecutive iterations (but the normal one doesn't), stop with

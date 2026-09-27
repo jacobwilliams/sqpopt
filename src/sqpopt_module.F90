@@ -444,6 +444,10 @@
         msg = 'options%ktol and options%ctol must be > 0'
         return
     end if
+    if (.not. (o%dual_inf_tol > 0.0_wp)) then
+        msg = 'options%dual_inf_tol must be > 0'
+        return
+    end if
     if (.not. (o%ftol >= 0.0_wp .and. o%xtol >= 0.0_wp)) then
         msg = 'options%ftol and options%xtol must be >= 0'
         return

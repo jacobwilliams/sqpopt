@@ -66,7 +66,8 @@
 !  `converged` is true in all three cases (i.e. it means "stop here").
 
     subroutine check_convergence(x, g, jac, c, x_lb, x_ub, c_lb, c_ub, lambda, ktol, ctol, converged, istat, &
-                                  f, f_prev, x_prev, ftol, xtol, kkt_error, feas_error, viol_prev)
+                                  f, f_prev, x_prev, ftol, xtol, kkt_error, feas_error, viol_prev, &
+                                  dual_inf_tol, f_scale)
 
     real(wp), dimension(:),     intent(in)  :: x         !! current point `dimension(n)`
     real(wp), dimension(:),     intent(in)  :: g         !! objective gradient at `x` `dimension(n)`
@@ -95,6 +96,13 @@
     real(wp),                     optional, intent(in)  :: viol_prev  !! the largest constraint violation at `x_prev`
                                                                       !! (enables the no-progress condition of the
                                                                       !! infeasibility test)
+    real(wp),                     optional, intent(in)  :: dual_inf_tol !! if present (with `f_scale`), the KKT test
+                                                                        !! also requires the stationarity residual of
+                                                                        !! the *unscaled* problem to be at most this
+                                                                        !! (as IPOPT's `dual_inf_tol`)
+    real(wp),                     optional, intent(in)  :: f_scale      !! the objective's scale factor: the unscaled
+                                                                        !! stationarity residual is the scaled one
+                                                                        !! divided by it
 
     real(wp), parameter :: s_max = 100.0_wp !! multiplier-scaling threshold (see above)
 
@@ -135,7 +143,7 @@
     if (present(feas_error)) feas_error = max(c_viol, x_viol)
 
     if (kkt_res <= ktol*lam_scale .and. dual_res <= ktol*lam_scale .and. &
-        c_viol <= ctol .and. x_viol <= ctol) then
+        c_viol <= ctol .and. x_viol <= ctol .and. unscaled_ok()) then
         converged = .true.
         return
     end if
@@ -171,6 +179,18 @@
             istat     = sqpopt_infeasible
         end if
     end if
+
+    contains
+
+        logical function unscaled_ok()
+        !! the unscaled stationarity test (see `dual_inf_tol`): with the
+        !! objective scaled by `f_scale` and each constraint by its own
+        !! factor, the multipliers scale by their ratio, so the gradient of
+        !! the unscaled Lagrangian is the scaled one divided by `f_scale`
+        unscaled_ok = .true.
+        if (present(dual_inf_tol) .and. present(f_scale)) &
+            unscaled_ok = kkt_res <= dual_inf_tol*f_scale
+        end function unscaled_ok
 
     end subroutine check_convergence
 !*******************************************************************************

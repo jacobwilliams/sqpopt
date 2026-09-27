@@ -141,6 +141,14 @@ toward the phase's limit and end the phase after a failure (or after a
 second one), so the next iteration re-solves the optimality QP.
 
 **R3. The scale factors have no floor** (low).
+*(Partly addressed 2026-09-27: `options%dual_inf_tol` (1, as IPOPT's)
+also requires the unscaled stationarity residual to be small. TP391
+(f(x₀) ≈ 7e13, objective scale 2.9e-8) had stopped at a scaled KKT error of
+2.4e-7, about 8 unscaled, with f = 1.5e-4 against f* = 0. It's now solved
+(42 `fc`), and every configuration of the HS Performance table solves
+1–2 more problems (TP391; TP305 with the exact Hessian and the trust
+region). A floor on the scale factors wouldn't have helped: 2.9e-8 is
+above IPOPT's 1e-8.)*
 [`compute_scaling`](../src/sqpopt_problem_module.f90#L469) divides by the
 largest gradient at `x₀` without a lower bound, so a huge gradient at a poor
 starting point (e.g. `1e12`) gives a scale of `1e-10`, and the tolerances,
