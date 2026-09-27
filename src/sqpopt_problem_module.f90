@@ -76,9 +76,8 @@
         !! function, constraints, and their derivatives.
 
         integer :: n      = 0  !! number of optimization variables (\( n>0 \))
-        integer :: m      = 0  !! total number of nonlinear constraints \( c(x) \) (\( m \ge 0 \))
-        integer :: m_eq   = 0  !! number of nonlinear equality constraints (\( c_l = c_u \))
-        integer :: m_ineq = 0  !! number of nonlinear inequality constraints (\( c_l \ne c_u \))
+        integer :: m      = 0  !! number of constraints \( c(x) \) (\( m \ge 0 \)): equalities (where
+                               !! \( c_l = c_u \)) and inequalities, in any order
 
         real(wp), dimension(:), allocatable :: x_lb  !! lower bounds on the optimization variables `dimension(n)`
         real(wp), dimension(:), allocatable :: x_ub  !! upper bounds on the optimization variables `dimension(n)`
@@ -184,19 +183,19 @@
 
 !*******************************************************************************
 !>
-!  set the problem dimensions and allocate the variable/constraint bound arrays.
+!  set the problem dimensions and allocate the variable/constraint bound
+!  arrays: `n` variables and `m` constraints. Which constraints are
+!  equalities is given by their bounds (`c_lb(i) == c_ub(i)`, see
+!  [[set_bounds]]), so equalities and inequalities may come in any order.
 
-    subroutine set_problem_size(me, n, m_eq, m_ineq)
+    subroutine set_problem_size(me, n, m)
 
     class(sqpopt_problem_type), intent(inout) :: me
-    integer, intent(in) :: n       !! number of optimization variables
-    integer, intent(in) :: m_eq    !! number of nonlinear equality constraints
-    integer, intent(in) :: m_ineq  !! number of nonlinear inequality constraints
+    integer, intent(in) :: n  !! number of optimization variables
+    integer, intent(in) :: m  !! number of constraints (equality and inequality)
 
-    me%n      = n
-    me%m_eq   = m_eq
-    me%m_ineq = m_ineq
-    me%m      = m_eq + m_ineq
+    me%n = n
+    me%m = m
 
     if (allocated(me%x_lb)) deallocate(me%x_lb)
     if (allocated(me%x_ub)) deallocate(me%x_ub)
@@ -251,7 +250,7 @@
     if (me%n <= 0) then
         msg = 'the number of variables n must be > 0 (call set_problem_size)'; return
     end if
-    if (me%m < 0 .or. me%m_eq < 0 .or. me%m_ineq < 0) then
+    if (me%m < 0) then
         msg = 'the number of constraints must be >= 0'; return
     end if
     if (.not. (allocated(me%x_lb) .and. allocated(me%x_ub) .and. allocated(me%c_lb) .and. allocated(me%c_ub))) then

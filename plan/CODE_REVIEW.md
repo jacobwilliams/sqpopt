@@ -44,7 +44,10 @@ The details, and smaller items, follow.
 
 ## 1. Bugs and correctness
 
-**B1. A NaN in `x0` is silently accepted** (high; easy fix).
+**B1. A NaN in `x0` is silently accepted** (high; easy fix). *(Done
+2026-09-27: a non-finite `x0` or `lambda0` is now rejected with
+`sqpopt_invalid_input`, "x0 must be finite" / "lambda0 must be finite";
+tests in `test_input_validation`.)*
 [sqpopt_module.F90:197](../src/sqpopt_module.F90#L197) projects the
 starting point onto the bounds with `min(max(x0, x_lb), x_ub)`. With
 gfortran, `max(NaN, x_lb)` returns `x_lb`, so a NaN component silently
@@ -55,6 +58,9 @@ gave. (Probe: `x0 = [NaN]` with bounds `[-10, 10]` "converged" from
 `lambda0` with `sqpopt_invalid_input` ("x0 must be finite").
 
 **B2. `m_eq`/`m_ineq` are never checked against the bounds** (low).
+*(Done 2026-09-27: `set_problem_size(n, m)` now takes the total number of
+constraints; the `m_eq`/`m_ineq` components are gone, and every caller,
+the README, and the guide are updated. This is an API change.)*
 [`set_problem_size`](../src/sqpopt_problem_module.f90#L189) takes the
 numbers of equality and inequality constraints, but only their sum is used:
 whether a row is an equality is decided by `c_lb == c_ub`. A caller who

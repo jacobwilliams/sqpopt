@@ -43,7 +43,7 @@ type(sqpopt_options_type) :: options
 real(wp) :: x(n), lambda(m)
 integer  :: istat
 
-call problem%set_problem_size(n, m_eq, m_ineq)
+call problem%set_problem_size(n, m)          ! n variables, m constraints
 call problem%set_bounds(x_lb, x_ub, c_lb, c_ub)
 call problem%set_jacobian_sparsity(nnz, irow, icol)  ! fixed sparsity pattern
 call problem%set_functions(fc=fc, gjac=gjac)         ! optionally also data=...

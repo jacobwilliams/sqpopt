@@ -319,7 +319,7 @@ program test_hs_suite
         end do
     end do
 
-    call problem%set_problem_size(n=p%n, m_eq=p%me, m_ineq=p%m-p%me)
+    call problem%set_problem_size(n=p%n, m=p%m)
     call problem%set_bounds(real(p%x_lb, wp), real(p%x_ub, wp), real(p%c_lb, wp), real(p%c_ub, wp))
     call problem%set_jacobian_sparsity(nnz, irow, icol)
     call problem%set_functions(fc=fc_obj_cons, gjac=gjac_grad_jacv, hess=hess_fd, data=ctx)

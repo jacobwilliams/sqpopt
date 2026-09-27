@@ -44,7 +44,7 @@ program test_callbacks
     write(*,*) 'test_callbacks'
     write(*,*) '----------------------------'
 
-    call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
+    call problem%set_problem_size(n=2, m=1)
     call problem%set_bounds(x_lb=[-10.0_wp,-10.0_wp], x_ub=[10.0_wp,10.0_wp], c_lb=[-1.0e20_wp], c_ub=[3.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
     call problem%set_functions(fc=fc_obj_cons, gjac=gjac_grad_jacv, data=data)

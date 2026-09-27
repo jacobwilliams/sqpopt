@@ -58,7 +58,7 @@ program test_results
     real(wp), parameter :: tol = 1.0e-6_wp
 
     s = s_in
-    call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
+    call problem%set_problem_size(n=2, m=1)
     call problem%set_bounds(x_lb=[-10.0_wp,-10.0_wp], x_ub=[0.5_wp,10.0_wp], c_lb=[-1.0e20_wp], c_ub=[3.0_wp*s])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
     call problem%set_functions(fc=fc_obj_cons, gjac=gjac_grad_jacv)

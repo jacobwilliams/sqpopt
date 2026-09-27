@@ -37,7 +37,7 @@ program test_resolve
     write(*,*) 'test_resolve'
     write(*,*) '----------------------------'
 
-    call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
+    call problem%set_problem_size(n=2, m=1)
     call problem%set_bounds(x_lb=[-5.0_wp,-5.0_wp], x_ub=[5.0_wp,5.0_wp], c_lb=[-1.0e20_wp], c_ub=[1.5_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
     call problem%set_functions(fc=fc_obj_cons, gjac=gjac_grad_jacv)

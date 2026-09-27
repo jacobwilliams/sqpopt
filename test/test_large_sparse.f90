@@ -149,7 +149,7 @@ program test_large_sparse
         icol(4+3*k) = nsteps+2+k   ! u_k
     end do
 
-    call problem%set_problem_size(n=n, m_eq=m, m_ineq=0)
+    call problem%set_problem_size(n=n, m=m)
     call problem%set_bounds(x_lb, x_ub, spread(0.0_wp,1,m), spread(0.0_wp,1,m))
     problem%c_lb(1) = 1.0_wp; problem%c_ub(1) = 1.0_wp
     call problem%set_jacobian_sparsity(nnz, irow, icol)
@@ -243,7 +243,7 @@ program test_large_sparse
         icol(2*i-1) = 2*i-1
         icol(2*i)   = 2*i
     end do
-    call problem%set_problem_size(n=n, m_eq=0, m_ineq=m)
+    call problem%set_problem_size(n=n, m=m)
     call problem%set_bounds(spread(-2.0_wp,1,n), spread(2.0_wp,1,n), spread(-1.0e20_wp,1,m), spread(1.5_wp,1,m))
     call problem%set_jacobian_sparsity(2*m, irow, icol)
     call problem%set_functions(fc=fc_rosen, gjac=gjac_rosen, hess=hess_rosen)

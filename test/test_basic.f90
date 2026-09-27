@@ -47,7 +47,7 @@ program test_basic
     real(wp), parameter :: xexpect(2) = [1.5_wp, 2.5_wp]
     integer :: istat
 
-    call problem%set_problem_size(n=2, m_eq=1, m_ineq=0)
+    call problem%set_problem_size(n=2, m=1)
     call problem%set_bounds(x_lb=[-big,-big], x_ub=[big,big], c_lb=[4.0_wp], c_ub=[4.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
     call problem%set_functions(fc=fc_obj1_cons1, gjac=gjac_grad1_jacv1)
@@ -132,7 +132,7 @@ program test_basic
     real(wp), parameter :: xexpect(2) = [1.0_wp, 2.0_wp]
     integer :: istat
 
-    call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
+    call problem%set_problem_size(n=2, m=1)
     call problem%set_bounds(x_lb=[0.0_wp,0.0_wp], x_ub=[big,big], c_lb=[-big], c_ub=[3.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
     call problem%set_functions(fc=fc_obj1_cons1, gjac=gjac_grad1_jacv1)
@@ -165,7 +165,7 @@ program test_basic
     integer :: istat
     integer, dimension(0) :: no_rows
 
-    call problem%set_problem_size(n=2, m_eq=0, m_ineq=0)
+    call problem%set_problem_size(n=2, m=0)
     call problem%set_bounds(x_lb=[-big,-big], x_ub=[1.0_wp,big], c_lb=[real(wp) ::], c_ub=[real(wp) ::])
     call problem%set_jacobian_sparsity(nnz=0, irow=no_rows, icol=no_rows)
     call problem%set_functions(fc=fc_obj1_cons0, gjac=gjac_grad1_jacv0)
@@ -197,7 +197,7 @@ program test_basic
     real(wp), parameter :: xexpect(2) = [1.5_wp, 2.5_wp]
     integer :: istat
 
-    call problem%set_problem_size(n=2, m_eq=1, m_ineq=0)
+    call problem%set_problem_size(n=2, m=1)
     call problem%set_bounds(x_lb=[-big,-big], x_ub=[big,big], c_lb=[4.0_wp], c_ub=[4.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
     call problem%set_functions(fc=fc_obj1_cons1, gjac=gjac_grad1_jacv1)
@@ -230,7 +230,7 @@ program test_basic
     real(wp), parameter :: xexpect(2) = [1.0_wp, 2.0_wp]
     integer :: istat
 
-    call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
+    call problem%set_problem_size(n=2, m=1)
     call problem%set_bounds(x_lb=[0.0_wp,0.0_wp], x_ub=[big,big], c_lb=[-big], c_ub=[3.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
     call problem%set_functions(fc=fc_obj1_cons1, gjac=gjac_grad1_jacv1)
@@ -263,7 +263,7 @@ program test_basic
     real(wp), parameter :: xexpect(2) = [1.0_wp, 2.0_wp]
     integer :: istat
 
-    call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
+    call problem%set_problem_size(n=2, m=1)
     call problem%set_bounds(x_lb=[0.0_wp,0.0_wp], x_ub=[big,big], c_lb=[-big], c_ub=[3.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
     call problem%set_functions(fc=fc_obj1_cons1, gjac=gjac_grad1_jacv1)
@@ -296,7 +296,7 @@ program test_basic
     real(wp), parameter :: xexpect(2) = [1.0_wp, 2.0_wp]
     integer :: istat
 
-    call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
+    call problem%set_problem_size(n=2, m=1)
     call problem%set_bounds(x_lb=[0.0_wp,0.0_wp], x_ub=[big,big], c_lb=[-big], c_ub=[3.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
     call problem%set_functions(fc=fc_obj1_cons1, gjac=gjac_grad1_jacv1)
@@ -333,7 +333,7 @@ program test_basic
     real(wp), parameter :: xexpect(2) = [1.5_wp, 2.5_wp]
     integer :: istat
 
-    call problem%set_problem_size(n=2, m_eq=1, m_ineq=0)
+    call problem%set_problem_size(n=2, m=1)
     call problem%set_bounds(x_lb=[-big,-big], x_ub=[big,big], c_lb=[4.0_wp], c_ub=[4.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
     call problem%set_functions(fc=fc_obj1_cons1, gjac=gjac_grad1_jacv1)
@@ -369,7 +369,7 @@ program test_basic
     real(wp), parameter :: xexpect(2) = [1.0_wp, 2.0_wp]
     integer :: istat
 
-    call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
+    call problem%set_problem_size(n=2, m=1)
     call problem%set_bounds(x_lb=[0.0_wp,0.0_wp], x_ub=[big,big], c_lb=[-big], c_ub=[3.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
     call problem%set_functions(fc=fc_obj1_cons1, gjac=gjac_grad1_jacv1)
@@ -405,7 +405,7 @@ program test_basic
     real(wp), parameter :: xexpect(2) = [1.0_wp, 2.0_wp]
     integer :: istat
 
-    call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
+    call problem%set_problem_size(n=2, m=1)
     call problem%set_bounds(x_lb=[0.0_wp,0.0_wp], x_ub=[big,big], c_lb=[-big], c_ub=[3.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
     call problem%set_functions(fc=fc_obj1_cons1, gjac=gjac_grad1_jacv1)
@@ -439,7 +439,7 @@ program test_basic
     real(wp), parameter :: xexpect(2) = [1.0_wp, 2.0_wp]
     integer :: istat
 
-    call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
+    call problem%set_problem_size(n=2, m=1)
     call problem%set_bounds(x_lb=[0.0_wp,0.0_wp], x_ub=[big,big], c_lb=[-big], c_ub=[3.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
     call problem%set_functions(fc=fc_obj1_cons1, gjac=gjac_grad1_jacv1)
@@ -472,7 +472,7 @@ program test_basic
     real(wp), parameter :: xexpect(2) = [1.0_wp, 2.0_wp]
     integer :: istat
 
-    call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
+    call problem%set_problem_size(n=2, m=1)
     call problem%set_bounds(x_lb=[0.0_wp,0.0_wp], x_ub=[big,big], c_lb=[-big], c_ub=[3.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
     call problem%set_functions(fc=fc_obj1_cons1, gjac=gjac_grad1_jacv1)
@@ -505,7 +505,7 @@ program test_basic
     real(wp), parameter :: xexpect(2) = [1.0_wp, 2.0_wp]
     integer :: istat
 
-    call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
+    call problem%set_problem_size(n=2, m=1)
     call problem%set_bounds(x_lb=[0.0_wp,0.0_wp], x_ub=[big,big], c_lb=[-big], c_ub=[3.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
     call problem%set_functions(fc=fc_obj1_cons1, gjac=gjac_grad1_jacv1)
@@ -542,7 +542,7 @@ program test_basic
     real(wp), parameter :: xexpect(2) = [1.0_wp, 2.0_wp]
     integer :: istat
 
-    call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
+    call problem%set_problem_size(n=2, m=1)
     call problem%set_bounds(x_lb=[0.0_wp,0.0_wp], x_ub=[big,big], c_lb=[-big], c_ub=[3.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
     call problem%set_functions(fc=fc_obj1_cons1, gjac=gjac_grad1_jacv1)
@@ -580,7 +580,7 @@ program test_basic
     real(wp), parameter :: xexpect(2) = [1.5_wp, 2.5_wp]
     integer :: istat
 
-    call problem%set_problem_size(n=2, m_eq=1, m_ineq=0)
+    call problem%set_problem_size(n=2, m=1)
     call problem%set_bounds(x_lb=[-big,-big], x_ub=[big,big], c_lb=[4.0_wp], c_ub=[4.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
     call problem%set_functions(fc=fc_obj1_cons1, gjac=gjac_grad1_jacv1)

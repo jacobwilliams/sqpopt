@@ -21,7 +21,7 @@
                                          sqpopt_user_requested_stop, sqpopt_report_func, &
                                          sqpopt_invalid_input, sqpopt_status_message, sqpopt_sparse_matrix, &
                                          sqpopt_results_type, sqpopt_max_evals_reached, sqpopt_time_limit_reached, &
-                                         sqpopt_qp_solve_failed, sqpopt_infinity
+                                         sqpopt_qp_solve_failed, sqpopt_infinity, sqpopt_all_finite
     use sqpopt_problem_module,    only: sqpopt_problem_type
     use sqpopt_options_module,    only: sqpopt_options_type, sqpopt_hessian_bfgs, sqpopt_hessian_sr1, sqpopt_hessian_exact
     use sqpopt_hessian_module,    only: sqpopt_hessian_type
@@ -180,10 +180,19 @@
         istat = sqpopt_invalid_input
         msg   = 'x0 must have size n'
     end if
+    if (istat == sqpopt_success .and. .not. sqpopt_all_finite(x0)) then
+        ! (checked before `x0` is projected onto the bounds below, which would
+        ! silently turn a NaN into a bound)
+        istat = sqpopt_invalid_input
+        msg   = 'x0 must be finite'
+    end if
     if (istat == sqpopt_success .and. present(lambda0)) then
         if (size(lambda0) /= me%problem%m) then
             istat = sqpopt_invalid_input
             msg   = 'lambda0 must have size m'
+        else if (.not. sqpopt_all_finite(lambda0)) then
+            istat = sqpopt_invalid_input
+            msg   = 'lambda0 must be finite'
         end if
     end if
     if (istat /= sqpopt_success) then

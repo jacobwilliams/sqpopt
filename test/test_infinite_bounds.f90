@@ -41,7 +41,7 @@ program test_infinite_bounds
     call ieee_set_halting_mode(ieee_invalid,        .true.)
     call ieee_set_halting_mode(ieee_divide_by_zero, .true.)
 
-    call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
+    call problem%set_problem_size(n=2, m=1)
     call problem%set_bounds(x_lb=[-inf,-inf], x_ub=[inf,inf], c_lb=[-inf], c_ub=[3.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
     call problem%set_functions(fc=fc_obj_cons, gjac=gjac_grad_jacv)

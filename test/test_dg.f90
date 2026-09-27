@@ -53,7 +53,7 @@ program test_dg
 
 
     ! ! equality constraints (1,2) first, then the inequalities (3,4,5):
-    ! call problem%set_problem_size(n=n, m_eq=0, m_ineq=m)
+    ! call problem%set_problem_size(n=n, m=m)
     ! call problem%set_bounds(x_lb=x_lb, x_ub=x_ub, c_lb=c_lb, c_ub=c_ub)
 
     ! ! call problem%set_jacobian_sparsity(nnz=10, &

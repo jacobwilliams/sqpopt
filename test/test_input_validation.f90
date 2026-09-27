@@ -14,6 +14,7 @@ program test_input_validation
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
     use sqpopt_qp_solver_module,    only: sqpopt_qp_solver_type
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
+    use, intrinsic :: ieee_arithmetic, only: ieee_value, ieee_quiet_nan, ieee_positive_inf
 
     implicit none
 
@@ -31,7 +32,7 @@ program test_input_validation
 
     ! functions never set:
     problem = sqpopt_problem_type()
-    call problem%set_problem_size(n=2, m_eq=1, m_ineq=0)
+    call problem%set_problem_size(n=2, m=1)
     call problem%set_bounds([-1.0_wp,-1.0_wp], [1.0_wp,1.0_wp], [1.0_wp], [1.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
     call expect_invalid('functions not set', problem, sqpopt_options_type(), [0.0_wp, 0.0_wp])
@@ -49,6 +50,20 @@ program test_input_validation
     ! wrong-size starting point:
     call valid_problem(problem)
     call expect_invalid('size(x0) /= n', problem, sqpopt_options_type(), [0.0_wp, 0.0_wp, 0.0_wp])
+
+    ! non-finite starting point (projecting a NaN onto the bounds would silently
+    ! turn it into a bound) and multipliers:
+    call valid_problem(problem)
+    call expect_invalid('NaN in x0', problem, sqpopt_options_type(), [ieee_value(1.0_wp, ieee_quiet_nan), 0.0_wp])
+    call expect_invalid('Inf in x0', problem, sqpopt_options_type(), [0.0_wp, ieee_value(1.0_wp, ieee_positive_inf)])
+    block
+        type(sqpopt_type) :: solver
+        integer :: istat
+        call solver%initialize(problem=problem)
+        call solver%solve([0.0_wp, 0.0_wp], istat, lambda0=[ieee_value(1.0_wp, ieee_quiet_nan)])
+        print '(A,I0,2A)', 'NaN in lambda0: istat=', istat, '  ', solver%status_message()
+        if (istat /= sqpopt_invalid_input) error stop 'test_input_validation FAILED: NaN in lambda0'
+    end block
 
     ! invalid options:
     call valid_problem(problem)
@@ -146,7 +161,7 @@ program test_input_validation
     !! (solution x = -(1,1)/sqrt(2))
     subroutine valid_problem(problem)
     type(sqpopt_problem_type), intent(out) :: problem
-    call problem%set_problem_size(n=2, m_eq=1, m_ineq=0)
+    call problem%set_problem_size(n=2, m=1)
     call problem%set_bounds([-2.0_wp,-2.0_wp], [2.0_wp,2.0_wp], [1.0_wp], [1.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
     call problem%set_functions(fc=fc_obj_cons, gjac=gjac_grad_jacv)

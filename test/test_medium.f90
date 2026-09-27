@@ -76,7 +76,7 @@ program test_medium
     n_evals = 0
 
     ! equality constraints (1,2) first, then the inequalities (3,4,5):
-    call problem%set_problem_size(n=10, m_eq=2, m_ineq=3)
+    call problem%set_problem_size(n=10, m=5)
     call problem%set_bounds( &
         x_lb=[0.1_wp,0.1_wp,0.1_wp,0.1_wp,0.1_wp,0.1_wp,0.1_wp,0.1_wp,0.1_wp,0.1_wp], &
         x_ub=[10.0_wp,10.0_wp,10.0_wp,10.0_wp,10.0_wp,10.0_wp,10.0_wp,10.0_wp,10.0_wp,3.0_wp], &

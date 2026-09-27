@@ -37,7 +37,7 @@ program test_termination
     write(*,*) 'test_termination'
     write(*,*) '----------------------------'
 
-    call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
+    call problem%set_problem_size(n=2, m=1)
     call problem%set_bounds(x_lb=[-5.0_wp,-5.0_wp], x_ub=[5.0_wp,5.0_wp], c_lb=[-1.0e20_wp], c_ub=[1.5_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
     call problem%set_functions(fc=fc_obj_cons, gjac=gjac_grad_jacv)
@@ -61,7 +61,7 @@ program test_termination
     if (istat /= sqpopt_time_limit_reached .or. r%iterations /= 1) error stop 'test_termination FAILED: max_time'
 
     ! ---- obj_lower_limit (minimize -x1-x2 with x unbounded) ----
-    call unbounded%set_problem_size(n=2, m_eq=0, m_ineq=0)
+    call unbounded%set_problem_size(n=2, m=0)
     call unbounded%set_bounds(x_lb=[-1.0e20_wp,-1.0e20_wp], x_ub=[1.0e20_wp,1.0e20_wp], &
                               c_lb=[real(wp)::], c_ub=[real(wp)::])
     call unbounded%set_jacobian_sparsity(nnz=0, irow=[integer::], icol=[integer::])

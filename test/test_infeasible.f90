@@ -45,7 +45,7 @@ program test_infeasible
     write(*,*) 'test_infeasible'
     write(*,*) '----------------------------'
 
-    call problem%set_problem_size(n=2, m_eq=0, m_ineq=2)
+    call problem%set_problem_size(n=2, m=2)
     call problem%set_bounds(x_lb=[-10.0_wp,-10.0_wp], x_ub=[10.0_wp,10.0_wp], &
                              c_lb=[0.0_wp,2.0_wp], c_ub=[1.0_wp,3.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,2], icol=[1,1])

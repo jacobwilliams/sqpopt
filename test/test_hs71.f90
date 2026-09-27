@@ -125,7 +125,7 @@ program test_hs71
     outside_bounds = .false.
 
     ! equality constraint (index 1) first, then the inequality (index 2):
-    call problem%set_problem_size(n=4, m_eq=1, m_ineq=1)
+    call problem%set_problem_size(n=4, m=2)
     call problem%set_bounds(x_lb=[1.0_wp,1.0_wp,1.0_wp,1.0_wp], x_ub=[5.0_wp,5.0_wp,5.0_wp,5.0_wp], &
                              c_lb=[40.0_wp, 25.0_wp], c_ub=[40.0_wp, big])
     call problem%set_jacobian_sparsity(nnz=8, irow=[1,1,1,1,2,2,2,2], icol=[1,2,3,4,1,2,3,4])
