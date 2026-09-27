@@ -34,8 +34,11 @@
 !      (for the Lagrangian \( f - \lambda^T c \), \( \lambda_i>0 \) is
 !      only allowed at a lower bound \( c_i=c_{l,i} \) and
 !      \( \lambda_i<0 \) only at an upper bound \( c_i=c_{u,i} \), measured
-!      as \( \lambda_i (c_i-c_{l,i}) \) resp. \( -\lambda_i (c_{u,i}-c_i) \);
-!      equality constraints are free);
+!      as \( \lambda_i \min(1, c_i-c_{l,i}) \) resp.
+!      \( -\lambda_i \min(1, c_{u,i}-c_i) \): the product with the distance
+!      to the bound, which is at most \( |\lambda_i| \) (the other bound may
+!      be far away, or infinite, and a round-off multiplier of the wrong sign
+!      is then not a large violation); equality constraints are free);
 !    - primal feasibility of the constraints and variable bounds.
 !
 !    The stationarity and complementarity residuals are measured against
@@ -128,10 +131,13 @@
     dual_res = 0.0_wp
     do i = 1, size(c)
         if (c_ub(i)-c_lb(i) <= ctol) cycle  ! equality constraint: free multiplier
+        ! (the distance to the bound is capped at 1: a multiplier of the wrong
+        ! sign for the bound the constraint is at is a violation of `|lambda|`,
+        ! however far away the other bound is -- it may be infinite)
         if (lambda(i) > 0.0_wp) then
-            dual_res = max(dual_res, lambda(i)*max(c(i)-c_lb(i), 0.0_wp))
+            dual_res = max(dual_res, lambda(i)*min(1.0_wp, max(c(i)-c_lb(i), 0.0_wp)))
         else if (lambda(i) < 0.0_wp) then
-            dual_res = max(dual_res, -lambda(i)*max(c_ub(i)-c(i), 0.0_wp))
+            dual_res = max(dual_res, -lambda(i)*min(1.0_wp, max(c_ub(i)-c(i), 0.0_wp)))
         end if
     end do
 

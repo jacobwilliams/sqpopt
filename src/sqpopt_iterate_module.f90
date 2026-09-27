@@ -349,7 +349,9 @@
         ! if no step was acceptable at an infeasible point, start a
         ! restoration phase (as in Fletcher & Leyffer's trust-region filter SQP):
         if (step_istat /= sqpopt_success .and. options%restoration_mode == sqpopt_restoration_phase) then
-            if (l1_violation(c, problem%c_lb, problem%c_ub) > 0.0_wp) then
+            ! (only if infeasible beyond `ctol`, as the convergence test measures it:
+            ! a round-off violation has nothing for restoration to reduce)
+            if (info%feas > options%ctol) then
                 restore    = .true.
                 new_lambda = lambda
                 call start_restoration_phase(record=.true.)
@@ -496,7 +498,9 @@
                         call linesearch%filter%record(theta, f)
                         call lg%put(sqpopt_log_detail, 'no acceptable step: the current point is added to the filter')
                     end if
-                    if (theta > 0.0_wp) then
+                    ! (restoration only if infeasible beyond `ctol`, as the convergence
+                    ! test measures it: a round-off violation has nothing to reduce)
+                    if (info%feas > options%ctol) then
                         restore    = .true.
                         new_lambda = lambda
                         if (options%restoration_mode == sqpopt_restoration_phase) then
