@@ -143,7 +143,7 @@ integer  :: istat
 call problem%set_problem_size(n, m_eq, m_ineq)
 call problem%set_bounds(x_lb, x_ub, c_lb, c_ub)
 call problem%set_jacobian_sparsity(nnz, irow, icol)          ! fixed sparsity pattern
-call problem%set_functions(f=obj, g=grad, c=cons, jac=jacv)  ! optionally also data=...
+call problem%set_functions(fc=fc, gjac=gjac)                 ! optionally also data=...
 
 call solver%initialize(problem=problem, options=options)
 call solver%solve(x0, istat)            ! optionally also lambda0=...
@@ -157,21 +157,33 @@ print *, solver%status_message()        ! e.g. 'converged successfully'</code></
 <!-- ============================================================ -->
 <h2 id="user-functions">User functions</h2>
 
-<p>Each callback has the same shape. Here is the objective:</p>
+<p>The problem is defined by two routines: <code>fc</code> evaluates the objective \( f(x) \) and the constraints \( c(x) \) together, and <code>gjac</code> evaluates the objective gradient and the constraint Jacobian together. (They usually share intermediate results, which each routine can compute once.)</p>
 
-<pre><code class="language-fortran">subroutine obj(x, f, status, data)
+<pre><code class="language-fortran">subroutine fc(x, f, c, status, data)
     real(wp), dimension(:), intent(in)    :: x
     real(wp),               intent(out)   :: f
-    integer,                intent(inout) :: status  ! 0 on entry
+    real(wp), dimension(:), intent(out)   :: c        ! dimension(m); m may be 0
+    integer,                intent(inout) :: status   ! 0 on entry
     class(*), optional,     intent(inout) :: data
     f = ...
-end subroutine obj</code></pre>
+    c = ...
+end subroutine fc
 
-<p><code>grad</code>, <code>cons</code>, and <code>jacv</code> are the same, except that the output is an array: <code>g(n)</code>, <code>c(m)</code>, or <code>jac_val(nnz)</code>. The Jacobian values must be in the order of the <code>irow</code>/<code>icol</code> pattern given to <code>set_jacobian_sparsity</code>.</p>
+subroutine gjac(x, g, jac_val, status, data)
+    real(wp), dimension(:), intent(in)    :: x
+    real(wp), dimension(:), intent(out)   :: g        ! dimension(n)
+    real(wp), dimension(:), intent(out)   :: jac_val  ! dimension(nnz); nnz may be 0
+    integer,                intent(inout) :: status   ! 0 on entry
+    class(*), optional,     intent(inout) :: data
+    g = ...
+    jac_val = ...
+end subroutine gjac</code></pre>
+
+<p>The Jacobian values must be in the order of the <code>irow</code>/<code>icol</code> pattern given to <code>set_jacobian_sparsity</code>. The solver keeps a small cache of recent evaluations, so asking for <code>c</code> at a point where it just evaluated <code>f</code> (or for the Jacobian where it just evaluated the gradient) doesn't call your routine again.</p>
 
 <dl class="defs">
   <dt><code>status</code></dt>
-  <dd>Leave it <code>0</code> on success. Set it <code>&gt; 0</code> if the function can't be evaluated at <code>x</code> (for example, a domain error). The solver treats that point like one where the function returned NaN, and backs off from it. Set it <code>&lt; 0</code> to stop the solver (<code>sqpopt_user_requested_stop</code>). No user function is called again after that.</dd>
+  <dd>Leave it <code>0</code> on success. Set it <code>&gt; 0</code> if the function can't be evaluated at <code>x</code> (for example, a domain error). The solver treats that point like one where the function returned NaN (all of its outputs, e.g. both <code>f</code> and <code>c</code>), and backs off from it. Set it <code>&lt; 0</code> to stop the solver (<code>sqpopt_user_requested_stop</code>). No user function is called again after that.</dd>
   <dt><code>data</code></dt>
   <dd>The object passed as <code>set_functions(..., data=my_data)</code> (absent if none was given). Use it to pass any context to the functions without module variables, and access it with <code>select type</code>. It is <em>pointed to</em>, not copied, so the caller's object needs the <code>target</code> attribute, and any changes the functions make to it are seen by the caller. It is also passed to the <code>report</code> callback.</dd>
 </dl>
@@ -224,7 +236,7 @@ call problem%set_problem_size(n=4, m_eq=1, m_ineq=1)
 call problem%set_bounds(x_lb=[1.0_wp,1.0_wp,1.0_wp,1.0_wp], x_ub=[5.0_wp,5.0_wp,5.0_wp,5.0_wp], &
                         c_lb=[40.0_wp, 25.0_wp], c_ub=[40.0_wp, big])
 call problem%set_jacobian_sparsity(nnz=8, irow=[1,1,1,1,2,2,2,2], icol=[1,2,3,4,1,2,3,4])
-call problem%set_functions(f=obj, g=grad, c=cons, jac=jacv)
+call problem%set_functions(fc=fc, gjac=gjac)
 
 options%print_level = 1
 
@@ -236,39 +248,27 @@ print *, 'x = ', x
 
 contains
 
-    subroutine obj(x, f, status, data)
+    subroutine fc(x, f, c, status, data)
     real(wp), dimension(:), intent(in)    :: x
     real(wp),               intent(out)   :: f
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
-    f = x(1)*x(4)*(x(1)+x(2)+x(3)) + x(3)
-    end subroutine obj
-
-    subroutine grad(x, g, status, data)
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp), dimension(:), intent(out)   :: g
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
-    g = [x(4)*(2.0_wp*x(1)+x(2)+x(3)), x(1)*x(4), x(1)*x(4) + 1.0_wp, x(1)*(x(1)+x(2)+x(3))]
-    end subroutine grad
-
-    subroutine cons(x, c, status, data)
-    real(wp), dimension(:), intent(in)    :: x
     real(wp), dimension(:), intent(out)   :: c
     integer,                intent(inout) :: status
     class(*), optional,     intent(inout) :: data
+    f = x(1)*x(4)*(x(1)+x(2)+x(3)) + x(3)
     c = [sum(x**2), product(x)]
-    end subroutine cons
+    end subroutine fc
 
-    subroutine jacv(x, jac_val, status, data)
+    subroutine gjac(x, g, jac_val, status, data)
     real(wp), dimension(:), intent(in)    :: x
+    real(wp), dimension(:), intent(out)   :: g
     real(wp), dimension(:), intent(out)   :: jac_val
     integer,                intent(inout) :: status
     class(*), optional,     intent(inout) :: data
+    g = [x(4)*(2.0_wp*x(1)+x(2)+x(3)), x(1)*x(4), x(1)*x(4) + 1.0_wp, x(1)*(x(1)+x(2)+x(3))]
     jac_val(1:4) = 2.0_wp*x                                   ! row 1: d(sum x^2)/dx
     jac_val(5:8) = [x(2)*x(3)*x(4), x(1)*x(3)*x(4), &         ! row 2: d(prod x)/dx
                     x(1)*x(2)*x(4), x(1)*x(2)*x(3)]
-    end subroutine jacv
+    end subroutine gjac
 
 end program hs71</code></pre>
 
@@ -284,7 +284,7 @@ end program hs71</code></pre>
 <tbody>
 <tr><td><code>istat</code>, <code>message</code></td><td>status code and its description</td></tr>
 <tr><td><code>iterations</code></td><td>number of major iterations performed</td></tr>
-<tr><td><code>n_eval_f</code>, <code>n_eval_g</code>, <code>n_eval_c</code>, <code>n_eval_jac</code></td><td>number of calls of each user function</td></tr>
+<tr><td><code>n_eval_fc</code>, <code>n_eval_gjac</code></td><td>number of calls of the user functions <code>fc</code> and <code>gjac</code></td></tr>
 <tr><td><code>time</code></td><td>wall-clock time of the solve (seconds)</td></tr>
 <tr><td><code>x</code>, <code>f</code>, <code>c</code></td><td>final point, and the objective and constraint values there</td></tr>
 <tr><td><code>lambda</code></td><td>constraint multipliers, <code>dimension(m)</code></td></tr>
@@ -315,7 +315,7 @@ end program hs71</code></pre>
 <tr class="bad"><td><code>sqpopt_invalid_input</code></td><td class="num">6</td><td>the problem definition or options are invalid (see <code>status_message()</code>)</td></tr>
 <tr class="ok"><td><code>sqpopt_stalled</code></td><td class="num">7</td><td>feasible, but the objective and variables have stopped changing (see <code>ftol</code>/<code>xtol</code>) before the KKT test was satisfied; usually an acceptable, if less precise, solution</td></tr>
 <tr class="bad"><td><code>sqpopt_function_error</code></td><td class="num">8</td><td>a problem function returned a non-finite value (NaN or Inf), or <code>status &gt; 0</code>, at the current point. At a <em>trial</em> point, that only makes the line search or trust region reject the point and back off.</td></tr>
-<tr class="warn"><td><code>sqpopt_max_evals_reached</code></td><td class="num">9</td><td><code>max_evals</code> objective evaluations were performed</td></tr>
+<tr class="warn"><td><code>sqpopt_max_evals_reached</code></td><td class="num">9</td><td><code>max_evals</code> calls of <code>fc</code> were performed</td></tr>
 <tr class="warn"><td><code>sqpopt_time_limit_reached</code></td><td class="num">10</td><td>the <code>max_time</code> limit was reached</td></tr>
 <tr class="bad"><td><code>sqpopt_unbounded</code></td><td class="num">11</td><td>the objective fell below <code>obj_lower_limit</code> at a feasible point</td></tr>
 <tr class="ok"><td><code>sqpopt_acceptable</code></td><td class="num">12</td><td>the looser <code>acceptable_ktol</code>/<code>acceptable_ctol</code> tests held for <code>acceptable_iter</code> consecutive iterations (as in IPOPT), but the normal ones did not</td></tr>
@@ -387,7 +387,7 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <tr><td><code>set_bounds(x_lb, x_ub, c_lb, c_ub)</code></td><td>variable bounds and constraint bounds. Use <code>c_lb(i) == c_ub(i)</code> for an equality constraint. Any value with magnitude <code>&gt;= sqpopt_infinity</code> (<code>1e20</code>; <code>huge(1.0_wp)</code> is fine) means a one-sided or absent bound.</td></tr>
 <tr><td><code>set_jacobian_sparsity(nnz, irow, icol)</code></td><td>fixed, 1-based COO sparsity pattern of the constraint Jacobian</td></tr>
 <tr><td><code>set_hessian_sparsity(nnz, irow, icol)</code></td><td>fixed, 1-based COO sparsity pattern of the Lagrangian Hessian (only needed for <code>sqpopt_hessian_exact</code>, which is not yet implemented)</td></tr>
-<tr><td><code>set_functions(f, g, c, jac, hess, data)</code></td><td>attach the user callbacks: <code>f</code>/<code>g</code> evaluate the objective and its gradient; <code>c</code>/<code>jac</code> evaluate the constraints and the Jacobian's nonzero values; <code>hess</code> (optional) evaluates the Hessian's nonzero values (only used by <code>sqpopt_hessian_exact</code>); <code>data</code> (optional) is passed through to every callback</td></tr>
+<tr><td><code>set_functions(fc, gjac, hess, data)</code></td><td>attach the user callbacks: <code>fc</code> evaluates the objective and the constraints; <code>gjac</code> evaluates the objective gradient and the Jacobian's nonzero values; <code>hess</code> (optional) evaluates the Hessian's nonzero values (only used by <code>sqpopt_hessian_exact</code>); <code>data</code> (optional) is passed through to every callback</td></tr>
 </tbody>
 </table></div>
 
@@ -406,7 +406,7 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <tr><td><code>stall_iter</code></td><td><code>3</code></td><td>number of consecutive iterations the <code>ftol</code>/<code>xtol</code> stalled-progress test must hold before stopping. A single negligible step (e.g. a short line-search step on a badly scaled problem) is not treated as a stall.</td></tr>
 <tr><td><code>acceptable_ktol</code>, <code>acceptable_ctol</code>, <code>acceptable_iter</code></td><td><code>1e-4</code>, <code>1e-6</code>, <code>15</code></td><td>if the KKT test with these looser tolerances holds for <code>acceptable_iter</code> consecutive iterations, stop with <code>sqpopt_acceptable</code> (<code>acceptable_iter = 0</code> disables this)</td></tr>
 <tr><td><code>max_iter</code></td><td><code>100</code></td><td>maximum number of major SQP iterations</td></tr>
-<tr><td><code>max_evals</code></td><td><code>0</code></td><td>stop after this many objective evaluations (<code>0</code> = no limit)</td></tr>
+<tr><td><code>max_evals</code></td><td><code>0</code></td><td>stop after this many calls of <code>fc</code> (the objective and constraints; <code>0</code> = no limit)</td></tr>
 <tr><td><code>max_time</code></td><td><code>0</code></td><td>stop after this much wall-clock time, in seconds (<code>0</code> = no limit)</td></tr>
 <tr><td><code>obj_lower_limit</code></td><td><code>-sqpopt_infinity</code></td><td>stop (<code>sqpopt_unbounded</code>) if the objective falls below this at a feasible point</td></tr>
 <tr><td><code>max_consecutive_failures</code></td><td><code>5</code></td><td>stop (with <code>sqpopt_line_search_failed</code> or <code>sqpopt_qp_solve_failed</code>) after this many consecutive major iterations whose QP solve or line search/trust-region step failed</td></tr>
@@ -662,20 +662,20 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <p>Results on the Hock&ndash;Schittkowski test set (<code>test/test_hs_suite.f90</code>, 305 problems) for each globalization strategy. <em>Local</em> means the solver converged to a local solution different from the published one.</p>
 
 <div class="table-wrap"><table class="bench">
-<thead><tr><th>line search / merit / penalty</th><th class="num">solved</th><th class="num">local</th><th class="num">failed</th><th class="num"><code>f</code> evals (solved)</th></tr></thead>
+<thead><tr><th>line search / merit / penalty</th><th class="num">solved</th><th class="num">local</th><th class="num">failed</th><th class="num"><code>fc</code> calls (solved)</th></tr></thead>
 <tbody>
-<tr class="best"><td><strong>filter</strong> (default, with interpolation)</td><td class="num"><strong>276</strong></td><td class="num">29</td><td class="num"><strong>0</strong></td><td class="num"><strong>9,780</strong></td></tr>
-<tr><td>filter, without interpolation</td><td class="num">275</td><td class="num">30</td><td class="num">0</td><td class="num">10,018</td></tr>
-<tr><td>Armijo / \( \ell_1 \) / multipliers</td><td class="num">270</td><td class="num">29</td><td class="num">6</td><td class="num">28,262</td></tr>
-<tr><td>Armijo / \( \ell_1 \) / model (Byrd&ndash;Nocedal)</td><td class="num">272</td><td class="num">29</td><td class="num">4</td><td class="num">38,466</td></tr>
-<tr><td>Armijo / augmented Lagrangian / multipliers</td><td class="num">271</td><td class="num">32</td><td class="num">2</td><td class="num">10,354</td></tr>
-<tr><td>Armijo / augmented Lagrangian / multipliers, interpolation + non-monotone (10)</td><td class="num">274</td><td class="num">30</td><td class="num">1</td><td class="num">11,057</td></tr>
-<tr><td>Armijo / augmented Lagrangian / model (GMSW)</td><td class="num">267</td><td class="num">32</td><td class="num">6</td><td class="num">13,563</td></tr>
-<tr><td>watchdog / \( \ell_1 \) / model</td><td class="num">272</td><td class="num">30</td><td class="num">3</td><td class="num">42,866</td></tr>
+<tr class="best"><td><strong>filter</strong> (default, with interpolation)</td><td class="num"><strong>276</strong></td><td class="num">29</td><td class="num"><strong>0</strong></td><td class="num"><strong>9,793</strong></td></tr>
+<tr><td>filter, without interpolation</td><td class="num">275</td><td class="num">30</td><td class="num">0</td><td class="num">10,037</td></tr>
+<tr><td>Armijo / \( \ell_1 \) / multipliers</td><td class="num">270</td><td class="num">29</td><td class="num">6</td><td class="num">28,322</td></tr>
+<tr><td>Armijo / \( \ell_1 \) / model (Byrd&ndash;Nocedal)</td><td class="num">272</td><td class="num">29</td><td class="num">4</td><td class="num">38,526</td></tr>
+<tr><td>Armijo / augmented Lagrangian / multipliers</td><td class="num">271</td><td class="num">32</td><td class="num">2</td><td class="num">10,399</td></tr>
+<tr><td>Armijo / augmented Lagrangian / multipliers, interpolation + non-monotone (10)</td><td class="num">274</td><td class="num">30</td><td class="num">1</td><td class="num">11,066</td></tr>
+<tr><td>Armijo / augmented Lagrangian / model (GMSW)</td><td class="num">267</td><td class="num">32</td><td class="num">6</td><td class="num">13,589</td></tr>
+<tr><td>watchdog / \( \ell_1 \) / model</td><td class="num">272</td><td class="num">30</td><td class="num">3</td><td class="num">42,926</td></tr>
 </tbody>
 </table></div>
 
-<p class="small">The merit-function rows are without interpolation, except where noted. With interpolation, Armijo / \( \ell_1 \) / multipliers needs 17,682 <code>f</code> evaluations instead of 28,262, but fails on one more problem. Analytic derivatives are used throughout, except for the 16 problems for which the collection provides none (they are solved with finite-difference derivatives, as the collection intends); the analytic derivatives that were wrong in the original collection are fixed in <code>test/schittkowski_problems.f90</code>.</p>
+<p class="small">The merit-function rows are without interpolation, except where noted. With interpolation, Armijo / \( \ell_1 \) / multipliers needs 17,691 <code>fc</code> calls instead of 28,322, but fails on one more problem. Analytic derivatives are used throughout, except for the 16 problems for which the collection provides none (they are solved with finite-difference derivatives, as the collection intends); the analytic derivatives that were wrong in the original collection are fixed in <code>test/schittkowski_problems.f90</code>.</p>
 
 <p class="small">This table is generated by <code>tools/hs_performance_table.sh</code> (run it with <code>pixi run tools/hs_performance_table.sh</code>; it prints the rows above, and the footnote's figures). Individual configurations can be run with the test suite's command-line options, e.g. <code>fpm test test_hs_suite --profile release -- results.md --linesearch=armijo --merit=al</code>.</p>
 

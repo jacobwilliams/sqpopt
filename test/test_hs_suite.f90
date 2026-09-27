@@ -91,7 +91,7 @@ program test_hs_suite
         !! the outcome of one problem, for the report
         integer  :: id = 0, n = 0, m = 0, me = 0
         integer  :: istat = 0, iterations = 0
-        integer  :: nf = 0, ng = 0, nc = 0, njac = 0  !! evaluation counts
+        integer  :: nf = 0, ng = 0                    !! evaluation counts: calls of `fc` and of `gjac`
         integer  :: q_nf = 0, q_ndf = 0               !! NLPQLP's evaluation counts
         real(dp) :: f = 0.0_dp, f_star = 0.0_dp, rel = 0.0_dp, viol = 0.0_dp, kkt = 0.0_dp
         character(len=6) :: outcome = ''
@@ -241,7 +241,7 @@ program test_hs_suite
     call problem%set_problem_size(n=p%n, m_eq=p%me, m_ineq=p%m-p%me)
     call problem%set_bounds(real(p%x_lb, wp), real(p%x_ub, wp), real(p%c_lb, wp), real(p%c_ub, wp))
     call problem%set_jacobian_sparsity(nnz, irow, icol)
-    call problem%set_functions(f=obj, g=grad, c=cons, jac=jacv, data=ctx)
+    call problem%set_functions(fc=fc_obj_cons, gjac=gjac_grad_jacv, data=ctx)
     options%max_iter        = 1000
     options%linesearch_mode = cfg_linesearch
     options%merit_mode      = cfg_merit
@@ -260,8 +260,8 @@ program test_hs_suite
     if (feasible .and. rel <= rel_tol) then
         outcome = 'solved'
         n_solved = n_solved + 1
-        sum_nf = sum_nf + r%n_eval_f
-        sum_ng = sum_ng + r%n_eval_g
+        sum_nf = sum_nf + r%n_eval_fc
+        sum_ng = sum_ng + r%n_eval_gjac
         sum_nlpqlp_nf  = sum_nlpqlp_nf  + hs_nlpqlp_nf(k)
         sum_nlpqlp_ndf = sum_nlpqlp_ndf + hs_nlpqlp_ndf(k)
     else if (feasible .and. converged) then
@@ -277,13 +277,13 @@ program test_hs_suite
     if (outcome == 'solved' .and. expected_unsolved) n_improved = n_improved + 1
 
     rec(k) = run_record(id=id, n=p%n, m=p%m, me=p%me, istat=istat, iterations=r%iterations, &
-                        nf=r%n_eval_f, ng=r%n_eval_g, nc=r%n_eval_c, njac=r%n_eval_jac, &
+                        nf=r%n_eval_fc, ng=r%n_eval_gjac, &
                         q_nf=hs_nlpqlp_nf(k), q_ndf=hs_nlpqlp_ndf(k), &
                         f=r%f, f_star=p%f_star, rel=rel, viol=viol, kkt=r%kkt_error, outcome=outcome, &
                         fd=ctx%fd_g .or. ctx%fd_jac, regression=outcome /= 'solved' .and. .not. expected_unsolved)
 
     write(*,'(I5,3I4,I4,A7,2ES17.8,2ES10.2,2I6,2I7,A4,A)') id, p%n, p%m, p%me, istat, outcome, r%f, p%f_star, &
-        rel, viol, r%n_eval_f, r%n_eval_g, hs_nlpqlp_nf(k), hs_nlpqlp_ndf(k), &
+        rel, viol, r%n_eval_fc, r%n_eval_gjac, hs_nlpqlp_nf(k), hs_nlpqlp_ndf(k), &
         merge(' fd', '   ', ctx%fd_g .or. ctx%fd_jac), &
         merge('   <-- regression', '                 ', outcome /= 'solved' .and. .not. expected_unsolved)
 
@@ -395,17 +395,18 @@ program test_hs_suite
     write(u,'(A)') ''
     write(u,'(A)') '## All problems'
     write(u,'(A)') ''
-    write(u,'(A)') '`nf`, `ng`, `nc`, `nJ`: calls of the objective, gradient, constraint, and Jacobian functions; '// &
+    write(u,'(A)') '`nf`, `ng`: calls of the objective-and-constraints function `fc` and of the '// &
+                   'gradient-and-Jacobian function `gjac`; '// &
                    '`Q:nf`, `Q:ng`: NLPQLP''s objective and gradient evaluations; `rel. err`: `(f - f*)/max(1,|f*|)`; '// &
                    '`viol`: largest constraint or bound violation; `KKT`: final (scaled) KKT error.'
     write(u,'(A)') ''
-    write(u,'(A)') '| TP | n | m | me | result | istat | iter | nf | ng | nc | nJ | Q:nf | Q:ng | f | f* '// &
+    write(u,'(A)') '| TP | n | m | me | result | istat | iter | nf | ng | Q:nf | Q:ng | f | f* '// &
                    '| rel. err | viol | KKT | notes |'
-    write(u,'(A)') '|--:|--:|--:|--:|:--|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|:--|'
+    write(u,'(A)') '|--:|--:|--:|--:|:--|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|:--|'
     do i = 1, hs_n_problems
         write(u,'(A)') '| '//s_i(rec(i)%id)//' | '//s_i(rec(i)%n)//' | '//s_i(rec(i)%m)//' | '//s_i(rec(i)%me)// &
             ' | '//trim(rec(i)%outcome)//' | '//s_i(rec(i)%istat)//' | '//s_i(rec(i)%iterations)// &
-            ' | '//s_i(rec(i)%nf)//' | '//s_i(rec(i)%ng)//' | '//s_i(rec(i)%nc)//' | '//s_i(rec(i)%njac)// &
+            ' | '//s_i(rec(i)%nf)//' | '//s_i(rec(i)%ng)// &
             ' | '//s_i(rec(i)%q_nf)//' | '//s_i(rec(i)%q_ndf)// &
             ' | '//s_r(rec(i)%f,'(ES12.4)')//' | '//s_r(rec(i)%f_star,'(ES12.4)')//' | '//s_r(rec(i)%rel,'(ES9.2)')// &
             ' | '//s_r(rec(i)%viol,'(ES9.2)')//' | '//s_r(rec(i)%kkt,'(ES9.2)')//' | '//notes(rec(i))//' |'
@@ -664,5 +665,28 @@ program test_hs_suite
     end select
     associate(unused => status); end associate
     end subroutine jacv
+
+    subroutine fc_obj_cons(x, f, c, status, data)
+    !! `fc` for `set_functions`: the objective (`obj`) and the constraints (`cons`)
+    real(wp), dimension(:), intent(in)    :: x
+    real(wp),               intent(out)   :: f
+    real(wp), dimension(:), intent(out)   :: c
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
+    call obj(x, f, status, data)
+    if (status == 0) call cons(x, c, status, data)
+    end subroutine fc_obj_cons
+
+    subroutine gjac_grad_jacv(x, g, jac_val, status, data)
+    !! `gjac` for `set_functions`: the gradient (`grad`) and the Jacobian values (`jacv`)
+    real(wp), dimension(:), intent(in)    :: x
+    real(wp), dimension(:), intent(out)   :: g
+    real(wp), dimension(:), intent(out)   :: jac_val
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
+    call grad(x, g, status, data)
+    if (status == 0) call jacv(x, jac_val, status, data)
+    end subroutine gjac_grad_jacv
+
 
 end program test_hs_suite

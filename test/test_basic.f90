@@ -50,7 +50,7 @@ program test_basic
     call problem%set_problem_size(n=2, m_eq=1, m_ineq=0)
     call problem%set_bounds(x_lb=[-big,-big], x_ub=[big,big], c_lb=[4.0_wp], c_ub=[4.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
-    call problem%set_functions(f=obj1, g=grad1, c=cons1, jac=jacv1)
+    call problem%set_functions(fc=fc_obj1_cons1, gjac=gjac_grad1_jacv1)
 
     options%max_iter = 100
     x0 = [0.0_wp, 0.0_wp]
@@ -135,7 +135,7 @@ program test_basic
     call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
     call problem%set_bounds(x_lb=[0.0_wp,0.0_wp], x_ub=[big,big], c_lb=[-big], c_ub=[3.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
-    call problem%set_functions(f=obj1, g=grad1, c=cons1, jac=jacv1)
+    call problem%set_functions(fc=fc_obj1_cons1, gjac=gjac_grad1_jacv1)
 
     options%max_iter = 100
     x0 = [0.0_wp, 0.0_wp]
@@ -168,7 +168,7 @@ program test_basic
     call problem%set_problem_size(n=2, m_eq=0, m_ineq=0)
     call problem%set_bounds(x_lb=[-big,-big], x_ub=[1.0_wp,big], c_lb=[real(wp) ::], c_ub=[real(wp) ::])
     call problem%set_jacobian_sparsity(nnz=0, irow=no_rows, icol=no_rows)
-    call problem%set_functions(f=obj1, g=grad1, c=cons0, jac=jacv0)
+    call problem%set_functions(fc=fc_obj1_cons0, gjac=gjac_grad1_jacv0)
 
     options%max_iter = 100
     x0 = [0.0_wp, 0.0_wp]
@@ -200,7 +200,7 @@ program test_basic
     call problem%set_problem_size(n=2, m_eq=1, m_ineq=0)
     call problem%set_bounds(x_lb=[-big,-big], x_ub=[big,big], c_lb=[4.0_wp], c_ub=[4.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
-    call problem%set_functions(f=obj1, g=grad1, c=cons1, jac=jacv1)
+    call problem%set_functions(fc=fc_obj1_cons1, gjac=gjac_grad1_jacv1)
 
     options%max_iter     = 100
     options%hessian_mode = sqpopt_hessian_sr1
@@ -233,7 +233,7 @@ program test_basic
     call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
     call problem%set_bounds(x_lb=[0.0_wp,0.0_wp], x_ub=[big,big], c_lb=[-big], c_ub=[3.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
-    call problem%set_functions(f=obj1, g=grad1, c=cons1, jac=jacv1)
+    call problem%set_functions(fc=fc_obj1_cons1, gjac=gjac_grad1_jacv1)
 
     options%max_iter       = 100
     options%linesearch_mode = sqpopt_linesearch_exact
@@ -266,7 +266,7 @@ program test_basic
     call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
     call problem%set_bounds(x_lb=[0.0_wp,0.0_wp], x_ub=[big,big], c_lb=[-big], c_ub=[3.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
-    call problem%set_functions(f=obj1, g=grad1, c=cons1, jac=jacv1)
+    call problem%set_functions(fc=fc_obj1_cons1, gjac=gjac_grad1_jacv1)
 
     options%max_iter        = 100
     options%linesearch_mode = sqpopt_linesearch_watchdog
@@ -299,7 +299,7 @@ program test_basic
     call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
     call problem%set_bounds(x_lb=[0.0_wp,0.0_wp], x_ub=[big,big], c_lb=[-big], c_ub=[3.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
-    call problem%set_functions(f=obj1, g=grad1, c=cons1, jac=jacv1)
+    call problem%set_functions(fc=fc_obj1_cons1, gjac=gjac_grad1_jacv1)
 
     options%max_iter        = 100
     options%linesearch_mode = sqpopt_linesearch_filter
@@ -336,7 +336,7 @@ program test_basic
     call problem%set_problem_size(n=2, m_eq=1, m_ineq=0)
     call problem%set_bounds(x_lb=[-big,-big], x_ub=[big,big], c_lb=[4.0_wp], c_ub=[4.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
-    call problem%set_functions(f=obj1, g=grad1, c=cons1, jac=jacv1)
+    call problem%set_functions(fc=fc_obj1_cons1, gjac=gjac_grad1_jacv1)
 
     options%max_iter        = 100
     options%linesearch_mode = sqpopt_linesearch_filter
@@ -372,7 +372,7 @@ program test_basic
     call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
     call problem%set_bounds(x_lb=[0.0_wp,0.0_wp], x_ub=[big,big], c_lb=[-big], c_ub=[3.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
-    call problem%set_functions(f=obj1, g=grad1, c=cons1, jac=jacv1)
+    call problem%set_functions(fc=fc_obj1_cons1, gjac=gjac_grad1_jacv1)
 
     options%max_iter        = 100
     trust_region%enabled    = .true.
@@ -408,7 +408,7 @@ program test_basic
     call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
     call problem%set_bounds(x_lb=[0.0_wp,0.0_wp], x_ub=[big,big], c_lb=[-big], c_ub=[3.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
-    call problem%set_functions(f=obj1, g=grad1, c=cons1, jac=jacv1)
+    call problem%set_functions(fc=fc_obj1_cons1, gjac=gjac_grad1_jacv1)
 
     options%max_iter        = 100
     options%linesearch_mode = sqpopt_linesearch_filter
@@ -442,7 +442,7 @@ program test_basic
     call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
     call problem%set_bounds(x_lb=[0.0_wp,0.0_wp], x_ub=[big,big], c_lb=[-big], c_ub=[3.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
-    call problem%set_functions(f=obj1, g=grad1, c=cons1, jac=jacv1)
+    call problem%set_functions(fc=fc_obj1_cons1, gjac=gjac_grad1_jacv1)
 
     options%max_iter  = 100
     options%merit_mode = sqpopt_merit_augmented_lagrangian
@@ -475,7 +475,7 @@ program test_basic
     call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
     call problem%set_bounds(x_lb=[0.0_wp,0.0_wp], x_ub=[big,big], c_lb=[-big], c_ub=[3.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
-    call problem%set_functions(f=obj1, g=grad1, c=cons1, jac=jacv1)
+    call problem%set_functions(fc=fc_obj1_cons1, gjac=gjac_grad1_jacv1)
 
     options%max_iter       = 100
     options%qp_solver_mode = sqpopt_qp_dense
@@ -508,7 +508,7 @@ program test_basic
     call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
     call problem%set_bounds(x_lb=[0.0_wp,0.0_wp], x_ub=[big,big], c_lb=[-big], c_ub=[3.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
-    call problem%set_functions(f=obj1, g=grad1, c=cons1, jac=jacv1)
+    call problem%set_functions(fc=fc_obj1_cons1, gjac=gjac_grad1_jacv1)
 
     options%max_iter       = 100
     options%qp_solver_mode = sqpopt_qp_reduced_hessian
@@ -545,7 +545,7 @@ program test_basic
     call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
     call problem%set_bounds(x_lb=[0.0_wp,0.0_wp], x_ub=[big,big], c_lb=[-big], c_ub=[3.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
-    call problem%set_functions(f=obj1, g=grad1, c=cons1, jac=jacv1)
+    call problem%set_functions(fc=fc_obj1_cons1, gjac=gjac_grad1_jacv1)
 
     options%max_iter = 200
     linesearch%major_step_limit = 0.05_wp
@@ -583,7 +583,7 @@ program test_basic
     call problem%set_problem_size(n=2, m_eq=1, m_ineq=0)
     call problem%set_bounds(x_lb=[-big,-big], x_ub=[big,big], c_lb=[4.0_wp], c_ub=[4.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
-    call problem%set_functions(f=obj1, g=grad1, c=cons1, jac=jacv1)
+    call problem%set_functions(fc=fc_obj1_cons1, gjac=gjac_grad1_jacv1)
 
     options%max_iter    = 100
     options%print_level = 1
@@ -605,5 +605,50 @@ program test_basic
     print *, 'test_print_level_and_stalled_progress PASSED'
 
     end subroutine test_print_level_and_stalled_progress
+
+    subroutine fc_obj1_cons0(x, f, c, status, data)
+    !! `fc` for `set_functions`: the objective (`obj1`) and the constraints (`cons0`)
+    real(wp), dimension(:), intent(in)    :: x
+    real(wp),               intent(out)   :: f
+    real(wp), dimension(:), intent(out)   :: c
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
+    call obj1(x, f, status, data)
+    if (status == 0) call cons0(x, c, status, data)
+    end subroutine fc_obj1_cons0
+
+    subroutine fc_obj1_cons1(x, f, c, status, data)
+    !! `fc` for `set_functions`: the objective (`obj1`) and the constraints (`cons1`)
+    real(wp), dimension(:), intent(in)    :: x
+    real(wp),               intent(out)   :: f
+    real(wp), dimension(:), intent(out)   :: c
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
+    call obj1(x, f, status, data)
+    if (status == 0) call cons1(x, c, status, data)
+    end subroutine fc_obj1_cons1
+
+    subroutine gjac_grad1_jacv0(x, g, jac_val, status, data)
+    !! `gjac` for `set_functions`: the gradient (`grad1`) and the Jacobian values (`jacv0`)
+    real(wp), dimension(:), intent(in)    :: x
+    real(wp), dimension(:), intent(out)   :: g
+    real(wp), dimension(:), intent(out)   :: jac_val
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
+    call grad1(x, g, status, data)
+    if (status == 0) call jacv0(x, jac_val, status, data)
+    end subroutine gjac_grad1_jacv0
+
+    subroutine gjac_grad1_jacv1(x, g, jac_val, status, data)
+    !! `gjac` for `set_functions`: the gradient (`grad1`) and the Jacobian values (`jacv1`)
+    real(wp), dimension(:), intent(in)    :: x
+    real(wp), dimension(:), intent(out)   :: g
+    real(wp), dimension(:), intent(out)   :: jac_val
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
+    call grad1(x, g, status, data)
+    if (status == 0) call jacv1(x, jac_val, status, data)
+    end subroutine gjac_grad1_jacv1
+
 
 end program test_basic

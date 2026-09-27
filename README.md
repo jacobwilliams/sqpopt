@@ -45,7 +45,7 @@ integer  :: istat
 call problem%set_problem_size(n, m_eq, m_ineq)
 call problem%set_bounds(x_lb, x_ub, c_lb, c_ub)
 call problem%set_jacobian_sparsity(nnz, irow, icol)  ! fixed sparsity pattern
-call problem%set_functions(f=obj, g=grad, c=cons, jac=jacv)   ! optionally also data=...
+call problem%set_functions(fc=fc, gjac=gjac)         ! optionally also data=...
 
 call solver%initialize(problem=problem, options=options)
 call solver%solve(x0, istat)            ! optionally also lambda0=...
@@ -53,20 +53,34 @@ call solver%get_solution(x, lambda)     ! optionally also z (bound multipliers)
 print *, solver%status_message()        ! e.g. 'converged successfully'
 ```
 
-Each user function has the form (here, the objective):
+The problem is defined by two user functions: `fc` evaluates the
+objective and the constraints together, and `gjac` evaluates the
+objective gradient and the nonzero values of the constraint Jacobian
+together (in the order of the `irow`/`icol` sparsity pattern):
 
 ```fortran
-subroutine obj(x, f, status, data)
+subroutine fc(x, f, c, status, data)
     real(wp), dimension(:), intent(in)    :: x
     real(wp),               intent(out)   :: f
-    integer,                intent(inout) :: status  ! 0 on entry
+    real(wp), dimension(:), intent(out)   :: c        ! dimension(m)
+    integer,                intent(inout) :: status   ! 0 on entry
     class(*), optional,     intent(inout) :: data
     f = ...
-end subroutine obj
+    c = ...
+end subroutine fc
+
+subroutine gjac(x, g, jac_val, status, data)
+    real(wp), dimension(:), intent(in)    :: x
+    real(wp), dimension(:), intent(out)   :: g        ! dimension(n)
+    real(wp), dimension(:), intent(out)   :: jac_val  ! dimension(nnz)
+    integer,                intent(inout) :: status   ! 0 on entry
+    class(*), optional,     intent(inout) :: data
+    g = ...
+    jac_val = ...
+end subroutine gjac
 ```
 
-(`grad`, `cons`, and `jacv` are the same, with an array output `g(n)`,
-`c(m)`, or `jac_val(nnz)`.) The two trailing arguments are:
+The two trailing arguments are:
 
 - `status`: leave it `0` on success. Set it `> 0` if the function can't
   be evaluated at `x` (e.g. a domain error): the solver treats that point
@@ -83,7 +97,7 @@ end subroutine obj
 After a solve, `solver%get_results(results)` returns a
 `sqpopt_results_type` (from `sqpopt_types_module`) containing:
 - the status and message, and the number of iterations;
-- the evaluation counts of each user function, and the run time;
+- the number of calls of `fc` and `gjac` (`n_eval_fc`, `n_eval_gjac`), and the run time;
 - the final `x`, `f`, and `c`;
 - the constraint multipliers `lambda` and the variable-bound multipliers
   `z`;
@@ -117,7 +131,7 @@ previous solve.
 | `sqpopt_invalid_input` (`6`) | the problem definition or options are invalid (see `status_message()`) |
 | `sqpopt_stalled` (`7`) | feasible, but the objective and variables have stopped changing (see `ftol`/`xtol`) before the KKT test was satisfied; usually an acceptable, if less precise, solution |
 | `sqpopt_function_error` (`8`) | a problem function returned a non-finite value (NaN or Inf), or `status > 0`, at the current point (at a *trial* point, that just makes the line search/trust region reject the point and back off) |
-| `sqpopt_max_evals_reached` (`9`) | `max_evals` objective evaluations were performed |
+| `sqpopt_max_evals_reached` (`9`) | `max_evals` calls of `fc` were performed |
 | `sqpopt_time_limit_reached` (`10`) | the `max_time` limit was reached |
 | `sqpopt_unbounded` (`11`) | the objective fell below `obj_lower_limit` at a feasible point |
 | `sqpopt_acceptable` (`12`) | the looser `acceptable_ktol`/`acceptable_ctol` tests held for `acceptable_iter` consecutive iterations (as in IPOPT), but the normal ones did not |

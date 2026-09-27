@@ -59,7 +59,7 @@ if ! build_log=$($FPM build --profile release --tests 2>&1); then
 fi
 
 if [[ $format == markdown ]]; then
-    echo "| line search / merit / penalty | solved | local | failed | \`f\` evals (solved) |"
+    echo "| line search / merit / penalty | solved | local | failed | \`fc\` calls (solved) |"
     echo "|---|--:|--:|--:|--:|"
 fi
 

@@ -656,6 +656,18 @@ guide (`references/NLPQLP.pdf`), on the line search type:
   NLPQLP's case for it is noisy functions (its Table 2), which the HS
   suite doesn't test yet.
 
+**API change: combined user functions (2026-09-26).** The four user
+callbacks `f`, `g`, `c`, `jac` are replaced by two:
+`fc(x, f, c, status, data)` (objective and constraints) and
+`gjac(x, g, jac_val, status, data)` (gradient and Jacobian values), since
+the pairs usually share intermediate results; `set_functions(fc, gjac,
+hess, data)`. The evaluation layer keeps one cache per routine (so asking
+for `c` where `f` was just evaluated is free), and the results report
+`n_eval_fc`/`n_eval_gjac` instead of `n_eval_f`/`_g`/`_c`/`_jac`;
+`max_evals` counts `fc` calls. HS suite unchanged (276 solved); `fc`
+counts are ~0.1% above the old `f` counts (where the solver needed only
+`c`, e.g. in restoration).
+
 ## 2. Bugs: correctness (fix first)
 
 | # | Issue | Where | Evidence |

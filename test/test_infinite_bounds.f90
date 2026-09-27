@@ -44,7 +44,7 @@ program test_infinite_bounds
     call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
     call problem%set_bounds(x_lb=[-inf,-inf], x_ub=[inf,inf], c_lb=[-inf], c_ub=[3.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
-    call problem%set_functions(f=obj, g=grad, c=cons, jac=jacv)
+    call problem%set_functions(fc=fc_obj_cons, gjac=gjac_grad_jacv)
 
     do ls = 1, 2
         do i = 1, size(modes)
@@ -97,5 +97,28 @@ program test_infinite_bounds
     associate(unused => x); end associate
     jac_val = 1.0_wp
     end subroutine jacv
+
+    subroutine fc_obj_cons(x, f, c, status, data)
+    !! `fc` for `set_functions`: the objective (`obj`) and the constraints (`cons`)
+    real(wp), dimension(:), intent(in)    :: x
+    real(wp),               intent(out)   :: f
+    real(wp), dimension(:), intent(out)   :: c
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
+    call obj(x, f, status, data)
+    if (status == 0) call cons(x, c, status, data)
+    end subroutine fc_obj_cons
+
+    subroutine gjac_grad_jacv(x, g, jac_val, status, data)
+    !! `gjac` for `set_functions`: the gradient (`grad`) and the Jacobian values (`jacv`)
+    real(wp), dimension(:), intent(in)    :: x
+    real(wp), dimension(:), intent(out)   :: g
+    real(wp), dimension(:), intent(out)   :: jac_val
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
+    call grad(x, g, status, data)
+    if (status == 0) call jacv(x, jac_val, status, data)
+    end subroutine gjac_grad_jacv
+
 
 end program test_infinite_bounds

@@ -233,7 +233,7 @@
             end if
         end if
         ! evaluation and time limits:
-        if (me%options%max_evals > 0 .and. me%problem%n_eval_f >= me%options%max_evals) then
+        if (me%options%max_evals > 0 .and. me%problem%n_eval_fc >= me%options%max_evals) then
             call finish(sqpopt_max_evals_reached)
             return
         end if
@@ -278,16 +278,14 @@
             me%results%feasibility_error = 0.0_wp
             if (me%problem%m > 0) me%results%feasibility_error = maxval(max(me%problem%c_lb/me%problem%c_scale &
                 - me%results%c, 0.0_wp) + max(me%results%c - me%problem%c_ub/me%problem%c_scale, 0.0_wp))
-            me%results%n_eval_f   = me%problem%n_eval_f
-            me%results%n_eval_g   = me%problem%n_eval_g
-            me%results%n_eval_c   = me%problem%n_eval_c
-            me%results%n_eval_jac = me%problem%n_eval_jac
+            me%results%n_eval_fc   = me%problem%n_eval_fc
+            me%results%n_eval_gjac = me%problem%n_eval_gjac
         else
             me%results%f = 0.0_wp
             me%results%c = spread(0.0_wp, 1, max(me%problem%m,0))
             me%results%lambda = me%lambda
             me%results%z = spread(0.0_wp, 1, size(x0))
-            me%results%n_eval_f = 0; me%results%n_eval_g = 0; me%results%n_eval_c = 0; me%results%n_eval_jac = 0
+            me%results%n_eval_fc = 0; me%results%n_eval_gjac = 0
         end if
         call system_clock(t_now)
         me%results%time = real(t_now-t_start, wp)/real(t_rate, wp)
@@ -347,8 +345,7 @@
         write(u,'(A,ES10.2)')  '   feasibility error  = ', me%results%feasibility_error
         write(u,'(A,ES10.2)')  '   KKT error (scaled) = ', me%results%kkt_error
         write(u,'(A,I0)')      '   iterations         = ', me%results%iterations
-        write(u,'(A,4(I0,A))') '   evaluations        = ', me%results%n_eval_f, ' f, ', me%results%n_eval_g, ' g, ', &
-                               me%results%n_eval_c, ' c, ', me%results%n_eval_jac, ' jac'
+        write(u,'(A,2(I0,A))') '   evaluations        = ', me%results%n_eval_fc, ' fc, ', me%results%n_eval_gjac, ' gjac'
         write(u,'(A,F0.3,A)')  '   time               = ', me%results%time, ' s'
         write(u,'(A)') ''
         end subroutine print_summary

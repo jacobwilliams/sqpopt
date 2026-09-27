@@ -37,8 +37,8 @@ program benchmark
     real(wp) :: h                   !! `control`: step size
 
     write(*,'(A)') ''
-    write(*,'(A12,A8,A6,A6,A6,A8,A8,A8,A8,A10,A16)') 'problem', 'size', 'n', 'm', 'istat', &
-        'n_f', 'n_g', 'n_c', 'n_jac', 'time (s)', 'f'
+    write(*,'(A12,A8,A6,A6,A6,A8,A8,A10,A16)') 'problem', 'size', 'n', 'm', 'istat', &
+        'n_fc', 'n_gjac', 'time (s)', 'f'
 
     call run_control(50)
     call run_control(150)
@@ -56,8 +56,8 @@ program benchmark
     type(sqpopt_type), intent(in) :: solver
     type(sqpopt_results_type) :: r
     call solver%get_results(r)
-    write(*,'(A12,I8,I6,I6,I6,I8,I8,I8,I8,F10.3,ES16.8)') name, size_param, n, m, r%istat, &
-        r%n_eval_f, r%n_eval_g, r%n_eval_c, r%n_eval_jac, r%time, r%f
+    write(*,'(A12,I8,I6,I6,I6,I8,I8,F10.3,ES16.8)') name, size_param, n, m, r%istat, &
+        r%n_eval_fc, r%n_eval_gjac, r%time, r%f
     end subroutine report
 
     !------------------------------------------------------------------------
@@ -97,7 +97,7 @@ program benchmark
     call problem%set_bounds(x_lb, x_ub, spread(0.0_wp,1,m), spread(0.0_wp,1,m))
     problem%c_lb(1) = 1.0_wp; problem%c_ub(1) = 1.0_wp
     call problem%set_jacobian_sparsity(nnz, irow, icol)
-    call problem%set_functions(f=f_control, g=g_control, c=c_control, jac=j_control)
+    call problem%set_functions(fc=fc_control, gjac=gjac_control)
 
     options%max_iter = 2000
     allocate(x(n))
@@ -110,48 +110,38 @@ program benchmark
 
     end subroutine run_control
 
-    subroutine f_control(x, f, status, data)
-    real(wp), dimension(:), intent(in)  :: x
-    real(wp),               intent(out) :: f
+    subroutine fc_control(x, f, c, status, data)
+    !! objective and constraints of the control problem
+    real(wp), dimension(:), intent(in)    :: x
+    real(wp),               intent(out)   :: f
+    real(wp), dimension(:), intent(out)   :: c
     integer,                intent(inout) :: status
     class(*), optional,     intent(inout) :: data
-    f = 0.5_wp*h*(sum(x(1:nsteps)**2) + sum(x(nsteps+2:)**2)) + x(nsteps+1)**2
-    end subroutine f_control
-
-    subroutine g_control(x, g, status, data)
-    real(wp), dimension(:), intent(in)  :: x
-    real(wp), dimension(:), intent(out) :: g
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
-    g = h*x
-    g(nsteps+1) = 2.0_wp*x(nsteps+1)
-    end subroutine g_control
-
-    subroutine c_control(x, c, status, data)
-    real(wp), dimension(:), intent(in)  :: x
-    real(wp), dimension(:), intent(out) :: c
     integer :: k
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    f = 0.5_wp*h*(sum(x(1:nsteps)**2) + sum(x(nsteps+2:)**2)) + x(nsteps+1)**2
     c(1) = x(1)
     do k = 0, nsteps-1
         c(k+2) = x(k+2) - x(k+1) - h*(x(nsteps+2+k) - x(k+1)**3)
     end do
-    end subroutine c_control
+    end subroutine fc_control
 
-    subroutine j_control(x, jac, status, data)
-    real(wp), dimension(:), intent(in)  :: x
-    real(wp), dimension(:), intent(out) :: jac
-    integer :: k
+    subroutine gjac_control(x, g, jac, status, data)
+    !! objective gradient and constraint Jacobian values of the control problem
+    real(wp), dimension(:), intent(in)    :: x
+    real(wp), dimension(:), intent(out)   :: g
+    real(wp), dimension(:), intent(out)   :: jac
     integer,                intent(inout) :: status
     class(*), optional,     intent(inout) :: data
+    integer :: k
+    g = h*x
+    g(nsteps+1) = 2.0_wp*x(nsteps+1)
     jac(1) = 1.0_wp
     do k = 0, nsteps-1
         jac(2+3*k) = 1.0_wp
         jac(3+3*k) = -1.0_wp + 3.0_wp*h*x(k+1)**2
         jac(4+3*k) = -h
     end do
-    end subroutine j_control
+    end subroutine gjac_control
 
     !------------------------------------------------------------------------
     ! chained Rosenbrock with circle constraints
@@ -175,7 +165,7 @@ program benchmark
     call problem%set_problem_size(n=n, m_eq=0, m_ineq=m)
     call problem%set_bounds(spread(-2.0_wp,1,n), spread(2.0_wp,1,n), spread(-1.0e20_wp,1,m), spread(1.5_wp,1,m))
     call problem%set_jacobian_sparsity(2*m, irow, icol)
-    call problem%set_functions(f=f_rosen, g=g_rosen, c=c_rosen, jac=j_rosen)
+    call problem%set_functions(fc=fc_rosen, gjac=gjac_rosen)
 
     options%max_iter = 2000
     allocate(x(n))
@@ -189,49 +179,37 @@ program benchmark
 
     end subroutine run_rosenbrock
 
-    subroutine f_rosen(x, f, status, data)
-    real(wp), dimension(:), intent(in)  :: x
-    real(wp),               intent(out) :: f
-    integer :: n
+    subroutine fc_rosen(x, f, c, status, data)
+    !! objective and constraints of the chained Rosenbrock problem
+    real(wp), dimension(:), intent(in)    :: x
+    real(wp),               intent(out)   :: f
+    real(wp), dimension(:), intent(out)   :: c
     integer,                intent(inout) :: status
     class(*), optional,     intent(inout) :: data
+    integer :: n, i
     n = size(x)
     f = sum(100.0_wp*(x(2:n)-x(1:n-1)**2)**2 + (1.0_wp-x(1:n-1))**2)
-    end subroutine f_rosen
+    do i = 1, size(c)
+        c(i) = x(2*i-1)**2 + x(2*i)**2
+    end do
+    end subroutine fc_rosen
 
-    subroutine g_rosen(x, g, status, data)
-    real(wp), dimension(:), intent(in)  :: x
-    real(wp), dimension(:), intent(out) :: g
-    integer :: n
+    subroutine gjac_rosen(x, g, jac, status, data)
+    !! objective gradient and constraint Jacobian values of the chained Rosenbrock problem
+    real(wp), dimension(:), intent(in)    :: x
+    real(wp), dimension(:), intent(out)   :: g
+    real(wp), dimension(:), intent(out)   :: jac
     integer,                intent(inout) :: status
     class(*), optional,     intent(inout) :: data
+    integer :: n, i
     n = size(x)
     g = 0.0_wp
     g(1:n-1) = -400.0_wp*x(1:n-1)*(x(2:n)-x(1:n-1)**2) - 2.0_wp*(1.0_wp-x(1:n-1))
     g(2:n)   = g(2:n) + 200.0_wp*(x(2:n)-x(1:n-1)**2)
-    end subroutine g_rosen
-
-    subroutine c_rosen(x, c, status, data)
-    real(wp), dimension(:), intent(in)  :: x
-    real(wp), dimension(:), intent(out) :: c
-    integer :: i
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
-    do i = 1, size(c)
-        c(i) = x(2*i-1)**2 + x(2*i)**2
-    end do
-    end subroutine c_rosen
-
-    subroutine j_rosen(x, jac, status, data)
-    real(wp), dimension(:), intent(in)  :: x
-    real(wp), dimension(:), intent(out) :: jac
-    integer :: i
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
     do i = 1, size(jac)/2
         jac(2*i-1) = 2.0_wp*x(2*i-1)
         jac(2*i)   = 2.0_wp*x(2*i)
     end do
-    end subroutine j_rosen
+    end subroutine gjac_rosen
 
 end program benchmark

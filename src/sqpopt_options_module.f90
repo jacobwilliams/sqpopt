@@ -63,8 +63,8 @@
                                                 !! consecutive iterations before the solver stops with
                                                 !! `sqpopt_stalled` (a single negligible step isn't a stall)
 
-        integer  :: max_evals       = 0         !! stop (`istat=sqpopt_max_evals_reached`) after this many evaluations
-                                                !! of the objective function (`0` = no limit)
+        integer  :: max_evals       = 0         !! stop (`istat=sqpopt_max_evals_reached`) after this many calls of the
+                                                !! objective and constraint function `fc` (`0` = no limit)
         real(wp) :: max_time        = 0.0_wp    !! stop (`istat=sqpopt_time_limit_reached`) after this much wall-clock
                                                 !! time, in seconds (`0` = no limit)
         real(wp) :: obj_lower_limit = -sqpopt_infinity !! stop (`istat=sqpopt_unbounded`) if the objective falls below

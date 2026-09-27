@@ -26,7 +26,13 @@
 !  routines only need to fill in the corresponding nonzero *values* on
 !  each call.
 !
-!  **User functions.** Every user function has two trailing arguments:
+!  **User functions.** The problem is defined by two routines (see
+!  [[set_functions]]): `fc`, which evaluates the objective \( f(x) \) and
+!  the constraints \( c(x) \) together, and `gjac`, which evaluates the
+!  objective gradient \( \nabla f(x) \) and the nonzero values of the
+!  constraint Jacobian together (and, optionally, `hess` for an exact
+!  Hessian of the Lagrangian). Every user function has two trailing
+!  arguments:
 !
 !  * `status` (`integer, intent(inout)`): `0` on entry. Leave it `0` on
 !    success; set it `> 0` if the function cannot be evaluated at `x` (e.g.
@@ -42,9 +48,11 @@
 !  type-bound [[eval_f_cached|f]], [[eval_c_cached|c]], [[eval_g_cached|g]],
 !  and [[eval_jac_cached|jac]] methods, which handle `status`/`data`, count
 !  the user calls, keep a small cache of recent evaluations (so e.g. the
-!  point accepted by a line search is not evaluated again), and apply the
-!  objective and constraint scaling (see [[compute_scaling]]): the solver
-!  works with \( s_f f \) and \( s_{c,i} c_i \).
+!  point accepted by a line search is not evaluated again, and asking for
+!  `c` at a point where `f` was just evaluated doesn't call `fc` again),
+!  and apply the objective and constraint scaling (see
+!  [[compute_scaling]]): the solver works with \( s_f f \) and
+!  \( s_{c,i} c_i \).
 
     module sqpopt_problem_module
 
@@ -56,10 +64,9 @@
 
     private
 
-    integer, parameter :: cache_size = 4 !! number of recent evaluations of `f` (and of `c`) kept
+    integer, parameter :: cache_size = 4 !! number of recent evaluations of `fc` kept
 
-    public :: sqpopt_objective_func, sqpopt_gradient_func, sqpopt_constraint_func
-    public :: sqpopt_jacobian_func, sqpopt_hessian_func
+    public :: sqpopt_fc_func, sqpopt_gjac_func, sqpopt_hessian_func
 
     type, public :: sqpopt_problem_type
         !! defines the problem to be solved: the problem size, the
@@ -87,11 +94,9 @@
         integer, dimension(:), allocatable :: hess_irow !! Hessian sparsity pattern: row indices `dimension(hess_nnz)`
         integer, dimension(:), allocatable :: hess_icol !! Hessian sparsity pattern: column indices `dimension(hess_nnz)`
 
-        procedure(sqpopt_objective_func), pointer, nopass :: eval_f    => null() !! evaluates \( f(x) \)
-        procedure(sqpopt_gradient_func),  pointer, nopass :: eval_g    => null() !! evaluates \( \nabla f(x) \)
-        procedure(sqpopt_constraint_func),pointer, nopass :: eval_c    => null() !! evaluates \( c(x) \)
-        procedure(sqpopt_jacobian_func),  pointer, nopass :: eval_jac  => null() !! evaluates the nonzero values of the
-                                                                                !! Jacobian of \( c(x) \)
+        procedure(sqpopt_fc_func),        pointer, nopass :: eval_fc   => null() !! evaluates \( f(x) \) and \( c(x) \)
+        procedure(sqpopt_gjac_func),      pointer, nopass :: eval_gjac => null() !! evaluates \( \nabla f(x) \) and the
+                                                                                !! nonzero values of the Jacobian of \( c(x) \)
         procedure(sqpopt_hessian_func),   pointer, nopass :: eval_hess => null() !! evaluates the nonzero values of the
                                                                                 !! Hessian of the Lagrangian (only used
                                                                                 !! when an exact Hessian is requested)
@@ -99,21 +104,18 @@
 
         ! ---- internal evaluation state (see the module-level documentation) ----
         logical  :: stop_requested = .false. !! set when a user function returns `status < 0`
-        integer  :: n_eval_f   = 0 !! number of calls of the user's `f`
-        integer  :: n_eval_g   = 0 !! number of calls of the user's `g`
-        integer  :: n_eval_c   = 0 !! number of calls of the user's `c`
-        integer  :: n_eval_jac = 0 !! number of calls of the user's `jac`
+        integer  :: n_eval_fc   = 0 !! number of calls of the user's `fc`
+        integer  :: n_eval_gjac = 0 !! number of calls of the user's `gjac`
         real(wp) :: f_scale = 1.0_wp !! objective scale factor \( s_f \)
         real(wp), dimension(:), allocatable :: c_scale !! constraint scale factors \( s_{c,i} \) `dimension(m)`
-        integer :: cache_nf = 0, cache_next_f = 1 !! entries used, and the slot for the next one, in the `f` cache
-        integer :: cache_nc = 0, cache_next_c = 1 !! the same, for the `c` cache
-        real(wp), dimension(:,:), allocatable :: cache_xf !! points at which `f` was evaluated `dimension(n,cache_size)`
-        real(wp), dimension(:),   allocatable :: cache_f  !! (unscaled) `f` at those points `dimension(cache_size)`
-        real(wp), dimension(:,:), allocatable :: cache_xc !! points at which `c` was evaluated `dimension(n,cache_size)`
-        real(wp), dimension(:,:), allocatable :: cache_c  !! (unscaled) `c` at those points `dimension(m,cache_size)`
-        logical :: have_g = .false., have_jac = .false. !! whether the one-entry `g`/`jac` caches are filled
-        real(wp), dimension(:), allocatable :: cache_xg, cache_g   !! point and (unscaled) `g` there `dimension(n)`
-        real(wp), dimension(:), allocatable :: cache_xj, cache_jac !! point and (unscaled) Jacobian values there
+        integer :: cache_n = 0, cache_next = 1 !! entries used, and the slot for the next one, in the `fc` cache
+        real(wp), dimension(:,:), allocatable :: cache_x !! points at which `fc` was evaluated `dimension(n,cache_size)`
+        real(wp), dimension(:),   allocatable :: cache_f !! (unscaled) `f` at those points `dimension(cache_size)`
+        real(wp), dimension(:,:), allocatable :: cache_c !! (unscaled) `c` at those points `dimension(m,cache_size)`
+        logical :: have_gjac = .false. !! whether the one-entry `gjac` cache is filled
+        real(wp), dimension(:), allocatable :: cache_xg  !! point at which `gjac` was evaluated `dimension(n)`
+        real(wp), dimension(:), allocatable :: cache_g   !! (unscaled) `g` there `dimension(n)`
+        real(wp), dimension(:), allocatable :: cache_jac !! (unscaled) Jacobian values there `dimension(jac_nnz)`
 
         contains
 
@@ -134,47 +136,31 @@
 
     abstract interface
 
-        subroutine sqpopt_objective_func(x, f, status, data)
-            !! evaluates the objective function \( f(x) \)
+        subroutine sqpopt_fc_func(x, f, c, status, data)
+            !! evaluates the objective function \( f(x) \) and the nonlinear
+            !! constraint vector \( c(x) \)
             import :: wp
             implicit none
             real(wp), dimension(:), intent(in)    :: x      !! optimization variable vector `dimension(n)`
             real(wp),               intent(out)   :: f      !! value of the objective function
+            real(wp), dimension(:), intent(out)   :: c      !! constraint vector `dimension(m)` (`m` may be 0)
             integer,                intent(inout) :: status !! `0` on entry; `>0`: can't evaluate here, `<0`: stop
             class(*), optional,     intent(inout) :: data   !! user data (see [[set_functions]])
-        end subroutine sqpopt_objective_func
+        end subroutine sqpopt_fc_func
 
-        subroutine sqpopt_gradient_func(x, g, status, data)
+        subroutine sqpopt_gjac_func(x, g, jac_val, status, data)
             !! evaluates the gradient of the objective function \( \nabla f(x) \)
-            import :: wp
-            implicit none
-            real(wp), dimension(:), intent(in)    :: x      !! optimization variable vector `dimension(n)`
-            real(wp), dimension(:), intent(out)   :: g      !! gradient vector `dimension(n)`
-            integer,                intent(inout) :: status !! `0` on entry; `>0`: can't evaluate here, `<0`: stop
-            class(*), optional,     intent(inout) :: data   !! user data (see [[set_functions]])
-        end subroutine sqpopt_gradient_func
-
-        subroutine sqpopt_constraint_func(x, c, status, data)
-            !! evaluates the nonlinear constraint vector \( c(x) \)
-            import :: wp
-            implicit none
-            real(wp), dimension(:), intent(in)    :: x      !! optimization variable vector `dimension(n)`
-            real(wp), dimension(:), intent(out)   :: c      !! constraint vector `dimension(m)`
-            integer,                intent(inout) :: status !! `0` on entry; `>0`: can't evaluate here, `<0`: stop
-            class(*), optional,     intent(inout) :: data   !! user data (see [[set_functions]])
-        end subroutine sqpopt_constraint_func
-
-        subroutine sqpopt_jacobian_func(x, jac_val, status, data)
-            !! evaluates the nonzero values of the Jacobian of the constraint
-            !! vector: \( J_{ij} = \partial c_i / \partial x_j \), ordered to
-            !! match the sparsity pattern set by `set_jacobian_sparsity`.
+            !! and the nonzero values of the Jacobian of the constraint vector,
+            !! \( J_{ij} = \partial c_i / \partial x_j \), ordered to match the
+            !! sparsity pattern set by `set_jacobian_sparsity`
             import :: wp
             implicit none
             real(wp), dimension(:), intent(in)    :: x       !! optimization variable vector `dimension(n)`
-            real(wp), dimension(:), intent(out)   :: jac_val !! nonzero Jacobian values `dimension(jac_nnz)`
+            real(wp), dimension(:), intent(out)   :: g       !! gradient vector `dimension(n)`
+            real(wp), dimension(:), intent(out)   :: jac_val !! nonzero Jacobian values `dimension(jac_nnz)` (may be 0)
             integer,                intent(inout) :: status  !! `0` on entry; `>0`: can't evaluate here, `<0`: stop
             class(*), optional,     intent(inout) :: data    !! user data (see [[set_functions]])
-        end subroutine sqpopt_jacobian_func
+        end subroutine sqpopt_gjac_func
 
         subroutine sqpopt_hessian_func(x, lambda, hess_val, status, data)
             !! evaluates the nonzero values of the Hessian of the Lagrangian:
@@ -323,8 +309,7 @@
         if (.not. allocated(me%jac_icol)) allocate(me%jac_icol(0))
     end if
 
-    if (.not. (associated(me%eval_f) .and. associated(me%eval_g) .and. &
-               associated(me%eval_c) .and. associated(me%eval_jac))) then
+    if (.not. (associated(me%eval_fc) .and. associated(me%eval_gjac))) then
         msg = 'the problem functions have not been set (call set_functions)'; return
     end if
 
@@ -375,28 +360,27 @@
 !*******************************************************************************
 !>
 !  attach the user-supplied procedures used to evaluate the objective
-!  function, constraints, and their derivatives, and (optionally) a user
-!  data object that is passed to each of them (see the module-level
-!  documentation).
+!  function and constraints (`fc`), their derivatives (`gjac`), and
+!  optionally the exact Hessian of the Lagrangian (`hess`), and
+!  (optionally) a user data object that is passed to each of them (see the
+!  module-level documentation). `fc` returns \( f \) and \( c \) together,
+!  and `gjac` returns \( \nabla f \) and the Jacobian values together,
+!  since they usually share intermediate results.
 !
 !  `data` is *pointed to*, not copied, so the functions see (and may
 !  update) the caller's object: it must have the `target` (or `pointer`)
 !  attribute and exist for as long as the problem is being solved.
 
-    subroutine set_functions(me, f, g, c, jac, hess, data)
+    subroutine set_functions(me, fc, gjac, hess, data)
 
     class(sqpopt_problem_type), intent(inout) :: me
-    procedure(sqpopt_objective_func)          :: f    !! objective function
-    procedure(sqpopt_gradient_func)           :: g    !! objective function gradient
-    procedure(sqpopt_constraint_func)         :: c    !! constraint vector
-    procedure(sqpopt_jacobian_func)           :: jac  !! sparse constraint Jacobian values
+    procedure(sqpopt_fc_func)                 :: fc   !! objective function and constraint vector
+    procedure(sqpopt_gjac_func)               :: gjac !! objective gradient and sparse constraint Jacobian values
     procedure(sqpopt_hessian_func), optional  :: hess !! sparse exact Hessian of the Lagrangian values
     class(*), target, optional, intent(inout) :: data !! user data passed to each function
 
-    me%eval_f    => f
-    me%eval_g    => g
-    me%eval_c    => c
-    me%eval_jac  => jac
+    me%eval_fc   => fc
+    me%eval_gjac => gjac
     me%eval_hess => null()
     me%user_data => null()
     if (present(hess)) me%eval_hess => hess
@@ -415,24 +399,19 @@
 
     class(sqpopt_problem_type), intent(inout) :: me
 
-    if (allocated(me%cache_xf))  deallocate(me%cache_xf)
+    if (allocated(me%cache_x))   deallocate(me%cache_x)
     if (allocated(me%cache_f))   deallocate(me%cache_f)
-    if (allocated(me%cache_xc))  deallocate(me%cache_xc)
     if (allocated(me%cache_c))   deallocate(me%cache_c)
     if (allocated(me%cache_xg))  deallocate(me%cache_xg)
     if (allocated(me%cache_g))   deallocate(me%cache_g)
-    if (allocated(me%cache_xj))  deallocate(me%cache_xj)
     if (allocated(me%cache_jac)) deallocate(me%cache_jac)
     if (allocated(me%c_scale))   deallocate(me%c_scale)
-    allocate(me%cache_xf(me%n,cache_size), me%cache_f(cache_size))
-    allocate(me%cache_xc(me%n,cache_size), me%cache_c(me%m,cache_size))
-    allocate(me%cache_xg(me%n), me%cache_g(me%n), me%cache_xj(me%n), me%cache_jac(max(me%jac_nnz,0)))
+    allocate(me%cache_x(me%n,cache_size), me%cache_f(cache_size), me%cache_c(me%m,cache_size))
+    allocate(me%cache_xg(me%n), me%cache_g(me%n), me%cache_jac(max(me%jac_nnz,0)))
     allocate(me%c_scale(me%m))
-    me%cache_nf = 0; me%cache_next_f = 1
-    me%cache_nc = 0; me%cache_next_c = 1
-    me%have_g   = .false.
-    me%have_jac = .false.
-    me%n_eval_f = 0; me%n_eval_g = 0; me%n_eval_c = 0; me%n_eval_jac = 0
+    me%cache_n = 0; me%cache_next = 1
+    me%have_gjac = .false.
+    me%n_eval_fc = 0; me%n_eval_gjac = 0
     me%stop_requested = .false.
     me%f_scale = 1.0_wp
     me%c_scale = 1.0_wp
@@ -462,13 +441,12 @@
     real(wp), dimension(me%m) :: row_max
     integer :: k
 
-    call raw_g(me, x, g)
+    call raw_gjac(me, x, g, jval)
     if (sqpopt_all_finite(g) .and. me%n > 0) then
         if (maxval(abs(g)) > max_gradient) me%f_scale = max_gradient/maxval(abs(g))
     end if
 
     if (me%m > 0) then
-        call raw_jac(me, x, jval)
         if (sqpopt_all_finite(jval)) then
             row_max = 0.0_wp
             do k = 1, me%jac_nnz
@@ -498,7 +476,9 @@
     real(wp), dimension(:),     intent(in)    :: x  !! point `dimension(n)`
     real(wp),                   intent(out)   :: f  !! scaled objective function value at `x`
 
-    call raw_f(me, x, f)
+    real(wp), dimension(me%m) :: c
+
+    call raw_fc(me, x, f, c)
     f = me%f_scale*f
 
     end subroutine eval_f_cached
@@ -515,7 +495,9 @@
     real(wp), dimension(:),     intent(in)    :: x  !! point `dimension(n)`
     real(wp), dimension(:),     intent(out)   :: c  !! scaled constraint values at `x` `dimension(m)`
 
-    call raw_c(me, x, c)
+    real(wp) :: f
+
+    call raw_fc(me, x, f, c)
     c = me%c_scale*c
 
     end subroutine eval_c_cached
@@ -532,7 +514,9 @@
     real(wp), dimension(:),     intent(in)    :: x  !! point `dimension(n)`
     real(wp), dimension(:),     intent(out)   :: g  !! scaled gradient at `x` `dimension(n)`
 
-    call raw_g(me, x, g)
+    real(wp), dimension(max(me%jac_nnz,0)) :: jac_val
+
+    call raw_gjac(me, x, g, jac_val)
     g = me%f_scale*g
 
     end subroutine eval_g_cached
@@ -550,8 +534,9 @@
     real(wp), dimension(:),     intent(out)   :: jac_val !! scaled Jacobian values `dimension(jac_nnz)`
 
     integer :: k
+    real(wp), dimension(me%n) :: g
 
-    call raw_jac(me, x, jac_val)
+    call raw_gjac(me, x, g, jac_val)
     do k = 1, me%jac_nnz
         jac_val(k) = me%c_scale(me%jac_irow(k))*jac_val(k)
     end do
@@ -561,202 +546,102 @@
 
 !*******************************************************************************
 !>
-!  the unscaled objective, from the cache or the user function.
+!  the unscaled objective and constraints, from the cache or the user's `fc`
+!  (whose call is counted, and whose `status` is handled by [[check_status]]).
 
-    subroutine raw_f(me, x, f)
+    subroutine raw_fc(me, x, f, c)
 
     class(sqpopt_problem_type), intent(inout) :: me
     real(wp), dimension(:),     intent(in)    :: x
     real(wp),                   intent(out)   :: f
+    real(wp), dimension(:),     intent(out)   :: c
 
-    integer :: k
+    integer :: k, status
+    real(wp), dimension(1+size(c)) :: v
 
-    if (.not. allocated(me%cache_xf)) call reset_evaluations(me)
-    do k = 1, me%cache_nf
-        if (all(me%cache_xf(:,k) == x)) then
+    if (.not. allocated(me%cache_x)) call reset_evaluations(me)
+    do k = 1, me%cache_n
+        if (all(me%cache_x(:,k) == x)) then
             f = me%cache_f(k)
+            c = me%cache_c(:,k)
             return
         end if
     end do
 
     if (me%stop_requested) then   ! (no more user calls once a stop has been requested)
         f = ieee_value(1.0_wp, ieee_quiet_nan)
-        return
-    end if
-    call call_f(me, x, f)
-    me%cache_xf(:,me%cache_next_f) = x
-    me%cache_f(me%cache_next_f)    = f
-    me%cache_nf     = min(me%cache_nf + 1, cache_size)
-    me%cache_next_f = mod(me%cache_next_f, cache_size) + 1
-
-    end subroutine raw_f
-!*******************************************************************************
-
-!*******************************************************************************
-!>
-!  the unscaled constraints, from the cache or the user function.
-
-    subroutine raw_c(me, x, c)
-
-    class(sqpopt_problem_type), intent(inout) :: me
-    real(wp), dimension(:),     intent(in)    :: x
-    real(wp), dimension(:),     intent(out)   :: c
-
-    integer :: k
-
-    if (.not. allocated(me%cache_xc)) call reset_evaluations(me)
-    if (me%m == 0) return
-    do k = 1, me%cache_nc
-        if (all(me%cache_xc(:,k) == x)) then
-            c = me%cache_c(:,k)
-            return
-        end if
-    end do
-
-    if (me%stop_requested) then
-        c = ieee_value(1.0_wp, ieee_quiet_nan)
-        return
-    end if
-    call call_c(me, x, c)
-    me%cache_xc(:,me%cache_next_c) = x
-    me%cache_c(:,me%cache_next_c)  = c
-    me%cache_nc     = min(me%cache_nc + 1, cache_size)
-    me%cache_next_c = mod(me%cache_next_c, cache_size) + 1
-
-    end subroutine raw_c
-!*******************************************************************************
-
-!*******************************************************************************
-!>
-!  the unscaled gradient, from the one-entry cache or the user function.
-
-    subroutine raw_g(me, x, g)
-
-    class(sqpopt_problem_type), intent(inout) :: me
-    real(wp), dimension(:),     intent(in)    :: x
-    real(wp), dimension(:),     intent(out)   :: g
-
-    integer :: status
-
-    if (.not. allocated(me%cache_xg)) call reset_evaluations(me)
-    if (me%have_g) then
-        if (all(me%cache_xg == x)) then
-            g = me%cache_g
-            return
-        end if
-    end if
-
-    if (me%stop_requested) then
-        g = ieee_value(1.0_wp, ieee_quiet_nan)
+        c = f
         return
     end if
     status = 0
     if (associated(me%user_data)) then
-        call me%eval_g(x, g, status, me%user_data)
+        call me%eval_fc(x, f, c, status, me%user_data)
     else
-        call me%eval_g(x, g, status)
+        call me%eval_fc(x, f, c, status)
     end if
-    me%n_eval_g = me%n_eval_g + 1
-    call check_status(me, status, g)
+    me%n_eval_fc = me%n_eval_fc + 1
+    v = [f, c]
+    call check_status(me, status, v)
+    f = v(1)
+    c = v(2:)
 
-    me%cache_xg = x
-    me%cache_g  = g
-    me%have_g   = .true.
+    me%cache_x(:,me%cache_next) = x
+    me%cache_f(me%cache_next)   = f
+    me%cache_c(:,me%cache_next) = c
+    me%cache_n    = min(me%cache_n + 1, cache_size)
+    me%cache_next = mod(me%cache_next, cache_size) + 1
 
-    end subroutine raw_g
+    end subroutine raw_fc
 !*******************************************************************************
 
 !*******************************************************************************
 !>
-!  the unscaled Jacobian values, from the one-entry cache or the user function.
+!  the unscaled gradient and Jacobian values, from the one-entry cache or
+!  the user's `gjac` (whose call is counted, and whose `status` is handled
+!  by [[check_status]]).
 
-    subroutine raw_jac(me, x, jac_val)
+    subroutine raw_gjac(me, x, g, jac_val)
 
     class(sqpopt_problem_type), intent(inout) :: me
     real(wp), dimension(:),     intent(in)    :: x
+    real(wp), dimension(:),     intent(out)   :: g
     real(wp), dimension(:),     intent(out)   :: jac_val
 
     integer :: status
+    real(wp), dimension(size(g)+size(jac_val)) :: v
 
-    if (.not. allocated(me%cache_xj)) call reset_evaluations(me)
-    if (me%have_jac) then
-        if (all(me%cache_xj == x)) then
+    if (.not. allocated(me%cache_xg)) call reset_evaluations(me)
+    if (me%have_gjac) then
+        if (all(me%cache_xg == x)) then
+            g       = me%cache_g
             jac_val = me%cache_jac
             return
         end if
     end if
 
     if (me%stop_requested) then
+        g       = ieee_value(1.0_wp, ieee_quiet_nan)
         jac_val = ieee_value(1.0_wp, ieee_quiet_nan)
         return
     end if
     status = 0
     if (associated(me%user_data)) then
-        call me%eval_jac(x, jac_val, status, me%user_data)
+        call me%eval_gjac(x, g, jac_val, status, me%user_data)
     else
-        call me%eval_jac(x, jac_val, status)
+        call me%eval_gjac(x, g, jac_val, status)
     end if
-    me%n_eval_jac = me%n_eval_jac + 1
-    call check_status(me, status, jac_val)
+    me%n_eval_gjac = me%n_eval_gjac + 1
+    v = [g, jac_val]
+    call check_status(me, status, v)
+    g       = v(1:size(g))
+    jac_val = v(size(g)+1:)
 
-    me%cache_xj  = x
+    me%cache_xg  = x
+    me%cache_g   = g
     me%cache_jac = jac_val
-    me%have_jac  = .true.
+    me%have_gjac = .true.
 
-    end subroutine raw_jac
-!*******************************************************************************
-
-!*******************************************************************************
-!>
-!  call the user's objective function (passing `status` and the user data),
-!  count the call, and handle the returned status.
-
-    subroutine call_f(me, x, f)
-
-    class(sqpopt_problem_type), intent(inout) :: me
-    real(wp), dimension(:),     intent(in)    :: x
-    real(wp),                   intent(out)   :: f
-
-    integer :: status
-    real(wp), dimension(1) :: fv
-
-    status = 0
-    if (associated(me%user_data)) then
-        call me%eval_f(x, f, status, me%user_data)
-    else
-        call me%eval_f(x, f, status)
-    end if
-    me%n_eval_f = me%n_eval_f + 1
-    fv = f
-    call check_status(me, status, fv)
-    f = fv(1)
-
-    end subroutine call_f
-!*******************************************************************************
-
-!*******************************************************************************
-!>
-!  call the user's constraint function (passing `status` and the user data),
-!  count the call, and handle the returned status.
-
-    subroutine call_c(me, x, c)
-
-    class(sqpopt_problem_type), intent(inout) :: me
-    real(wp), dimension(:),     intent(in)    :: x
-    real(wp), dimension(:),     intent(out)   :: c
-
-    integer :: status
-
-    status = 0
-    if (associated(me%user_data)) then
-        call me%eval_c(x, c, status, me%user_data)
-    else
-        call me%eval_c(x, c, status)
-    end if
-    me%n_eval_c = me%n_eval_c + 1
-    call check_status(me, status, c)
-
-    end subroutine call_c
+    end subroutine raw_gjac
 !*******************************************************************************
 
 !*******************************************************************************

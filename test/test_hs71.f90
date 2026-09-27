@@ -119,7 +119,7 @@ program test_hs71
     call problem%set_bounds(x_lb=[1.0_wp,1.0_wp,1.0_wp,1.0_wp], x_ub=[5.0_wp,5.0_wp,5.0_wp,5.0_wp], &
                              c_lb=[40.0_wp, 25.0_wp], c_ub=[40.0_wp, big])
     call problem%set_jacobian_sparsity(nnz=8, irow=[1,1,1,1,2,2,2,2], icol=[1,2,3,4,1,2,3,4])
-    call problem%set_functions(f=obj, g=grad, c=cons, jac=jacv)
+    call problem%set_functions(fc=fc_obj_cons, gjac=gjac_grad_jacv)
 
     options%max_iter        = 3000
     options%merit_mode      = merit_mode
@@ -217,5 +217,28 @@ program test_hs71
     i_jac = i_jac + 1
     if (any(x < 1.0_wp) .or. any(x > 5.0_wp)) outside_bounds = .true.
     end subroutine jacv
+
+    subroutine fc_obj_cons(x, f, c, status, data)
+    !! `fc` for `set_functions`: the objective (`obj`) and the constraints (`cons`)
+    real(wp), dimension(:), intent(in)    :: x
+    real(wp),               intent(out)   :: f
+    real(wp), dimension(:), intent(out)   :: c
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
+    call obj(x, f, status, data)
+    if (status == 0) call cons(x, c, status, data)
+    end subroutine fc_obj_cons
+
+    subroutine gjac_grad_jacv(x, g, jac_val, status, data)
+    !! `gjac` for `set_functions`: the gradient (`grad`) and the Jacobian values (`jacv`)
+    real(wp), dimension(:), intent(in)    :: x
+    real(wp), dimension(:), intent(out)   :: g
+    real(wp), dimension(:), intent(out)   :: jac_val
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
+    call grad(x, g, status, data)
+    if (status == 0) call jacv(x, jac_val, status, data)
+    end subroutine gjac_grad_jacv
+
 
 end program test_hs71

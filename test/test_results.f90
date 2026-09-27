@@ -61,7 +61,7 @@ program test_results
     call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
     call problem%set_bounds(x_lb=[-10.0_wp,-10.0_wp], x_ub=[0.5_wp,10.0_wp], c_lb=[-1.0e20_wp], c_ub=[3.0_wp*s])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
-    call problem%set_functions(f=obj, g=grad, c=cons, jac=jacv)
+    call problem%set_functions(fc=fc_obj_cons, gjac=gjac_grad_jacv)
     options%scaling = scaling
 
     n_f = 0; n_g = 0; n_c = 0; n_jac = 0
@@ -70,7 +70,7 @@ program test_results
     call solver%get_solution(x, lam, z)
     call solver%get_results(r)
     print '(A,ES8.1,A,L1,A,2F10.6,A,F10.6,A,2ES12.4,A,I0,A,4I4)', 's=', s, ' scaling=', scaling, ' x=', x, &
-        ' lambda=', lam, ' z=', z, ' iter=', r%iterations, ' evals=', r%n_eval_f, r%n_eval_g, r%n_eval_c, r%n_eval_jac
+        ' lambda=', lam, ' z=', z, ' iter=', r%iterations, ' evals=', r%n_eval_fc, r%n_eval_gjac
     if (istat /= sqpopt_success) error stop 'test_results FAILED: did not converge'
     if (maxval(abs(x - [0.5_wp, 2.5_wp])) > tol) error stop 'test_results FAILED: wrong x'
     if (abs(lam(1) + 1.0_wp) > tol) error stop 'test_results FAILED: wrong lambda'
@@ -79,7 +79,8 @@ program test_results
     if (abs(r%c(1) - 3.0_wp*s) > tol*s) error stop 'test_results FAILED: wrong c'
     if (r%feasibility_error > tol*s) error stop 'test_results FAILED: feasibility error'
     if (any(r%x /= x) .or. any(r%lambda /= lam) .or. any(r%z /= z)) error stop 'test_results FAILED: inconsistent results'
-    if (r%n_eval_f /= n_f .or. r%n_eval_g /= n_g .or. r%n_eval_c /= n_c .or. r%n_eval_jac /= n_jac) &
+    ! (each `fc` call calls `obj` and `cons` once, and each `gjac` call `grad` and `jacv`)
+    if (r%n_eval_fc /= n_f .or. r%n_eval_fc /= n_c .or. r%n_eval_gjac /= n_g .or. r%n_eval_gjac /= n_jac) &
         error stop 'test_results FAILED: evaluation counts'
 
     ! warm start from the solution and its multipliers: converged at the first iterate
@@ -126,5 +127,28 @@ program test_results
     n_jac = n_jac + 1
     jac_val = s
     end subroutine jacv
+
+    subroutine fc_obj_cons(x, f, c, status, data)
+    !! `fc` for `set_functions`: the objective (`obj`) and the constraints (`cons`)
+    real(wp), dimension(:), intent(in)    :: x
+    real(wp),               intent(out)   :: f
+    real(wp), dimension(:), intent(out)   :: c
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
+    call obj(x, f, status, data)
+    if (status == 0) call cons(x, c, status, data)
+    end subroutine fc_obj_cons
+
+    subroutine gjac_grad_jacv(x, g, jac_val, status, data)
+    !! `gjac` for `set_functions`: the gradient (`grad`) and the Jacobian values (`jacv`)
+    real(wp), dimension(:), intent(in)    :: x
+    real(wp), dimension(:), intent(out)   :: g
+    real(wp), dimension(:), intent(out)   :: jac_val
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
+    call grad(x, g, status, data)
+    if (status == 0) call jacv(x, jac_val, status, data)
+    end subroutine gjac_grad_jacv
+
 
 end program test_results

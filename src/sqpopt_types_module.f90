@@ -61,10 +61,8 @@
         integer  :: istat      = 0       !! status code
         character(len=:), allocatable :: message !! description of the status
         integer  :: iterations = 0       !! number of major iterations performed
-        integer  :: n_eval_f   = 0       !! number of calls of the objective function
-        integer  :: n_eval_g   = 0       !! number of calls of the gradient function
-        integer  :: n_eval_c   = 0       !! number of calls of the constraint function
-        integer  :: n_eval_jac = 0       !! number of calls of the Jacobian function
+        integer  :: n_eval_fc   = 0      !! number of calls of the objective and constraint function (`fc`)
+        integer  :: n_eval_gjac = 0      !! number of calls of the gradient and Jacobian function (`gjac`)
         real(wp) :: f          = 0.0_wp  !! objective function value at `x`
         real(wp) :: kkt_error  = 0.0_wp  !! KKT (stationarity/complementarity) error at `x` (of the scaled problem,
                                           !! as used by the convergence test)

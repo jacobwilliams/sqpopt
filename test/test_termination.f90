@@ -40,7 +40,7 @@ program test_termination
     call problem%set_problem_size(n=2, m_eq=0, m_ineq=1)
     call problem%set_bounds(x_lb=[-5.0_wp,-5.0_wp], x_ub=[5.0_wp,5.0_wp], c_lb=[-1.0e20_wp], c_ub=[1.5_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
-    call problem%set_functions(f=obj, g=grad, c=cons, jac=jacv)
+    call problem%set_functions(fc=fc_obj_cons, gjac=gjac_grad_jacv)
 
     ! ---- max_evals ----
     options = sqpopt_options_type()
@@ -48,8 +48,8 @@ program test_termination
     call solver%initialize(problem=problem, options=options)
     call solver%solve([-1.2_wp, 1.0_wp], istat)
     call solver%get_results(r)
-    print '(A,I0,A,I0)', 'max_evals: istat=', istat, ' n_eval_f=', r%n_eval_f
-    if (istat /= sqpopt_max_evals_reached .or. r%n_eval_f < 5) error stop 'test_termination FAILED: max_evals'
+    print '(A,I0,A,I0)', 'max_evals: istat=', istat, ' n_eval_fc=', r%n_eval_fc
+    if (istat /= sqpopt_max_evals_reached .or. r%n_eval_fc < 5) error stop 'test_termination FAILED: max_evals'
 
     ! ---- max_time ----
     options = sqpopt_options_type()
@@ -65,7 +65,7 @@ program test_termination
     call unbounded%set_bounds(x_lb=[-1.0e20_wp,-1.0e20_wp], x_ub=[1.0e20_wp,1.0e20_wp], &
                               c_lb=[real(wp)::], c_ub=[real(wp)::])
     call unbounded%set_jacobian_sparsity(nnz=0, irow=[integer::], icol=[integer::])
-    call unbounded%set_functions(f=obj_lin, g=grad_lin, c=cons0, jac=jac0)
+    call unbounded%set_functions(fc=fc_obj_lin_cons0, gjac=gjac_grad_lin_jac0)
     options = sqpopt_options_type()
     options%obj_lower_limit = -10.0_wp
     call solver%initialize(problem=unbounded, options=options)
@@ -165,5 +165,50 @@ program test_termination
     integer,                intent(inout) :: status
     class(*), optional,     intent(inout) :: data
     end subroutine jac0
+
+    subroutine fc_obj_cons(x, f, c, status, data)
+    !! `fc` for `set_functions`: the objective (`obj`) and the constraints (`cons`)
+    real(wp), dimension(:), intent(in)    :: x
+    real(wp),               intent(out)   :: f
+    real(wp), dimension(:), intent(out)   :: c
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
+    call obj(x, f, status, data)
+    if (status == 0) call cons(x, c, status, data)
+    end subroutine fc_obj_cons
+
+    subroutine fc_obj_lin_cons0(x, f, c, status, data)
+    !! `fc` for `set_functions`: the objective (`obj_lin`) and the constraints (`cons0`)
+    real(wp), dimension(:), intent(in)    :: x
+    real(wp),               intent(out)   :: f
+    real(wp), dimension(:), intent(out)   :: c
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
+    call obj_lin(x, f, status, data)
+    if (status == 0) call cons0(x, c, status, data)
+    end subroutine fc_obj_lin_cons0
+
+    subroutine gjac_grad_jacv(x, g, jac_val, status, data)
+    !! `gjac` for `set_functions`: the gradient (`grad`) and the Jacobian values (`jacv`)
+    real(wp), dimension(:), intent(in)    :: x
+    real(wp), dimension(:), intent(out)   :: g
+    real(wp), dimension(:), intent(out)   :: jac_val
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
+    call grad(x, g, status, data)
+    if (status == 0) call jacv(x, jac_val, status, data)
+    end subroutine gjac_grad_jacv
+
+    subroutine gjac_grad_lin_jac0(x, g, jac_val, status, data)
+    !! `gjac` for `set_functions`: the gradient (`grad_lin`) and the Jacobian values (`jac0`)
+    real(wp), dimension(:), intent(in)    :: x
+    real(wp), dimension(:), intent(out)   :: g
+    real(wp), dimension(:), intent(out)   :: jac_val
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
+    call grad_lin(x, g, status, data)
+    if (status == 0) call jac0(x, jac_val, status, data)
+    end subroutine gjac_grad_lin_jac0
+
 
 end program test_termination
