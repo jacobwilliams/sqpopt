@@ -787,7 +787,7 @@
         end if
 
         if (ok) then
-            alpha = next_step_length(me, alpha, phi0, slope, phi_trial)
+            alpha = next_step_length(me, alpha, phi_r, slope, phi_trial)  ! (through the reference value tested against)
         else
             alpha = me%backtrack*alpha
         end if

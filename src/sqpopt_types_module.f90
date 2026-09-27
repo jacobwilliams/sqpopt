@@ -36,7 +36,6 @@
                                                                     !! feasible point (the problem appears to be unbounded)
     integer, parameter, public :: sqpopt_acceptable           = 12 !! converged to the "acceptable" (looser) tolerances, for
                                                                     !! several consecutive iterations, but not to the normal ones
-    integer, parameter, public :: sqpopt_error                = -1 !! stopped: an unspecified error occurred
 
     real(wp), parameter, public :: sqpopt_infinity = 1.0e20_wp !! any bound with magnitude `>= sqpopt_infinity` is treated
                                                                 !! as absent (bounds are clamped to `[-sqpopt_infinity,
@@ -127,7 +126,6 @@
     case (sqpopt_time_limit_reached);  msg = 'time limit reached'
     case (sqpopt_unbounded);           msg = 'the objective fell below its lower limit (the problem appears to be unbounded)'
     case (sqpopt_acceptable);          msg = 'converged to an acceptable level'
-    case (sqpopt_error);               msg = 'an unspecified error occurred'
     case default;                      msg = 'unknown status code'
     end select
 

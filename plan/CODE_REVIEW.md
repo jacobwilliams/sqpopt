@@ -70,6 +70,19 @@ wrong. *Fix:* either check them in `validate`, or (simpler for users) take
 a single `m` and deprecate the split.
 
 **B3. Smaller correctness points** (low).
+*(Done 2026-09-27:
+- LSQR's `istop` is now checked in the SOC and the Gauss-Newton
+  restoration step. An iteration-limit exit counts as a failure, and the
+  limit is `2*(rows+columns)+10`, as in the QP, instead of LSQR's default
+  of 100.
+- An SOC correction larger than the step is rejected.
+- The non-monotone interpolation now fits through the reference value.
+- `sqpopt_error` is removed.
+- The SOC bound handling is unchanged: holding the variables at bounds
+  fixed, in either of two variants, sent TP13 to 793 `fc` calls or TP116
+  to a local solution. A note in the module explains this.
+- `hessian_inverse_vector_product` is kept.
+- HS default (release): 275/30/0, `fc` 9,099 → 9,059.)*
 - The second-order correction
   ([sqpopt_soc_module.f90:114](../src/sqpopt_soc_module.f90#L114)) solves
   for the correction ignoring the variable bounds that are active, then

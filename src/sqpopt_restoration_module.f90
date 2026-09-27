@@ -99,7 +99,8 @@
 !  take one Gauss-Newton step toward feasibility of the constraints (see
 !  the module-level documentation), with a backtracking Armijo search on
 !  \( \tfrac12 \lVert r_c \rVert_2^2 \). If no decrease is found, `x_new=x`
-!  and `istat=sqpopt_line_search_failed`.
+!  and `istat=sqpopt_line_search_failed` (also if `LSQR` stops at its
+!  iteration limit before finding the Gauss-Newton step).
 !
 !  If `direction` is present, it is searched along instead of the
 !  Gauss-Newton direction (for when that can't make progress: at a point
@@ -123,6 +124,7 @@
     real(wp), parameter :: sigma     = 1.0e-4_wp !! Armijo sufficient-decrease parameter
     real(wp), parameter :: backtrack = 0.5_wp    !! step-length reduction factor
     integer,  parameter :: max_ls    = 30        !! maximum number of backtracking steps
+    integer,  parameter :: lsqr_itnlim_stop = 5  !! `LSQR`'s `istop` for "iteration limit reached"
 
     real(wp), dimension(size(c)) :: rc, c_trial
     real(wp), dimension(size(x)) :: p, x_trial
@@ -138,8 +140,16 @@
     if (present(direction)) then
         p = direction
     else
-        call lsqr%initialize(problem%m, problem%n, jac%val, jac%irow, jac%icol)
+        call lsqr%initialize(problem%m, problem%n, jac%val, jac%irow, jac%icol, &
+                             itnlim=2*(problem%m+problem%n)+10)
         call lsqr%solve(-rc, 0.0_wp, p, istop)
+        if (istop == lsqr_itnlim_stop .or. .not. sqpopt_all_finite(p)) then
+            ! LSQR didn't converge: no usable Gauss-Newton step
+            alpha = 0.0_wp
+            x_new = x
+            istat = sqpopt_line_search_failed
+            return
+        end if
     end if
     p = min(max(x+p, problem%x_lb), problem%x_ub) - x
     if (norm2(p) > max_step) p = p*(max_step/norm2(p))

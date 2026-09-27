@@ -18,7 +18,18 @@
 !  solved in the minimum-norm sense with `LSQR`. Here `S` is the set of
 !  constraints that are active in the linearization (\( c+Jp \) at a bound
 !  `b`), or violated at `x+p` (with `b` the violated bound). The corrected
-!  step `p+d` is then projected onto the variable bounds.
+!  step `p+d` is then projected onto the variable bounds. The correction is
+!  not used if it is larger than the step itself (it is meant to be a small
+!  correction; a large one comes from a nearly singular \( J_S \)), or if
+!  `LSQR` stops at its iteration limit.
+!
+!@note Variables at a bound at `x+p` are not held fixed in the solve for
+!      `d`, so the final projection can undo part of the correction. (Holding
+!      them fixed, or re-solving with the variables that the correction takes
+!      outside their bounds held fixed, was tried: it saves function
+!      evaluations on some problems, but makes the correction large where
+!      the free variables' columns of \( J_S \) are small, e.g. TP13, and
+!      sends TP116 to a different local solution.)
 
     module sqpopt_soc_module
 
@@ -57,6 +68,9 @@
     logical,                    intent(out) :: ok      !! true if `p_soc` is a usable corrected step
 
     real(wp), parameter :: act_tol = 1.0e-6_wp !! relative tolerance for "at a bound" in the linearization
+    real(wp), parameter :: soc_max_ratio = 1.0_wp !! the correction is rejected if \( \lVert d \rVert > \)
+                                                  !! `soc_max_ratio` \( \lVert p \rVert \)
+    integer,  parameter :: lsqr_itnlim_stop = 5 !! `LSQR`'s `istop` for "iteration limit reached"
 
     real(wp), dimension(size(c)) :: c_lin, resid
     integer,  dimension(size(c)) :: row_map
@@ -110,9 +124,10 @@
         if (row_map(i) > 0) rhs(row_map(i)) = -resid(i)
     end do
 
-    call lsqr%initialize(m_s, size(x), val, irow, icol)
+    call lsqr%initialize(m_s, size(x), val, irow, icol, itnlim=2*(m_s+size(x))+10)
     call lsqr%solve(rhs, 0.0_wp, d, istop)
-    if (.not. sqpopt_all_finite(d)) return
+    if (istop == lsqr_itnlim_stop .or. .not. sqpopt_all_finite(d)) return
+    if (norm2(d) > soc_max_ratio*norm2(p)) return  ! (the correction is meant to be small relative to the step)
 
     p_soc = min(max(x + p + d, x_lb), x_ub) - x
     ok    = .true.

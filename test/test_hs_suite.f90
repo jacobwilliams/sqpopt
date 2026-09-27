@@ -107,7 +107,7 @@ program test_hs_suite
     !! 275 of the 305 problems solved, 30 local solutions, 0 failures. (TP391
     !! has no analytic derivatives, and f* = 0: with finite-difference
     !! gradients and the automatic L-BFGS memory it stops at f = 2.8e-3, just
-    !! outside `rel_tol`.)
+    !! outside `rel_tol`, in the release build; the debug build solves it.)
     integer, dimension(*), parameter :: known_unsolved = [ &
           2,  16,  25,  33,  38,  54,  55,  57,  59,  87,  97,  98, 105, 109, 202, &
         213, 236, 239, 265, 272, 283, 287, 304, 305, 312, 327, 338, 340, 362, 391 ]
