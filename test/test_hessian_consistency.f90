@@ -14,6 +14,12 @@ program test_hessian_consistency
     !! * Powell-damped BFGS: a negative-curvature pair (`s^T y < 0`) is still
     !!   used (after damping, `s^T B s = 0.2 s^T B_old s`) and `B` stays
     !!   positive definite; with damping off, the pair is skipped instead.
+    !! * SR1 inverse: `inverse_vector_product` (a matrix-free CG solve, see
+    !!   `hessian_cg_solve`) must be the inverse of the forward product.
+    !! * Exact mode: with `A` given as a lower-triangle sparsity pattern, the
+    !!   product and diagonal must be those of `A`, the inverse product (CG)
+    !!   its inverse, and the shift must grow on `reset` (with the product
+    !!   then `(A + shift*I) v`) and decay (by 3, then to 0) on `set_values`.
 
     use sqpopt_hessian_module, only: sqpopt_hessian_type
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
@@ -115,6 +121,71 @@ program test_hessian_consistency
         print '(A,I0,A,ES10.2)', 'SR1 secant error, pair ', k, '         = ', norm2(bs - yy(:,k))
         if (norm2(bs - yy(:,k)) > tol) error stop 'test_hessian_consistency FAILED: SR1 secant condition'
     end do
+
+    ! ---- SR1 inverse (the matrix-free CG solve) ----
+    call h%inverse_vector_product(v, d)
+    call h%hv_product(d, bv)
+    print '(A,ES10.2)', 'SR1 ||B*(B^-1*v) - v||          = ', norm2(bv - v)
+    if (norm2(bv - v) > 1.0e-8_wp*norm2(v)) error stop 'test_hessian_consistency FAILED: SR1 forward/inverse mismatch'
+
+    ! ---- exact mode ----
+    block
+        integer,  allocatable :: hrow(:), hcol(:)
+        real(wp), allocatable :: hval(:)
+        real(wp) :: diag(n), shift
+        integer  :: j
+        ! the lower triangle of A (its nonzeros only), row by row:
+        allocate(hrow(0), hcol(0), hval(0))
+        do i = 1, n
+            do j = 1, i
+                if (a(i,j) /= 0.0_wp) then
+                    hrow = [hrow, i]; hcol = [hcol, j]; hval = [hval, a(i,j)]
+                end if
+            end do
+        end do
+        call h%initialize(n, 3)
+        call h%set_exact(hrow, hcol)
+        call h%set_values(hval, decay=.true.)
+        call h%update_bfgs(ss(:,1), yy(:,1))     ! (quasi-Newton updates do nothing in this mode)
+        call h%update_sr1(ss(:,2), yy(:,2))
+        call h%hv_product(v, bv)
+        print '(A,ES10.2)', 'exact ||H*v - A*v||             = ', norm2(bv - matmul(a, v))
+        if (norm2(bv - matmul(a, v)) > tol) error stop 'test_hessian_consistency FAILED: exact product'
+        call h%diagonal(diag)
+        if (norm2(diag - [(a(i,i), i=1,n)]) > tol) error stop 'test_hessian_consistency FAILED: exact diagonal'
+        call h%inverse_vector_product(v, d)
+        print '(A,ES10.2)', 'exact ||A*(H^-1*v) - v||        = ', norm2(matmul(a, d) - v)
+        if (norm2(matmul(a, d) - v) > 1.0e-8_wp*norm2(v)) error stop 'test_hessian_consistency FAILED: exact inverse'
+
+        ! the shift: grows on reset (from shift_min*max|A_ij|, x10), and the
+        ! product is then that of A + shift*I:
+        call h%reset()
+        shift = h%shift
+        if (abs(shift - h%shift_min*maxval(abs(a))) > tol) error stop 'test_hessian_consistency FAILED: first shift'
+        call h%reset()
+        if (abs(h%shift - 10.0_wp*shift) > tol) error stop 'test_hessian_consistency FAILED: shift increase'
+        shift = h%shift
+        call h%hv_product(v, bv)
+        print '(A,ES10.2)', 'exact shifted ||H*v - (A+dI)*v|| = ', norm2(bv - matmul(a, v) - shift*v)
+        if (norm2(bv - matmul(a, v) - shift*v) > tol) error stop 'test_hessian_consistency FAILED: shifted product'
+        call h%diagonal(diag)
+        if (norm2(diag - [(a(i,i), i=1,n)] - shift) > tol) error stop 'test_hessian_consistency FAILED: shifted diagonal'
+
+        ! ...and decays on set_values (unless decay=.false.), then drops to 0:
+        call h%set_values(hval, decay=.false.)
+        if (h%shift /= shift) error stop 'test_hessian_consistency FAILED: shift decayed without decay'
+        call h%set_values(hval, decay=.true.)
+        if (abs(h%shift - shift/3.0_wp) > tol) error stop 'test_hessian_consistency FAILED: shift decay'
+        ! (10x the minimum: 10/3 and 10/9 are still above it, 10/27 is below, so 0)
+        call h%set_values(hval, decay=.true.)
+        if (abs(h%shift - shift/9.0_wp) > tol) error stop 'test_hessian_consistency FAILED: shift decay'
+        call h%set_values(hval, decay=.true.)
+        if (h%shift /= 0.0_wp) error stop 'test_hessian_consistency FAILED: small shift not dropped to 0'
+
+        ! initialize switches the exact mode off again:
+        call h%initialize(n, 3)
+        if (h%exact) error stop 'test_hessian_consistency FAILED: exact mode kept by initialize'
+    end block
 
     print '(A)', 'test_hessian_consistency PASSED'
 
