@@ -161,7 +161,19 @@ SR1 too, since SR1 matrices are also indefinite.
 ## 3. Performance
 
 **P1. Some per-iteration costs grow with the square of the L-BFGS memory**
-(medium). The new automatic memory (up to 100 pairs for large `n`) made
+(medium).
+*(Done 2026-09-27: the pairs' inner products `SᵀS` and `SᵀY` are kept, and
+updated in `O(nk)` as each pair is added, so the middle matrix is formed
+in `O(k²)`. The diagonal is computed as the row sums of `Ψ ∘ (Ψ M⁻¹)`
+with one `matmul`, instead of by strided row accesses, and cached until
+the pairs or the scaling change. At n = 2000 and k = 100, over 200
+updates, the factorization takes 0.17 s instead of 2.85 s and two
+diagonals per update take 1.22 s instead of 3.79 s. Each update now
+takes 0.12 s instead of 0.05 s, since the inner products are computed
+there. The benchmark's rosenbrock n = 2000 runs in 0.38 s instead of
+0.47 s (74 instead of 86 `fc`, from round-off). The HS results are
+identical. `test_hessian_consistency` now checks the quasi-Newton diagonal,
+the cache, and cache invalidation.)* The new automatic memory (up to 100 pairs for large `n`) made
 two costs 10–100× larger:
 - [`factor_middle_matrix`](../src/sqpopt_hessian_module.f90#L405) recomputes
   all the `SᵀS` and `SᵀY` inner products (`O(nk²)`) whenever a pair is

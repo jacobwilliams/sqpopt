@@ -11,10 +11,14 @@
 !  (Powell-damped) BFGS and SR1 updates.
 !
 !  The pairs are kept in a circular buffer (no data is moved when the
-!  oldest pair is discarded), and the small `2k x 2k` (BFGS) or `k x k`
-!  (SR1) middle matrix of the compact representation is formed and
-!  LU-factored only when the pairs or the scaling change, not on every
-!  product, so each [[hessian_vector_product]] costs only `O(nk)`.
+!  oldest pair is discarded), together with their inner products
+!  \( S^TS \) and \( S^TY \), which are updated in `O(nk)` as each pair is
+!  added. The small `2k x 2k` (BFGS) or `k x k` (SR1) middle matrix of the
+!  compact representation is formed from them and LU-factored only when
+!  the pairs or the scaling change, not on every product, so each
+!  [[hessian_vector_product]] costs only `O(nk)`. The diagonal (see
+!  [[hessian_diagonal]]) is likewise kept until the pairs or the scaling
+!  change.
 !
 !  **Exact mode** (see [[hessian_set_exact]]): instead of the quasi-Newton
 !  approximation, the user's sparse Hessian of the Lagrangian is used,
@@ -54,6 +58,10 @@
         real(wp), dimension(:,:), allocatable :: s     !! stored step vectors `dimension(n,max_history)`
         real(wp), dimension(:,:), allocatable :: y     !! stored Lagrangian gradient-change vectors `dimension(n,max_history)`
         real(wp), dimension(:),   allocatable :: rho   !! `1/(y^T s)` for each stored pair `dimension(max_history)` (BFGS)
+        real(wp), dimension(:,:), allocatable :: ss    !! `ss(a,b)` \( = s_a^Ts_b \) for the pairs in columns `a`, `b`
+                                                       !! `dimension(max_history,max_history)`
+        real(wp), dimension(:,:), allocatable :: sy    !! `sy(a,b)` \( = s_a^Ty_b \) for the pairs in columns `a`, `b`
+                                                       !! `dimension(max_history,max_history)`
         real(wp) :: gamma  = 1.0_wp !! scaling of the initial Hessian \( H_0 = \gamma I \)
         real(wp) :: gamma0 = 1.0_wp !! `gamma` before any update (and after a [[hessian_reset]])
 
@@ -72,6 +80,8 @@
         logical  :: mid_ok    = .false.  !! whether the middle matrix is nonsingular
         real(wp), dimension(:,:), allocatable :: mid_lu  !! LU factors of the middle matrix
         integer,  dimension(:),   allocatable :: mid_piv !! row pivots of the LU factorization
+        logical  :: diag_valid = .false. !! whether `diag` matches the current factorization
+        real(wp), dimension(:),   allocatable :: diag    !! the diagonal of the approximation (see [[hessian_diagonal]])
 
         contains
 
@@ -119,8 +129,11 @@
     if (allocated(me%s))     deallocate(me%s)
     if (allocated(me%y))     deallocate(me%y)
     if (allocated(me%rho))   deallocate(me%rho)
+    if (allocated(me%ss))    deallocate(me%ss)
+    if (allocated(me%sy))    deallocate(me%sy)
     allocate(me%s(n,max_history), me%y(n,max_history))
-    allocate(me%rho(max_history))
+    allocate(me%rho(max_history), me%ss(max_history,max_history), me%sy(max_history,max_history))
+    me%diag_valid  = .false.
 
     end subroutine hessian_initialize
 !*******************************************************************************
@@ -228,7 +241,8 @@
 !>
 !  push a new `(s,y)` pair into the circular history buffer, discarding
 !  the oldest pair if `max_history` pairs are already stored (by
-!  overwriting its column and advancing `first`, so no data is moved).
+!  overwriting its column and advancing `first`, so no data is moved), and
+!  update the inner products `ss` and `sy` with the new pair (`O(nk)`).
 
     subroutine hessian_push_pair(me, s, y)
 
@@ -236,13 +250,23 @@
     real(wp), dimension(:), intent(in) :: s  !! step vector `dimension(n)`
     real(wp), dimension(:), intent(in) :: y  !! Lagrangian gradient change `dimension(n)`
 
+    integer :: i, j, c
+
     if (me%n_history == me%max_history) then
         me%first = mod(me%first, me%max_history) + 1   ! the oldest pair's column becomes the newest
     else
         me%n_history = me%n_history + 1
     end if
-    me%s(:,pair_col(me, me%n_history)) = s
-    me%y(:,pair_col(me, me%n_history)) = y
+    c = pair_col(me, me%n_history)
+    me%s(:,c) = s
+    me%y(:,c) = y
+    do i = 1, me%n_history
+        j = pair_col(me, i)
+        me%ss(c,j) = dot_product(s, me%s(:,j))
+        me%ss(j,c) = me%ss(c,j)
+        me%sy(c,j) = dot_product(s, me%y(:,j))
+        me%sy(j,c) = dot_product(me%s(:,j), y)
+    end do
     me%mid_valid = .false.
 
     end subroutine hessian_push_pair
@@ -342,8 +366,10 @@
 !  the diagonal of the Hessian approximation \( H \), from its compact
 !  representation (at a cost of \( O(n k^2) \) for `k` pairs, without
 !  forming \( H \)): \( H_{ii} = \theta \mp \psi_i^T M^{-1} \psi_i \), with
-!  \( \psi_i \) the `i`-th row of \( [\theta S \; Y] \) (BFGS, minus) or of
-!  \( Y - \theta S \) (SR1, plus). Used as a (Jacobi) preconditioner.
+!  \( \psi_i \) the `i`-th row of \( \Psi = [\theta S \; Y] \) (BFGS, minus)
+!  or of \( \Psi = Y - \theta S \) (SR1, plus), i.e. the row sums of
+!  \( \Psi \circ (\Psi M^{-1}) \). Used as a (Jacobi) preconditioner. The
+!  result is kept until the pairs or the scaling change.
 
     subroutine hessian_diagonal(me, d)
 
@@ -352,7 +378,7 @@
 
     integer :: i, k, c, nk, j
     real(wp) :: theta
-    real(wp), dimension(:,:), allocatable :: psi, minv
+    real(wp), dimension(:,:), allocatable :: psi, minv, pm
 
     if (me%exact) then
         d = me%shift
@@ -368,6 +394,10 @@
     if (k == 0) return
     if (.not. me%mid_valid) call factor_middle_matrix(me)
     if (.not. me%mid_ok) return
+    if (me%diag_valid) then
+        d = me%diag
+        return
+    end if
 
     nk = merge(k, 2*k, me%use_sr1)
     allocate(psi(me%n, nk), minv(nk, nk))
@@ -385,9 +415,10 @@
         minv(j,j) = 1.0_wp
         call lu_solve(me%mid_lu, me%mid_piv, minv(:,j))
     end do
-    do i = 1, me%n
-        d(i) = theta + merge(1.0_wp, -1.0_wp, me%use_sr1)*dot_product(psi(i,:), matmul(minv, psi(i,:)))
-    end do
+    pm = matmul(psi, minv)
+    d = theta + merge(1.0_wp, -1.0_wp, me%use_sr1)*sum(psi*pm, dim=2)
+    me%diag = d
+    me%diag_valid = .true.
 
     end subroutine hessian_diagonal
 !*******************************************************************************
@@ -400,7 +431,8 @@
 !  * BFGS: \( M = \begin{bmatrix} \theta S^TS & L \\ L^T & -D \end{bmatrix} \)
 !  * SR1: \( M = D + L + L^T - \theta S^TS \)
 !
-!  with \( L_{pq} = s_p^Ty_q \) for \( p>q \) and \( D = \text{diag}(s_p^Ty_p) \).
+!  with \( L_{pq} = s_p^Ty_q \) for \( p>q \) and \( D = \text{diag}(s_p^Ty_p) \),
+!  from the stored inner products (`O(k^2)`, plus `O(k^3)` for the LU).
 
     subroutine factor_middle_matrix(me)
 
@@ -421,8 +453,7 @@
             do q = 1, k
                 cq = pair_col(me, q)
                 ! s_max(p,q)^T y_min(p,q) covers D (p==q) and L + L^T (p/=q):
-                me%mid_lu(p,q) = dot_product(me%s(:,pair_col(me, max(p,q))), me%y(:,pair_col(me, min(p,q)))) &
-                                 - theta*dot_product(me%s(:,cp), me%s(:,cq))
+                me%mid_lu(p,q) = me%sy(pair_col(me, max(p,q)), pair_col(me, min(p,q))) - theta*me%ss(cp,cq)
             end do
         end do
     else
@@ -432,19 +463,20 @@
             cp = pair_col(me, p)
             do q = 1, k
                 cq = pair_col(me, q)
-                me%mid_lu(p,q) = theta*dot_product(me%s(:,cp), me%s(:,cq))  ! theta*S^T S
+                me%mid_lu(p,q) = theta*me%ss(cp,cq)                         ! theta*S^T S
             end do
             do q = 1, p-1
                 cq = pair_col(me, q)
-                me%mid_lu(p,k+q) = dot_product(me%s(:,cp), me%y(:,cq))      ! L (upper-right block)
+                me%mid_lu(p,k+q) = me%sy(cp,cq)                              ! L (upper-right block)
                 me%mid_lu(k+q,p) = me%mid_lu(p,k+q)                          ! L^T (lower-left block)
             end do
-            me%mid_lu(k+p,k+p) = -dot_product(me%s(:,cp), me%y(:,cp))       ! -D
+            me%mid_lu(k+p,k+p) = -me%sy(cp,cp)                               ! -D
         end do
     end if
 
     call lu_factor(me%mid_lu, me%mid_piv, me%mid_ok)
-    me%mid_valid = .true.
+    me%mid_valid  = .true.
+    me%diag_valid = .false.
 
     end subroutine factor_middle_matrix
 !*******************************************************************************

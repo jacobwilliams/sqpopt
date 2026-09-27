@@ -11,6 +11,9 @@ program test_hessian_consistency
     !! * SR1: the compact L-SR1 product must satisfy the secant condition for
     !!   *every* stored pair, including after the oldest pair has been
     !!   discarded from a full history buffer.
+    !! * The diagonal (BFGS with a wrapped buffer, and SR1) must match
+    !!   `e_i^T B e_i`, also when it comes from the cache, and after a
+    !!   further update (which must invalidate the cache).
     !! * Powell-damped BFGS: a negative-curvature pair (`s^T y < 0`) is still
     !!   used (after damping, `s^T B s = 0.2 s^T B_old s`) and `B` stays
     !!   positive definite; with damping off, the pair is skipped instead.
@@ -81,6 +84,11 @@ program test_hessian_consistency
     if (norm2(bs - yy(:,n_pairs)) > tol .or. norm2(bv - v) > tol*norm2(v)) &
         error stop 'test_hessian_consistency FAILED: BFGS with a wrapped buffer'
 
+    ! ---- the diagonal (BFGS, wrapped buffer), and its cache ----
+    call check_diagonal('BFGS')
+    call h%update_bfgs(ss(:,1), yy(:,1))  ! (wraps again: the cached diagonal must be recomputed)
+    call check_diagonal('BFGS after an update')
+
     ! ---- Powell damping: a negative-curvature pair ----
     block
         real(wp) :: s_neg(n), sbs_old, sbs_new, vbv
@@ -121,6 +129,7 @@ program test_hessian_consistency
         print '(A,I0,A,ES10.2)', 'SR1 secant error, pair ', k, '         = ', norm2(bs - yy(:,k))
         if (norm2(bs - yy(:,k)) > tol) error stop 'test_hessian_consistency FAILED: SR1 secant condition'
     end do
+    call check_diagonal('SR1')
 
     ! ---- SR1 inverse (the matrix-free CG solve) ----
     call h%inverse_vector_product(v, d)
@@ -188,5 +197,25 @@ program test_hessian_consistency
     end block
 
     print '(A)', 'test_hessian_consistency PASSED'
+
+contains
+
+    subroutine check_diagonal(label)
+    !! `h%diagonal` must match the diagonal of `B`, from products with the
+    !! unit vectors (called twice, to check the cached value too)
+    character(len=*), intent(in) :: label
+    real(wp) :: diag(n), e(n), be(n), ref(n)
+    integer :: j, pass
+    do j = 1, n
+        e = 0.0_wp; e(j) = 1.0_wp
+        call h%hv_product(e, be)
+        ref(j) = be(j)
+    end do
+    do pass = 1, 2
+        call h%diagonal(diag)
+        if (pass == 1) print '(A,ES10.2)', label//' diagonal error = ', norm2(diag - ref)
+        if (norm2(diag - ref) > tol*norm2(ref)) error stop 'test_hessian_consistency FAILED: '//label//' diagonal'
+    end do
+    end subroutine check_diagonal
 
 end program test_hessian_consistency
