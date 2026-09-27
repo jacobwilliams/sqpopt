@@ -201,7 +201,6 @@ This package depends on the following external libraries (which will be automati
 * [lusol](https://github.com/jacobwilliams/lusol) -- sparse LU factorization library (the sparse QP's basis factors and updates, and its rank-revealing basis choice)
 * [fmin](https://github.com/jacobwilliams/fmin.git) -- derivative-free minimization routine used for exact line search
 
-
 ### Other Fortran SQP Solvers
 
  * [SNOPT](https://ccom.ucsd.edu/~optimizers/solvers/snopt/) -- Large-scale SQP solver developed by Philip Gill, Walter Murray, and Michael Saunders. A commercial product.
@@ -209,9 +208,19 @@ This package depends on the following external libraries (which will be automati
  * [SLSQP](https://github.com/jacobwilliams/slsqp) -- Originally by Dieter Kraft, one of the optimization methods in SciPy.
  * [PSQP](https://github.com/jacobwilliams/psqp) -- Another SQP code, originally by Ladislav Luksan.
 
+### Other Optimization Libraries
+
+ * [IPOPT](https://github.com/coin-or/Ipopt) -- Interior Point OPTimizer for large-scale nonlinear optimization.
+ * [Uno](https://github.com/cvanaret/Uno) -- Uno (Unifying Nonlinear Optimization) is a C++ framework for solving nonlinearly constrained optimization problems
+
 ### References
 
  * Gill, P. E., Murray, W., Saunders, M. A. (2002). SNOPT: An SQP Algorithm for Large-Scale Constrained Optimization, SIAM Journal on Optimization, 12(4), 979-1006.
  * Kraft, D. (1988). A software package for sequential quadratic programming. Forschungsbericht Deutsche Forschungs- und Versuchsanstalt für Luft- und Raumfahrt.
  * Nocedal, J., & Wright, S. J. (2006). Numerical Optimization. Springer.
  * Fletcher, R., & Leyffer, S. (2002). Nonlinear programming without a penalty function. Mathematical Programming, 91(2), 239-269.
+ * D. Kiessling, S. Leyffer, C. Vanaret, A Unified Funnel Restoration SQP Algorithm, Mathematical Programming, Volume 217, pages 323-367 (2026)
+ * Gill, P E; Murray, W; Saunders, M A; Wright, M H, Some Theoretical Properties of an Augmented Lagrangian Merit Function, SOL-86-6, 1 April 1986
+ * P. E. Gill and E. Wong, User's Guide for SQOPT Version 7.7: Software for Large-Scale Linear and Quadratic Programming, Mar 2021
+ * R. Fletcher and S. Leyffer, User manual for filterSQP, University of Dundee, April 1998
+ * C. Vanaret1, S. Leyffer, Implementing a unified solver for nonlinearly constrained optimization, Mathematical Programming Computation, 10 June 2026
