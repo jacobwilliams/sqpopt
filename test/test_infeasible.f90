@@ -10,15 +10,22 @@ program test_infeasible
     !! The closest the constraints can get to feasibility (in the l2 sense
     !! the infeasibility test uses) is x1 = 1.5.
     !!
-    !! Run with both the (default) Armijo line search and the filter line
-    !! search (whose failure path goes through feasibility restoration).
+    !! Run with the Armijo, filter, and funnel line searches (the latter two's
+    !! failure path goes through feasibility restoration), and with the
+    !! trust region and the filter (whose failure path goes through the
+    !! restoration phase: without it, i.e. with `sqpopt_restoration_gauss_newton`,
+    !! the trust region stops at x1 = 1 with `sqpopt_line_search_failed`).
+    !! The closest the constraints can get to feasibility in the l1 sense
+    !! is any x1 in [1,2], so the restoration phase (which minimizes the l1
+    !! violation) must hand over to the Gauss-Newton step to reach x1 = 1.5.
 
     use sqpopt_module,           only: sqpopt_type
     use sqpopt_problem_module,   only: sqpopt_problem_type
     use sqpopt_options_module,   only: sqpopt_options_type
     use sqpopt_qp_solver_module, only: sqpopt_qp_auto, sqpopt_qp_dense, sqpopt_qp_reduced_hessian
     use sqpopt_types_module,     only: sqpopt_infeasible
-    use sqpopt_linesearch_module, only: sqpopt_linesearch_armijo, sqpopt_linesearch_filter
+    use sqpopt_linesearch_module, only: sqpopt_linesearch_armijo, sqpopt_linesearch_filter, sqpopt_linesearch_funnel
+    use sqpopt_trust_region_module, only: sqpopt_trust_region_type
     use sqpopt_kinds,            only: wp => sqpopt_module_wp
 
     implicit none
@@ -28,6 +35,9 @@ program test_infeasible
     type(sqpopt_type)         :: solver
     type(sqpopt_problem_type) :: problem
     type(sqpopt_options_type) :: options
+    type(sqpopt_trust_region_type) :: trust_region
+    character(len=*), parameter :: labels(4) = [character(len=24) :: 'armijo', 'filter', 'funnel', &
+                                                'trust region + filter']
     real(wp) :: xsol(2), lam(2)
     integer  :: istat, i, ls
 
@@ -41,15 +51,21 @@ program test_infeasible
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,2], icol=[1,1])
     call problem%set_functions(fc=fc_obj_cons, gjac=gjac_grad_jacv)
 
-    do ls = 1, 2
+    do ls = 1, size(labels)
     do i = 1, size(modes)
         options = sqpopt_options_type()
         options%qp_solver_mode = modes(i)
-        options%linesearch_mode = merge(sqpopt_linesearch_armijo, sqpopt_linesearch_filter, ls == 1)
-        call solver%initialize(problem=problem, options=options)
+        select case (ls)
+        case (1);    options%linesearch_mode = sqpopt_linesearch_armijo
+        case (3);    options%linesearch_mode = sqpopt_linesearch_funnel
+        case default; options%linesearch_mode = sqpopt_linesearch_filter
+        end select
+        trust_region = sqpopt_trust_region_type()
+        trust_region%enabled = ls >= 4
+        call solver%initialize(problem=problem, options=options, trust_region=trust_region)
         call solver%solve([0.5_wp, 0.0_wp], istat)
         call solver%get_solution(xsol, lam)
-        print '(A,I0,A,I0,A,2F10.4,A,I0,2A)', 'linesearch_mode=', options%linesearch_mode, &
+        print '(A,A,I0,A,2F10.4,A,I0,2A)', labels(ls), &
             ' qp_solver_mode=', modes(i), ': x=', xsol, &
             '  istat=', istat, '  ', solver%status_message()
         if (istat /= sqpopt_infeasible) error stop 'test_infeasible FAILED: infeasibility not detected'

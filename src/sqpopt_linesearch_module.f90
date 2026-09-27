@@ -278,6 +278,7 @@
         procedure, public :: funnel_accept           => funnel_step_acceptable
         procedure, public :: funnel_record           => funnel_shrink
         procedure, public :: funnel_restoration      => funnel_shrink_restoration
+        procedure, public :: globalization_acceptable => point_acceptable
 
     end type sqpopt_linesearch_type
 
@@ -1669,6 +1670,36 @@
     me%funnel_width = me%funnel_kappa*me%funnel_width + (1.0_wp - me%funnel_kappa)*theta_k
 
     end subroutine funnel_shrink_restoration
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  whether a point with violation `theta` and objective `phi` is acceptable
+!  to the filter (`sqpopt_linesearch_filter` mode: \( \theta < \theta_{max} \)
+!  and not dominated by any filter entry) or to the funnel
+!  (`sqpopt_linesearch_funnel` mode: \( \theta \le \tau \)); always true in
+!  the other modes. Used to decide when a feasibility restoration phase can
+!  end (see [[sqpopt_restoration_module]]).
+
+    function point_acceptable(me, theta, phi) result(ok)
+
+    class(sqpopt_linesearch_type), intent(in) :: me
+    real(wp), intent(in) :: theta !! constraint violation
+    real(wp), intent(in) :: phi   !! objective
+    logical :: ok
+
+    ok = .true.
+    select case (me%mode)
+    case (sqpopt_linesearch_filter)
+        if (.not. me%filter_ready) return
+        ok = theta < me%filter_theta_max
+        if (ok .and. size(me%filter_theta) > 0) &
+            ok = .not. any(theta >= me%filter_theta .and. phi >= me%filter_phi)
+    case (sqpopt_linesearch_funnel)
+        if (me%funnel_ready) ok = theta <= me%funnel_width
+    end select
+
+    end function point_acceptable
 !*******************************************************************************
 
     end module sqpopt_linesearch_module

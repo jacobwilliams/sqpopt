@@ -24,7 +24,8 @@
     use sqpopt_convergence_module, only: check_convergence
     use sqpopt_soc_module,        only: soc_step
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
-    use sqpopt_restoration_module,  only: restoration_step, escape_step
+    use sqpopt_restoration_module,  only: restoration_step, escape_step, sqpopt_restoration_type, &
+                                          sqpopt_restoration_phase
 
     implicit none
 
@@ -80,7 +81,7 @@
 
     subroutine sqpopt_iterate(problem, options, hessian, qp_solver, linesearch, trust_region, &
                                x, lambda, x_prev, gl_prev, f_prev, viol_prev, jac, n_acceptable, n_stalled, n_escape, &
-                               iter, report, done, &
+                               restoration, iter, report, done, &
                                istat, info)
 
     type(sqpopt_problem_type),    intent(inout) :: problem     !! problem definition
@@ -105,6 +106,8 @@
                                                           !! acceptable-level test has held (`0` before the 1st call)
     integer,                intent(inout) :: n_escape     !! number of second-order escapes from a stationary point of
                                                           !! the violation taken so far (`0` before the 1st call)
+    type(sqpopt_restoration_type), intent(inout) :: restoration !! feasibility restoration phase state (see
+                                                                !! [[sqpopt_restoration_module]])
     integer,                intent(in)    :: iter      !! major iteration number (starts at 1), passed to `report`
     procedure(sqpopt_report_func), optional, pointer :: report !! optional user progress-reporting callback (see [[sqpopt_types_module]])
     logical,                 intent(out)   :: done      !! true if the solver should stop at `x` (see `istat` for why)
@@ -281,13 +284,32 @@
     qp_istat = sqpopt_success
     restore  = .false.
 
-    if (trust_region%enabled) then
+    if (restoration%active) then
+
+        ! in a feasibility restoration phase: minimize the violation, keeping
+        ! the current multipliers (see [[sqpopt_restoration_module]]):
+        restore    = .true.
+        new_lambda = lambda
+        linesearch%joint_active = .false.
+        call restoration_phase_iteration()
+
+    else if (trust_region%enabled) then
 
         ! trust-region globalization: re-solves the QP as needed with a
-        ! shrinking radius and its own accept/reject test (merit-ratio or
-        ! filter, depending on `linesearch%mode`) instead of a line search
-        ! along one fixed `p` -- see [[sqpopt_trust_region_module]]:
+        ! shrinking radius and its own accept/reject test (merit-ratio,
+        ! filter, or funnel, depending on `linesearch%mode`) instead of a line
+        ! search along one fixed `p` -- see [[sqpopt_trust_region_module]]:
         call trust_region%step(problem, hessian, qp_solver, linesearch, x, g, f, c, jac, x_new, new_lambda, alpha, step_istat)
+
+        ! if no step was acceptable at an infeasible point, start a
+        ! restoration phase (as in Fletcher & Leyffer's trust-region filter SQP):
+        if (step_istat /= sqpopt_success .and. options%restoration_mode == sqpopt_restoration_phase) then
+            if (l1_violation(c, problem%c_lb, problem%c_ub) > 0.0_wp) then
+                restore    = .true.
+                new_lambda = lambda
+                call start_restoration_phase(record=.true.)
+            end if
+        end if
 
     else
 
@@ -321,8 +343,9 @@
         if (restore) then
 
             ! the linearized constraints are inconsistent, so the QP step can't
-            ! be trusted: take a step toward feasibility instead, keeping the
-            ! current multipliers (see [[sqpopt_restoration_module]]):
+            ! be trusted: start a restoration phase, or take a step toward
+            ! feasibility, keeping the current multipliers (see
+            ! [[sqpopt_restoration_module]]):
             new_lambda = lambda
             linesearch%joint_active = .false.
             call restoration_step(problem, jac, x, c, qp_solver%max_step*qp_solver%step_scale, x_new, alpha, step_istat)
@@ -391,7 +414,12 @@
                     if (theta > 0.0_wp) then
                         restore    = .true.
                         new_lambda = lambda
-                        call restoration_step(problem, jac, x, c, qp_solver%max_step*qp_solver%step_scale, x_new, alpha, step_istat)
+                        if (options%restoration_mode == sqpopt_restoration_phase) then
+                            call start_restoration_phase(record=.false.)
+                        else
+                            call restoration_step(problem, jac, x, c, qp_solver%max_step*qp_solver%step_scale, &
+                                                  x_new, alpha, step_istat)
+                        end if
                     end if
                 end block
             end if
@@ -484,6 +512,43 @@
         logical,                intent(out) :: ok      !! true if `p_soc` is usable
         call soc_step(jac, x, p_trial, c, c_trial, problem%c_lb, problem%c_ub, problem%x_lb, problem%x_ub, p_soc, ok)
         end subroutine soc
+
+        subroutine start_restoration_phase(record)
+        !! start a feasibility restoration phase at `x`, and take its first
+        !! iteration. If `record`, first add `x` to the filter (or tighten the
+        !! funnel toward it), so the iterations can't cycle back to it (a
+        !! failed filter or funnel line search has already done so).
+        logical, intent(in) :: record
+        real(wp) :: theta
+        theta = l1_violation(c, problem%c_lb, problem%c_ub)
+        if (record) then
+            if (linesearch%mode == sqpopt_linesearch_funnel) then
+                call linesearch%funnel_restoration(theta)
+            else if (linesearch%mode == sqpopt_linesearch_filter) then
+                call linesearch%filter_record(theta, f)
+            end if
+        end if
+        call restoration%enter(x, theta, qp_solver)
+        call restoration_phase_iteration()
+        end subroutine start_restoration_phase
+
+        subroutine restoration_phase_iteration()
+        !! one iteration of the restoration phase (falling back to a
+        !! Gauss-Newton step if it fails), and end the phase if the new point
+        !! is good enough (see [[restoration_phase_done]])
+        real(wp) :: f_new
+        real(wp), dimension(problem%m) :: c_new
+        logical :: ended
+        call restoration%step(problem, jac, x, c, x_new, alpha, step_istat)
+        if (step_istat /= sqpopt_success) &
+            call restoration_step(problem, jac, x, c, qp_solver%max_step*qp_solver%step_scale, x_new, alpha, step_istat)
+        if (step_istat == sqpopt_success) then
+            call problem%f(x_new, f_new)
+            call problem%c(x_new, c_new)
+            ended = restoration%done(linesearch, l1_violation(c_new, problem%c_lb, problem%c_ub), f_new, &
+                                     options%restoration_exit_factor, options%ctol, options%restoration_max_iter)
+        end if
+        end subroutine restoration_phase_iteration
 
         subroutine update_penalty()
         !! update the merit function's penalty parameter for the QP step `p`

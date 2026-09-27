@@ -9,6 +9,7 @@
     use sqpopt_kinds,             only: wp => sqpopt_module_wp
     use sqpopt_linesearch_module, only: sqpopt_linesearch_filter, sqpopt_merit_l1, sqpopt_penalty_multipliers
     use sqpopt_qp_solver_module,  only: sqpopt_qp_auto
+    use sqpopt_restoration_module, only: sqpopt_restoration_phase
     use sqpopt_types_module,      only: sqpopt_infinity
     use, intrinsic :: iso_fortran_env, only: output_unit
 
@@ -39,6 +40,14 @@
                                                   !! (see [[sqpopt_linesearch_module]])
         integer  :: penalty_update = sqpopt_penalty_multipliers !! how the merit function's penalty parameter is
                                                                  !! updated (see [[update_penalty_parameter]])
+        integer  :: restoration_mode = sqpopt_restoration_phase !! feasibility restoration strategy (see
+                                                                 !! [[sqpopt_restoration_module]]): a restoration phase
+                                                                 !! (`sqpopt_restoration_phase`), or a single Gauss-Newton
+                                                                 !! step each time (`sqpopt_restoration_gauss_newton`)
+        real(wp) :: restoration_exit_factor = 0.9_wp !! a restoration phase ends once the \( \ell_1 \) violation is below this
+                                                     !! factor times its value where the phase started, and the point is
+                                                     !! acceptable to the filter or funnel (`0 < factor < 1`)
+        integer  :: restoration_max_iter = 50        !! maximum number of iterations of a restoration phase
         integer  :: max_consecutive_failures = 5 !! stop (with the failing component's status code, e.g.
                                                   !! `sqpopt_line_search_failed` or `sqpopt_qp_solve_failed`)
                                                   !! after this many consecutive major iterations in which the

@@ -695,6 +695,42 @@ region 253/41/11 (filter: 251/36/18). Uno's other width update rule
 `s_θ=1.1`, and `κ=0.9` change only the `fc` count (±2%). The harness has
 new `--linesearch=funnel` and `--trust-region` options.
 
+**F2 feasibility restoration phase (2026-09-26).** New option
+`restoration_mode`: `sqpopt_restoration_phase` (default) or
+`sqpopt_restoration_gauss_newton` (the old single step). Modeled on Uno's
+`FeasibilityRestoration` (see `plan/UNO_COMPARISON.md`):
+- Entered when the filter or funnel line search, or the trust region
+  (which had no restoration before), finds no acceptable step at an
+  infeasible point. The point is added to the filter (or the funnel is
+  tightened toward it).
+- Each phase iteration solves a feasibility QP with the regular QP solvers
+  (a copy, so the optimality QP's warm start is kept): a proximal objective
+  `ζ(x−x_ref)ᵀp + ½ζ‖p‖²` toward the phase's starting point, with the
+  linearized constraints enforced or, if inconsistent, their ℓ1 violation
+  minimized by the elastic mode. Then an Armijo backtracking search on the
+  ℓ1 violation against the linearized decrease. Falls back to the
+  Gauss-Newton step if that fails.
+- Exit: `θ ≤ restoration_exit_factor·θ_ref` (0.9) and acceptable to the
+  filter or funnel, or feasible, or `restoration_max_iter` (50)
+  iterations. Multipliers are kept.
+- An inconsistent QP still takes the Gauss-Newton step (then the QP's
+  elastic step). Using the phase there too loses TP61 in every
+  line-search configuration: from `x₂=x₃=0` the pure feasibility phase
+  stays in that plane (the constraints' gradients have no `x₂`, `x₃`
+  components there) and ends at a worse local solution, while the elastic
+  step, which includes the objective's gradient, leaves it.
+- HS suite: every line-search configuration is unchanged (their searches
+  practically never fail at an infeasible point first; filter without
+  interpolation: 10,037 → 10,061 `fc`, same outcomes). Trust region with
+  the filter: 251/36/18 → 252/40/13; with the funnel unchanged
+  (253/41/11). `test_infeasible` now also covers the funnel search and the
+  trust region (which, without the phase, stopped with
+  `sqpopt_line_search_failed`). The Performance table has trust-region
+  rows, and the harness a `--restoration=` option.
+- Not done: a quasi-Newton model of the constraints' curvature in the
+  feasibility QP (it uses `ζI`); the trust region's own radius inside the
+  phase (the phase uses the line search).
+
 ## 2. Bugs: correctness (fix first)
 
 | # | Issue | Where | Evidence |
@@ -805,7 +841,8 @@ new `--linesearch=funnel` and `--trust-region` options.
   working-set change. That favors the basis partition over the
   augmented system above. LUSOL also gives no inertia, so it can't
   provide F7's inertia control (§8.3).
-- **F2: elastic mode and infeasibility detection.** Use SNOPT-style ℓ1
+- **F2: elastic mode and infeasibility detection.** *(Done 2026-09-26:
+  elastic QPs in Phase 1, the restoration phase in Phase 4.)* Use SNOPT-style ℓ1
   elastic QPs when the linearization is inconsistent, plus a feasibility
   phase. This produces a real `sqpopt_infeasible` status (B6, B11).
 - **F3: Powell-damped BFGS.** It is cheap once B1 is fixed (one

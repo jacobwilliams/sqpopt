@@ -2,11 +2,39 @@
 !> author: Jacob Williams
 !  license: MIT
 !
-!  A simple feasibility-restoration step, used by [[sqpopt_iterate_module]]
-!  when the QP subproblem reports that the linearized constraints are
-!  inconsistent (`sqpopt_infeasible`), so that no QP step can be trusted.
-!  Instead of a QP step, a Gauss-Newton step on the constraint violation
-!  is taken:
+!  Feasibility restoration, used by [[sqpopt_iterate_module]] when the QP
+!  subproblem reports that the linearized constraints are inconsistent
+!  (`sqpopt_infeasible`), so that no QP step can be trusted, or when the
+!  filter or funnel line search, or the trust region, finds no acceptable
+!  step at an infeasible point. Two strategies are available
+!  (`options%restoration_mode`):
+!
+!  * `sqpopt_restoration_phase` (**default**): when the filter or funnel
+!    line search, or the trust region, finds no acceptable step, a
+!    **feasibility restoration phase**, as in filter-SQP methods (Fletcher
+!    & Leyffer; Wächter & Biegler; and the Uno solver's
+!    `FeasibilityRestoration`). (An inconsistent QP is still handled by the
+!    Gauss-Newton step below, falling back to the QP's elastic step, which
+!    also accounts for the objective: on the Hock-Schittkowski problems
+!    this finds better local solutions than a pure feasibility phase.) The
+!    solver switches to minimizing the constraint violation for as many
+!    major iterations as needed (see [[restoration_phase_step]]): each one
+!    solves a *feasibility QP* with the regular QP solvers, whose objective
+!    is a proximal term toward the point where the phase started, and
+!    whose linearized constraints are enforced (or, if they are
+!    inconsistent, their \( \ell_1 \) violation is minimized by the QP's
+!    elastic mode), followed by a backtracking search on the \( \ell_1 \)
+!    violation. The phase ends (see [[restoration_phase_done]]) once the
+!    violation has dropped below `restoration_exit_factor` times its value
+!    at the start of the phase *and* the point is acceptable to the filter
+!    (or funnel), when the point is feasible, or after
+!    `restoration_max_iter` iterations. The point where the phase started
+!    is added to the filter (or the funnel is tightened toward it), so the
+!    iterations can't cycle back to it.
+!  * `sqpopt_restoration_gauss_newton`: a single Gauss-Newton step on the
+!    constraint violation each time (the original, lightweight strategy;
+!    with the filter or funnel line search, the current point is added to
+!    the filter, or the funnel tightened, first):
 !
 !  $$ \min_x \; \tfrac12 \lVert r_c(x) \rVert_2^2 \quad \text{s.t.} \quad x_l \le x \le x_u $$
 !
@@ -14,16 +42,23 @@
 !  Repeated restoration steps converge to either a feasible point (after
 !  which the normal SQP iterations resume) or a point that is stationary
 !  for the violation, which [[check_convergence]] then reports as
-!  `sqpopt_infeasible`.
+!  `sqpopt_infeasible`. This step is also the fallback when a restoration
+!  phase step fails.
 !
-!  @note This is a lightweight stand-in for a full elastic-mode QP /
-!  feasibility-restoration phase (see `plan/ROADMAP.md`, F2).
+!  In both cases, before a point that is stationary for the violation is
+!  reported as infeasible, [[escape_step]] looks for a second-order
+!  decrease of the violation.
 
     module sqpopt_restoration_module
 
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
-    use sqpopt_types_module,   only: sqpopt_sparse_matrix, sqpopt_success, sqpopt_line_search_failed, sqpopt_all_finite
+    use sqpopt_types_module,   only: sqpopt_sparse_matrix, sqpopt_success, sqpopt_line_search_failed, sqpopt_all_finite, &
+                                     sqpopt_infeasible, sqpopt_qp_solve_failed
     use sqpopt_problem_module, only: sqpopt_problem_type
+    use sqpopt_hessian_module, only: sqpopt_hessian_type
+    use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type
+    use sqpopt_linesearch_module, only: sqpopt_linesearch_type, l1_violation
+    use sqpopt_linalg_module,     only: sparse_matvec
     use lsqr_module,           only: lsqr_solver_ez
 
     implicit none
@@ -31,6 +66,30 @@
     private
 
     public :: restoration_step, escape_step
+
+    integer, parameter, public :: sqpopt_restoration_phase        = 1 !! (default) a feasibility restoration phase
+                                                                      !! (see the module documentation)
+    integer, parameter, public :: sqpopt_restoration_gauss_newton = 2 !! a single Gauss-Newton step on the violation
+
+    type, public :: sqpopt_restoration_type
+        !! the state of the feasibility restoration phase (internal; reset on each `solve`)
+        logical  :: active    = .false.  !! whether the solver is in the restoration phase
+        integer  :: n_iter    = 0        !! number of iterations of the current phase
+        integer  :: n_phases  = 0        !! number of restoration phases so far
+        real(wp) :: theta_ref = 0.0_wp   !! \( \ell_1 \) violation where the phase started
+        real(wp), dimension(:), allocatable :: x_ref !! the point where the phase started (the proximal center)
+        type(sqpopt_qp_solver_type) :: qp   !! the QP solver for the feasibility QPs (a copy of the main one,
+                                            !! so that the latter's warm start is kept for the optimality QPs)
+        type(sqpopt_hessian_type)   :: hess !! the feasibility QP's Hessian (the proximal term, \( \zeta I \))
+        contains
+        procedure, public :: enter => restoration_phase_enter
+        procedure, public :: step  => restoration_phase_step
+        procedure, public :: done  => restoration_phase_done
+    end type sqpopt_restoration_type
+
+    real(wp), parameter :: zeta = 1.0_wp !! weight \( \zeta \) of the feasibility QP's proximal term (only its ratio
+                                         !! to the QP's elastic weight matters: with consistent linearized constraints
+                                         !! the step is the one closest to the proximal center)
 
     contains
 !*******************************************************************************
@@ -200,6 +259,130 @@
     end do
 
     end subroutine escape_step
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  start a feasibility restoration phase at `x` (with \( \ell_1 \)
+!  violation `theta`): record where it started, and set up the feasibility
+!  QP's solver (a copy of `qp_solver`) and Hessian.
+
+    subroutine restoration_phase_enter(me, x, theta, qp_solver)
+
+    class(sqpopt_restoration_type), intent(inout) :: me
+    real(wp), dimension(:),         intent(in)    :: x         !! the current point `dimension(n)`
+    real(wp),                       intent(in)    :: theta     !! its \( \ell_1 \) constraint violation
+    type(sqpopt_qp_solver_type),    intent(in)    :: qp_solver !! the main QP solver (copied)
+
+    me%active    = .true.
+    me%n_iter    = 0
+    me%n_phases  = me%n_phases + 1
+    me%theta_ref = theta
+    me%x_ref     = x
+    me%qp        = qp_solver
+    call me%hess%initialize(size(x), 1, scale0=zeta)
+
+    end subroutine restoration_phase_enter
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  one iteration of the feasibility restoration phase from `x`: solve the
+!  feasibility QP
+!
+!  $$ \min_p \; \zeta (x-x_{ref})^T p + \tfrac12 \zeta \lVert p \rVert^2
+!     \quad \text{s.t.} \quad c_l \le c + J p \le c_u, \quad x_l \le x+p \le x_u $$
+!
+!  (whose elastic mode minimizes the \( \ell_1 \) violation of the
+!  linearized constraints if they are inconsistent), then backtrack along
+!  `p` until the \( \ell_1 \) violation \( \theta \) satisfies the Armijo
+!  condition \( \theta(x+\alpha p) \le \theta(x) - \eta\alpha\,\text{pred} \),
+!  where \( \text{pred} = \theta(c) - \theta(c+Jp) \) is the decrease
+!  predicted by the linearization. If the QP predicts no decrease, or no
+!  step length is accepted, `x_new=x` and
+!  `istat=sqpopt_line_search_failed`.
+
+    subroutine restoration_phase_step(me, problem, jac, x, c, x_new, alpha, istat)
+
+    class(sqpopt_restoration_type), intent(inout) :: me
+    type(sqpopt_problem_type),  intent(inout) :: problem  !! problem definition
+    type(sqpopt_sparse_matrix), intent(in)    :: jac      !! constraint Jacobian at `x`, `dimension(m,n)`
+    real(wp), dimension(:),     intent(in)    :: x        !! current point `dimension(n)`
+    real(wp), dimension(:),     intent(in)    :: c        !! constraint values at `x` `dimension(m)`
+    real(wp), dimension(:),     intent(out)   :: x_new    !! new point `dimension(n)`
+    real(wp),                   intent(out)   :: alpha    !! accepted step length (`0` if none)
+    integer,                    intent(out)   :: istat    !! status code (see [[sqpopt_types_module]])
+
+    real(wp), parameter :: eta       = 1.0e-4_wp !! Armijo constant
+    real(wp), parameter :: alpha_min = 1.0e-8_wp !! smallest step length tried
+
+    real(wp), dimension(size(x)) :: g_r, p, x_trial
+    real(wp), dimension(size(c)) :: lambda_r, jp, c_trial
+    real(wp) :: theta0, theta_t, pred
+    integer :: qp_istat
+
+    me%n_iter = me%n_iter + 1
+    x_new = x
+    alpha = 0.0_wp
+    istat = sqpopt_line_search_failed
+
+    theta0 = l1_violation(c, problem%c_lb, problem%c_ub)
+    g_r = zeta*(x - me%x_ref)
+    call me%qp%solve(me%hess, jac, x, g_r, c, problem%x_lb, problem%x_ub, problem%c_lb, problem%c_ub, &
+                     p, lambda_r, qp_istat)
+    if (qp_istat /= sqpopt_success .and. qp_istat /= sqpopt_infeasible .and. qp_istat /= sqpopt_qp_solve_failed) return
+
+    ! the decrease in the violation predicted by the linearization:
+    call sparse_matvec(jac, p, jp)
+    pred = theta0 - l1_violation(c + jp, problem%c_lb, problem%c_ub)
+    if (.not. (pred > 1.0e-12_wp*max(1.0_wp, theta0))) return
+
+    alpha = 1.0_wp
+    do
+        x_trial = x + alpha*p
+        call problem%c(x_trial, c_trial)
+        if (sqpopt_all_finite(c_trial)) then
+            theta_t = l1_violation(c_trial, problem%c_lb, problem%c_ub)
+            if (theta_t <= theta0 - eta*alpha*pred) then
+                x_new = x_trial
+                istat = sqpopt_success
+                return
+            end if
+        end if
+        alpha = 0.5_wp*alpha
+        if (alpha < alpha_min) exit
+    end do
+    alpha = 0.0_wp
+
+    end subroutine restoration_phase_step
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  whether the restoration phase can end at a point with \( \ell_1 \)
+!  violation `theta` and objective `f`: the violation is at most
+!  `exit_factor` times its value where the phase started and the point is
+!  acceptable to the filter or funnel (see [[sqpopt_linesearch_type]]'s
+!  `globalization_acceptable`); or the point is feasible
+!  (\( \theta \le \) `feas_tol`); or the phase has taken `max_iter`
+!  iterations. Ends the phase (`active=.false.`) if so.
+
+    function restoration_phase_done(me, linesearch, theta, f, exit_factor, feas_tol, max_iter) result(done)
+
+    class(sqpopt_restoration_type), intent(inout) :: me
+    type(sqpopt_linesearch_type),   intent(in)    :: linesearch  !! supplies the filter or funnel
+    real(wp),                       intent(in)    :: theta       !! \( \ell_1 \) violation at the new point
+    real(wp),                       intent(in)    :: f           !! objective at the new point
+    real(wp),                       intent(in)    :: exit_factor !! required reduction of the violation
+    real(wp),                       intent(in)    :: feas_tol    !! a violation this small ends the phase regardless
+    integer,                        intent(in)    :: max_iter    !! maximum number of iterations of a phase
+    logical :: done
+
+    done = (theta <= exit_factor*me%theta_ref .and. linesearch%globalization_acceptable(theta, f)) &
+           .or. theta <= feas_tol .or. me%n_iter >= max_iter
+    if (done) me%active = .false.
+
+    end function restoration_phase_done
 !*******************************************************************************
 
 !*******************************************************************************

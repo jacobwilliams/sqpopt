@@ -129,5 +129,7 @@ options.
 
 ## Status
 
+- **Idea 1 (feasibility restoration phase):** done; see "F2 feasibility
+  restoration phase" in `plan/ROADMAP.md`'s Phase 4 status.
 - **Idea 2 (funnel method):** see the "Funnel method" section of
   `plan/ROADMAP.md`'s Phase 4 status.

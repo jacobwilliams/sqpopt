@@ -32,6 +32,8 @@
                                          sqpopt_merit_l1, sqpopt_merit_augmented_lagrangian, &
                                          sqpopt_penalty_multipliers, sqpopt_penalty_model
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
+    use sqpopt_restoration_module,  only: sqpopt_restoration_type, sqpopt_restoration_phase, &
+                                          sqpopt_restoration_gauss_newton
     use sqpopt_iterate_module,    only: sqpopt_iterate, sqpopt_evaluate_point, sqpopt_iter_info
 
     implicit none
@@ -49,6 +51,7 @@
         type(sqpopt_qp_solver_type)  :: qp_solver    !! QP subproblem solver
         type(sqpopt_linesearch_type) :: linesearch   !! merit function / line search
         type(sqpopt_trust_region_type) :: trust_region !! trust-region globalization (opt-in alternative to `linesearch`)
+        type(sqpopt_restoration_type)  :: restoration  !! feasibility restoration phase state (reset on each `solve`)
 
         ! the components as given to `initialize`, restored at the start of every
         ! `solve`, so that no state (scaling, caches, penalty, filter, watchdog,
@@ -152,6 +155,7 @@
     integer :: iter_istat, iter, n_fail, n_acceptable, n_stalled, n_escape
     integer(int64) :: t_start, t_now, t_rate
     character(len=:), allocatable :: msg
+    type(sqpopt_restoration_type) :: fresh_restoration !! (default-initialized)
 
     call system_clock(t_start, t_rate)
     valid = .false.
@@ -160,6 +164,7 @@
     me%problem      = me%problem0
     me%linesearch   = me%linesearch0
     me%trust_region = me%trust_region0
+    me%restoration  = fresh_restoration
     me%qp_solver    = me%qp_solver0
 
     me%x = x0
@@ -213,7 +218,8 @@
     do iter = 1, me%options%max_iter
         me%results%iterations = iter
         call sqpopt_iterate(me%problem, me%options, me%hessian, me%qp_solver, me%linesearch, me%trust_region, &
-                             me%x, me%lambda, x_prev, gl_prev, f_prev, viol_prev, jac, n_acceptable, n_stalled, n_escape, iter, me%report, &
+                             me%x, me%lambda, x_prev, gl_prev, f_prev, viol_prev, jac, n_acceptable, n_stalled, n_escape, &
+                             me%restoration, iter, me%report, &
                              done, iter_istat, info)
         if (me%options%print_level >= 1) call print_iteration(iter, info, iter_istat)
         if (done) then
@@ -405,6 +411,12 @@
     if (.not. (o%acceptable_ktol > 0.0_wp .and. o%acceptable_ctol > 0.0_wp) .or. o%acceptable_iter < 0 &
         .or. o%stall_iter < 1) then
         msg = 'options%acceptable_ktol/acceptable_ctol must be > 0, acceptable_iter >= 0, and stall_iter >= 1'; return
+    end if
+    if (all(o%restoration_mode /= [sqpopt_restoration_phase, sqpopt_restoration_gauss_newton]) .or. &
+        .not. (o%restoration_exit_factor > 0.0_wp .and. o%restoration_exit_factor < 1.0_wp) .or. &
+        o%restoration_max_iter < 1) then
+        msg = 'options%restoration_mode must be a sqpopt_restoration_* value, restoration_exit_factor in (0,1), '// &
+              'and restoration_max_iter >= 1'; return
     end if
     if (o%max_evals < 0 .or. .not. (o%max_time >= 0.0_wp)) then
         msg = 'options%max_evals and options%max_time must be >= 0'; return

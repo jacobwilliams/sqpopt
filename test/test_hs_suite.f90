@@ -44,6 +44,7 @@ program test_hs_suite
     !! line, for comparisons (see `tools/hs_performance_table.sh`):
     !!
     !! * `--linesearch=filter|funnel|armijo|watchdog|exact` (`options%linesearch_mode`)
+    !! * `--restoration=phase|gauss-newton` (`options%restoration_mode`)
     !! * `--trust-region` (`trust_region%enabled = .true.`: the trust-region
     !!   globalization, with the filter or funnel test in those modes, else
     !!   the merit-function ratio test)
@@ -81,6 +82,7 @@ program test_hs_suite
     use sqpopt_types_module,   only: sqpopt_results_type, sqpopt_success, sqpopt_stalled, sqpopt_acceptable, &
                                      sqpopt_status_message
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
+    use sqpopt_restoration_module,  only: sqpopt_restoration_phase, sqpopt_restoration_gauss_newton
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
 
     implicit none
@@ -132,6 +134,7 @@ program test_hs_suite
     logical :: cfg_interpolate = .true.
     integer :: cfg_nonmonotone = 0
     logical :: cfg_trust_region = .false. !! `--trust-region`
+    integer :: cfg_restoration  = sqpopt_restoration_phase !! `--restoration=`
     integer :: cfg_problem     = 0  !! `--problem=N`: solve only this problem (`0` = all)
     integer :: cfg_print       = 0  !! `--print=L`: `options%print_level`
     integer :: cfg_qp          = sqpopt_qp_auto
@@ -221,6 +224,8 @@ program test_hs_suite
         case ('--penalty=model');       cfg_penalty = sqpopt_penalty_model
         case ('--no-interpolate');      cfg_interpolate = .false.
         case ('--trust-region');        cfg_trust_region = .true.
+        case ('--restoration=phase');   cfg_restoration = sqpopt_restoration_phase
+        case ('--restoration=gauss-newton'); cfg_restoration = sqpopt_restoration_gauss_newton
         case ('--qp=auto');             cfg_qp = sqpopt_qp_auto
         case ('--qp=dense');            cfg_qp = sqpopt_qp_dense
         case ('--qp=sparse');           cfg_qp = sqpopt_qp_reduced_hessian
@@ -287,6 +292,7 @@ program test_hs_suite
     options%penalty_update  = cfg_penalty
     options%qp_solver_mode  = cfg_qp
     options%print_level     = cfg_print
+    options%restoration_mode = cfg_restoration
     qp_solver%sparse_qp%null_space = cfg_null_space
     linesearch%interpolate     = cfg_interpolate
     linesearch%nonmonotone_len = cfg_nonmonotone

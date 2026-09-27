@@ -424,6 +424,9 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <tr><td><code>linesearch_mode</code></td><td><code>sqpopt_linesearch_filter</code></td><td>line search strategy (see <a href="#linesearch">Line search &amp; merit function</a>)</td></tr>
 <tr><td><code>merit_mode</code></td><td><code>sqpopt_merit_l1</code></td><td>merit function, for the merit-function line searches (see <a href="#merit-modes">merit functions</a>)</td></tr>
 <tr><td><code>penalty_update</code></td><td><code>sqpopt_penalty_multipliers</code></td><td>how the merit function's penalty parameter is updated (see <a href="#penalty-modes">penalty updates</a>)</td></tr>
+<tr><td><code>restoration_mode</code></td><td><code>sqpopt_restoration_phase</code></td><td>feasibility restoration strategy (see <a href="#restoration">Feasibility restoration</a>): a restoration phase, or <code>sqpopt_restoration_gauss_newton</code> for a single Gauss-Newton step each time</td></tr>
+<tr><td><code>restoration_exit_factor</code></td><td><code>0.9</code></td><td>a restoration phase ends once the \( \ell_1 \) violation is below this factor times its value where the phase started and the point is acceptable to the filter or funnel</td></tr>
+<tr><td><code>restoration_max_iter</code></td><td><code>50</code></td><td>maximum number of iterations of a restoration phase</td></tr>
 </tbody>
 </table></div>
 
@@ -670,18 +673,28 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 
 <p>The full design is in <a href="https://github.com/jacobwilliams/sqpopt/blob/master/plan/TRUST_REGION_PLAN.md"><code>plan/TRUST_REGION_PLAN.md</code></a>.</p>
 
+<h3 id="restoration">Feasibility restoration <span class="h-note"><code>options%restoration_mode</code></span></h3>
+
+<p>When the filter or funnel line search, or the trust region, finds no acceptable step at an infeasible point, the solver enters a <strong>feasibility restoration phase</strong> (<code>sqpopt_restoration_phase</code>, the default), as in filter-SQP methods and the Uno solver:</p>
+<ul>
+  <li>The current point is added to the filter (or the funnel is tightened toward it), so the iterations can't cycle back to it.</li>
+  <li>Each iteration of the phase solves a <em>feasibility QP</em> with the regular QP solvers: its objective is a proximal term toward the point where the phase started, and it enforces the linearized constraints or, if they are inconsistent, minimizes their \( \ell_1 \) violation (the QP's elastic mode). A backtracking search then requires a decrease of the \( \ell_1 \) violation (an Armijo test against the decrease the linearization predicts). If this fails, a Gauss-Newton step on the violation is taken instead.</li>
+  <li>The phase ends once the violation is below <code>restoration_exit_factor</code> times its value where the phase started and the point is acceptable to the filter or funnel, when the point is feasible, or after <code>restoration_max_iter</code> iterations. The multipliers are kept from before the phase.</li>
+</ul>
+<p>An inconsistent QP (linearized constraints that can't be satisfied) is still handled with a single Gauss-Newton step on the violation, falling back to the QP's elastic step, which also accounts for the objective. With <code>sqpopt_restoration_gauss_newton</code>, that single step is also used when the filter or funnel line search fails, and the trust region takes no restoration step at all. Before a point is reported as infeasible (a point where the violation can't be decreased to first order), the solver also probes for a second-order decrease of the violation, which escapes, for example, symmetry planes of the problem.</p>
+
 </div><!-- .reference -->
 
 <!-- ============================================================ -->
 <h2 id="performance">Performance</h2>
 
-<p>Results on the Hock&ndash;Schittkowski test set (<code>test/test_hs_suite.f90</code>, 305 problems) for each globalization strategy. <em>Local</em> means the solver converged to a local solution different from the published one.</p>
+<p>Results on the Hock&ndash;Schittkowski test set (<code>test/test_hs_suite.f90</code>, 305 problems) for each globalization strategy (line search, merit function, and penalty update, or trust region). <em>Local</em> means the solver converged to a local solution different from the published one.</p>
 
 <div class="table-wrap"><table class="bench">
-<thead><tr><th>line search / merit / penalty</th><th class="num">solved</th><th class="num">local</th><th class="num">failed</th><th class="num"><code>fc</code> calls (solved)</th></tr></thead>
+<thead><tr><th>globalization</th><th class="num">solved</th><th class="num">local</th><th class="num">failed</th><th class="num"><code>fc</code> calls (solved)</th></tr></thead>
 <tbody>
 <tr class="best"><td><strong>filter</strong> (default, with interpolation)</td><td class="num"><strong>276</strong></td><td class="num">29</td><td class="num"><strong>0</strong></td><td class="num"><strong>9,793</strong></td></tr>
-<tr><td>filter, without interpolation</td><td class="num">275</td><td class="num">30</td><td class="num">0</td><td class="num">10,037</td></tr>
+<tr><td>filter, without interpolation</td><td class="num">275</td><td class="num">30</td><td class="num">0</td><td class="num">10,061</td></tr>
 <tr><td>funnel (with interpolation)</td><td class="num">276</td><td class="num">29</td><td class="num">0</td><td class="num">10,709</td></tr>
 <tr><td>Armijo / \( \ell_1 \) / multipliers</td><td class="num">270</td><td class="num">29</td><td class="num">6</td><td class="num">28,322</td></tr>
 <tr><td>Armijo / \( \ell_1 \) / model (Byrd&ndash;Nocedal)</td><td class="num">272</td><td class="num">29</td><td class="num">4</td><td class="num">38,526</td></tr>
@@ -689,6 +702,8 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <tr><td>Armijo / augmented Lagrangian / multipliers, interpolation + non-monotone (10)</td><td class="num">274</td><td class="num">30</td><td class="num">1</td><td class="num">11,066</td></tr>
 <tr><td>Armijo / augmented Lagrangian / model (GMSW)</td><td class="num">267</td><td class="num">32</td><td class="num">6</td><td class="num">13,589</td></tr>
 <tr><td>watchdog / \( \ell_1 \) / model</td><td class="num">272</td><td class="num">30</td><td class="num">3</td><td class="num">42,926</td></tr>
+<tr><td>trust region / filter</td><td class="num">252</td><td class="num">40</td><td class="num">13</td><td class="num">11,742</td></tr>
+<tr><td>trust region / funnel</td><td class="num">253</td><td class="num">41</td><td class="num">11</td><td class="num">12,365</td></tr>
 </tbody>
 </table></div>
 

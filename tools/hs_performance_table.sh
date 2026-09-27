@@ -2,8 +2,8 @@
 #
 # Regenerate the Performance table of the user guide (web/index.html,
 # section "Performance"): runs the Hock-Schittkowski test suite
-# (test/test_hs_suite.f90, 305 problems) once for each line search / merit
-# function / penalty configuration below, and prints the table rows (HTML by
+# (test/test_hs_suite.f90, 305 problems) once for each globalization
+# configuration below (line search / merit function / penalty, or trust region), and prints the table rows (HTML by
 # default, or Markdown with --markdown), ready to paste into the guide.
 #
 # usage (from the repository root):
@@ -32,6 +32,8 @@ rows=(
   "Armijo / augmented Lagrangian / multipliers, interpolation + non-monotone (10)|Armijo / augmented Lagrangian / multipliers, interpolation + non-monotone (10)|--linesearch=armijo --merit=al --nonmonotone=10"
   "Armijo / augmented Lagrangian / model (GMSW)|Armijo / augmented Lagrangian / model (GMSW)|--linesearch=armijo --merit=al --penalty=model --no-interpolate"
   "watchdog / \\( \\ell_1 \\) / model|watchdog / ℓ1 / model|--linesearch=watchdog --penalty=model --no-interpolate"
+  "trust region / filter|trust region / filter|--trust-region"
+  "trust region / funnel|trust region / funnel|--trust-region --linesearch=funnel"
 )
 # (and the footnote's "Armijo / l1 / multipliers, with interpolation" figures)
 extra="--linesearch=armijo"
@@ -60,7 +62,7 @@ if ! build_log=$($FPM build --profile release --tests 2>&1); then
 fi
 
 if [[ $format == markdown ]]; then
-    echo "| line search / merit / penalty | solved | local | failed | \`fc\` calls (solved) |"
+    echo "| globalization | solved | local | failed | \`fc\` calls (solved) |"
     echo "|---|--:|--:|--:|--:|"
 fi
 
