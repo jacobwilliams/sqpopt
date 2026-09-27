@@ -62,6 +62,6 @@ echo "Coverage data saved to: $COV_DIR/coverage.info"
 echo ""
 echo "generate HTML report:"
 
-genhtml $COV_DIR/coverage.info --output-directory $COV_DIR/html
+genhtml $COV_DIR/coverage.info --output-directory $COV_DIR/html --dark-mode
 
 echo ""
