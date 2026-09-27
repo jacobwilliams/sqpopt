@@ -53,8 +53,8 @@ program test_input_validation
     ! invalid options:
     call valid_problem(problem)
     options = sqpopt_options_type()
-    options%lbfgs_memory = 0
-    call expect_invalid('lbfgs_memory = 0', problem, options, [0.0_wp, 0.0_wp])
+    options%lbfgs_memory = -1
+    call expect_invalid('lbfgs_memory = -1', problem, options, [0.0_wp, 0.0_wp])
     options = sqpopt_options_type()
     options%qp_solver_mode = 99
     call expect_invalid('qp_solver_mode = 99', problem, options, [0.0_wp, 0.0_wp])

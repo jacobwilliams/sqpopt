@@ -201,7 +201,7 @@
     if (me%options%scaling) call me%problem%compute_scaling(me%x, me%options%scaling_max_gradient)
     if (present(lambda0)) me%lambda = lambda0*me%problem%f_scale/me%problem%c_scale
 
-    call me%hessian%initialize(me%problem%n, me%options%lbfgs_memory, &
+    call me%hessian%initialize(me%problem%n, lbfgs_memory(me%options%lbfgs_memory, me%problem%n), &
                                 use_sr1=(me%options%hessian_mode == sqpopt_hessian_sr1), &
                                 scale0=me%options%hessian_scale0)
     if (me%options%hessian_mode == sqpopt_hessian_exact) &
@@ -389,8 +389,8 @@
     if (o%max_iter < 0) then
         msg = 'options%max_iter must be >= 0'; return
     end if
-    if (o%lbfgs_memory < 1) then
-        msg = 'options%lbfgs_memory must be >= 1'; return
+    if (o%lbfgs_memory < 0) then
+        msg = 'options%lbfgs_memory must be >= 0 (0: automatic)'; return
     end if
     if (o%max_consecutive_failures < 1) then
         msg = 'options%max_consecutive_failures must be >= 1'; return
@@ -577,6 +577,27 @@
     call me%initialize()
 
     end subroutine sqpopt_destroy
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the number of `(s,y)` pairs the limited-memory Hessian keeps, for the
+!  option value `memory` (see `sqpopt_options_type%lbfgs_memory`) and `n`
+!  variables: `memory` itself, or, if it is `0` (automatic),
+!  \( \max(10, \min(n, 100)) \).
+
+    pure integer function lbfgs_memory(memory, n)
+
+    integer, intent(in) :: memory !! the option value
+    integer, intent(in) :: n      !! number of variables
+
+    if (memory > 0) then
+        lbfgs_memory = memory
+    else
+        lbfgs_memory = max(10, min(n, 100))
+    end if
+
+    end function lbfgs_memory
 !*******************************************************************************
 
     end module sqpopt_module

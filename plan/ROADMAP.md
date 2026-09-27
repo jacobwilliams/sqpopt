@@ -789,6 +789,24 @@ structural: at its solution the constraint's gradient is opposite to the
 active bound's, and the linearization then only allows `x₁−1` to shrink by
 ⅔ per iteration; SLSQP escapes that by jumping to `x₁ = 1` early.)
 
+**Automatic L-BFGS memory (2026-09-27).** Found with `tools/hs_compare.sh`
+on TP300–302 (unconstrained quadratics, `n` = 20, 50, 100): SLSQP (dense
+BFGS) takes `n+1` iterations, NLPQLP `2n+1` evaluations, and SQPOPT, with
+10 `(s,y)` pairs, about `5n` (74, 225, 491): the limited memory loses
+BFGS's finite termination on quadratics. `options%lbfgs_memory` now
+defaults to `0`, automatic: `max(10, min(n, 100))`. A fixed larger memory
+is not better: more pairs than variables keep stale curvature (TP355, `n`
+= 4: 391 → 1,129 `fc` with 100 pairs; TP332, `n` = 2, fails with 20).
+HS suite: 276/29/0 → 275/30/0, `fc` 9,793 → 9,099 (−7%), `gjac` 8,247 →
+7,560 (−8%); TP302 501 → 150, TP301 233 → 83, TP300 79 → 48; worst TP116
++34, TP380 +31. TP391 (finite-difference derivatives, `f* = 0`) now stops
+at `f = 2.8e-3`, just outside `rel_tol`, and is in `known_unsolved`. The
+harness has a new `--lbfgs-memory=N` option. (The same investigation found
+that TP294–299's NLPQLP counts are anomalous: 72 and 114 evaluations for
+`n` = 6, 10, then 31–33 for every `n` from 16 to 100, while SQPOPT's and
+SLSQP's grow linearly with `n`, as expected on the chained Rosenbrock
+function.)
+
 ## 2. Bugs: correctness (fix first)
 
 | # | Issue | Where | Evidence |

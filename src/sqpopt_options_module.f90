@@ -32,8 +32,12 @@
                                                    !! penalty parameter, step norm, and QP iterations
         integer  :: output_unit       = output_unit !! Fortran unit for the printed output (default: standard output)
         integer  :: hessian_mode      = sqpopt_hessian_bfgs !! Hessian approximation strategy to use
-        integer  :: lbfgs_memory      = 10        !! number of `(s,y)` vector pairs retained by the limited-memory
-                                                   !! Hessian approximation (independent of the problem size `n`)
+        integer  :: lbfgs_memory      = 0         !! number of `(s,y)` vector pairs retained by the limited-memory
+                                                   !! Hessian approximation. `0` (the default) picks it from the problem
+                                                   !! size `n`: \( \max(10, \min(n, 100)) \) -- more pairs help the
+                                                   !! larger problems (on a quadratic, BFGS with `n` pairs converges in
+                                                   !! about `n` iterations), but more pairs than variables keep stale
+                                                   !! curvature and slow the small ones down
         integer  :: qp_solver_mode = sqpopt_qp_auto !! QP subproblem algorithm to use
                                                      !! (see [[sqpopt_qp_solver_module]])
         integer  :: linesearch_mode = sqpopt_linesearch_filter !! line search strategy to use
