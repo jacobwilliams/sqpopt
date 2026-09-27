@@ -148,6 +148,13 @@
 
         x_lb2 = max(problem%x_lb, x - me%radius)
         x_ub2 = min(problem%x_ub, x + me%radius)
+        ! the trust region controls the step length, so the QP solver's own
+        ! (line-search) cap on it, `max_step*step_scale`, must not bind inside
+        ! the box (whose steps are at most `sqrt(n)*radius` long): otherwise
+        ! every step is cut to `max_step`, never uses the full radius, and the
+        ! radius can't grow either (e.g. TP220, which starts 25000 away from
+        ! its solution, crawled 2 per iteration)
+        qp_solver%step_scale = max(qp_solver%step_scale, 1.01_wp*sqrt(real(size(x), wp))*me%radius/qp_solver%max_step)
 
         call qp_solver%solve(hessian, jac, x, g, c, x_lb2, x_ub2, problem%c_lb, problem%c_ub, p, new_lambda, qp_istat)
 

@@ -33,6 +33,10 @@ program test_hs_slsqp
     !! `test_hs_suite`'s), for the results page:
     !!
     !!    fpm test test_hs_slsqp --profile release -- --web-data=web/js/hs_slsqp_data.js
+    !!
+    !! For debugging, `--problem=N` solves only problem `TPN`, and `--print`
+    !! prints SLSQP's iterations (see also `tools/hs_compare.sh`, which runs
+    !! one problem with both SQPOPT and SLSQP).
 
     use slsqp_module,          only: slsqp_solver
     use hs_problems_module
@@ -68,6 +72,8 @@ program test_hs_slsqp
     integer :: n_fc = 0, n_gjac = 0
 
     character(len=:), allocatable :: web_data_file
+    integer :: cfg_problem = 0       !! `--problem=N`: solve only this problem (`0` = all)
+    logical :: cfg_print = .false.   !! `--print`: print SLSQP's iterations
     integer :: k, n_solved, n_local, n_failed, sum_nf, sum_ng
 
     call parse_arguments()
@@ -79,6 +85,7 @@ program test_hs_slsqp
 
     n_solved = 0; n_local = 0; n_failed = 0; sum_nf = 0; sum_ng = 0
     do k = 1, hs_n_problems
+        if (cfg_problem /= 0 .and. hs_problem_ids(k) /= cfg_problem) cycle
         call run_problem(hs_problem_ids(k), rec(k))
         select case (rec(k)%outcome)
         case ('solved')
@@ -95,7 +102,7 @@ program test_hs_slsqp
     write(*,'(A)') ''
     write(*,'(5(A,I0))') 'summary: solved=', n_solved, ' local=', n_local, ' failed=', n_failed, &
                          ' nf=', sum_nf, ' ng=', sum_ng
-    if (len(web_data_file) > 0) then
+    if (len(web_data_file) > 0 .and. cfg_problem == 0) then
         call write_web_data(web_data_file)
         write(*,'(A)') 'web data written to: '//web_data_file
     end if
@@ -104,14 +111,19 @@ program test_hs_slsqp
     contains
 
     subroutine parse_arguments()
-    !! `--web-data=FILE` (the only option)
-    integer :: i
+    !! `--web-data=FILE`, `--problem=N`, `--print`
+    integer :: i, ios
     character(len=256) :: arg
     web_data_file = ''
     do i = 1, command_argument_count()
         call get_command_argument(i, arg)
         if (arg(1:11) == '--web-data=') then
             web_data_file = trim(arg(12:))
+        else if (arg(1:10) == '--problem=') then
+            read(arg(11:), *, iostat=ios) cfg_problem
+            if (ios /= 0 .or. .not. any(hs_problem_ids == cfg_problem)) error stop 'test_hs_slsqp: bad --problem value'
+        else if (trim(arg) == '--print') then
+            cfg_print = .true.
         else
             write(*,'(A)') 'test_hs_slsqp: unknown option: '//trim(arg)
             error stop 1
@@ -140,7 +152,7 @@ program test_hs_slsqp
     n_fc = 0; n_gjac = 0
     x = min(max(p%x0, p%x_lb), p%x_ub)
     call solver%initialize(p%n, ms, meqs, max_iter, acc, slsqp_func, slsqp_grad, p%x_lb, p%x_ub, &
-                           status_ok, linesearch_mode=1, infinite_bound=hs_infinity, iprint=0)
+                           status_ok, linesearch_mode=1, infinite_bound=hs_infinity, iprint=0, report=report_iteration)
     if (.not. status_ok) error stop 'test_hs_slsqp: SLSQP initialization failed'
     call solver%optimize(x, istat, iterations, message)
 
@@ -172,6 +184,35 @@ program test_hs_slsqp
     associate (unused => i); end associate
 
     end subroutine run_problem
+
+    subroutine report_iteration(me, iter, x, f, c)
+    !! with `--print`, one line per SLSQP iteration: the objective, the
+    !! largest violation of the mapped constraints, the step from the previous
+    !! iterate, the evaluation counts so far, and (for small problems) `x`
+    class(slsqp_solver),    intent(inout) :: me
+    integer,                intent(in)    :: iter
+    real(dp), dimension(:), intent(in)    :: x
+    real(dp),               intent(in)    :: f
+    real(dp), dimension(:), intent(in)    :: c
+    real(dp), dimension(:), allocatable, save :: x_last
+    real(dp) :: viol, step
+    if (.not. cfg_print) return
+    viol = 0.0_dp
+    if (meqs > 0)  viol = maxval(abs(c(1:meqs)))
+    if (ms > meqs) viol = max(viol, maxval(-c(meqs+1:ms)))
+    step = 0.0_dp
+    if (allocated(x_last) .and. iter > 0) then
+        if (size(x_last) == size(x)) step = norm2(x - x_last)
+    end if
+    if (iter == 0) write(*,'(A)') '  iter          objective     infeas     |step|   nf   ng  x'
+    if (size(x) <= 4) then
+        write(*,'(I6,ES19.9,2ES11.2,2I5,*(ES14.6))') iter, f, max(viol, 0.0_dp), step, n_fc, n_gjac, x
+    else
+        write(*,'(I6,ES19.9,2ES11.2,2I5)') iter, f, max(viol, 0.0_dp), step, n_fc, n_gjac
+    end if
+    x_last = x
+    associate (unused => me); end associate
+    end subroutine report_iteration
 
     subroutine map_constraints()
     !! SLSQP's constraints for the current problem (see the program documentation)

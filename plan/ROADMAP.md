@@ -773,6 +773,22 @@ from the nonzeros, so both QPs and the trust region use it unchanged.
   LDLᵀ solver, §8.3); a Hessian-vector-product callback (for problems
   whose Hessian is dense or expensive).
 
+**Trust-region step cap bug (2026-09-27).** Found with the new
+`tools/hs_compare.sh` (one problem, SQPOPT and SLSQP side by side) on
+TP220 (starts 25000 from its solution): in trust-region mode every step was
+cut to the QP solver's line-search step cap `max_step*step_scale` (2),
+because `step_scale` is only adapted in the line-search branch; the steps
+then never used the full radius, so the radius couldn't grow either, and
+TP220 crawled 2 per iteration to `max_iter`. The trust region now raises
+`step_scale` so the cap can't bind inside its box. Trust region with the
+filter: 252/40/13 → 261/37/7 (`fc` 11,742 → 9,898); with the funnel:
+253/41/11 → 264/39/2; with the Armijo ratio test: 225/39/41 → 231/39/35;
+with the exact Hessian: 254/37/14 → 260/35/10. The line search is
+unaffected. (TP220's line-search cost, 89 `fc` vs SLSQP's 19, is mostly
+structural: at its solution the constraint's gradient is opposite to the
+active bound's, and the linearization then only allows `x₁−1` to shrink by
+⅔ per iteration; SLSQP escapes that by jumping to `x₁ = 1` early.)
+
 ## 2. Bugs: correctness (fix first)
 
 | # | Issue | Where | Evidence |
