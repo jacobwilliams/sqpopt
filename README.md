@@ -1,5 +1,9 @@
 ![Modern Fortran SQP OPTimizer](media/logo-small.png)
 
+[![Language](https://img.shields.io/badge/-Fortran-734f96?logo=fortran&logoColor=white)](https://github.com/topics/fortran)
+[![Build Status](https://github.com/jacobwilliams/sqpopt/actions/workflows/CI.yml/badge.svg)](https://github.com/jacobwilliams/sqpopt/actions)
+[![last-commit](https://img.shields.io/github/last-commit/jacobwilliams/sqpopt)](https://github.com/jacobwilliams/sqpopt/commits/master)
+
 Modern Fortran **SQP** **OPT**imizer: a modular sequential quadratic
 programming solver for large, sparse nonlinear optimization problems. A work
 in progress.
@@ -9,7 +13,7 @@ It covers installation as an FPM dependency, the API, every option, the
 status codes, worked examples, and benchmark results. The
 [API documentation](https://jacobwilliams.github.io/sqpopt/api/),
 [test coverage](https://jacobwilliams.github.io/sqpopt/coverage/), and
-[Hock–Schittkowski results](https://jacobwilliams.github.io/sqpopt/hs_results.html)
+[Hock-Schittkowski results](https://jacobwilliams.github.io/sqpopt/hs_results.html)
 are published there too.
 
 This README is for working on SQPOPT itself.
@@ -53,7 +57,7 @@ The tests are in `test/`:
   (`test_large_sparse`), and regression tests of the interface and edge cases
   (`test_callbacks`, `test_input_validation`, `test_infeasible`,
   `test_nonfinite`, `test_resolve`, `test_results`, `test_termination`, ...).
-- **`test_hs_suite`**: the 305 Hock–Schittkowski problems
+- **`test_hs_suite`**: the 305 Hock-Schittkowski problems
   (`test/schittkowski_problems.f90`). It is also the regression baseline:
   the test fails if a problem not listed in `known_unsolved` isn't solved,
   and reports problems in that list that now are. Its command-line options
@@ -97,7 +101,7 @@ All are run from the repository root, e.g. `pixi run tools/hs_compare.sh 220`.
 ## Documentation and website
 
 The website is `web/`: the user guide (`web/index.html`), the
-Hock–Schittkowski results page (`web/hs_results.html`), and their CSS and
+Hock-Schittkowski results page (`web/hs_results.html`), and their CSS and
 JavaScript. Update the guide along with any change to the API, options, or
 behavior. When the HS results change, regenerate its Performance table with
 `tools/hs_performance_table.sh`.
