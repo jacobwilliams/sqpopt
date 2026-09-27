@@ -3,6 +3,8 @@
 [![Language](https://img.shields.io/badge/-Fortran-734f96?logo=fortran&logoColor=white)](https://github.com/topics/fortran)
 [![Build Status](https://github.com/jacobwilliams/sqpopt/actions/workflows/CI.yml/badge.svg)](https://github.com/jacobwilliams/sqpopt/actions)
 [![last-commit](https://img.shields.io/github/last-commit/jacobwilliams/sqpopt)](https://github.com/jacobwilliams/sqpopt/commits/master)
+[![Docs](https://img.shields.io/badge/docs-user%20guide-blue)](https://jacobwilliams.github.io/sqpopt/)
+
 
 Modern Fortran **SQP** **OPT**imizer: a modular sequential quadratic
 programming solver for large, sparse nonlinear optimization problems. A work
