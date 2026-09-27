@@ -60,7 +60,11 @@
     integer,                intent(in) :: level
     character(len=*),       intent(in) :: line
 
-    if (me%level >= level) write(me%unit, '(A)') '        . '//line
+    integer :: ios
+
+    ! (a failed write, e.g. to a unit that isn't open, is ignored: the log
+    ! must never stop the solver)
+    if (me%level >= level) write(me%unit, '(A)', iostat=ios) '        . '//line
 
     end subroutine log_put
 !*******************************************************************************
@@ -75,9 +79,14 @@
     character(len=:), allocatable :: s
 
     character(len=32) :: buf
+    integer :: ios
 
-    write(buf, '(ES10.3)') x
-    s = trim(adjustl(buf))
+    write(buf, '(ES10.3)', iostat=ios) x
+    if (ios /= 0) then
+        s = '****'
+    else
+        s = trim(adjustl(buf))
+    end if
 
     end function fmt_e
 !*******************************************************************************
@@ -93,9 +102,14 @@
     character(len=:), allocatable :: s
 
     character(len=32) :: buf
+    integer :: ios
 
-    write(buf, '(ES16.9)') x
-    s = trim(adjustl(buf))
+    write(buf, '(ES16.9)', iostat=ios) x
+    if (ios /= 0) then
+        s = '****'
+    else
+        s = trim(adjustl(buf))
+    end if
 
     end function fmt_g
 !*******************************************************************************
@@ -110,9 +124,14 @@
     character(len=:), allocatable :: s
 
     character(len=32) :: buf
+    integer :: ios
 
-    write(buf, '(I0)') i
-    s = trim(buf)
+    write(buf, '(I0)', iostat=ios) i
+    if (ios /= 0) then
+        s = '****'
+    else
+        s = trim(adjustl(buf))
+    end if
 
     end function fmt_i
 !*******************************************************************************

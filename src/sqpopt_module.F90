@@ -154,13 +154,16 @@
     logical :: done, valid
     integer :: iter_istat, iter, n_fail, n_acceptable, n_stalled, n_escape, n_fc0
     logical :: in_phase !! whether the previous iteration was in a restoration phase (to count the phases)
-    integer :: detail_unit = -1 !! scratch file for the detail lines of the current iteration (`print_level >= 3`)
+    integer :: ios !! (for the I/O statements of the printed output, which must never stop the solver)
+    integer :: detail_unit !! scratch file for the detail lines of the current iteration (`print_level >= 3`;
+                           !! `-1` if none)
     integer(int64) :: t_start, t_now, t_rate
     character(len=:), allocatable :: msg
     type(sqpopt_restoration_type) :: fresh_restoration !! (default-initialized)
 
     call system_clock(t_start, t_rate)
     valid = .false.
+    detail_unit = -1
 
     ! start every solve from the components exactly as configured:
     me%problem      = me%problem0
@@ -232,8 +235,12 @@
     if (me%options%print_level >= sqpopt_log_detail) then
         ! (the detail lines of an iteration go to a scratch file, and are copied
         ! out after the iteration's line of the log, see `print_details`)
-        open(newunit=detail_unit, status='scratch', action='readwrite', form='formatted')
-        me%linesearch%log%unit = detail_unit
+        open(newunit=detail_unit, status='scratch', action='readwrite', form='formatted', iostat=ios)
+        if (ios == 0) then
+            me%linesearch%log%unit = detail_unit
+        else
+            detail_unit = -1   ! (then the detail lines go straight to `output_unit`, before their iteration's line)
+        end if
     end if
     me%trust_region%log = me%linesearch%log
 
@@ -298,6 +305,7 @@
         real(wp) :: fs
         real(wp), dimension(me%problem%m) :: cs
         real(wp), dimension(size(me%x)) :: zs
+        integer :: ios
 
         istat = stat
         me%results%istat   = stat
@@ -338,7 +346,7 @@
         ! (not for invalid inputs, which may include `output_unit` itself)
         if (valid .and. me%options%print_level >= 1) call print_summary()
         if (detail_unit /= -1) then
-            close(detail_unit)
+            close(detail_unit, iostat=ios)
             detail_unit = -1
         end if
         end subroutine finish
@@ -348,15 +356,15 @@
         character(len=1024) :: line
         integer :: ios
         if (detail_unit == -1) return
-        rewind(detail_unit)
+        rewind(detail_unit, iostat=ios)
         do
             read(detail_unit, '(A)', iostat=ios) line
             if (ios /= 0) exit
-            write(me%options%output_unit, '(A)') trim(line)
+            write(me%options%output_unit, '(A)', iostat=ios) trim(line)
         end do
-        rewind(detail_unit)
-        endfile(detail_unit)
-        rewind(detail_unit)
+        rewind(detail_unit, iostat=ios)
+        endfile(detail_unit, iostat=ios)
+        rewind(detail_unit, iostat=ios)
         end subroutine print_details
 
         subroutine count_events()
@@ -376,64 +384,67 @@
         !! with a legend (`print_level >= 1`), and at `print_level >= 3` the
         !! scale factors
         integer :: u, n_eq
+        integer :: ios
         u = me%options%output_unit
         n_eq = 0
         if (me%problem%m > 0) n_eq = count(me%problem%c_ub - me%problem%c_lb <= 0.0_wp)
-        write(u,'(A)') ''
-        write(u,'(A)') ' sqpopt: '//plural(me%problem%n, 'variable', 'variables')//', '// &
+        write(u, '(A)', iostat=ios) ''
+        write(u, '(A)', iostat=ios) ' sqpopt: '//plural(me%problem%n, 'variable', 'variables')//', '// &
                        plural(me%problem%m, 'constraint', 'constraints')//' ('//plural(n_eq, 'equality', 'equalities')// &
                        '), '//plural(me%problem%jac_nnz, 'Jacobian nonzero', 'Jacobian nonzeros')
-        write(u,'(A)') '   method:     '//method_text()
+        write(u, '(A)', iostat=ios) '   method:     '//method_text()
         if (me%options%scaling) then
-            write(u,'(A)') '   scaling:    objective x '//fmt_e(me%problem%f_scale)//constraint_scale_text()
+            write(u, '(A)', iostat=ios) '   scaling:    objective x '//fmt_e(me%problem%f_scale)//constraint_scale_text()
         else
-            write(u,'(A)') '   scaling:    off'
+            write(u, '(A)', iostat=ios) '   scaling:    off'
         end if
-        write(u,'(A)') '   tolerances: ktol '//fmt_e(me%options%ktol)//', ctol '//fmt_e(me%options%ctol)// &
+        write(u, '(A)', iostat=ios) '   tolerances: ktol '//fmt_e(me%options%ktol)//', ctol '//fmt_e(me%options%ctol)// &
                        ', dual_inf_tol '//fmt_e(me%options%dual_inf_tol)//', max_iter '//fmt_i(me%options%max_iter)
         if (me%options%print_level >= sqpopt_log_detail .and. me%problem%m > 0) call print_scale_factors()
-        write(u,'(A)') ''
+        write(u, '(A)', iostat=ios) ''
         if (me%options%print_level >= 2) then
-            write(u,'(A6,A17,3A10,A8,A10,2A6,2A10,2A10,2X,A)') 'iter', 'objective', 'infeas*', 'kkt*', 'alpha', &
+            write(u, '(A6,A17,3A10,A8,A10,2A6,2A10,2A10,2X,A)', iostat=ios) 'iter', 'objective', 'infeas*', 'kkt*', 'alpha', &
                 'fc', '|step|', 'qp_it', 'ls_fc', '|lambda|', 'stat', glob_heading(), hess_heading(), 'flags'
         else
-            write(u,'(A6,A17,3A10,A8,2X,A)') 'iter', 'objective', 'infeas*', 'kkt*', 'alpha', 'fc', 'flags'
+            write(u, '(A6,A17,3A10,A8,2X,A)', iostat=ios) 'iter', 'objective', 'infeas*', 'kkt*', 'alpha', 'fc', 'flags'
         end if
         end subroutine print_header
 
         subroutine print_legend()
         !! what the columns and flags mean (printed with the summary, so the log stays compact)
         integer :: u
+        integer :: ios
         u = me%options%output_unit
         if (me%options%print_level >= 2) then
-            write(u,'(A)') '   columns: * = of the scaled problem (the convergence test); objective, |lambda| (the'
-            write(u,'(A)') '            largest multiplier) and stat (the stationarity error) are of the original'
-            write(u,'(A)') '            problem; fc = calls of fc so far, ls_fc = in this iteration; qp_it = QP'
-            write(u,'(A)') '            iterations; '//trim(adjustl(glob_heading()))//' = '//glob_meaning()//'; '// &
+            write(u, '(A)', iostat=ios) '   columns: * = of the scaled problem (the convergence test); objective, |lambda| (the'
+            write(u, '(A)', iostat=ios) '            largest multiplier) and stat (the stationarity error) are of the original'
+            write(u, '(A)', iostat=ios) '            problem; fc = calls of fc so far, ls_fc = in this iteration; qp_it = QP'
+            write(u, '(A)', iostat=ios) '            iterations; '//trim(adjustl(glob_heading()))//' = '//glob_meaning()//'; '// &
                            trim(adjustl(hess_heading()))//' = '//hess_meaning()
         else
-            write(u,'(A)') '   columns: * = of the scaled problem (the convergence test); the objective is of the'
-            write(u,'(A)') '            original problem; fc = calls of fc so far'
+            write(u, '(A)', iostat=ios) '   columns: * = of the scaled problem (the convergence test); the objective is of the'
+            write(u, '(A)', iostat=ios) '            original problem; fc = calls of fc so far'
         end if
-        write(u,'(A)') '   flags:   R restoration step, P restoration phase, S second-order correction, H Hessian'
-        write(u,'(A)') '            reset, E elastic QP re-solve, X escape step, N non-monotone step, W watchdog'
-        write(u,'(A)') '            relaxed step, Q QP failed, F no acceptable step'
+        write(u, '(A)', iostat=ios) '   flags:   R restoration step, P restoration phase, S second-order correction, H Hessian'
+        write(u, '(A)', iostat=ios) '            reset, E elastic QP re-solve, X escape step, N non-monotone step, W watchdog'
+        write(u, '(A)', iostat=ios) '            relaxed step, Q QP failed, F no acceptable step'
         end subroutine print_legend
 
         subroutine print_scale_factors()
         !! the constraint scale factors (all of them, or the smallest ones, `print_level >= 3`)
         integer :: u, i, k, n_show
         integer, dimension(me%problem%m) :: order
+        integer :: ios
         u = me%options%output_unit
         if (all(me%problem%c_scale == 1.0_wp)) return
         ! (the smallest factors first: the constraints scaled down the most)
         order = [(i, i=1, me%problem%m)]
         call sort_by_scale(order)
         n_show = min(me%problem%m, 10)
-        write(u,'(A)') '   constraint scale factors (smallest '//fmt_i(n_show)//' of '//fmt_i(me%problem%m)//'):'
+        write(u, '(A)', iostat=ios) '   constraint scale factors (smallest '//fmt_i(n_show)//' of '//fmt_i(me%problem%m)//'):'
         do k = 1, n_show
             i = order(k)
-            write(u,'(A)') '     c('//fmt_i(i)//') x '//fmt_e(me%problem%c_scale(i))
+            write(u, '(A)', iostat=ios) '     c('//fmt_i(i)//') x '//fmt_e(me%problem%c_scale(i))
         end do
         end subroutine print_scale_factors
 
@@ -561,6 +572,7 @@
         character(len=12) :: flags
         character(len=10) :: gcol, hcol
         integer :: u
+        integer :: ios
         u = me%options%output_unit
         flags = ''
         if (info%restoration .and. .not. info%phase) flags = trim(flags)//'R'
@@ -578,28 +590,30 @@
         if (.not. info%stepped) then
             ! (the final point: no step was taken from it)
             if (me%options%print_level >= 2) then
-                write(u,'(I6,ES17.9,2ES10.2,A10,I8,A10,2A6,A10,ES10.2)') iter, info%f/me%problem%f_scale, &
+                write(u, '(I6,ES17.9,2ES10.2,A10,I8,A10,2A6,A10,ES10.2)', iostat=ios) iter, info%f/me%problem%f_scale, &
                     info%feas, info%kkt, '', me%problem%n_eval_fc, '', '', '', '', info%stat_unscaled
             else
-                write(u,'(I6,ES17.9,2ES10.2,A10,I8)') iter, info%f/me%problem%f_scale, info%feas, info%kkt, '', &
+                write(u, '(I6,ES17.9,2ES10.2,A10,I8)', iostat=ios) iter, info%f/me%problem%f_scale, info%feas, info%kkt, '', &
                     me%problem%n_eval_fc
             end if
         else if (me%options%print_level >= 2) then
             if (.not. me%trust_region%enabled .and. me%options%linesearch_mode == sqpopt_linesearch_filter) then
-                write(gcol,'(I10)') nint(info%glob)
+                write(gcol,'(I10)', iostat=ios) nint(info%glob)
             else
-                write(gcol,'(ES10.2)') info%glob
+                write(gcol,'(ES10.2)', iostat=ios) info%glob
             end if
+            if (ios /= 0) gcol = '      ****'
             if (me%options%hessian_mode == sqpopt_hessian_exact) then
-                write(hcol,'(ES10.2)') info%hess_measure
+                write(hcol,'(ES10.2)', iostat=ios) info%hess_measure
             else
-                write(hcol,'(I10)') nint(info%hess_measure)
+                write(hcol,'(I10)', iostat=ios) nint(info%hess_measure)
             end if
-            write(u,'(I6,ES17.9,3ES10.2,I8,ES10.2,2I6,2ES10.2,2A10,2X,A)') iter, info%f/me%problem%f_scale, &
+            if (ios /= 0) hcol = '      ****'
+            write(u, '(I6,ES17.9,3ES10.2,I8,ES10.2,2I6,2ES10.2,2A10,2X,A)', iostat=ios) iter, info%f/me%problem%f_scale, &
                 info%feas, info%kkt, info%alpha, me%problem%n_eval_fc, info%step_norm, info%qp_iter, info%n_fc, &
                 info%lam_max, info%stat_unscaled, gcol, hcol, trim(flags)
         else
-            write(u,'(I6,ES17.9,3ES10.2,I8,2X,A)') iter, info%f/me%problem%f_scale, info%feas, info%kkt, &
+            write(u, '(I6,ES17.9,3ES10.2,I8,2X,A)', iostat=ios) iter, info%f/me%problem%f_scale, info%feas, info%kkt, &
                 info%alpha, me%problem%n_eval_fc, trim(flags)
         end if
         end subroutine print_iteration
@@ -609,30 +623,31 @@
         integer :: u
         real(wp) :: t_other
         character(len=:), allocatable :: events
+        integer :: ios
         u = me%options%output_unit
-        write(u,'(A)') ''
+        write(u, '(A)', iostat=ios) ''
         call print_legend()
-        write(u,'(A)') ''
-        write(u,'(A,I0,2A)')   ' sqpopt: status ', me%results%istat, ': ', me%results%message
-        write(u,'(A,ES18.10)') '   objective           = ', me%results%f
-        write(u,'(A)')         '   feasibility error   = '//fmt_e(me%results%feasibility_error)// &
+        write(u, '(A)', iostat=ios) ''
+        write(u, '(A,I0,2A)', iostat=ios)   ' sqpopt: status ', me%results%istat, ': ', me%results%message
+        write(u, '(A,ES18.10)', iostat=ios) '   objective           = ', me%results%f
+        write(u, '(A)', iostat=ios)         '   feasibility error   = '//fmt_e(me%results%feasibility_error)// &
                                '  (original problem)'
-        write(u,'(A)')         '   KKT error           = '//fmt_e(me%results%kkt_error)// &
+        write(u, '(A)', iostat=ios)         '   KKT error           = '//fmt_e(me%results%kkt_error)// &
                                '  (scaled problem; ktol = '//fmt_e(me%options%ktol)//')'
-        write(u,'(A)')         '   stationarity error  = '//fmt_e(me%results%stationarity_error)// &
+        write(u, '(A)', iostat=ios)         '   stationarity error  = '//fmt_e(me%results%stationarity_error)// &
                                '  (original problem; dual_inf_tol = '//fmt_e(me%options%dual_inf_tol)//')'
         if (me%problem%m > 0) then
-            write(u,'(A)')     '   largest multiplier  = '//fmt_e(maxval(abs(me%results%lambda)))
+            write(u, '(A)', iostat=ios)     '   largest multiplier  = '//fmt_e(maxval(abs(me%results%lambda)))
         end if
-        write(u,'(A)')         '   active              = '//active_text()
-        write(u,'(A,I0)')      '   iterations          = ', me%results%iterations
+        write(u, '(A)', iostat=ios)         '   active              = '//active_text()
+        write(u, '(A,I0)', iostat=ios)      '   iterations          = ', me%results%iterations
         if (me%results%n_eval_hess > 0) then
-            write(u,'(A,3(I0,A))') '   evaluations         = ', me%results%n_eval_fc, ' fc, ', me%results%n_eval_gjac, &
+            write(u, '(A,3(I0,A))', iostat=ios) '   evaluations         = ', me%results%n_eval_fc, ' fc, ', me%results%n_eval_gjac, &
                                    ' gjac, ', me%results%n_eval_hess, ' hess'
         else
-            write(u,'(A,2(I0,A))') '   evaluations         = ', me%results%n_eval_fc, ' fc, ', me%results%n_eval_gjac, ' gjac'
+            write(u, '(A,2(I0,A))', iostat=ios) '   evaluations         = ', me%results%n_eval_fc, ' fc, ', me%results%n_eval_gjac, ' gjac'
         end if
-        write(u,'(A,I0)')      '   QP iterations       = ', me%results%n_qp_iterations
+        write(u, '(A,I0)', iostat=ios)      '   QP iterations       = ', me%results%n_qp_iterations
         events = ''
         call add_event(events, me%results%n_soc, 'second-order correction', 'second-order corrections')
         call add_event(events, me%results%n_restoration_phases, 'restoration phase', 'restoration phases')
@@ -641,13 +656,13 @@
         call add_event(events, me%results%n_elastic, 'elastic re-solve', 'elastic re-solves')
         call add_event(events, me%results%n_escape, 'escape step', 'escape steps')
         if (len(events) == 0) events = 'none'
-        write(u,'(A)')         '   events              = '//events
+        write(u, '(A)', iostat=ios)         '   events              = '//events
         t_other = max(0.0_wp, me%results%time - me%results%time_functions - me%results%time_qp)
-        write(u,'(A)')         '   time                = '//fmt_f(me%results%time)//' s (user functions '// &
+        write(u, '(A)', iostat=ios)         '   time                = '//fmt_f(me%results%time)//' s (user functions '// &
                                fmt_f(me%results%time_functions)//' s, QP '//fmt_f(me%results%time_qp)// &
                                ' s, other '//fmt_f(t_other)//' s)'
         if (me%options%print_level >= sqpopt_log_detail) call print_solution()
-        write(u,'(A)') ''
+        write(u, '(A)', iostat=ios) ''
         end subroutine print_summary
 
         subroutine add_event(events, n, one, many)
@@ -669,7 +684,12 @@
         real(wp), intent(in) :: t
         character(len=:), allocatable :: str
         character(len=32) :: buf
-        write(buf,'(F0.3)') t
+        integer :: ios
+        write(buf,'(F0.3)', iostat=ios) t
+        if (ios /= 0) then
+            str = '****'
+            return
+        end if
         str = trim(buf)
         if (str(1:1) == '.') str = '0'//str
         end function fmt_f
@@ -729,27 +749,28 @@
         integer :: u, i
         integer, dimension(me%problem%m) :: cside
         integer, dimension(me%problem%n) :: xside
+        integer :: ios
         u = me%options%output_unit
         cside = constraint_side()
         xside = bound_side()
-        write(u,'(A)') ''
-        write(u,'(A)') '   variables:'
-        write(u,'(A8,5A17)') 'j', 'x', 'lower', 'upper', 'z', 'active'
+        write(u, '(A)', iostat=ios) ''
+        write(u, '(A)', iostat=ios) '   variables:'
+        write(u, '(A8,5A17)', iostat=ios) 'j', 'x', 'lower', 'upper', 'z', 'active'
         do i = 1, min(me%problem%n, max_rows)
-            write(u,'(I8,4A17,A17)') i, num(me%results%x(i)), num(me%problem%x_lb(i)), num(me%problem%x_ub(i)), &
+            write(u, '(I8,4A17,A17)', iostat=ios) i, num(me%results%x(i)), num(me%problem%x_lb(i)), num(me%problem%x_ub(i)), &
                 num(me%results%z(i)), side_text(xside(i), 'fixed   ')
         end do
-        if (me%problem%n > max_rows) write(u,'(A)') '     ... ('//fmt_i(me%problem%n - max_rows)//' more)'
+        if (me%problem%n > max_rows) write(u, '(A)', iostat=ios) '     ... ('//fmt_i(me%problem%n - max_rows)//' more)'
         if (me%problem%m > 0) then
-            write(u,'(A)') ''
-            write(u,'(A)') '   constraints:'
-            write(u,'(A8,5A17)') 'i', 'c', 'lower', 'upper', 'lambda', 'active'
+            write(u, '(A)', iostat=ios) ''
+            write(u, '(A)', iostat=ios) '   constraints:'
+            write(u, '(A8,5A17)', iostat=ios) 'i', 'c', 'lower', 'upper', 'lambda', 'active'
             do i = 1, min(me%problem%m, max_rows)
-                write(u,'(I8,4A17,A17)') i, num(me%results%c(i)), num(me%problem%c_lb(i)/me%problem%c_scale(i)), &
+                write(u, '(I8,4A17,A17)', iostat=ios) i, num(me%results%c(i)), num(me%problem%c_lb(i)/me%problem%c_scale(i)), &
                     num(me%problem%c_ub(i)/me%problem%c_scale(i)), num(me%results%lambda(i)), &
                     side_text(cside(i), 'equality')
             end do
-            if (me%problem%m > max_rows) write(u,'(A)') '     ... ('//fmt_i(me%problem%m - max_rows)//' more)'
+            if (me%problem%m > max_rows) write(u, '(A)', iostat=ios) '     ... ('//fmt_i(me%problem%m - max_rows)//' more)'
         end if
         end subroutine print_solution
 
@@ -770,6 +791,7 @@
         !! a value for the solution tables (infinite bounds as `-inf`/`inf`)
         real(wp), intent(in) :: v
         character(len=17) :: str
+        integer :: ios
         if (v <= -sqpopt_infinity) then
             str = '-inf'
             str = adjustr(str)
@@ -777,7 +799,8 @@
             str = 'inf'
             str = adjustr(str)
         else
-            write(str,'(ES17.8)') v
+            write(str,'(ES17.8)', iostat=ios) v
+            if (ios /= 0) str = '             ****'
         end if
         end function num
 
