@@ -244,24 +244,55 @@
 
   // ---------- table ----------
   var COLS = [
-    { key: 'id', label: 'TP', type: 'int' },
-    { key: 'n', label: 'n', type: 'int' },
-    { key: 'm', label: 'm', type: 'int' },
-    { key: 'me', label: 'me', type: 'int' },
-    { key: 'outcome', label: 'result', type: 'outcome' },
-    { key: 'iter', label: 'iter', type: 'int' },
-    { key: 'nf', label: 'fc', type: 'int' },
-    { key: 'ng', label: 'gjac', type: 'int' },
-    { key: 'q_nf', label: 'Q:nf', type: 'int' },
-    { key: 'q_ng', label: 'Q:ng', type: 'int' },
-    { key: 'ratio', label: 'fc / Q:nf', type: 'ratio' },
-    { key: 'f', label: 'f', type: 'sci3' },
-    { key: 'f_star', label: 'f*', type: 'sci3' },
-    { key: 'rel', label: 'rel. err', type: 'sci1' },
-    { key: 'viol', label: 'viol', type: 'sci1' },
-    { key: 'status', label: 'status', type: 'text' },
-    { key: 'fd', label: 'notes', type: 'fd' }
+    { key: 'id', label: 'TP', type: 'int',
+      desc: 'Problem number in Schittkowski\u2019s collection (TP1\u2013TP395).' },
+    { key: 'n', label: 'n', type: 'int', desc: 'Number of variables.' },
+    { key: 'm', label: 'm', type: 'int', desc: 'Number of general constraints, equality and inequality (not counting variable bounds).' },
+    { key: 'me', label: 'me', type: 'int', desc: 'Number of equality constraints.' },
+    { key: 'outcome', label: 'result', type: 'outcome',
+      desc: 'Solved: the final point is feasible (violation \u2264 ' + data.feas_tol.toExponential(0) +
+            ') and its objective is within ' + data.rel_tol.toExponential(0) +
+            ' (relative) of the validated optimum, or better. Local: feasible and converged, but at a worse ' +
+            'objective (a different local solution). Failed: anything else.' },
+    { key: 'iter', label: 'iter', type: 'int', desc: 'SQPOPT\u2019s major (SQP) iterations.' },
+    { key: 'nf', label: 'fc', type: 'int',
+      desc: 'SQPOPT\u2019s calls of the objective and constraint function fc, including the line search\u2019s trial points.' },
+    { key: 'ng', label: 'gjac', type: 'int', desc: 'SQPOPT\u2019s calls of the gradient and Jacobian function gjac.' },
+    { key: 'q_nf', label: 'Q:nf', type: 'int',
+      desc: 'NLPQLP\u2019s function evaluations, as published with the collection. They exclude the evaluations ' +
+            'for its finite-difference gradients (see Q:ng).' },
+    { key: 'q_ng', label: 'Q:ng', type: 'int',
+      desc: 'NLPQLP\u2019s gradient evaluations. They were finite-difference approximations, each costing about ' +
+            'n more function evaluations (not included in Q:nf).' },
+    { key: 'ratio', label: 'fc / Q:nf', type: 'ratio',
+      desc: 'SQPOPT\u2019s fc calls divided by NLPQLP\u2019s function evaluations: below 1, SQPOPT needed fewer.' },
+    { key: 'f', label: 'f', type: 'sci3', desc: 'The objective at SQPOPT\u2019s final point.' },
+    { key: 'f_star', label: 'f*', type: 'sci3', desc: 'The validated optimal objective, from the collection.' },
+    { key: 'rel', label: 'rel. err', type: 'sci1',
+      desc: 'Relative error of the objective, (f \u2212 f*) / max(1, |f*|). Negative: better than the published optimum.' },
+    { key: 'viol', label: 'viol', type: 'sci1',
+      desc: 'The largest violation of a constraint or variable bound at the final point (of the original, unscaled problem).' },
+    { key: 'status', label: 'status', type: 'text', desc: 'SQPOPT\u2019s termination status.' },
+    { key: 'fd', label: 'notes', type: 'fd',
+      desc: 'fd: a problem without analytic derivatives in the collection, solved with central-difference derivatives.' }
   ];
+
+  // the column descriptions: a tooltip on hover and keyboard focus of each heading
+  // (fixed-positioned, so the table's scrolling box can't clip it), and the
+  // heading button's accessible description
+  var headTip = el('div', 'hs-tooltip hs-head-tip');
+  headTip.hidden = true;
+  headTip.setAttribute('role', 'tooltip');
+  document.body.appendChild(headTip);
+  function showHeadTip(btn, text) {
+    headTip.textContent = text;
+    headTip.hidden = false;
+    var r = btn.getBoundingClientRect(), tw = headTip.offsetWidth;
+    headTip.style.left = Math.max(8, Math.min(r.left, window.innerWidth - tw - 8)) + 'px';
+    headTip.style.top = (r.bottom + 8) + 'px';
+  }
+  function hideHeadTip() { headTip.hidden = true; }
+  window.addEventListener('scroll', hideHeadTip, { passive: true });
 
   var head = document.getElementById('hs-head');
   var ths = COLS.map(function (c) {
@@ -270,6 +301,16 @@
     if (c.type !== 'text' && c.type !== 'outcome' && c.type !== 'fd') th.className = 'num';
     var btn = el('button', 'hs-sort', c.label);
     btn.type = 'button';
+    var descId = 'hs-desc-' + c.key;
+    var desc = el('span', 'hs-visually-hidden', c.desc);
+    desc.id = descId;
+    th.appendChild(desc);
+    btn.setAttribute('aria-describedby', descId);
+    btn.addEventListener('pointerenter', function () { showHeadTip(btn, c.desc); });
+    btn.addEventListener('pointerleave', hideHeadTip);
+    btn.addEventListener('focus', function () { showHeadTip(btn, c.desc); });
+    btn.addEventListener('blur', hideHeadTip);
+    btn.addEventListener('keydown', function (e) { if (e.key === 'Escape') hideHeadTip(); });
     btn.addEventListener('click', function () {
       if (state.sortKey === c.key) state.sortDir = -state.sortDir;
       else { state.sortKey = c.key; state.sortDir = 1; }
