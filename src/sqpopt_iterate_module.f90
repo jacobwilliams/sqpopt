@@ -13,9 +13,9 @@
     use sqpopt_kinds,             only: wp => sqpopt_module_wp
     use sqpopt_types_module,      only: sqpopt_sparse_matrix, sqpopt_success, sqpopt_user_requested_stop, sqpopt_report_func, &
                                          sqpopt_infeasible, sqpopt_function_error, sqpopt_all_finite, sqpopt_unbounded, &
-                                         sqpopt_acceptable, sqpopt_infinity, sqpopt_stalled
+                                         sqpopt_acceptable, sqpopt_infinity, sqpopt_stalled, sqpopt_qp_solve_failed
     use sqpopt_problem_module,    only: sqpopt_problem_type
-    use sqpopt_options_module,    only: sqpopt_options_type, sqpopt_hessian_sr1
+    use sqpopt_options_module,    only: sqpopt_options_type, sqpopt_hessian_sr1, sqpopt_hessian_exact
     use sqpopt_hessian_module,    only: sqpopt_hessian_type
     use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type
     use sqpopt_linesearch_module, only: sqpopt_linesearch_type, sqpopt_linesearch_filter, sqpopt_linesearch_funnel, &
@@ -270,13 +270,32 @@
         gl = g - jtlam
     end block
 
-    ! update the quasi-Newton Hessian approximation using the previous step
-    ! (skipped on the very first iteration, since there is no previous point):
-    if (allocated(x_prev)) then
+    if (options%hessian_mode == sqpopt_hessian_exact) then
+        ! the user's exact Hessian of the Lagrangian, at the current point
+        ! with the current multipliers (see [[sqpopt_hessian_module]]):
+        block
+            real(wp), dimension(problem%hess_nnz) :: hval
+            call problem%hess(x, lambda, hval)
+            if (problem%stop_requested) then
+                istat = sqpopt_user_requested_stop
+                done  = .true.
+                return
+            end if
+            if (.not. sqpopt_all_finite(hval)) then
+                istat = sqpopt_function_error
+                done  = .true.
+                return
+            end if
+            ! (the shift is decreased only after a good step: not after a
+            ! failed one, or during a run of very short ones)
+            call hessian%set_values(hval, decay=qp_solver%n_short == 0 .and. allocated(f_prev))
+        end block
+    else if (allocated(x_prev)) then
+        ! update the quasi-Newton Hessian approximation using the previous step
+        ! (skipped on the very first iteration, since there is no previous point):
         if (options%hessian_mode == sqpopt_hessian_sr1) then
             call hessian%update_sr1(x - x_prev, gl - gl_prev)
         else
-            ! `sqpopt_hessian_exact` is not yet supported; falls back to the BFGS update:
             call hessian%update_bfgs(x - x_prev, gl - gl_prev)
         end if
     end if
@@ -325,17 +344,33 @@
             ! safeguard (as in `slsqp`): if `p` is not a descent direction for the
             ! merit function (the linearized QP solve is not always guaranteed to
             ! produce one), reset the Hessian approximation to the identity and
-            ! recompute `p` once from scratch:
+            ! recompute `p` once from scratch. With the exact Hessian, which may
+            ! be indefinite, "reset" increases its shift instead (see
+            ! [[sqpopt_hessian_module]]), and the QP is re-solved as often as
+            ! needed, also when it failed or found negative curvature (a
+            ! nonconvex QP: this is the inertia correction):
             block
                 real(wp) :: dphi0
-                call linesearch%directional_derivative(jac, g, p, c, problem%c_lb, problem%c_ub, new_lambda, dphi0)
-                if (dphi0 >= 0.0_wp) then
+                integer :: n_shift
+                integer, parameter :: max_shift = 15 !! (from the smallest shift to the largest, x10 each time)
+                n_shift = 0
+                do
+                    call linesearch%directional_derivative(jac, g, p, c, problem%c_lb, problem%c_ub, new_lambda, dphi0)
+                    if (options%hessian_mode == sqpopt_hessian_exact) then
+                        if (.not. (dphi0 >= 0.0_wp .or. qp_istat == sqpopt_qp_solve_failed .or. &
+                                   qp_solver%negative_curvature) .or. n_shift >= max_shift) exit
+                        n_shift = n_shift + 1
+                    else
+                        if (.not. (dphi0 >= 0.0_wp) .or. n_shift >= 1) exit
+                        n_shift = 1
+                    end if
                     call hessian%reset()
                     call qp_solver%solve(hessian, jac, x, g, c, problem%x_lb, problem%x_ub, &
                                           problem%c_lb, problem%c_ub, p, new_lambda, qp_istat)
                     restore = qp_istat == sqpopt_infeasible
-                    if (.not. restore) call update_penalty()
-                end if
+                    if (restore) exit
+                    call update_penalty()
+                end do
             end block
 
         end if

@@ -26,6 +26,7 @@ rows=(
   "<strong>filter</strong> (default, with interpolation)|**filter** (default, with interpolation)|"
   "filter, without interpolation|filter, without interpolation|--no-interpolate"
   "funnel (with interpolation)|funnel (with interpolation)|--linesearch=funnel"
+  "filter, exact Hessian (finite differences of the gradients)|filter, exact Hessian (finite differences of the gradients)|--hessian=exact"
   "Armijo / \\( \\ell_1 \\) / multipliers|Armijo / ℓ1 / multipliers|--linesearch=armijo --no-interpolate"
   "Armijo / \\( \\ell_1 \\) / model (Byrd&ndash;Nocedal)|Armijo / ℓ1 / model (Byrd-Nocedal)|--linesearch=armijo --penalty=model --no-interpolate"
   "Armijo / augmented Lagrangian / multipliers|Armijo / augmented Lagrangian / multipliers|--linesearch=armijo --merit=al --no-interpolate"

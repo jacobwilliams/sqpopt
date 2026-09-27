@@ -731,6 +731,48 @@ new `--linesearch=funnel` and `--trust-region` options.
   feasibility QP (it uses `ζI`); the trust region's own radius inside the
   phase (the phase uses the line search).
 
+**F7 exact Hessian (2026-09-26).** `options%hessian_mode =
+sqpopt_hessian_exact` now uses the user's sparse Hessian of the
+Lagrangian (`hess` in `set_functions`, pattern from
+`set_hessian_sparsity`, each off-diagonal element given once), evaluated
+once per major iteration at the current multipliers (scaled: the user sees
+the original problem's multipliers). It is matrix-free in the solver:
+`sqpopt_hessian_type` has an exact mode whose products and diagonal come
+from the nonzeros, so both QPs and the trust region use it unchanged.
+- **Indefinite Hessians** (a primal inertia correction without a
+  factorization): the QPs now report negative curvature in the variables
+  (`qp_solver%negative_curvature`; the dense QP's reduced-Hessian Cholesky,
+  the sparse QP's CG). In exact mode, when the QP finds negative curvature,
+  fails, or gives a non-descent step, the Hessian is shifted by `δI`
+  (`δ` ×10, from `shift_min`·max|H|) and the QP re-solved (up to 15
+  times); `δ` also grows where a quasi-Newton Hessian would be reset (a
+  failed step, a run of short steps), and is divided by 3 after each good
+  step. Without the negative-curvature test (shifting only on failures)
+  the HS suite gave 267/29/9; without the retry loop, 244/28/33.
+- **HS suite** (new harness option `--hessian=exact`, with Hessians by
+  central differences of the analytic gradients; the 16 FD-gradient
+  problems keep BFGS): 268/33/4 (BFGS: 276/29/0). On the 258 problems both
+  solve: median iterations −29% (TP302 491 → 10, TP301 225 → 8, TP116
+  166 → 25), but `fc` 14,315 vs 8,023, from a few problems where Newton
+  steps crawl along a curved valley (TP210 20 → 420 iterations, TP281,
+  TP380 to `max_iter`). Failures: TP99 (converges with violation 8e-5,
+  likely the FD Hessian's accuracy at `f ≈ −8e8`), TP103, TP111 (line
+  search), TP238 (`max_iter`). Trust region + exact: 254/37/14; funnel +
+  exact: 267/34/4.
+- **Large problems** (`test_large_sparse`, analytic Hessians): control
+  N=500: 47 → 8 `fc`, and full convergence instead of the acceptable
+  level; chained Rosenbrock n=2000: 65 → 14 `fc`, to a different local
+  solution (1978.26 vs 1974.67; the problem is nonconvex).
+- Also: `results%n_eval_hess`; input validation (exact mode without
+  `hess`, Hessian indices out of range); `test_hs71` runs with the exact
+  Hessian (6 `fc` vs 7–9) with both QPs.
+- Side finding, not investigated: SR1 (`--hessian=sr1`) is much weaker than
+  BFGS on the HS suite (239/35/31); the same negative-curvature shift could
+  apply to it.
+- Not done: a factorization-based path with true inertia control (needs an
+  LDLᵀ solver, §8.3); a Hessian-vector-product callback (for problems
+  whose Hessian is dense or expensive).
+
 ## 2. Bugs: correctness (fix first)
 
 | # | Issue | Where | Evidence |
@@ -862,7 +904,8 @@ new `--linesearch=funnel` and `--trust-region` options.
   Armijo on f-type steps, filter augmentation only on h-type steps,
   `θ_min/θ_max` margins, and a feasibility restoration phase (shared with
   F2).
-- **F7: exact Hessian mode.** A user sparse Hessian or a Hessian-vector
+- **F7: exact Hessian mode.** *(Done 2026-09-26, the matrix-free part; see
+  "Phase 4 status".)* A user sparse Hessian or a Hessian-vector
   callback. With the matrix-free option it works immediately in the
   reduced-Hessian QP's PCG (which already truncates on negative
   curvature). A sparse-factorization path needs inertia control, which

@@ -63,6 +63,7 @@
         integer  :: iterations = 0       !! number of major iterations performed
         integer  :: n_eval_fc   = 0      !! number of calls of the objective and constraint function (`fc`)
         integer  :: n_eval_gjac = 0      !! number of calls of the gradient and Jacobian function (`gjac`)
+        integer  :: n_eval_hess = 0      !! number of calls of the Lagrangian Hessian function (`hess`)
         real(wp) :: f          = 0.0_wp  !! objective function value at `x`
         real(wp) :: kkt_error  = 0.0_wp  !! KKT (stationarity/complementarity) error at `x` (of the scaled problem,
                                           !! as used by the convergence test)

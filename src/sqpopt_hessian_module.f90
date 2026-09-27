@@ -15,6 +15,20 @@
 !  (SR1) middle matrix of the compact representation is formed and
 !  LU-factored only when the pairs or the scaling change, not on every
 !  product, so each [[hessian_vector_product]] costs only `O(nk)`.
+!
+!  **Exact mode** (see [[hessian_set_exact]]): instead of the quasi-Newton
+!  approximation, the user's sparse Hessian of the Lagrangian is used,
+!  with the values set at each major iteration by [[hessian_set_values]].
+!  The products are formed from its nonzeros, plus a shift
+!  \( \delta I \) (\( \delta \ge 0 \)), a simple *primal inertia
+!  correction* for an indefinite Hessian (as in IPOPT and Uno, but without
+!  factorizing): wherever the solver would restart a quasi-Newton
+!  approximation ([[hessian_reset]]: the QP step was not a descent
+!  direction, a step failed, or a run of steps was very short), \( \delta \)
+!  is increased tenfold, from `shift_min` times the size of the Hessian's
+!  largest element; at each new major iteration that follows a good step,
+!  it is divided by 3 (and set to 0 once below that minimum). The quasi-Newton updates do nothing
+!  in this mode.
 
     module sqpopt_hessian_module
 
@@ -43,6 +57,15 @@
         real(wp) :: gamma  = 1.0_wp !! scaling of the initial Hessian \( H_0 = \gamma I \)
         real(wp) :: gamma0 = 1.0_wp !! `gamma` before any update (and after a [[hessian_reset]])
 
+        ! exact mode (see the module documentation):
+        logical  :: exact = .false. !! if true, use the user's sparse Hessian (see [[hessian_set_exact]])
+        real(wp) :: shift_min = 1.0e-4_wp !! smallest nonzero shift, relative to \( \max(1,\max|H_{ij}|) \)
+        real(wp) :: shift_max = 1.0e10_wp !! largest shift, relative to the same
+        real(wp) :: shift = 0.0_wp  !! the current shift \( \delta \)
+        integer, dimension(:), allocatable :: h_irow !! sparsity pattern: row indices
+        integer, dimension(:), allocatable :: h_icol !! sparsity pattern: column indices
+        real(wp), dimension(:), allocatable :: h_val !! current nonzero values
+
         ! cached LU factorization of the compact representation's middle matrix
         ! (internal; rebuilt by [[hessian_vector_product]] when `mid_valid` is false):
         logical  :: mid_valid = .false.  !! whether `mid_lu`/`mid_piv` match the current pairs and `gamma`
@@ -59,6 +82,8 @@
         procedure, public :: diagonal                => hessian_diagonal
         procedure, public :: inverse_vector_product  => hessian_inverse_vector_product
         procedure, public :: reset                   => hessian_reset
+        procedure, public :: set_exact               => hessian_set_exact
+        procedure, public :: set_values              => hessian_set_values
 
     end type sqpopt_hessian_type
 
@@ -88,6 +113,8 @@
     me%mid_valid   = .false.
     me%use_sr1     = .false.
     if (present(use_sr1)) me%use_sr1 = use_sr1
+    me%exact       = .false.
+    me%shift       = 0.0_wp
 
     if (allocated(me%s))     deallocate(me%s)
     if (allocated(me%y))     deallocate(me%y)
@@ -124,6 +151,8 @@
 
     real(wp), dimension(size(s)) :: y_used, bs
     real(wp) :: sty, yty, sbs, theta
+
+    if (me%exact) return
 
     ! a near-zero step carries no reliable curvature information and risks
     ! an ill-conditioned (huge `rho`) update, so skip it outright:
@@ -172,6 +201,8 @@
 
     real(wp), dimension(me%n) :: bs, w
     real(wp) :: denom, sty, yty
+
+    if (me%exact) return
 
     ! a near-zero step carries no reliable curvature information and risks
     ! an ill-conditioned update, so skip it outright:
@@ -251,6 +282,19 @@
     real(wp), dimension(:), allocatable :: w
     real(wp) :: theta
 
+    if (me%exact) then
+        ! H*v from the nonzeros (each off-diagonal one stands for both
+        ! (i,j) and (j,i)), plus the shift:
+        hv = me%shift*v
+        do k = 1, size(me%h_val)
+            i = me%h_irow(k)
+            c = me%h_icol(k)
+            hv(i) = hv(i) + me%h_val(k)*v(c)
+            if (i /= c) hv(c) = hv(c) + me%h_val(k)*v(i)
+        end do
+        return
+    end if
+
     k = me%n_history
     theta = 1.0_wp/me%gamma
     hv = theta*v
@@ -309,6 +353,14 @@
     integer :: i, k, c, nk, j
     real(wp) :: theta
     real(wp), dimension(:,:), allocatable :: psi, minv
+
+    if (me%exact) then
+        d = me%shift
+        do k = 1, size(me%h_val)
+            if (me%h_irow(k) == me%h_icol(k)) d(me%h_irow(k)) = d(me%h_irow(k)) + me%h_val(k)
+        end do
+        return
+    end if
 
     k = me%n_history
     theta = 1.0_wp/me%gamma
@@ -479,7 +531,7 @@
     integer :: c !! column of the `i`-th pair
     real(wp) :: beta
 
-    if (me%use_sr1) then
+    if (me%use_sr1 .or. me%exact) then
         call hessian_cg_solve(me, v, d)
         return
     end if
@@ -551,12 +603,77 @@
 
     class(sqpopt_hessian_type), intent(inout) :: me
 
+    if (me%exact) then
+        ! increase the shift (primal inertia correction, see the module documentation):
+        me%shift = min(max(me%shift_min*hessian_size(me), 10.0_wp*me%shift), me%shift_max*hessian_size(me))
+        return
+    end if
+
     me%n_history = 0
     me%first     = 1
     me%gamma     = me%gamma0
     me%mid_valid = .false.
 
     end subroutine hessian_reset
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  switch to the exact mode (see the module documentation), with the
+!  sparsity pattern `irow`/`icol` of the Hessian of the Lagrangian (each
+!  off-diagonal element given once, see [[set_hessian_sparsity]]). The
+!  values are set by [[hessian_set_values]]; until then they are zero.
+
+    subroutine hessian_set_exact(me, irow, icol)
+
+    class(sqpopt_hessian_type), intent(inout) :: me
+    integer, dimension(:), intent(in) :: irow !! row indices `dimension(nnz)`
+    integer, dimension(:), intent(in) :: icol !! column indices `dimension(nnz)`
+
+    me%exact  = .true.
+    me%h_irow = irow
+    me%h_icol = icol
+    if (allocated(me%h_val)) deallocate(me%h_val)
+    allocate(me%h_val(size(irow)))
+    me%h_val = 0.0_wp
+    me%shift = 0.0_wp
+
+    end subroutine hessian_set_exact
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  set the values of the exact Hessian for a new major iteration, and, if
+!  `decay`, decrease the shift (divided by 3, and set to 0 once below its
+!  minimum).
+
+    subroutine hessian_set_values(me, val, decay)
+
+    class(sqpopt_hessian_type), intent(inout) :: me
+    real(wp), dimension(:), intent(in) :: val   !! the nonzero values `dimension(nnz)`
+    logical,                intent(in) :: decay !! whether to decrease the shift (after a good step)
+
+    me%h_val = val
+    if (decay) me%shift = me%shift/3.0_wp
+    if (me%shift < me%shift_min*hessian_size(me)) me%shift = 0.0_wp
+
+    end subroutine hessian_set_values
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the size of the exact Hessian, \( \max(1, \max_{ij} |H_{ij}|) \), which
+!  the shift is relative to.
+
+    pure function hessian_size(me) result(h)
+
+    class(sqpopt_hessian_type), intent(in) :: me
+    real(wp) :: h
+
+    h = 1.0_wp
+    if (size(me%h_val) > 0) h = max(1.0_wp, maxval(abs(me%h_val)))
+
+    end function hessian_size
 !*******************************************************************************
 
     end module sqpopt_hessian_module

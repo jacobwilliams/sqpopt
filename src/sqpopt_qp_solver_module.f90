@@ -62,6 +62,8 @@
         integer  :: n_short            = 0                      !! consecutive very short line-search steps (internal
                                                                  !! state, see [[sqpopt_iterate_module]])
         integer :: n_iter = 0 !! number of active-set iterations taken by the last QP solve (output)
+        logical :: negative_curvature = .false. !! whether the last QP solve found negative curvature of the Hessian
+                                                !! in the variables (output; see [[sqpopt_iterate_module]])
         type(sqpopt_dense_qp_type)           :: dense_qp    !! the dense QP solver (used only when `mode==sqpopt_qp_dense`)
         type(sqpopt_reduced_hessian_qp_type) :: sparse_qp   !! the sparse QP solver (used only when `mode==sqpopt_qp_reduced_hessian`)
 
@@ -101,9 +103,11 @@
     case (sqpopt_qp_dense)
         call me%dense_qp%solve(hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
         me%n_iter = me%dense_qp%n_iter
+        me%negative_curvature = me%dense_qp%negative_curvature
     case default ! sqpopt_qp_reduced_hessian
         call me%sparse_qp%solve(hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
         me%n_iter = me%sparse_qp%n_iter
+        me%negative_curvature = me%sparse_qp%negative_curvature
     end select
 
     ! trust-region-style safeguard on the step length:

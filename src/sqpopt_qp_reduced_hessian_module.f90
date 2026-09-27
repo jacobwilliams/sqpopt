@@ -122,6 +122,8 @@
                                          !! minimum-norm starting step)
 
         integer :: n_iter = 0 !! number of active-set iterations taken by the last solve (output)
+        logical :: negative_curvature = .false. !! whether the last solve found a direction of negative curvature
+                                                !! of the Hessian in the variables (output; the QP was nonconvex)
 
         ! internal state (the working set at the end of the previous solve, for warm starts):
         integer, dimension(:), allocatable :: warm_status !! side (-1/0/+1) of each general row and variable bound
@@ -192,6 +194,8 @@
 
     n = size(g)
     m = size(c)
+
+    me%negative_curvature = .false.
 
     ! ---- starting step: crash or warm start (see [[sqpopt_qp_dense_module]]) ----
     if (me%null_space == sqpopt_null_space_lu) then
@@ -743,6 +747,7 @@
                 ! so that following it can't drift off the working set):
                 call project_null(ja, fixed, dvec, d_extra)
                 truncated = norm2(d_extra) > 1.0e-8_wp*norm2(dvec)
+                call check_curvature(d_extra(1:n))
                 return
             end if
             alpha   = rg_old/kappa
@@ -1073,6 +1078,17 @@
         hd(nt+1:nn) = 0.0_wp
         end subroutine hv_product
 
+        subroutine check_curvature(v)
+        !! set `negative_curvature` if the Hessian has negative curvature along
+        !! the variables' part `v` of a direction of nonpositive curvature
+        !! (not just zero curvature, e.g. along an elastic slack)
+        real(wp), dimension(:), intent(in) :: v
+        real(wp), dimension(size(v)) :: hv
+        if (dot_product(v, v) <= 0.0_wp) return
+        call hessian%hv_product(v, hv)
+        if (dot_product(v, hv) < -1.0e-8_wp*norm2(v)*max(norm2(hv), 1.0e-300_wp)) me%negative_curvature = .true.
+        end subroutine check_curvature
+
         subroutine reduced_cg(rg0, abs_tol, d_total, d_extra, truncated)
         !! conjugate gradients on the reduced Hessian `Z^T H Z` (in the
         !! superbasics, preconditioned by the diagonal `pdiag`): returns the accumulated step `d_total = Z d_S`; if a
@@ -1107,6 +1123,7 @@
             if (kappa <= 1.0e-10_wp*norm2(ds)*norm2(hd)) then
                 d_extra = zd
                 truncated = norm2(zd) > 0.0_wp
+                call check_curvature(zd(1:n))
                 return
             end if
             alpha   = rz_old/kappa

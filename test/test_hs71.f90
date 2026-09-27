@@ -40,7 +40,7 @@ program test_hs71
 
     use sqpopt_module,         only: sqpopt_type
     use sqpopt_problem_module, only: sqpopt_problem_type
-    use sqpopt_options_module, only: sqpopt_options_type
+    use sqpopt_options_module, only: sqpopt_options_type, sqpopt_hessian_exact
     use sqpopt_linesearch_module, only: sqpopt_merit_l1, sqpopt_merit_augmented_lagrangian, &
                                         sqpopt_linesearch_armijo, sqpopt_linesearch_watchdog, sqpopt_linesearch_filter, &
                                         sqpopt_linesearch_funnel, &
@@ -85,11 +85,17 @@ program test_hs71
     call run_hs71('filter + dense QP',      sqpopt_merit_l1,                   sqpopt_linesearch_filter,  sqpopt_qp_dense)
     ! the funnel method (Kiessling, Leyffer & Vanaret; also no merit function):
     call run_hs71('funnel',                 sqpopt_merit_l1,                   sqpopt_linesearch_funnel,  sqpopt_qp_auto)
+    ! the user's exact Hessian of the Lagrangian instead of the quasi-Newton
+    ! approximation (with both QP solvers):
+    call run_hs71('exact Hessian',          sqpopt_merit_l1,                   sqpopt_linesearch_filter,  sqpopt_qp_auto, &
+                  exact_hessian=.true.)
+    call run_hs71('exact Hessian, sparse QP', sqpopt_merit_l1,                 sqpopt_linesearch_filter,  &
+                  sqpopt_qp_reduced_hessian, exact_hessian=.true.)
 
     contains
 
     subroutine run_hs71(label, merit_mode, linesearch_mode, qp_mode, lsqr_atol, lsqr_btol, lsqr_itnlim, penalty_update, &
-                        nonmonotone_len)
+                        nonmonotone_len, exact_hessian)
 
     character(len=*), intent(in) :: label
     integer,           intent(in) :: merit_mode
@@ -99,6 +105,7 @@ program test_hs71
     integer,  intent(in), optional :: lsqr_itnlim          !! LSQR tuning (sqpopt_qp_reduced_hessian mode only)
     integer,  intent(in), optional :: penalty_update       !! penalty update rule (default `sqpopt_penalty_multipliers`)
     integer,  intent(in), optional :: nonmonotone_len      !! non-monotone retry queue length (default 0 = off)
+    logical,  intent(in), optional :: exact_hessian        !! use the exact Hessian (default `.false.`)
 
     type(sqpopt_type)         :: solver
     type(sqpopt_problem_type) :: problem
@@ -122,9 +129,14 @@ program test_hs71
     call problem%set_bounds(x_lb=[1.0_wp,1.0_wp,1.0_wp,1.0_wp], x_ub=[5.0_wp,5.0_wp,5.0_wp,5.0_wp], &
                              c_lb=[40.0_wp, 25.0_wp], c_ub=[40.0_wp, big])
     call problem%set_jacobian_sparsity(nnz=8, irow=[1,1,1,1,2,2,2,2], icol=[1,2,3,4,1,2,3,4])
-    call problem%set_functions(fc=fc_obj_cons, gjac=gjac_grad_jacv)
+    call problem%set_functions(fc=fc_obj_cons, gjac=gjac_grad_jacv, hess=hess_lagrangian)
+    ! the lower triangle of the (dense) Hessian of the Lagrangian:
+    call problem%set_hessian_sparsity(nnz=10, irow=[1,2,3,4,2,3,4,3,4,4], icol=[1,1,1,1,2,2,2,3,3,4])
 
     options%max_iter        = 3000
+    if (present(exact_hessian)) then
+        if (exact_hessian) options%hessian_mode = sqpopt_hessian_exact
+    end if
     options%merit_mode      = merit_mode
     options%linesearch_mode = linesearch_mode
     options%penalty_update  = sqpopt_penalty_multipliers
@@ -168,6 +180,20 @@ program test_hs71
     print '(A)', ''
 
     end subroutine run_hs71
+
+    subroutine hess_lagrangian(x, lambda, hess_val, status, data)
+    !! the Hessian of the Lagrangian \( \nabla^2 f - \lambda_1 \nabla^2 c_1 - \lambda_2 \nabla^2 c_2 \),
+    !! lower triangle, in the order of the pattern set in `run_hs71`
+    real(wp), dimension(:), intent(in)    :: x
+    real(wp), dimension(:), intent(in)    :: lambda
+    real(wp), dimension(:), intent(out)   :: hess_val
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
+    ! (1,1) (2,1) (3,1) (4,1) (2,2) (3,2) (4,2) (3,3) (4,3) (4,4):
+    hess_val = [2.0_wp*x(4), x(4), x(4), 2.0_wp*x(1)+x(2)+x(3), 0.0_wp, 0.0_wp, x(1), 0.0_wp, x(1), 0.0_wp] &
+             - lambda(1)*[2.0_wp, 0.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp] &
+             - lambda(2)*[0.0_wp, x(3)*x(4), x(2)*x(4), x(2)*x(3), 0.0_wp, x(1)*x(4), x(1)*x(3), 0.0_wp, x(1)*x(2), 0.0_wp]
+    end subroutine hess_lagrangian
 
     subroutine obj(x, f, status, data)
     real(wp), dimension(:), intent(in)  :: x

@@ -8,7 +8,7 @@ program test_input_validation
 
     use sqpopt_module,         only: sqpopt_type
     use sqpopt_problem_module, only: sqpopt_problem_type
-    use sqpopt_options_module, only: sqpopt_options_type
+    use sqpopt_options_module, only: sqpopt_options_type, sqpopt_hessian_exact
     use sqpopt_types_module,   only: sqpopt_invalid_input, sqpopt_success
     use sqpopt_linesearch_module,   only: sqpopt_linesearch_type
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
@@ -68,6 +68,15 @@ program test_input_validation
     options%print_level = 1
     options%output_unit = 98765   ! (not an open unit)
     call expect_invalid('output_unit not open', problem, options, [0.0_wp, 0.0_wp])
+    options = sqpopt_options_type()
+    options%hessian_mode = sqpopt_hessian_exact   ! (the problem has no hess function)
+    call expect_invalid('exact Hessian without hess', problem, options, [0.0_wp, 0.0_wp])
+    block
+        type(sqpopt_problem_type) :: p2
+        call valid_problem(p2)
+        call p2%set_hessian_sparsity(nnz=1, irow=[3], icol=[1])
+        call expect_invalid('Hessian row index > n', p2, sqpopt_options_type(), [0.0_wp, 0.0_wp])
+    end block
 
     ! invalid component settings:
     block

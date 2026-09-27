@@ -17,8 +17,9 @@ where equality constraints are expressed as `c_lb(i) = c_ub(i)`. `f`, `c`,
 and their first derivatives are supplied by the user as callbacks; the
 constraint Jacobian is stored in sparse coordinate (COO) format and the
 Hessian of the Lagrangian is approximated by a matrix-free limited-memory
-quasi-Newton operator -- no dense `n x n` or `m x n` array is ever formed,
-so the library scales to large, sparse problems.
+quasi-Newton operator (or, optionally, supplied exactly by the user, also
+in sparse form) -- no dense `n x n` or `m x n` array is ever formed, so the
+library scales to large, sparse problems.
 
 #### Features include:
 - SQP method: minimizes a nonlinear objective function subject to nonlinear equality and inequality constraints, and bounds.

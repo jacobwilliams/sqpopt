@@ -92,6 +92,8 @@
                                                    !! problem size is unchanged (see the module-level documentation)
 
         integer :: n_iter = 0 !! number of active-set iterations taken by the last solve (output)
+        logical :: negative_curvature = .false. !! whether the last solve found a direction of negative curvature
+                                                !! of the Hessian in the variables (output; the QP was nonconvex)
 
         ! internal state (the working set at the end of the previous solve, for warm starts):
         integer, dimension(:), allocatable :: warm_status !! side (-1/0/+1) of each general row and variable bound
@@ -141,6 +143,8 @@
 
     n = size(g)
     m = size(c)
+
+    me%negative_curvature = .false.
 
     ! ---- the dense Jacobian ----
     allocate(jd(m,n)); jd = 0.0_wp
@@ -260,7 +264,15 @@
                     end if
                 else
                     ! nonpositive curvature on this face: move along it, downhill,
-                    ! to the nearest blocking row (the step is not bounded by 1):
+                    ! to the nearest blocking row (the step is not bounded by 1).
+                    ! (Negative curvature in the variables -- not just zero
+                    ! curvature, e.g. along an elastic slack -- is reported.)
+                    block
+                        real(wp), dimension(n) :: dp
+                        dp = matmul(z(1:n,:), dcurv)
+                        if (dot_product(dp, matmul(h, dp)) < &
+                            -1.0e-8_wp*max(1.0_wp, maxval(abs(h)))*dot_product(dp, dp)) me%negative_curvature = .true.
+                    end block
                     if (dot_product(rg, dcurv) > 0.0_wp) dcurv = -dcurv
                     dvec = matmul(z, dcurv)
                     alpha_cap = huge(1.0_wp)

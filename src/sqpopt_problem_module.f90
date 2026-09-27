@@ -106,6 +106,7 @@
         logical  :: stop_requested = .false. !! set when a user function returns `status < 0`
         integer  :: n_eval_fc   = 0 !! number of calls of the user's `fc`
         integer  :: n_eval_gjac = 0 !! number of calls of the user's `gjac`
+        integer  :: n_eval_hess = 0 !! number of calls of the user's `hess`
         real(wp) :: f_scale = 1.0_wp !! objective scale factor \( s_f \)
         real(wp), dimension(:), allocatable :: c_scale !! constraint scale factors \( s_{c,i} \) `dimension(m)`
         integer :: cache_n = 0, cache_next = 1 !! entries used, and the slot for the next one, in the `fc` cache
@@ -129,6 +130,7 @@
         procedure, public :: c   => eval_c_cached   !! evaluate the (scaled) constraints
         procedure, public :: g   => eval_g_cached   !! evaluate the (scaled) objective gradient
         procedure, public :: jac => eval_jac_cached !! evaluate the (scaled) Jacobian values
+        procedure, public :: hess => eval_hess_scaled !! evaluate the (scaled) Lagrangian Hessian values
         procedure, public :: reset_evaluations     !! empty the caches, zero the counters, and remove any scaling
         procedure, public :: compute_scaling       !! set gradient-based objective/constraint scale factors
 
@@ -309,6 +311,25 @@
         if (.not. allocated(me%jac_icol)) allocate(me%jac_icol(0))
     end if
 
+    if (me%hess_nnz < 0) then
+        msg = 'the number of Hessian nonzeros must be >= 0'; return
+    end if
+    if (me%hess_nnz > 0) then
+        if (.not. (allocated(me%hess_irow) .and. allocated(me%hess_icol))) then
+            msg = 'the Hessian sparsity pattern has not been set (call set_hessian_sparsity)'; return
+        end if
+        if (size(me%hess_irow) /= me%hess_nnz .or. size(me%hess_icol) /= me%hess_nnz) then
+            msg = 'the Hessian sparsity pattern arrays must have size hess_nnz'; return
+        end if
+        if (any(me%hess_irow < 1) .or. any(me%hess_irow > me%n) .or. &
+            any(me%hess_icol < 1) .or. any(me%hess_icol > me%n)) then
+            msg = 'a Hessian row or column index is outside 1..n'; return
+        end if
+    else
+        if (.not. allocated(me%hess_irow)) allocate(me%hess_irow(0))
+        if (.not. allocated(me%hess_icol)) allocate(me%hess_icol(0))
+    end if
+
     if (.not. (associated(me%eval_fc) .and. associated(me%eval_gjac))) then
         msg = 'the problem functions have not been set (call set_functions)'; return
     end if
@@ -340,8 +361,10 @@
 !*******************************************************************************
 !>
 !  set the (fixed) sparsity pattern of the Hessian of the Lagrangian,
-!  given as 1-based COO `irow`/`icol` triplets (only the lower triangle
-!  need be supplied, since the Hessian is symmetric).
+!  given as 1-based COO `irow`/`icol` triplets. Since the Hessian is
+!  symmetric, each off-diagonal element must be given only *once* (in
+!  either triangle; e.g. only the lower triangle): an element `(i,j)` with
+!  `i/=j` stands for both `(i,j)` and `(j,i)`. Repeated entries are summed.
 
     subroutine set_hessian_sparsity(me, nnz, irow, icol)
 
@@ -411,7 +434,7 @@
     allocate(me%c_scale(me%m))
     me%cache_n = 0; me%cache_next = 1
     me%have_gjac = .false.
-    me%n_eval_fc = 0; me%n_eval_gjac = 0
+    me%n_eval_fc = 0; me%n_eval_gjac = 0; me%n_eval_hess = 0
     me%stop_requested = .false.
     me%f_scale = 1.0_wp
     me%c_scale = 1.0_wp
@@ -642,6 +665,41 @@
     me%have_gjac = .true.
 
     end subroutine raw_gjac
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the nonzero values of the Hessian of the (scaled) Lagrangian
+!  \( s_f \nabla^2 f - \sum_i \lambda_i s_{c,i} \nabla^2 c_i \) at `x`, for
+!  the multipliers `lambda` of the scaled problem: the user's `hess` is
+!  called with the multipliers of the original problem,
+!  \( \lambda_i s_{c,i}/s_f \), and its values are multiplied by \( s_f \).
+!  NaN if the user function failed (`status /= 0`).
+
+    subroutine eval_hess_scaled(me, x, lambda, hess_val)
+
+    class(sqpopt_problem_type), intent(inout) :: me
+    real(wp), dimension(:),     intent(in)    :: x        !! point `dimension(n)`
+    real(wp), dimension(:),     intent(in)    :: lambda   !! multipliers of the scaled problem `dimension(m)`
+    real(wp), dimension(:),     intent(out)   :: hess_val !! scaled Hessian values `dimension(hess_nnz)`
+
+    integer :: status
+
+    if (me%stop_requested .or. .not. associated(me%eval_hess)) then
+        hess_val = ieee_value(1.0_wp, ieee_quiet_nan)
+        return
+    end if
+    status = 0
+    if (associated(me%user_data)) then
+        call me%eval_hess(x, lambda*me%c_scale/me%f_scale, hess_val, status, me%user_data)
+    else
+        call me%eval_hess(x, lambda*me%c_scale/me%f_scale, hess_val, status)
+    end if
+    me%n_eval_hess = me%n_eval_hess + 1
+    call check_status(me, status, hess_val)
+    hess_val = me%f_scale*hess_val
+
+    end subroutine eval_hess_scaled
 !*******************************************************************************
 
 !*******************************************************************************

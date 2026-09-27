@@ -204,6 +204,8 @@
     call me%hessian%initialize(me%problem%n, me%options%lbfgs_memory, &
                                 use_sr1=(me%options%hessian_mode == sqpopt_hessian_sr1), &
                                 scale0=me%options%hessian_scale0)
+    if (me%options%hessian_mode == sqpopt_hessian_exact) &
+        call me%hessian%set_exact(me%problem%hess_irow, me%problem%hess_icol)
     me%qp_solver%mode        = me%options%qp_solver_mode
     me%linesearch%mode       = me%options%linesearch_mode
     me%linesearch%merit_mode = me%options%merit_mode
@@ -287,12 +289,13 @@
                 - me%results%c, 0.0_wp) + max(me%results%c - me%problem%c_ub/me%problem%c_scale, 0.0_wp))
             me%results%n_eval_fc   = me%problem%n_eval_fc
             me%results%n_eval_gjac = me%problem%n_eval_gjac
+            me%results%n_eval_hess = me%problem%n_eval_hess
         else
             me%results%f = 0.0_wp
             me%results%c = spread(0.0_wp, 1, max(me%problem%m,0))
             me%results%lambda = me%lambda
             me%results%z = spread(0.0_wp, 1, size(x0))
-            me%results%n_eval_fc = 0; me%results%n_eval_gjac = 0
+            me%results%n_eval_fc = 0; me%results%n_eval_gjac = 0; me%results%n_eval_hess = 0
         end if
         call system_clock(t_now)
         me%results%time = real(t_now-t_start, wp)/real(t_rate, wp)
@@ -352,7 +355,12 @@
         write(u,'(A,ES10.2)')  '   feasibility error  = ', me%results%feasibility_error
         write(u,'(A,ES10.2)')  '   KKT error (scaled) = ', me%results%kkt_error
         write(u,'(A,I0)')      '   iterations         = ', me%results%iterations
-        write(u,'(A,2(I0,A))') '   evaluations        = ', me%results%n_eval_fc, ' fc, ', me%results%n_eval_gjac, ' gjac'
+        if (me%results%n_eval_hess > 0) then
+            write(u,'(A,3(I0,A))') '   evaluations        = ', me%results%n_eval_fc, ' fc, ', me%results%n_eval_gjac, &
+                                   ' gjac, ', me%results%n_eval_hess, ' hess'
+        else
+            write(u,'(A,2(I0,A))') '   evaluations        = ', me%results%n_eval_fc, ' fc, ', me%results%n_eval_gjac, ' gjac'
+        end if
         write(u,'(A,F0.3,A)')  '   time               = ', me%results%time, ' s'
         write(u,'(A)') ''
         end subroutine print_summary
@@ -389,6 +397,10 @@
     end if
     if (o%hessian_mode < sqpopt_hessian_bfgs .or. o%hessian_mode > sqpopt_hessian_exact) then
         msg = 'options%hessian_mode is not a valid sqpopt_hessian_* value'; return
+    end if
+    if (o%hessian_mode == sqpopt_hessian_exact .and. .not. associated(me%problem%eval_hess)) then
+        msg = 'options%hessian_mode = sqpopt_hessian_exact requires the hess function (set_functions) '// &
+              'and its sparsity pattern (set_hessian_sparsity)'; return
     end if
     if (all(o%qp_solver_mode /= [sqpopt_qp_auto, sqpopt_qp_dense, sqpopt_qp_reduced_hessian])) then
         msg = 'options%qp_solver_mode is not a valid sqpopt_qp_* value'; return

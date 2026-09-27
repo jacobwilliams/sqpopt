@@ -45,6 +45,11 @@ program test_hs_suite
     !!
     !! * `--linesearch=filter|funnel|armijo|watchdog|exact` (`options%linesearch_mode`)
     !! * `--restoration=phase|gauss-newton` (`options%restoration_mode`)
+    !! * `--hessian=bfgs|sr1|exact` (`options%hessian_mode`; the collection
+    !!   has no second derivatives, so `exact` uses the Hessian of the
+    !!   Lagrangian computed by central differences of the analytic gradient
+    !!   and Jacobian, see [[hess_fd]], except on the problems that use
+    !!   finite-difference first derivatives, which keep BFGS)
     !! * `--trust-region` (`trust_region%enabled = .true.`: the trust-region
     !!   globalization, with the filter or funnel test in those modes, else
     !!   the merit-function ratio test)
@@ -70,7 +75,7 @@ program test_hs_suite
     use hs_problems_module
     use sqpopt_module,         only: sqpopt_type
     use sqpopt_problem_module, only: sqpopt_problem_type
-    use sqpopt_options_module, only: sqpopt_options_type
+    use sqpopt_options_module, only: sqpopt_options_type, sqpopt_hessian_bfgs, sqpopt_hessian_sr1, sqpopt_hessian_exact
     use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type, sqpopt_qp_auto, sqpopt_qp_dense, &
                                         sqpopt_qp_reduced_hessian
     use sqpopt_qp_reduced_hessian_module, only: sqpopt_null_space_lu, sqpopt_null_space_lsqr
@@ -135,6 +140,7 @@ program test_hs_suite
     integer :: cfg_nonmonotone = 0
     logical :: cfg_trust_region = .false. !! `--trust-region`
     integer :: cfg_restoration  = sqpopt_restoration_phase !! `--restoration=`
+    integer :: cfg_hessian      = sqpopt_hessian_bfgs      !! `--hessian=`
     integer :: cfg_problem     = 0  !! `--problem=N`: solve only this problem (`0` = all)
     integer :: cfg_print       = 0  !! `--print=L`: `options%print_level`
     integer :: cfg_qp          = sqpopt_qp_auto
@@ -226,6 +232,9 @@ program test_hs_suite
         case ('--trust-region');        cfg_trust_region = .true.
         case ('--restoration=phase');   cfg_restoration = sqpopt_restoration_phase
         case ('--restoration=gauss-newton'); cfg_restoration = sqpopt_restoration_gauss_newton
+        case ('--hessian=bfgs');        cfg_hessian = sqpopt_hessian_bfgs
+        case ('--hessian=sr1');         cfg_hessian = sqpopt_hessian_sr1
+        case ('--hessian=exact');       cfg_hessian = sqpopt_hessian_exact
         case ('--qp=auto');             cfg_qp = sqpopt_qp_auto
         case ('--qp=dense');            cfg_qp = sqpopt_qp_dense
         case ('--qp=sparse');           cfg_qp = sqpopt_qp_reduced_hessian
@@ -262,7 +271,7 @@ program test_hs_suite
     type(sqpopt_qp_solver_type) :: qp_solver
     type(sqpopt_trust_region_type) :: trust_region
     type(sqpopt_results_type) :: r
-    integer, dimension(:), allocatable :: irow, icol
+    integer, dimension(:), allocatable :: irow, icol, hrow, hcol
     integer  :: i, j, nnz, istat
     real(dp) :: rel, viol
     logical  :: feasible, converged, expected_unsolved
@@ -285,7 +294,21 @@ program test_hs_suite
     call problem%set_problem_size(n=p%n, m_eq=p%me, m_ineq=p%m-p%me)
     call problem%set_bounds(real(p%x_lb, wp), real(p%x_ub, wp), real(p%c_lb, wp), real(p%c_ub, wp))
     call problem%set_jacobian_sparsity(nnz, irow, icol)
-    call problem%set_functions(fc=fc_obj_cons, gjac=gjac_grad_jacv, data=ctx)
+    call problem%set_functions(fc=fc_obj_cons, gjac=gjac_grad_jacv, hess=hess_fd, data=ctx)
+    ! dense lower-triangle Hessian pattern (row by row):
+    block
+        integer :: k
+        k = 0
+        allocate(hrow(p%n*(p%n+1)/2), hcol(p%n*(p%n+1)/2))
+        do i = 1, p%n
+            do j = 1, i
+                k = k + 1
+                hrow(k) = i
+                hcol(k) = j
+            end do
+        end do
+    end block
+    call problem%set_hessian_sparsity(size(hrow), hrow, hcol)
     options%max_iter        = 1000
     options%linesearch_mode = cfg_linesearch
     options%merit_mode      = cfg_merit
@@ -293,6 +316,8 @@ program test_hs_suite
     options%qp_solver_mode  = cfg_qp
     options%print_level     = cfg_print
     options%restoration_mode = cfg_restoration
+    options%hessian_mode    = cfg_hessian
+    if (cfg_hessian == sqpopt_hessian_exact .and. (ctx%fd_g .or. ctx%fd_jac)) options%hessian_mode = sqpopt_hessian_bfgs
     qp_solver%sparse_qp%null_space = cfg_null_space
     linesearch%interpolate     = cfg_interpolate
     linesearch%nonmonotone_len = cfg_nonmonotone
@@ -716,6 +741,61 @@ program test_hs_suite
     end select
     associate(unused => status); end associate
     end subroutine jacv
+
+    subroutine hess_fd(x, lambda, hess_val, status, data)
+    !! `hess` for `set_functions`: the Hessian of the Lagrangian
+    !! \( \nabla^2 f - \sum_i \lambda_i \nabla^2 c_i \), by central differences
+    !! (one-sided at a bound, see [[fd_step]]) of its analytic gradient
+    !! \( \nabla f - J^T \lambda \), symmetrized; the lower triangle, row by row
+    real(wp), dimension(:), intent(in)    :: x
+    real(wp), dimension(:), intent(in)    :: lambda
+    real(wp), dimension(:), intent(out)   :: hess_val
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
+    real(dp), dimension(size(x),size(x)) :: h
+    real(dp), dimension(size(x)) :: xd, xp, gl0, gl1, gl2
+    real(dp) :: step
+    integer :: i, j, k, side
+    select type (data)
+    type is (problem_context)
+        xd = real(x, dp)
+        gl0 = lagrangian_gradient(data, xd, lambda)
+        do j = 1, size(x)
+            call fd_step(xd, j, step, side)
+            xp = xd; xp(j) = xd(j) + step;                        gl1 = lagrangian_gradient(data, xp, lambda)
+            xp(j) = xd(j) + merge(-step, 2*step, side == 0); gl2 = lagrangian_gradient(data, xp, lambda)
+            if (side == 0) then
+                h(:,j) = (gl1 - gl2)/(2.0_dp*step)
+            else
+                h(:,j) = (-3.0_dp*gl0 + 4.0_dp*gl1 - gl2)/(2.0_dp*step)
+            end if
+        end do
+        h = 0.5_dp*(h + transpose(h))
+        k = 0
+        do i = 1, size(x)
+            do j = 1, i
+                k = k + 1
+                hess_val(k) = real(h(i,j), wp)
+            end do
+        end do
+    end select
+    associate(unused => status); end associate
+    end subroutine hess_fd
+
+    function lagrangian_gradient(ctx, xx, lambda) result(gl)
+    !! the analytic gradient of the Lagrangian, \( \nabla f - J^T \lambda \), for [[hess_fd]]
+    type(problem_context),  intent(in) :: ctx
+    real(dp), dimension(:), intent(in) :: xx
+    real(wp), dimension(:), intent(in) :: lambda
+    real(dp), dimension(size(xx)) :: gl
+    real(dp), dimension(:,:), allocatable :: jd
+    call hs_g(ctx%id, xx, gl)
+    if (ctx%m > 0) then
+        allocate(jd(ctx%m, ctx%n))
+        call hs_jac(ctx%id, xx, jd)
+        gl = gl - matmul(real(lambda, dp), jd)
+    end if
+    end function lagrangian_gradient
 
     subroutine fc_obj_cons(x, f, c, status, data)
     !! `fc` for `set_functions`: the objective (`obj`) and the constraints (`cons`)
