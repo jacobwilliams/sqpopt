@@ -2,30 +2,15 @@
 !> author: Jacob Williams
 !  license: MIT
 !
-!  Merit function evaluation and line search used to globalize the SQP
-!  iterations (ensures progress towards both optimality and feasibility).
-!
-!  Two merit functions are available (`sqpopt_linesearch_type%merit_mode`,
-!  used by the `armijo`, `exact`, and `watchdog` line searches):
-!
-!  * `sqpopt_merit_l1` (**default**) -- the standard non-smooth \( \ell_1 \)
-!    exact penalty function (as in `slsqp`).
-!  * `sqpopt_merit_augmented_lagrangian` -- a smooth augmented Lagrangian
-!    merit function (Gill, Murray, Saunders & Wright, *"Some Theoretical
-!    Properties of an Augmented Lagrangian Merit Function"*, SOL 86-6R --
-!    the merit function used in NPSOL/NPSQP and, in spirit, SNOPT). Unlike
-!    the \( \ell_1 \) function, it is twice continuously differentiable,
-!    which is the reason SNOPT-family solvers do not need a second-order
-!    correction (see [[sqpopt_soc_module]]) to avoid the Maratos effect.
-!
-!  Their penalty parameter is updated by one of two rules
-!  (`penalty_update`, see [[update_penalty_parameter]]):
-!  `sqpopt_penalty_multipliers` (**default**; keeps it above the multiplier
-!  estimates, never decreasing) or `sqpopt_penalty_model` (each merit's own
-!  principled rule: Byrd-Nocedal model reduction for \( \ell_1 \), and for
-!  the augmented Lagrangian the Gill-Murray-Saunders-Wright rule, with a
-!  joint step in the variables, multipliers, and slacks, and a penalty
-!  that can decrease).
+!  The line searches used to globalize the SQP iterations (ensures
+!  progress towards both optimality and feasibility). The acceptance tests
+!  they use are in their own modules, held here as components: the merit
+!  function and its penalty parameter (`merit`, see
+!  [[sqpopt_merit_module]]), the filter (`filter`, see
+!  [[sqpopt_filter_module]]), and the funnel (`funnel`, see
+!  [[sqpopt_funnel_module]]). The trust region (see
+!  [[sqpopt_trust_region_module]]) uses the same components, so the two
+!  globalizations share the filter or funnel.
 !
 !  Five line search strategies are available (`sqpopt_linesearch_type%mode`):
 !
@@ -56,10 +41,8 @@
 !    (2005), and the IPOPT paper, Math. Program. 106 (2006)): no merit
 !    function or penalty parameter; a trial point is judged by the pair
 !    \( (\theta, \varphi) \) of \( \ell_1 \) constraint violation and
-!    objective value, and must not be dominated by the filter. A
-!    *switching condition* decides whether a step must reduce the objective
-!    (an Armijo test, "f-type" step) or may trade objective for feasibility;
-!    only non-f-type steps enlarge the filter. See [[filter_line_search]].
+!    objective value, and must not be dominated by the filter (see
+!    [[sqpopt_filter_module]]). See [[filter_line_search]].
 !    It is the default: on the Hock-Schittkowski test set (see
 !    `test/test_hs_suite.f90`) it solves the most problems, with the
 !    fewest function evaluations, of all the line search / merit function /
@@ -103,15 +86,21 @@
     module sqpopt_linesearch_module
 
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
-    use sqpopt_types_module,   only: sqpopt_success, sqpopt_line_search_failed, sqpopt_sparse_matrix, sqpopt_all_finite
-    use sqpopt_linalg_module,  only: sparse_matvec, sparse_matvec_transpose
+    use sqpopt_types_module,   only: sqpopt_success, sqpopt_line_search_failed, sqpopt_sparse_matrix, sqpopt_all_finite, &
+                                     l1_violation, merit_slack
+    use sqpopt_merit_module,   only: sqpopt_merit_type, sqpopt_merit_l1, sqpopt_merit_augmented_lagrangian, &
+                                     sqpopt_penalty_multipliers, sqpopt_penalty_model
+    use sqpopt_filter_module,  only: sqpopt_filter_type
+    use sqpopt_funnel_module,  only: sqpopt_funnel_type
     use fmin_module,           only: fmin
 
     implicit none
 
     private
 
+    ! (re-exported, so that users and the other modules can get them from here:)
     public :: l1_violation
+    public :: sqpopt_merit_l1, sqpopt_merit_augmented_lagrangian, sqpopt_penalty_multipliers, sqpopt_penalty_model
 
     integer, parameter, public :: sqpopt_linesearch_armijo   = 1  !! backtracking Armijo-type line search on a merit function
     integer, parameter, public :: sqpopt_linesearch_exact    = 2  !! (approximate) exact 1-D minimization of the merit function, via [[fmin]]
@@ -120,16 +109,6 @@
                                                                   !! function/penalty parameter, see module docs)
     integer, parameter, public :: sqpopt_linesearch_funnel   = 5  !! the funnel method of Kiessling, Leyffer & Vanaret (no
                                                                   !! merit function/penalty parameter, see module docs)
-
-    integer, parameter, public :: sqpopt_merit_l1                   = 1  !! non-smooth \( \ell_1 \) exact penalty merit function (default)
-    integer, parameter, public :: sqpopt_merit_augmented_lagrangian = 2  !! smooth augmented Lagrangian merit function (NPSOL/SNOPT-style)
-
-    integer, parameter, public :: sqpopt_penalty_multipliers = 1  !! (default) penalty kept above the multipliers,
-                                                                  !! \( \mu \ge \lVert\lambda\rVert_\infty + 1 \); never decreases
-    integer, parameter, public :: sqpopt_penalty_model       = 2  !! each merit function's own principled rule (see
-                                                                  !! [[update_penalty_parameter]]): Byrd-Nocedal
-                                                                  !! model reduction (`sqpopt_merit_l1`), or
-                                                                  !! Gill-Murray-Saunders-Wright (`sqpopt_merit_augmented_lagrangian`)
 
     abstract interface
         subroutine sqpopt_ls_objective_func(x, f)
@@ -164,16 +143,7 @@
     type, public :: sqpopt_linesearch_type
         !! options and state for the merit function and line search.
 
-        integer  :: mode        = sqpopt_linesearch_filter !! line search strategy to use
-        integer  :: merit_mode  = sqpopt_merit_l1           !! merit function to use
-        real(wp) :: penalty     = 1.0_wp    !! current penalty parameter used in the merit function
-                                            !! (called \( \mu \) for `sqpopt_merit_l1`, \( \rho \) for
-                                            !! `sqpopt_merit_augmented_lagrangian`)
-        integer  :: penalty_update = sqpopt_penalty_multipliers !! how the penalty parameter is updated (see the
-                                                                 !! `sqpopt_penalty_*` constants)
-        real(wp) :: penalty_rho = 0.1_wp    !! `sqpopt_penalty_model` with `sqpopt_merit_l1`: the fraction \( \rho \)
-                                            !! of the linearized violation reduction the penalty must credit
-                                            !! (Nocedal & Wright eq. 18.36), \( 0 < \rho < 1 \)
+        integer  :: mode        = sqpopt_linesearch_filter !! line search strategy to use (set from `options%linesearch_mode`)
         real(wp) :: tol         = 1.0e-4_wp !! desired tolerance on the minimizer (`sqpopt_linesearch_exact` mode)
         real(wp) :: sigma       = 0.1_wp    !! Armijo sufficient-decrease parameter, \( 0 < \sigma < 1 \) (`sqpopt_linesearch_armijo` mode)
         real(wp) :: backtrack   = 0.5_wp    !! step-length reduction factor at each backtracking step (`sqpopt_linesearch_armijo` mode)
@@ -200,63 +170,16 @@
         integer  :: watchdog_relaxed_len    = 2     !! number of relaxed steps tolerated before requiring a new best point (`sqpopt_linesearch_watchdog` mode)
         integer  :: watchdog_cooldown_len   = 10    !! number of iterations relaxed acceptance is disabled for after a backtrack (`sqpopt_linesearch_watchdog` mode)
 
-        ! filter parameters (`sqpopt_linesearch_filter` mode, and trust region with the filter), with the
-        ! default values from Wächter & Biegler (see [[filter_line_search]]):
-        real(wp) :: filter_gamma_theta    = 1.0e-5_wp !! margin \( \gamma_\theta \): a step must reduce \( \theta \) by this fraction...
-        real(wp) :: filter_gamma_phi      = 1.0e-5_wp !! ...or reduce \( \varphi \) by \( \gamma_\varphi\theta \)
-        real(wp) :: filter_delta          = 1.0_wp    !! switching condition constant \( \delta \)
-        real(wp) :: filter_s_theta        = 1.1_wp    !! switching condition exponent \( s_\theta \)
-        real(wp) :: filter_s_phi          = 2.3_wp    !! switching condition exponent \( s_\varphi \)
-        real(wp) :: filter_eta_phi        = 1.0e-4_wp !! Armijo constant \( \eta_\varphi \) for f-type steps
-        real(wp) :: filter_theta_max_fact = 1.0e4_wp  !! \( \theta_{max} = \) this \( \times \max(1,\theta_0) \): no point with a larger violation is accepted
-        real(wp) :: filter_theta_min_fact = 1.0e-4_wp !! \( \theta_{min} = \) this \( \times \max(1,\theta_0) \): below it, f-type steps are allowed
-        real(wp) :: filter_gamma_alpha    = 0.05_wp   !! safety factor \( \gamma_\alpha \) in the minimum step length before restoration
-
-        ! funnel parameters (`sqpopt_linesearch_funnel` mode, and trust region with the funnel), with the
-        ! default values of the Uno solver (see [[funnel_line_search]]):
-        real(wp) :: funnel_width_min  = 1.0_wp    !! initial funnel width \( \tau_0 = \max( \) this, `funnel_width_fact`
-                                                  !! \( \times\,\theta_0) \)
-        real(wp) :: funnel_width_fact = 1.5_wp    !! see `funnel_width_min`
-        real(wp) :: funnel_beta       = 0.9999_wp !! an h-type step must reach \( \theta \le \beta\tau \) (\( 0<\beta<1 \))
-        real(wp) :: funnel_kappa      = 0.5_wp    !! after an h-type step, the new width is (at least) the convex
-                                                  !! combination \( \kappa\theta_k + (1-\kappa)\theta_t \) (see `funnel_update`)
-        integer  :: funnel_update     = 1         !! funnel width update after an h-type step: `1` =
-                                                  !! \( \max(\beta\tau, \kappa\theta_k+(1-\kappa)\theta_t) \) if the
-                                                  !! violation decreased, else \( \beta\tau \); `2` = \( \kappa\tau +
-                                                  !! (1-\kappa)\theta_t \)
-        real(wp) :: funnel_delta      = 0.999_wp  !! switching condition constant \( \delta \): an f-type step needs
-                                                  !! \( \alpha(-g^Tp) > \delta\theta_k^{s_\theta} \)
-        real(wp) :: funnel_s_theta    = 2.0_wp    !! switching condition exponent \( s_\theta \)
-        real(wp) :: funnel_eta        = 1.0e-4_wp !! Armijo constant \( \eta \) for f-type steps
-        logical  :: funnel_require_current = .false. !! also require every trial point to be acceptable with respect to
-                                                     !! the current point: \( \theta_t < \beta\theta_k \) or
-                                                     !! \( \varphi_t \le \varphi_k - \gamma\theta_t \)
-        real(wp) :: funnel_gamma      = 1.0e-3_wp !! \( \gamma \) in `funnel_require_current`
-
-        ! internal state for `sqpopt_penalty_model` with `sqpopt_merit_augmented_lagrangian` (not user
-        ! options): the joint step in the multipliers, and the floor limiting how often the penalty decreases
-        logical  :: joint_active  = .false.  !! whether the merit's multipliers move along the step (see
-                                             !! [[update_penalty_parameter]])
-        real(wp), dimension(:), allocatable :: lambda0 !! the multipliers at the start of the step `dimension(m)`
-        real(wp), dimension(:), allocatable :: s0      !! the slacks at the start of the step `dimension(m)`
-        real(wp), dimension(:), allocatable :: q       !! the slacks' change per unit step `dimension(m)`
-        real(wp) :: penalty_floor = 1.0e-2_wp !! the penalty can only decrease above this, which doubles each time
+        ! the acceptance tests (options and state; see their modules):
+        type(sqpopt_merit_type)  :: merit  !! the merit function and its penalty parameter (`armijo`, `exact`,
+                                           !! and `watchdog` modes, and the trust region's merit-ratio test)
+        type(sqpopt_filter_type) :: filter !! the filter (`filter` mode, and the trust region with the filter)
+        type(sqpopt_funnel_type) :: funnel !! the funnel (`funnel` mode, and the trust region with the funnel)
 
         ! internal state for the non-monotone fallback (not user options): the merit values (`armijo`), or
         ! the violations and objective values (`filter`), at the most recent iterates
         integer  :: nm_count = 0
         real(wp), dimension(:), allocatable :: nm_phi, nm_theta, nm_f
-
-        ! internal state for the filter (not user options -- persists across major iterations):
-        logical  :: filter_ready = .false.        !! whether the filter below has been initialized
-        real(wp) :: filter_theta_max = 0.0_wp     !! \( \theta_{max} \)
-        real(wp) :: filter_theta_min = 0.0_wp     !! \( \theta_{min} \)
-        real(wp), dimension(:), allocatable :: filter_theta !! constraint-violation value of each filter entry
-        real(wp), dimension(:), allocatable :: filter_phi   !! objective value of each filter entry
-
-        ! internal state for the funnel (not user options -- persists across major iterations):
-        logical  :: funnel_ready = .false.  !! whether the funnel width below has been initialized
-        real(wp) :: funnel_width = 0.0_wp   !! the funnel width \( \tau \)
 
         ! internal state for `sqpopt_linesearch_watchdog` mode (not user options -- persists across major iterations):
         logical  :: watchdog_ready               = .false. !! whether the best-point tracking below has been initialized
@@ -267,285 +190,12 @@
 
         contains
 
-        procedure, public :: eval_merit              => eval_merit_function
-        procedure, public :: directional_derivative  => merit_directional_derivative
-        procedure, public :: update_penalty          => update_penalty_parameter
-        procedure, public :: search                  => line_search
-        procedure, public :: filter_prepare          => filter_prepare_state
-        procedure, public :: filter_accept           => filter_step_acceptable
-        procedure, public :: filter_record           => filter_augment
-        procedure, public :: funnel_prepare          => funnel_prepare_state
-        procedure, public :: funnel_accept           => funnel_step_acceptable
-        procedure, public :: funnel_record           => funnel_shrink
-        procedure, public :: funnel_restoration      => funnel_shrink_restoration
+        procedure, public :: search                   => line_search
         procedure, public :: globalization_acceptable => point_acceptable
 
     end type sqpopt_linesearch_type
 
     contains
-!*******************************************************************************
-
-!*******************************************************************************
-!>
-!  evaluate the merit function used to measure progress, dispatching on
-!  `me%merit_mode`:
-!
-!  * `sqpopt_merit_l1`:
-!    $$ \phi(x) = f(x) + \mu \lVert \max(c_l - c(x), 0, c(x) - c_u) \rVert_1 $$
-!  * `sqpopt_merit_augmented_lagrangian`:
-!    $$ \phi(x,\lambda,\rho) = f(x) - \lambda^T\!\left(c(x)-s\right) + \tfrac{1}{2}\rho \lVert c(x)-s \rVert_2^2 $$
-!    where the slack `s` is the closed-form minimizer of \( \phi \) subject
-!    to \( c_l \le s \le c_u \) (see [[augmented_lagrangian_slacks]]).
-!    With the joint step (`joint_active`), the multipliers and the slacks
-!    are those at step length `alpha` along it, \( \lambda_0 +
-!    \alpha(\lambda - \lambda_0) \) and \( s_0 + \alpha q \) (`alpha=0` if
-!    absent), instead of the slacks' closed-form minimizer (see
-!    [[update_penalty_parameter]]).
-
-    subroutine eval_merit_function(me, f, c, c_lb, c_ub, lambda, phi, alpha)
-
-    class(sqpopt_linesearch_type), intent(inout) :: me
-    real(wp),                intent(in)  :: f      !! objective function value
-    real(wp), dimension(:), intent(in)  :: c      !! constraint values `dimension(m)`
-    real(wp), dimension(:), intent(in)  :: c_lb   !! constraint lower bounds `dimension(m)`
-    real(wp), dimension(:), intent(in)  :: c_ub   !! constraint upper bounds `dimension(m)`
-    real(wp), dimension(:), intent(in)  :: lambda !! Lagrange multiplier estimate `dimension(m)`
-                                                  !! (only used by `sqpopt_merit_augmented_lagrangian`)
-    real(wp),                intent(out) :: phi    !! value of the merit function
-    real(wp), optional,      intent(in)  :: alpha  !! step length along the joint step (see above)
-
-    real(wp), dimension(size(c)) :: s, r, lam
-
-    select case (me%merit_mode)
-    case (sqpopt_merit_augmented_lagrangian)
-        if (me%joint_active) then
-            ! (the multipliers and the slacks both move along the step)
-            if (present(alpha)) then
-                lam = me%lambda0 + alpha*(lambda - me%lambda0)
-                s   = me%s0 + alpha*me%q
-            else
-                lam = me%lambda0
-                s   = me%s0
-            end if
-        else
-            lam = lambda
-            call augmented_lagrangian_slacks(me, c, c_lb, c_ub, lam, s)
-        end if
-        r   = c - s
-        phi = f - dot_product(lam, r) + 0.5_wp*me%penalty*dot_product(r, r)
-    case default
-        phi = f + me%penalty*sum(max(c_lb-c, 0.0_wp) + max(c-c_ub, 0.0_wp))
-    end select
-
-    end subroutine eval_merit_function
-!*******************************************************************************
-
-!*******************************************************************************
-!>
-!  the closed-form slack `s` that minimizes the augmented Lagrangian merit
-!  function subject to \( c_l \le s \le c_u \): this generalizes the
-!  non-negative slack \( s_i=\max(0,c_i-\lambda_i/\rho) \) of the original
-!  (single-sided) formulation to `sqpopt`'s two-sided constraint bounds
-!  (equality rows, where `c_lb=c_ub`, are handled automatically since `s`
-!  is then clipped to that single value regardless of \( \lambda,\rho \)).
-
-    subroutine augmented_lagrangian_slacks(me, c, c_lb, c_ub, lambda, s)
-
-    class(sqpopt_linesearch_type), intent(in)  :: me
-    real(wp), dimension(:), intent(in)  :: c !! constraint values at `x` `dimension(m)`
-    real(wp), dimension(:), intent(in)  :: c_lb !! lower bounds on the constraints `dimension(m)`
-    real(wp), dimension(:), intent(in)  :: c_ub !! upper bounds on the constraints `dimension(m)`
-    real(wp), dimension(:), intent(in)  :: lambda !! Lagrange multipliers for the constraints `dimension(m)`
-    real(wp), dimension(:), intent(out) :: s !! closed-form slack that minimizes the augmented Lagrangian merit function
-
-    if (me%penalty <= 0.0_wp) then
-        s = min(max(c, c_lb), c_ub)
-    else
-        s = min(max(c - lambda/me%penalty, c_lb), c_ub)
-    end if
-
-    end subroutine augmented_lagrangian_slacks
-!*******************************************************************************
-
-!*******************************************************************************
-!>
-!  the (approximate) directional derivative \( D(\phi;p) \) of the merit
-!  function along `p`, used by the Armijo sufficient-decrease test and by
-!  the descent-direction safeguard in [[sqpopt_iterate_module]]. Dispatches
-!  on `me%merit_mode`:
-!
-!  * `sqpopt_merit_l1`: \( D(\phi;p) = g^Tp + \mu \, D(\lVert \text{viol}(c + \alpha Jp)
-!    \rVert_1; \alpha=0^+) \), the exact one-sided derivative of the
-!    linearized violation. For a step that satisfies the linearized
-!    constraints this is the usual \( g^Tp - \mu \lVert \text{viol}(x)
-!    \rVert_1 \); for one that doesn't (e.g. shortened by the step-length
-!    cap, or an elastic step), that formula would overstate the decrease,
-!    so that no step length could pass the sufficient-decrease test.
-!  * `sqpopt_merit_augmented_lagrangian`: \( D(\phi;p) = (g - J^T\lambda +
-!    \rho J^T(c-s))^Tp \), holding \( \lambda \) and `s` fixed at their
-!    current values; with the joint step (`joint_active`, see
-!    [[update_penalty_parameter]]), where \( r = c-s \) changes by
-!    \( d = Jp - q \) and \( \lambda \) by \( \xi \) per unit step, it is
-!    \( g^Tp - \xi^Tr_0 - \lambda_0^Td + \rho\, r_0^Td \).
-
-    subroutine merit_directional_derivative(me, jac, g, p, c, c_lb, c_ub, lambda, dphi0)
-
-    class(sqpopt_linesearch_type), intent(in) :: me
-    type(sqpopt_sparse_matrix), intent(in) :: jac  !! constraint Jacobian at `x`, `dimension(m,n)`
-    real(wp), dimension(:), intent(in) :: g        !! objective gradient at `x` `dimension(n)`
-    real(wp), dimension(:), intent(in) :: p        !! search direction `dimension(n)`
-    real(wp), dimension(:), intent(in) :: c        !! constraint values at `x` `dimension(m)`
-    real(wp), dimension(:), intent(in) :: c_lb     !! lower bounds on the constraints `dimension(m)`
-    real(wp), dimension(:), intent(in) :: c_ub     !! upper bounds on the constraints `dimension(m)`
-    real(wp), dimension(:), intent(in) :: lambda   !! Lagrange multipliers for the constraints `dimension(m)`
-    real(wp), intent(out) :: dphi0 !! directional derivative of the merit function along `p`
-
-    real(wp), dimension(size(c)) :: s !! slack variables for the augmented Lagrangian
-    real(wp), dimension(size(g)) :: jtlam, jtr
-
-    select case (me%merit_mode)
-    case (sqpopt_merit_augmented_lagrangian)
-        if (me%joint_active) then
-            ! (the multipliers and the slacks move too: by `xi = lambda - lambda0`
-            ! and `q` per unit step, so `r = c-s` changes by `d = Jp - q`)
-            block
-                real(wp), dimension(size(c)) :: jp, d
-                call sparse_matvec(jac, p, jp)
-                d = jp - me%q
-                s = c - me%s0     ! (= r0)
-                dphi0 = dot_product(g, p) - dot_product(lambda - me%lambda0, s) - dot_product(me%lambda0, d) &
-                        + me%penalty*dot_product(s, d)
-            end block
-        else
-            call augmented_lagrangian_slacks(me, c, c_lb, c_ub, lambda, s)
-            call sparse_matvec_transpose(jac, lambda, jtlam)
-            call sparse_matvec_transpose(jac, c-s, jtr)
-            dphi0 = dot_product(g - jtlam + me%penalty*jtr, p)
-        end if
-    case default
-        block
-            real(wp), dimension(size(c)) :: jp
-            real(wp) :: rate
-            integer :: i
-            call sparse_matvec(jac, p, jp)
-            rate = 0.0_wp
-            do i = 1, size(c)
-                if (c(i) < c_lb(i)) then
-                    rate = rate - jp(i)
-                else if (c(i) > c_ub(i)) then
-                    rate = rate + jp(i)
-                else if (c(i) == c_lb(i) .and. jp(i) < 0.0_wp) then
-                    rate = rate - jp(i)
-                else if (c(i) == c_ub(i) .and. jp(i) > 0.0_wp) then
-                    rate = rate + jp(i)
-                end if
-            end do
-            dphi0 = dot_product(g, p) + me%penalty*rate
-        end block
-    end select
-
-    end subroutine merit_directional_derivative
-!*******************************************************************************
-
-!*******************************************************************************
-!>
-!  update the merit function's penalty parameter after the QP solve, for
-!  the step `p` (with \( p^THp \) = `php`), according to `penalty_update`:
-!
-!  * `sqpopt_penalty_multipliers`: \( \mu \ge \lVert\lambda_{QP}\rVert_\infty + 1 \)
-!    (Han/Powell, as in `slsqp`), which never decreases. Simple, but at a
-!    degenerate point, where the multipliers are huge, the penalty becomes
-!    huge too, and the line search then only accepts tiny steps.
-!  * `sqpopt_penalty_model`, with `sqpopt_merit_l1`: Byrd-Nocedal's
-!    model-reduction rule (Nocedal & Wright, *Numerical Optimization*,
-!    eq. 18.36): the penalty only increases if the step's predicted merit
-!    reduction would not credit at least a fraction `penalty_rho` of the
-!    linearized violation reduction \( \Delta v = v(c) - v(c+Jp) \):
-!    $$ \mu \ge \frac{g^Tp + \tfrac12 \max(p^THp, 0)}{(1-\rho)\,\Delta v} $$
-!    This depends on the step itself rather than on the multiplier
-!    estimates, so it stays moderate at degenerate points.
-!  * `sqpopt_penalty_model`, with `sqpopt_merit_augmented_lagrangian`:
-!    Gill, Murray, Saunders & Wright (SOL 86-6R; NPSOL). The line search
-!    moves the multipliers and the slacks too (`joint_active`): from the
-!    current \( \lambda_0 \) toward the QP's \( \lambda_{QP} \)
-!    (\( \xi = \lambda_{QP}-\lambda_0 \)), and from the merit's minimizer
-!    \( s_0 \) toward the QP's linearized constraint values
-!    (\( q = \text{clip}(c+Jp) - s_0 \)). The penalty is set so that the
-!    merit's slope is at most \( -\tfrac12 p^THp \): with
-!    \( r = c-s_0 \) and \( d = Jp-q \) (\( = -r \) for a consistent QP),
-!    the slope is \( A + \rho B \), \( A = g^Tp - \xi^Tr - \lambda_0^Td \),
-!    \( B = r^Td \), so (if \( B<0 \)) \( \hat\rho = (A + \tfrac12
-!    p^THp)/(-B) \). If \( \rho < \hat\rho \), \( \rho \) increases to
-!    \( \max(\hat\rho, 2\rho) \); if \( \rho > 4\max(\hat\rho, \rho_f) \), it
-!    *decreases* to \( \max(\hat\rho, \rho_f, \sqrt{\rho\max(\hat\rho,\rho_f)}) \),
-!    where the floor \( \rho_f \) doubles after each decrease, so that it
-!    can only decrease finitely often (as the theory requires).
-
-    subroutine update_penalty_parameter(me, jac, g, p, php, c, c_lb, c_ub, lambda, lambda_qp)
-
-    class(sqpopt_linesearch_type), intent(inout) :: me
-    type(sqpopt_sparse_matrix), intent(in) :: jac       !! constraint Jacobian at `x`, `dimension(m,n)`
-    real(wp), dimension(:),     intent(in) :: g         !! objective gradient at `x` `dimension(n)`
-    real(wp), dimension(:),     intent(in) :: p         !! the step `dimension(n)`
-    real(wp),                   intent(in) :: php       !! \( p^THp \)
-    real(wp), dimension(:),     intent(in) :: c         !! constraint values at `x` `dimension(m)`
-    real(wp), dimension(:),     intent(in) :: c_lb      !! constraint lower bounds `dimension(m)`
-    real(wp), dimension(:),     intent(in) :: c_ub      !! constraint upper bounds `dimension(m)`
-    real(wp), dimension(:),     intent(in) :: lambda    !! the current multipliers `dimension(m)`
-    real(wp), dimension(:),     intent(in) :: lambda_qp !! the QP's multipliers `dimension(m)`
-
-    real(wp), dimension(size(c)) :: jp, s, r
-    real(wp) :: dv, req, a, b, rho_hat, target
-
-    me%joint_active = .false.
-    if (size(c) == 0) return
-
-    select case (me%penalty_update)
-
-    case (sqpopt_penalty_model)
-
-        call sparse_matvec(jac, p, jp)
-
-        select case (me%merit_mode)
-
-        case (sqpopt_merit_augmented_lagrangian)
-            ! the joint step: the slacks start at the merit's minimizer (resetting
-            ! them can only decrease the merit) and move toward the QP's
-            ! linearized constraint values, so that `r = c-s` decreases like
-            ! the violation (`d = Jp - q = -r0` if the QP is consistent):
-            me%joint_active = .true.
-            me%lambda0 = lambda
-            call augmented_lagrangian_slacks(me, c, c_lb, c_ub, lambda, s)
-            me%s0 = s
-            me%q  = min(max(c + jp, c_lb), c_ub) - s
-            r = c - s
-            a = dot_product(g, p) - dot_product(lambda_qp - lambda, r) - dot_product(lambda, jp - me%q)
-            b = dot_product(r, jp - me%q)
-            if (b < -tiny(1.0_wp)) then
-                rho_hat = (a + 0.5_wp*max(php, 0.0_wp))/(-b)
-                target  = max(rho_hat, me%penalty_floor)
-                if (me%penalty < rho_hat) then
-                    me%penalty = max(rho_hat, 2.0_wp*me%penalty)
-                else if (me%penalty > 4.0_wp*target) then
-                    me%penalty = max(target, sqrt(me%penalty*target))
-                    me%penalty_floor = 2.0_wp*me%penalty_floor
-                end if
-            end if
-
-        case default   ! (l1)
-            dv = l1_violation(c, c_lb, c_ub) - l1_violation(c + jp, c_lb, c_ub)
-            if (dv > 0.0_wp) then
-                req = (dot_product(g, p) + 0.5_wp*max(php, 0.0_wp))/((1.0_wp - me%penalty_rho)*dv)
-                if (me%penalty < req) me%penalty = 1.1_wp*req
-            end if
-
-        end select
-
-    case default   ! (sqpopt_penalty_multipliers)
-        me%penalty = max(me%penalty, maxval(abs(lambda_qp)) + 1.0_wp)
-    end select
-
-    end subroutine update_penalty_parameter
 !*******************************************************************************
 
 !*******************************************************************************
@@ -639,22 +289,6 @@
 
 !*******************************************************************************
 !>
-!  the roundoff-level slack allowed when comparing a trial merit function
-!  value against the current one, \( 10 \epsilon \max(1,|\phi_0|) \) (as
-!  in IPOPT's `Compare_le`).
-
-    pure function merit_slack(phi0) result(slack)
-
-    real(wp), intent(in) :: phi0 !! merit function value at the current point
-    real(wp) :: slack
-
-    slack = 10.0_wp*epsilon(1.0_wp)*max(1.0_wp, abs(phi0))
-
-    end function merit_slack
-!*******************************************************************************
-
-!*******************************************************************************
-!>
 !  evaluate `f` and `c` at a trial point; `ok` is false if any value is
 !  not finite (NaN or Inf), in which case the point must be rejected.
 
@@ -698,9 +332,9 @@
     call eval_fc(eval_f, eval_c, x_trial, f_trial, c_trial, ok)
     if (ok) then
         if (present(alpha)) then
-            call me%eval_merit(f_trial, c_trial, c_lb, c_ub, lambda, phi_trial, alpha)
+            call me%merit%eval(f_trial, c_trial, c_lb, c_ub, lambda, phi_trial, alpha)
         else
-            call me%eval_merit(f_trial, c_trial, c_lb, c_ub, lambda, phi_trial, 1.0_wp)
+            call me%merit%eval(f_trial, c_trial, c_lb, c_ub, lambda, phi_trial, 1.0_wp)
         end if
         ok = sqpopt_all_finite([phi_trial])
     end if
@@ -833,8 +467,8 @@
     real(wp) :: phi0, dphi0, phi_new
     logical  :: accepted
 
-    call me%eval_merit(f, c, c_lb, c_ub, lambda, phi0)
-    call me%directional_derivative(jac, g, p, c, c_lb, c_ub, lambda, dphi0)
+    call me%merit%eval(f, c, c_lb, c_ub, lambda, phi0)
+    call me%merit%directional_derivative(jac, g, p, c, c_lb, c_ub, lambda, dphi0)
 
     call backtrack_search(me, eval_f, eval_c, x, p, initial_step_length(x, p, me%major_step_limit), &
                           phi0, dphi0, c, c_lb, c_ub, lambda, alpha, x_new, phi_new, accepted, soc)
@@ -894,7 +528,7 @@
     real(wp), dimension(size(x)) :: p_soc
     logical :: ok, soc_ok
 
-    call me%eval_merit(f, c, c_lb, c_ub, lambda, phi0)
+    call me%merit%eval(f, c, c_lb, c_ub, lambda, phi0)
     alpha0 = initial_step_length(x, p, me%major_step_limit)
     alpha  = fmin(merit_along_direction, 0.0_wp, alpha0, me%tol)
     phi    = merit_along_direction(alpha)
@@ -987,8 +621,8 @@
     real(wp) :: phi0, dphi0, phi_trial, alpha0 !! merit function values, directional derivative, initial step length
     logical :: standard_ok, relaxed_used, ok !! flags indicating if standard or relaxed line search succeeded
 
-    call me%eval_merit(f, c, c_lb, c_ub, lambda, phi0)
-    call me%directional_derivative(jac, g, p, c, c_lb, c_ub, lambda, dphi0)
+    call me%merit%eval(f, c, c_lb, c_ub, lambda, phi0)
+    call me%merit%directional_derivative(jac, g, p, c, c_lb, c_ub, lambda, dphi0)
 
     ! initialize the best-point-so-far tracking the first time this is called:
     if (.not. me%watchdog_ready) then
@@ -1118,9 +752,9 @@
     integer :: it
 
     theta0 = l1_violation(c, c_lb, c_ub)
-    call me%filter_prepare(theta0)
+    call me%filter%prepare(theta0)
     gtp = dot_product(g, p)
-    alpha_lim = max(me%alpha_min, filter_min_step(me, theta0, gtp))
+    alpha_lim = max(me%alpha_min, me%filter%min_step(theta0, gtp))
 
     alpha = initial_step_length(x, p, me%major_step_limit)
     do it = 1, me%max_ls_iter
@@ -1129,7 +763,7 @@
         call eval_fc(eval_f, eval_c, x_trial, f_trial, c_trial, ok)
         if (ok) then
             theta_t = l1_violation(c_trial, c_lb, c_ub)
-            if (me%filter_accept(theta0, f, gtp, alpha, theta_t, f_trial, f_type)) then
+            if (me%filter%accept(theta0, f, gtp, alpha, theta_t, f_trial, f_type)) then
                 call accept()
                 return
             end if
@@ -1145,7 +779,7 @@
                     call eval_fc(eval_f, eval_c, x_trial, f_trial, c_trial, ok)
                     if (ok) then
                         theta_t = l1_violation(c_trial, c_lb, c_ub)
-                        if (me%filter_accept(theta0, f, gtp, alpha, theta_t, f_trial, f_type)) then
+                        if (me%filter%accept(theta0, f, gtp, alpha, theta_t, f_trial, f_type)) then
                             call accept()
                             return
                         end if
@@ -1184,10 +818,10 @@
                     call eval_fc(eval_f, eval_c, x_trial, f_trial, c_trial, ok)
                     if (ok) then
                         theta_t = l1_violation(c_trial, c_lb, c_ub)
-                        if (theta_t <= theta_ref .and. theta_t <= me%filter_theta_max .and. &
-                            f_trial <= f_ref + me%filter_eta_phi*alpha*min(gtp, 0.0_wp)) then
+                        if (theta_t <= theta_ref .and. theta_t <= me%filter%theta_max .and. &
+                            f_trial <= f_ref + me%filter%eta_phi*alpha*min(gtp, 0.0_wp)) then
                             call nonmonotone_push(me, 0.0_wp, theta0, f)
-                            call me%filter_record(theta0, f)
+                            call me%filter%record(theta0, f)
                             x_new = x_trial
                             istat = sqpopt_success
                             return
@@ -1211,7 +845,7 @@
         subroutine accept()
         !! accept `x_trial`, augmenting the filter unless it was an f-type step
         call nonmonotone_push(me, 0.0_wp, theta0, f)
-        if (.not. f_type) call me%filter_record(theta0, f)
+        if (.not. f_type) call me%filter%record(theta0, f)
         x_new = x_trial
         istat = sqpopt_success
         end subroutine accept
@@ -1283,164 +917,6 @@
 
 !*******************************************************************************
 !>
-!  initialize the filter (empty) and its bounds \( \theta_{max} \),
-!  \( \theta_{min} \) from the constraint violation `theta0` at the
-!  starting point, the first time it is used; a no-op after that. Shared
-!  by [[filter_line_search]] and the trust region's filter acceptance, so
-!  both use the same filter.
-
-    subroutine filter_prepare_state(me, theta0)
-
-    class(sqpopt_linesearch_type), intent(inout) :: me
-    real(wp),                      intent(in)    :: theta0 !! constraint violation at the starting point
-
-    if (me%filter_ready) return
-
-    me%filter_theta_max = me%filter_theta_max_fact*max(1.0_wp, theta0)
-    me%filter_theta_min = me%filter_theta_min_fact*max(1.0_wp, theta0)
-    if (allocated(me%filter_theta)) deallocate(me%filter_theta)
-    if (allocated(me%filter_phi))   deallocate(me%filter_phi)
-    allocate(me%filter_theta(0), me%filter_phi(0))
-    me%filter_ready = .true.
-
-    end subroutine filter_prepare_state
-!*******************************************************************************
-
-!*******************************************************************************
-!>
-!  the \( \ell_1 \) constraint violation \( h(x) = \lVert \max(c_l-c,0,c-c_u)
-!  \rVert_1 \) (the filter's \( \theta \), and the violation term of the
-!  `sqpopt_merit_l1` merit function).
-
-    pure function l1_violation(c, c_lb, c_ub) result(h)
-
-    real(wp), dimension(:), intent(in) :: c, c_lb, c_ub
-    real(wp) :: h
-
-    h = sum(max(c_lb-c, 0.0_wp) + max(c-c_ub, 0.0_wp))
-
-    end function l1_violation
-!*******************************************************************************
-
-!*******************************************************************************
-!>
-!  whether a trial point with violation `theta_t` and objective `phi_t`,
-!  reached with step length `alpha` from the current point
-!  (`theta_k`, `phi_k`), is acceptable (see [[filter_line_search]] for the
-!  rules). `gtp` is the predicted change in the objective along the full
-!  step (\( g^Tp \) for the line search; the trust region passes the
-!  quadratic model's \( -q \), with `alpha=1`). `f_type` is set if the
-!  switching condition held (so the step was judged on the objective alone,
-!  and must not enlarge the filter). The trial point must also be
-!  acceptable to the filter itself: \( \theta_t < \theta_{max} \), and not
-!  dominated by any filter entry (\( \theta_t < \theta_j \) or
-!  \( \varphi_t < \varphi_j \) for every entry `j`).
-
-    function filter_step_acceptable(me, theta_k, phi_k, gtp, alpha, theta_t, phi_t, f_type) result(ok)
-
-    class(sqpopt_linesearch_type), intent(in) :: me
-    real(wp), intent(in)  :: theta_k, phi_k   !! violation and objective at the current point
-    real(wp), intent(in)  :: gtp              !! predicted change in the objective along the full step
-    real(wp), intent(in)  :: alpha            !! step length
-    real(wp), intent(in)  :: theta_t, phi_t   !! violation and objective at the trial point
-    logical,  intent(out) :: f_type           !! true if the switching condition held
-    logical :: ok
-
-    integer :: j
-
-    ! switching condition, alpha*(-gtp)^s_phi > delta*theta_k^s_theta
-    ! (compared in log space, so the powers can't overflow):
-    f_type = gtp < 0.0_wp .and. theta_k <= me%filter_theta_min
-    if (f_type .and. theta_k > 0.0_wp) &
-        f_type = log(alpha) + me%filter_s_phi*log(-gtp) > log(me%filter_delta) + me%filter_s_theta*log(theta_k)
-
-    if (f_type) then
-        ! Armijo condition on the objective (with a roundoff-level slack):
-        ok = phi_t <= phi_k + me%filter_eta_phi*alpha*gtp + merit_slack(phi_k)
-    else
-        ! sufficient reduction of the violation or the objective:
-        ok = theta_t <= (1.0_wp - me%filter_gamma_theta)*theta_k .or. &
-             phi_t   <= phi_k - me%filter_gamma_phi*theta_k
-    end if
-    if (.not. ok) return
-
-    ! acceptable to the filter:
-    ok = theta_t < me%filter_theta_max
-    if (.not. ok) return
-    do j = 1, size(me%filter_theta)
-        if (theta_t >= me%filter_theta(j) .and. phi_t >= me%filter_phi(j)) then
-            ok = .false.
-            return
-        end if
-    end do
-
-    end function filter_step_acceptable
-!*******************************************************************************
-
-!*******************************************************************************
-!>
-!  augment the filter with the current point (`theta_k`, `phi_k`), with
-!  margins: the entry \( ((1-\gamma_\theta)\theta_k,
-!  \varphi_k-\gamma_\varphi\theta_k) \) is added, and any existing entries
-!  it dominates are removed.
-
-    subroutine filter_augment(me, theta_k, phi_k)
-
-    class(sqpopt_linesearch_type), intent(inout) :: me
-    real(wp),                      intent(in)    :: theta_k, phi_k !! violation and objective at the current point
-
-    real(wp) :: theta_new, phi_new
-    logical, dimension(:), allocatable :: keep
-
-    if (.not. me%filter_ready) call me%filter_prepare(theta_k)
-
-    theta_new = (1.0_wp - me%filter_gamma_theta)*theta_k
-    phi_new   = phi_k - me%filter_gamma_phi*theta_k
-
-    if (size(me%filter_theta) > 0) then
-        keep = .not. (me%filter_theta >= theta_new .and. me%filter_phi >= phi_new)
-        me%filter_theta = pack(me%filter_theta, keep)
-        me%filter_phi   = pack(me%filter_phi,   keep)
-    end if
-    me%filter_theta = [me%filter_theta, theta_new]
-    me%filter_phi   = [me%filter_phi,   phi_new]
-
-    end subroutine filter_augment
-!*******************************************************************************
-
-!*******************************************************************************
-!>
-!  Wächter & Biegler's minimum step length \( \alpha_{min} \): below it,
-!  no trial step can be acceptable (so the line search should give up and
-!  go to feasibility restoration).
-
-    pure function filter_min_step(me, theta_k, gtp) result(alpha_min)
-
-    class(sqpopt_linesearch_type), intent(in) :: me
-    real(wp), intent(in) :: theta_k !! violation at the current point
-    real(wp), intent(in) :: gtp     !! \( g^Tp \)
-    real(wp) :: alpha_min
-
-    if (gtp < 0.0_wp) then
-        alpha_min = min(me%filter_gamma_theta, me%filter_gamma_phi*theta_k/(-gtp))
-        if (theta_k <= me%filter_theta_min) then
-            if (theta_k > 0.0_wp) then
-                alpha_min = min(alpha_min, exp(log(me%filter_delta) + me%filter_s_theta*log(theta_k) &
-                                               - me%filter_s_phi*log(-gtp)))
-            else
-                alpha_min = 0.0_wp
-            end if
-        end if
-    else
-        alpha_min = me%filter_gamma_theta
-    end if
-    alpha_min = me%filter_gamma_alpha*alpha_min
-
-    end function filter_min_step
-!*******************************************************************************
-
-!*******************************************************************************
-!>
 !  the funnel line search (see the module-level documentation), with the
 !  rules of Kiessling, Leyffer & Vanaret, as implemented in the Uno solver.
 !  With \( \theta \) the \( \ell_1 \) constraint violation, \( \varphi=f \),
@@ -1455,7 +931,7 @@
 !    funnel: \( \theta_t \le \beta\tau \). The funnel then shrinks (see
 !    [[funnel_shrink]]).
 !
-!  (With `funnel_require_current`, the trial point must also be acceptable
+!  (With `funnel%require_current`, the trial point must also be acceptable
 !  with respect to the current point, see [[funnel_step_acceptable]].)
 !  `alpha` is backtracked until acceptance, or until it falls below
 !  `alpha_min`, in which case the search fails
@@ -1491,7 +967,7 @@
     integer :: it
 
     theta0 = l1_violation(c, c_lb, c_ub)
-    call me%funnel_prepare(theta0)
+    call me%funnel%prepare(theta0)
     gtp = dot_product(g, p)
 
     alpha = initial_step_length(x, p, me%major_step_limit)
@@ -1501,7 +977,7 @@
         call eval_fc(eval_f, eval_c, x_trial, f_trial, c_trial, ok)
         if (ok) then
             theta_t = l1_violation(c_trial, c_lb, c_ub)
-            if (me%funnel_accept(theta0, f, -alpha*gtp, theta_t, f_trial, f_type)) then
+            if (me%funnel%accept(theta0, f, -alpha*gtp, theta_t, f_trial, f_type)) then
                 call accept()
                 return
             end if
@@ -1517,7 +993,7 @@
                     call eval_fc(eval_f, eval_c, x_trial, f_trial, c_trial, ok)
                     if (ok) then
                         theta_t = l1_violation(c_trial, c_lb, c_ub)
-                        if (me%funnel_accept(theta0, f, -alpha*gtp, theta_t, f_trial, f_type)) then
+                        if (me%funnel%accept(theta0, f, -alpha*gtp, theta_t, f_trial, f_type)) then
                             call accept()
                             return
                         end if
@@ -1550,7 +1026,7 @@
 
         subroutine accept()
         !! accept `x_trial`, shrinking the funnel after an h-type step
-        if (.not. f_type) call me%funnel_record(theta0, theta_t)
+        if (.not. f_type) call me%funnel%record(theta0, theta_t)
         x_new = x_trial
         istat = sqpopt_success
         end subroutine accept
@@ -1560,126 +1036,11 @@
 
 !*******************************************************************************
 !>
-!  initialize the funnel width from the constraint violation `theta0` at
-!  the starting point, the first time it is used:
-!  \( \tau_0 = \max(\) `funnel_width_min`, `funnel_width_fact`
-!  \( \times\,\theta_0) \). After that, it only makes sure the current
-!  point is inside the funnel, \( \tau \ge \theta_k \) (a restoration or
-!  escape step reduces a different measure of the violation, so it can
-!  occasionally end slightly outside). Shared by [[funnel_line_search]] and
-!  the trust region's funnel acceptance.
-
-    subroutine funnel_prepare_state(me, theta_k)
-
-    class(sqpopt_linesearch_type), intent(inout) :: me
-    real(wp),                      intent(in)    :: theta_k !! constraint violation at the current point
-
-    if (.not. me%funnel_ready) then
-        me%funnel_width = max(me%funnel_width_min, me%funnel_width_fact*theta_k)
-        me%funnel_ready = .true.
-    end if
-    me%funnel_width = max(me%funnel_width, theta_k)
-
-    end subroutine funnel_prepare_state
-!*******************************************************************************
-
-!*******************************************************************************
-!>
-!  whether a trial point with violation `theta_t` and objective `phi_t` is
-!  acceptable to the funnel, from the current point (`theta_k`, `phi_k`)
-!  (see [[funnel_line_search]] for the rules). `pred` is the predicted
-!  decrease in the objective (\( -\alpha g^Tp \) for the line search; the
-!  trust region passes the quadratic model's decrease `q`). `f_type` is set
-!  if the switching condition held (so the step was judged on the objective
-!  alone, and must not shrink the funnel). Doesn't change the funnel: the
-!  caller shrinks it after accepting an h-type step (see [[funnel_shrink]]).
-
-    function funnel_step_acceptable(me, theta_k, phi_k, pred, theta_t, phi_t, f_type) result(ok)
-
-    class(sqpopt_linesearch_type), intent(in) :: me
-    real(wp), intent(in)  :: theta_k, phi_k   !! violation and objective at the current point
-    real(wp), intent(in)  :: pred             !! predicted decrease in the objective
-    real(wp), intent(in)  :: theta_t, phi_t   !! violation and objective at the trial point
-    logical,  intent(out) :: f_type           !! true if the switching condition held
-    logical :: ok
-
-    f_type = .false.
-
-    ! inside the funnel:
-    ok = theta_t <= me%funnel_width
-    if (.not. ok) return
-
-    ! (optionally) acceptable with respect to the current point:
-    if (me%funnel_require_current) then
-        ok = theta_t < me%funnel_beta*theta_k .or. phi_t <= phi_k - me%funnel_gamma*theta_t
-        if (.not. ok) return
-    end if
-
-    ! switching condition, pred > delta*theta_k^s_theta (compared in log
-    ! space, so the power can't underflow or overflow):
-    f_type = pred > 0.0_wp
-    if (f_type .and. theta_k > 0.0_wp) &
-        f_type = log(pred) > log(me%funnel_delta) + me%funnel_s_theta*log(theta_k)
-
-    if (f_type) then
-        ! Armijo condition on the objective (with a roundoff-level slack):
-        ok = phi_t <= phi_k - me%funnel_eta*pred + merit_slack(phi_k)
-    else
-        ! h-type: sufficiently inside the funnel:
-        ok = theta_t <= me%funnel_beta*me%funnel_width
-    end if
-
-    end function funnel_step_acceptable
-!*******************************************************************************
-
-!*******************************************************************************
-!>
-!  shrink the funnel after an accepted h-type step from violation `theta_k`
-!  to `theta_t` (see `funnel_update` for the two rules).
-
-    subroutine funnel_shrink(me, theta_k, theta_t)
-
-    class(sqpopt_linesearch_type), intent(inout) :: me
-    real(wp),                      intent(in)    :: theta_k !! violation at the current point
-    real(wp),                      intent(in)    :: theta_t !! violation at the accepted point
-
-    if (me%funnel_update == 2) then
-        me%funnel_width = me%funnel_kappa*me%funnel_width + (1.0_wp - me%funnel_kappa)*theta_t
-    else if (theta_t <= theta_k) then
-        me%funnel_width = max(me%funnel_beta*me%funnel_width, &
-                              me%funnel_kappa*theta_k + (1.0_wp - me%funnel_kappa)*theta_t)
-    else
-        me%funnel_width = me%funnel_beta*me%funnel_width
-    end if
-
-    end subroutine funnel_shrink
-!*******************************************************************************
-
-!*******************************************************************************
-!>
-!  shrink the funnel toward the current violation `theta_k` before a
-!  feasibility restoration step, so the iterations can't cycle back to the
-!  current point: \( \tau = \kappa\tau + (1-\kappa)\theta_k \).
-
-    subroutine funnel_shrink_restoration(me, theta_k)
-
-    class(sqpopt_linesearch_type), intent(inout) :: me
-    real(wp),                      intent(in)    :: theta_k !! violation at the current point
-
-    if (.not. me%funnel_ready) call me%funnel_prepare(theta_k)
-    me%funnel_width = me%funnel_kappa*me%funnel_width + (1.0_wp - me%funnel_kappa)*theta_k
-
-    end subroutine funnel_shrink_restoration
-!*******************************************************************************
-
-!*******************************************************************************
-!>
 !  whether a point with violation `theta` and objective `phi` is acceptable
-!  to the filter (`sqpopt_linesearch_filter` mode: \( \theta < \theta_{max} \)
-!  and not dominated by any filter entry) or to the funnel
-!  (`sqpopt_linesearch_funnel` mode: \( \theta \le \tau \)); always true in
-!  the other modes. Used to decide when a feasibility restoration phase can
-!  end (see [[sqpopt_restoration_module]]).
+!  to the filter (`sqpopt_linesearch_filter` mode) or to the funnel
+!  (`sqpopt_linesearch_funnel` mode); always true in the other modes. Used
+!  to decide when a feasibility restoration phase can end (see
+!  [[sqpopt_restoration_module]]).
 
     function point_acceptable(me, theta, phi) result(ok)
 
@@ -1688,15 +1049,13 @@
     real(wp), intent(in) :: phi   !! objective
     logical :: ok
 
-    ok = .true.
     select case (me%mode)
     case (sqpopt_linesearch_filter)
-        if (.not. me%filter_ready) return
-        ok = theta < me%filter_theta_max
-        if (ok .and. size(me%filter_theta) > 0) &
-            ok = .not. any(theta >= me%filter_theta .and. phi >= me%filter_phi)
+        ok = me%filter%acceptable(theta, phi)
     case (sqpopt_linesearch_funnel)
-        if (me%funnel_ready) ok = theta <= me%funnel_width
+        ok = me%funnel%acceptable(theta)
+    case default
+        ok = .true.
     end select
 
     end function point_acceptable

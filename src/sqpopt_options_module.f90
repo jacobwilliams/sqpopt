@@ -43,7 +43,7 @@
         integer  :: linesearch_mode = sqpopt_linesearch_filter !! line search strategy to use
                                                                 !! (see [[sqpopt_linesearch_module]])
         integer  :: merit_mode = sqpopt_merit_l1 !! merit function to use
-                                                  !! (see [[sqpopt_linesearch_module]])
+                                                  !! (see [[sqpopt_merit_module]])
         integer  :: penalty_update = sqpopt_penalty_multipliers !! how the merit function's penalty parameter is
                                                                  !! updated (see [[update_penalty_parameter]])
         integer  :: restoration_mode = sqpopt_restoration_phase !! feasibility restoration strategy (see

@@ -43,6 +43,8 @@
 
     public :: sqpopt_status_message
     public :: sqpopt_all_finite
+    public :: l1_violation
+    public :: merit_slack
 
     type, public :: sqpopt_sparse_matrix
         !! a sparse matrix stored in coordinate (COO) format
@@ -145,6 +147,38 @@
     sqpopt_all_finite = all(ieee_is_finite(v))
 
     end function sqpopt_all_finite
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the \( \ell_1 \) constraint violation \( h(x) = \lVert \max(c_l-c,0,c-c_u)
+!  \rVert_1 \) (the filter's and the funnel's \( \theta \), and the violation
+!  term of the `sqpopt_merit_l1` merit function).
+
+    pure function l1_violation(c, c_lb, c_ub) result(h)
+
+    real(wp), dimension(:), intent(in) :: c, c_lb, c_ub
+    real(wp) :: h
+
+    h = sum(max(c_lb-c, 0.0_wp) + max(c-c_ub, 0.0_wp))
+
+    end function l1_violation
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the roundoff-level slack allowed when comparing a trial merit function
+!  (or objective) value against the current one,
+!  \( 10 \epsilon \max(1,|\phi_0|) \) (as in IPOPT's `Compare_le`).
+
+    pure function merit_slack(phi0) result(slack)
+
+    real(wp), intent(in) :: phi0 !! merit function (or objective) value at the current point
+    real(wp) :: slack
+
+    slack = 10.0_wp*epsilon(1.0_wp)*max(1.0_wp, abs(phi0))
+
+    end function merit_slack
 !*******************************************************************************
 
     end module sqpopt_types_module

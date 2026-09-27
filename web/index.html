@@ -385,8 +385,8 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <tr><td><code>hessian_mode</code>, <code>lbfgs_memory</code></td><td><code>hessian</code> (re-initialized)</td></tr>
 <tr><td><code>qp_solver_mode</code></td><td><code>qp_solver%mode</code></td></tr>
 <tr><td><code>linesearch_mode</code></td><td><code>linesearch%mode</code></td></tr>
-<tr><td><code>merit_mode</code></td><td><code>linesearch%merit_mode</code></td></tr>
-<tr><td><code>penalty_update</code></td><td><code>linesearch%penalty_update</code></td></tr>
+<tr><td><code>merit_mode</code></td><td><code>linesearch%merit%mode</code></td></tr>
+<tr><td><code>penalty_update</code></td><td><code>linesearch%merit%penalty_update</code></td></tr>
 </tbody>
 </table></div>
 <p>So set these through <code>options</code>. Everything else in the tables below (tolerances, step limits, and so on) has no <code>options</code> field and must be set on the sub-component directly.</p>
@@ -397,7 +397,7 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <div class="reference">
 <div class="filter-bar" id="options-filter">
   <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15.5 15.5 21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-  <input type="search" id="opt-filter" placeholder="Filter all option tables (e.g. tol, elastic, filter_)" aria-label="Filter option tables" autocomplete="off">
+  <input type="search" id="opt-filter" placeholder="Filter all option tables (e.g. tol, elastic, gamma)" aria-label="Filter option tables" autocomplete="off">
   <span class="filter-count" id="opt-filter-count"></span>
 </div>
 
@@ -566,18 +566,25 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <!-- ============================================================ -->
 <h2 id="linesearch">Line search &amp; merit function <code class="h-type">sqpopt_linesearch_type</code></h2>
 
-<p class="set-on">Set as <code>linesearch%&lt;name&gt;</code>. The tags at the end of a description show which <a href="#linesearch-modes">modes</a> use that option.</p>
+<p class="set-on">Set as <code>linesearch%&lt;name&gt;</code>, except the merit function, filter, and funnel options, which are set on those components of <code>linesearch</code> (<code>linesearch%merit%&lt;name&gt;</code>, <code>linesearch%filter%&lt;name&gt;</code>, <code>linesearch%funnel%&lt;name&gt;</code>). The tags at the end of a description show which <a href="#linesearch-modes">modes</a> use that option.</p>
 
 <h3 class="opt-group">General</h3>
 <div class="table-wrap"><table class="opt-table">
 <thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>mode</code></td><td><code>sqpopt_linesearch_filter</code></td><td>line search strategy (overwritten from <code>options%linesearch_mode</code>); see <a href="#linesearch-modes">modes</a></td></tr>
-<tr><td><code>merit_mode</code></td><td><code>sqpopt_merit_l1</code></td><td>merit function (overwritten from <code>options%merit_mode</code>); see <a href="#merit-modes">merit functions</a></td></tr>
+<tr><td><code>major_step_limit</code></td><td><code>2.0</code></td><td>caps the <em>initial</em> trial step length (before any backtracking), in all modes, so that no variable changes by more than this factor relative to \( \max(1,\lvert x_j\rvert) \) (SNOPT's "Major step limit"). Guards against divergence from a QP step that is technically feasible but unreasonably large.</td></tr>
+</tbody>
+</table></div>
+
+<h3 class="opt-group">Merit function <span class="h-note"><code>linesearch%merit%&lt;name&gt;</code></span></h3>
+<div class="table-wrap"><table class="opt-table">
+<thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>mode</code></td><td><code>sqpopt_merit_l1</code></td><td>merit function (overwritten from <code>options%merit_mode</code>); see <a href="#merit-modes">merit functions</a> <span class="mode-tag">armijo, exact, watchdog, trust region</span></td></tr>
 <tr><td><code>penalty</code></td><td><code>1.0</code></td><td>current penalty parameter in the merit function (\( \mu \) for <code>sqpopt_merit_l1</code>, \( \rho \) for <code>sqpopt_merit_augmented_lagrangian</code>)</td></tr>
 <tr><td><code>penalty_update</code></td><td><code>sqpopt_penalty_multipliers</code></td><td>how the penalty is updated (overwritten from <code>options%penalty_update</code>); see <a href="#penalty-modes">penalty updates</a></td></tr>
 <tr><td><code>penalty_rho</code></td><td><code>0.1</code></td><td><code>sqpopt_penalty_model</code> with <code>sqpopt_merit_l1</code>: the fraction of the linearized violation reduction the penalty must credit</td></tr>
-<tr><td><code>major_step_limit</code></td><td><code>2.0</code></td><td>caps the <em>initial</em> trial step length (before any backtracking), in all modes, so that no variable changes by more than this factor relative to \( \max(1,\lvert x_j\rvert) \) (SNOPT's "Major step limit"). Guards against divergence from a QP step that is technically feasible but unreasonably large.</td></tr>
 </tbody>
 </table></div>
 
@@ -604,28 +611,28 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 </tbody>
 </table></div>
 
-<h3 class="opt-group">Filter</h3>
+<h3 class="opt-group">Filter <span class="h-note"><code>linesearch%filter%&lt;name&gt;</code></span></h3>
 <div class="table-wrap"><table class="opt-table">
 <thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>filter_gamma_theta</code>, <code>filter_gamma_phi</code></td><td><code>1e-5</code>, <code>1e-5</code></td><td>filter margins \( \gamma_\theta,\gamma_\varphi \): a step must reduce the violation \( \theta \) by the fraction \( \gamma_\theta \), or the objective by \( \gamma_\varphi\theta \) <span class="mode-tag">filter, trust region</span></td></tr>
-<tr><td><code>filter_delta</code>, <code>filter_s_theta</code>, <code>filter_s_phi</code></td><td><code>1</code>, <code>1.1</code>, <code>2.3</code></td><td>switching condition \( \alpha(-g^Tp)^{s_\varphi} &gt; \delta\,\theta^{s_\theta} \): when it holds (and \( \theta\le\theta_{min} \)), the step must satisfy an Armijo condition on the objective <span class="mode-tag">filter</span></td></tr>
-<tr><td><code>filter_eta_phi</code></td><td><code>1e-4</code></td><td>Armijo constant for those ("f-type") steps <span class="mode-tag">filter</span></td></tr>
-<tr><td><code>filter_theta_max_fact</code>, <code>filter_theta_min_fact</code></td><td><code>1e4</code>, <code>1e-4</code></td><td>\( \theta_{max} \) and \( \theta_{min} \) as multiples of \( \max(1,\theta(x_0)) \). No point with violation above \( \theta_{max} \) is accepted. <span class="mode-tag">filter</span></td></tr>
-<tr><td><code>filter_gamma_alpha</code></td><td><code>0.05</code></td><td>safety factor in the minimum step length below which the search gives up (and a restoration step is taken) <span class="mode-tag">filter</span></td></tr>
+<tr><td><code>gamma_theta</code>, <code>gamma_phi</code></td><td><code>1e-5</code>, <code>1e-5</code></td><td>filter margins \( \gamma_\theta,\gamma_\varphi \): a step must reduce the violation \( \theta \) by the fraction \( \gamma_\theta \), or the objective by \( \gamma_\varphi\theta \) <span class="mode-tag">filter, trust region</span></td></tr>
+<tr><td><code>delta</code>, <code>s_theta</code>, <code>s_phi</code></td><td><code>1</code>, <code>1.1</code>, <code>2.3</code></td><td>switching condition \( \alpha(-g^Tp)^{s_\varphi} &gt; \delta\,\theta^{s_\theta} \): when it holds (and \( \theta\le\theta_{min} \)), the step must satisfy an Armijo condition on the objective <span class="mode-tag">filter</span></td></tr>
+<tr><td><code>eta_phi</code></td><td><code>1e-4</code></td><td>Armijo constant for those ("f-type") steps <span class="mode-tag">filter</span></td></tr>
+<tr><td><code>theta_max_fact</code>, <code>theta_min_fact</code></td><td><code>1e4</code>, <code>1e-4</code></td><td>\( \theta_{max} \) and \( \theta_{min} \) as multiples of \( \max(1,\theta(x_0)) \). No point with violation above \( \theta_{max} \) is accepted. <span class="mode-tag">filter</span></td></tr>
+<tr><td><code>gamma_alpha</code></td><td><code>0.05</code></td><td>safety factor in the minimum step length below which the search gives up (and a restoration step is taken) <span class="mode-tag">filter</span></td></tr>
 </tbody>
 </table></div>
 
-<h3 class="opt-group">Funnel</h3>
+<h3 class="opt-group">Funnel <span class="h-note"><code>linesearch%funnel%&lt;name&gt;</code></span></h3>
 <div class="table-wrap"><table class="opt-table">
 <thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>funnel_width_min</code>, <code>funnel_width_fact</code></td><td><code>1</code>, <code>1.5</code></td><td>initial funnel width \( \tau_0 = \max(\) <code>funnel_width_min</code>, <code>funnel_width_fact</code> \( \times\,\theta(x_0)) \) <span class="mode-tag">funnel, trust region</span></td></tr>
-<tr><td><code>funnel_delta</code>, <code>funnel_s_theta</code></td><td><code>0.999</code>, <code>2</code></td><td>switching condition \( \alpha(-g^Tp) &gt; \delta\,\theta^{s_\theta} \): when it holds, the step must satisfy an Armijo condition on the objective ("f-type" step) <span class="mode-tag">funnel</span></td></tr>
-<tr><td><code>funnel_eta</code></td><td><code>1e-4</code></td><td>Armijo constant for f-type steps <span class="mode-tag">funnel</span></td></tr>
-<tr><td><code>funnel_beta</code></td><td><code>0.9999</code></td><td>otherwise ("h-type" step), the violation must satisfy \( \theta \le \beta\tau \) <span class="mode-tag">funnel</span></td></tr>
-<tr><td><code>funnel_kappa</code>, <code>funnel_update</code></td><td><code>0.5</code>, <code>1</code></td><td>how an h-type step shrinks the funnel: rule <code>1</code> sets \( \tau = \max(\beta\tau,\ \kappa\theta_k + (1-\kappa)\theta_{new}) \) if the violation decreased, else \( \beta\tau \); rule <code>2</code> sets \( \tau = \kappa\tau + (1-\kappa)\theta_{new} \). Before a restoration step, \( \tau = \kappa\tau + (1-\kappa)\theta_k \). <span class="mode-tag">funnel</span></td></tr>
-<tr><td><code>funnel_require_current</code>, <code>funnel_gamma</code></td><td><code>.false.</code>, <code>1e-3</code></td><td>also require each trial point to improve on the current point: \( \theta &lt; \beta\theta_k \) or \( \varphi \le \varphi_k - \gamma\theta \) <span class="mode-tag">funnel</span></td></tr>
+<tr><td><code>width_min</code>, <code>width_fact</code></td><td><code>1</code>, <code>1.5</code></td><td>initial funnel width \( \tau_0 = \max(\) <code>width_min</code>, <code>width_fact</code> \( \times\,\theta(x_0)) \) <span class="mode-tag">funnel, trust region</span></td></tr>
+<tr><td><code>delta</code>, <code>s_theta</code></td><td><code>0.999</code>, <code>2</code></td><td>switching condition \( \alpha(-g^Tp) &gt; \delta\,\theta^{s_\theta} \): when it holds, the step must satisfy an Armijo condition on the objective ("f-type" step) <span class="mode-tag">funnel</span></td></tr>
+<tr><td><code>eta</code></td><td><code>1e-4</code></td><td>Armijo constant for f-type steps <span class="mode-tag">funnel</span></td></tr>
+<tr><td><code>beta</code></td><td><code>0.9999</code></td><td>otherwise ("h-type" step), the violation must satisfy \( \theta \le \beta\tau \) <span class="mode-tag">funnel</span></td></tr>
+<tr><td><code>kappa</code>, <code>update</code></td><td><code>0.5</code>, <code>1</code></td><td>how an h-type step shrinks the funnel: rule <code>1</code> sets \( \tau = \max(\beta\tau,\ \kappa\theta_k + (1-\kappa)\theta_{new}) \) if the violation decreased, else \( \beta\tau \); rule <code>2</code> sets \( \tau = \kappa\tau + (1-\kappa)\theta_{new} \). Before a restoration step, \( \tau = \kappa\tau + (1-\kappa)\theta_k \). <span class="mode-tag">funnel</span></td></tr>
+<tr><td><code>require_current</code>, <code>gamma</code></td><td><code>.false.</code>, <code>1e-3</code></td><td>also require each trial point to improve on the current point: \( \theta &lt; \beta\theta_k \) or \( \varphi \le \varphi_k - \gamma\theta \) <span class="mode-tag">funnel</span></td></tr>
 </tbody>
 </table></div>
 

@@ -220,8 +220,8 @@
         call me%hessian%set_exact(me%problem%hess_irow, me%problem%hess_icol)
     me%qp_solver%mode        = me%options%qp_solver_mode
     me%linesearch%mode       = me%options%linesearch_mode
-    me%linesearch%merit_mode = me%options%merit_mode
-    me%linesearch%penalty_update = me%options%penalty_update
+    me%linesearch%merit%mode           = me%options%merit_mode
+    me%linesearch%merit%penalty_update = me%options%penalty_update
 
     if (me%options%print_level >= 1) call print_header()
 
@@ -463,27 +463,27 @@
         .or. ls%max_ls_iter < 1) then
         msg = 'linesearch%alpha_min, tol, and major_step_limit must be > 0, and max_ls_iter >= 1'; return
     end if
-    if (.not. (ls%penalty >= 0.0_wp) .or. ls%watchdog_relaxed_len < 0 .or. ls%watchdog_cooldown_len < 0) then
-        msg = 'linesearch%penalty, watchdog_relaxed_len, and watchdog_cooldown_len must be >= 0'; return
+    if (.not. (ls%merit%penalty >= 0.0_wp) .or. ls%watchdog_relaxed_len < 0 .or. ls%watchdog_cooldown_len < 0) then
+        msg = 'linesearch%merit%penalty, watchdog_relaxed_len, and watchdog_cooldown_len must be >= 0'; return
     end if
-    if (ls%nonmonotone_len < 0 .or. .not. (ls%penalty_rho > 0.0_wp .and. ls%penalty_rho < 1.0_wp)) then
-        msg = 'linesearch%nonmonotone_len must be >= 0, and penalty_rho in (0,1)'; return
+    if (ls%nonmonotone_len < 0 .or. .not. (ls%merit%penalty_rho > 0.0_wp .and. ls%merit%penalty_rho < 1.0_wp)) then
+        msg = 'linesearch%nonmonotone_len must be >= 0, and merit%penalty_rho in (0,1)'; return
     end if
-    if (.not. (ls%filter_gamma_theta > 0.0_wp .and. ls%filter_gamma_theta < 1.0_wp .and. &
-               ls%filter_gamma_phi > 0.0_wp .and. ls%filter_delta > 0.0_wp .and. &
-               ls%filter_s_theta > 1.0_wp .and. ls%filter_s_phi > 1.0_wp .and. &
-               ls%filter_eta_phi > 0.0_wp .and. ls%filter_eta_phi < 0.5_wp .and. &
-               ls%filter_theta_min_fact > 0.0_wp .and. ls%filter_theta_max_fact > ls%filter_theta_min_fact .and. &
-               ls%filter_gamma_alpha > 0.0_wp .and. ls%filter_gamma_alpha <= 1.0_wp)) then
-        msg = 'a linesearch%filter_* parameter is out of range'; return
+    if (.not. (ls%filter%gamma_theta > 0.0_wp .and. ls%filter%gamma_theta < 1.0_wp .and. &
+               ls%filter%gamma_phi > 0.0_wp .and. ls%filter%delta > 0.0_wp .and. &
+               ls%filter%s_theta > 1.0_wp .and. ls%filter%s_phi > 1.0_wp .and. &
+               ls%filter%eta_phi > 0.0_wp .and. ls%filter%eta_phi < 0.5_wp .and. &
+               ls%filter%theta_min_fact > 0.0_wp .and. ls%filter%theta_max_fact > ls%filter%theta_min_fact .and. &
+               ls%filter%gamma_alpha > 0.0_wp .and. ls%filter%gamma_alpha <= 1.0_wp)) then
+        msg = 'a linesearch%filter parameter is out of range'; return
     end if
-    if (.not. (ls%funnel_width_min > 0.0_wp .and. ls%funnel_width_fact >= 1.0_wp .and. &
-               ls%funnel_beta > 0.0_wp .and. ls%funnel_beta < 1.0_wp .and. &
-               ls%funnel_kappa > 0.0_wp .and. ls%funnel_kappa < 1.0_wp .and. &
-               ls%funnel_delta > 0.0_wp .and. ls%funnel_s_theta > 1.0_wp .and. &
-               ls%funnel_eta > 0.0_wp .and. ls%funnel_eta < 0.5_wp .and. ls%funnel_gamma > 0.0_wp) &
-        .or. all(ls%funnel_update /= [1, 2])) then
-        msg = 'a linesearch%funnel_* parameter is out of range'; return
+    if (.not. (ls%funnel%width_min > 0.0_wp .and. ls%funnel%width_fact >= 1.0_wp .and. &
+               ls%funnel%beta > 0.0_wp .and. ls%funnel%beta < 1.0_wp .and. &
+               ls%funnel%kappa > 0.0_wp .and. ls%funnel%kappa < 1.0_wp .and. &
+               ls%funnel%delta > 0.0_wp .and. ls%funnel%s_theta > 1.0_wp .and. &
+               ls%funnel%eta > 0.0_wp .and. ls%funnel%eta < 0.5_wp .and. ls%funnel%gamma > 0.0_wp) &
+        .or. all(ls%funnel%update /= [1, 2])) then
+        msg = 'a linesearch%funnel parameter is out of range'; return
     end if
 
     ! ---- trust region ----

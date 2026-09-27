@@ -217,6 +217,31 @@ region reaches into it for the filter and funnel. Splitting the acceptance
 tests (merit, filter, funnel) from the step-length search, as Uno does
 (see `plan/UNO_COMPARISON.md`), would make each piece testable on its own and
 new strategies cheaper to add.
+*(Done 2026-09-27: the acceptance tests are now separate types, each in
+its own module with its options, state, and tests:
+- `sqpopt_merit_type` (`sqpopt_merit_module`): the merit functions,
+  penalty rules, and the joint-step state;
+- `sqpopt_filter_type` (`sqpopt_filter_module`);
+- `sqpopt_funnel_type` (`sqpopt_funnel_module`).
+
+The line-search type keeps the step-length searches, the watchdog, and
+the non-monotone queue, and holds the three types as components `merit`,
+`filter`, and `funnel`. The trust region uses the same components.
+`sqpopt_linesearch_module` shrinks from 1,706 to 1,065 lines.
+`l1_violation` and `merit_slack` moved to `sqpopt_types_module`.
+`l1_violation` and the merit constants are still re-exported by the
+line-search module, so existing `use` statements work.
+
+**API change:** the options are now nested, e.g.
+`linesearch%filter_gamma_theta` → `linesearch%filter%gamma_theta`,
+`linesearch%funnel_beta` → `linesearch%funnel%beta`, and
+`linesearch%penalty_rho` → `linesearch%merit%penalty_rho`.
+(`options%merit_mode`/`penalty_update` are unchanged.) The guide's option
+tables are updated.
+
+Results are bit-for-bit identical: the HS suite per problem, every row of
+the performance table, and the rest of the test output. The new
+`test/test_acceptance.f90` tests each type on its own, without the solver.)*
 
 **M3. Two null-space methods in the sparse QP.** The LU basis method and the
 LSQR method (kept as a fallback and for comparison) roughly double the

@@ -28,19 +28,19 @@
 !  shrunk accordingly:
 !
 !  * if `linesearch%mode == sqpopt_linesearch_filter`, acceptance uses the
-!    same filter test as the filter line search (`linesearch%filter_accept`,
+!    same filter test as the filter line search (`linesearch%filter%accept`,
 !    with the quadratic model's predicted decrease `q` in place of
 !    \( g^Tp \) in the switching condition) -- a trust-region filter-SQP
 !    method in the spirit of Fletcher & Leyffer (`references/fletcher.pdf`).
 !  * if `linesearch%mode == sqpopt_linesearch_funnel`, acceptance uses the
-!    funnel test of the funnel line search (`linesearch%funnel_accept`,
+!    funnel test of the funnel line search (`linesearch%funnel%accept`,
 !    with `q` as the predicted decrease) -- the trust-region funnel SQP
 !    method of Kiessling, Leyffer & Vanaret (Uno's `funnelsqp` preset).
 !  * otherwise, acceptance uses the classical trust-region-SQP ratio test
 !    (Nocedal & Wright, *Numerical Optimization*, Ch. 18): \( \rho =
 !    \text{ared}/\text{pred} \), the ratio of the actual to the
 !    predicted decrease in the merit function selected by
-!    `linesearch%merit_mode`, accepted when \( \rho \ge \eta_1 \).
+!    `linesearch%merit%mode`, accepted when \( \rho \ge \eta_1 \).
 !
 !  If a step is rejected, the radius is shrunk (`shrink_factor`) and the
 !  QP is re-solved (bounded by `max_retries` retries per major iteration)
@@ -110,9 +110,9 @@
     type(sqpopt_problem_type),      intent(inout) :: problem
     type(sqpopt_hessian_type),      intent(inout) :: hessian     !! matrix-free Hessian approximation
     type(sqpopt_qp_solver_type),    intent(inout) :: qp_solver
-    type(sqpopt_linesearch_type),   intent(inout) :: linesearch  !! supplies `merit_mode`/`eval_merit` (ratio test) or
-                                                                  !! the filter (`mode==sqpopt_linesearch_filter`)
-                                                                  !! or funnel (`mode==sqpopt_linesearch_funnel`)
+    type(sqpopt_linesearch_type),   intent(inout) :: linesearch  !! supplies the merit function (`merit`, ratio test) or
+                                                                  !! the filter (`filter`, `mode==sqpopt_linesearch_filter`)
+                                                                  !! or funnel (`funnel`, `mode==sqpopt_linesearch_funnel`)
     real(wp), dimension(:),         intent(in)  :: x       !! current point `dimension(n)`
     real(wp), dimension(:),         intent(in)  :: g       !! objective gradient at `x` `dimension(n)`
     real(wp),                       intent(in)  :: f       !! objective value at `x`
@@ -139,9 +139,9 @@
     use_filter = (linesearch%mode == sqpopt_linesearch_filter) .or. use_funnel !! (no merit function in either)
     h0         = l1_violation(c, problem%c_lb, problem%c_ub)
     if (use_funnel) then
-        call linesearch%funnel_prepare(h0)
+        call linesearch%funnel%prepare(h0)
     else if (use_filter) then
-        call linesearch%filter_prepare(h0)
+        call linesearch%filter%prepare(h0)
     end if
 
     do retry = 1, me%max_retries
@@ -160,8 +160,8 @@
 
         ! keep the merit function's penalty parameter dominating the current
         ! multiplier estimates, same rule as the line-search path (needed for
-        ! `eval_merit`'s ared/pred to be meaningful in the merit-ratio test):
-        if (size(new_lambda) > 0) linesearch%penalty = max(linesearch%penalty, maxval(abs(new_lambda)) + 1.0_wp)
+        ! `merit%eval`'s ared/pred to be meaningful in the merit-ratio test):
+        if (size(new_lambda) > 0) linesearch%merit%penalty = max(linesearch%merit%penalty, maxval(abs(new_lambda)) + 1.0_wp)
 
         ! the model's predicted decrease in `f`, and in the merit function: the
         ! merit function (whichever `merit_mode` is selected) evaluated at the
@@ -172,8 +172,8 @@
         if (.not. use_filter) then
             call sparse_matvec(jac, p, jp)
             c_lin = c + jp
-            call linesearch%eval_merit(f, c, problem%c_lb, problem%c_ub, new_lambda, phi0)
-            call linesearch%eval_merit(f-q, c_lin, problem%c_lb, problem%c_ub, new_lambda, phi_model)
+            call linesearch%merit%eval(f, c, problem%c_lb, problem%c_ub, new_lambda, phi0)
+            call linesearch%merit%eval(f-q, c_lin, problem%c_lb, problem%c_ub, new_lambda, phi_model)
             pred = phi0 - phi_model
         end if
 
@@ -198,9 +198,9 @@
             ! (a step that isn't f-type adds the current point to the filter,
             ! or shrinks the funnel)
             if (use_funnel .and. .not. f_type) then
-                call linesearch%funnel_record(h0, h_trial)
+                call linesearch%funnel%record(h0, h_trial)
             else if (use_filter .and. .not. f_type) then
-                call linesearch%filter_record(h0, f)
+                call linesearch%filter%record(h0, f)
             end if
 
             if (maxval(abs(p)) >= 0.99_wp*me%radius) then
@@ -256,15 +256,15 @@
         if (use_filter) then
 
             if (use_funnel) then
-                accept = linesearch%funnel_accept(h0, f, q, h_trial, f_trial, f_type)
+                accept = linesearch%funnel%accept(h0, f, q, h_trial, f_trial, f_type)
             else
-                accept = linesearch%filter_accept(h0, f, -q, 1.0_wp, h_trial, f_trial, f_type)
+                accept = linesearch%filter%accept(h0, f, -q, 1.0_wp, h_trial, f_trial, f_type)
             end if
             ratio = 1.0_wp !! not used for the ratio test in this branch, only for the "grow radius" gate
 
         else
 
-            call linesearch%eval_merit(f_trial, c_trial, problem%c_lb, problem%c_ub, new_lambda, phi_trial)
+            call linesearch%merit%eval(f_trial, c_trial, problem%c_lb, problem%c_ub, new_lambda, phi_trial)
             ared = phi0 - phi_trial !! actual decrease in the merit function
             if (pred > 1.0e-12_wp) then
                 ratio = ared/pred

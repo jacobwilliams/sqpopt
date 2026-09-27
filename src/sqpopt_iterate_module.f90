@@ -230,7 +230,7 @@
             info%stepped     = .true.
             info%alpha       = 1.0_wp
             info%step_norm   = norm2(x_new - x)
-            info%penalty     = linesearch%penalty
+            info%penalty     = linesearch%merit%penalty
             info%restoration = .true.
             x = x_new
             return
@@ -309,7 +309,7 @@
         ! the current multipliers (see [[sqpopt_restoration_module]]):
         restore    = .true.
         new_lambda = lambda
-        linesearch%joint_active = .false.
+        linesearch%merit%joint_active = .false.
         call restoration_phase_iteration()
 
     else if (trust_region%enabled) then
@@ -355,7 +355,7 @@
                 integer, parameter :: max_shift = 15 !! (from the smallest shift to the largest, x10 each time)
                 n_shift = 0
                 do
-                    call linesearch%directional_derivative(jac, g, p, c, problem%c_lb, problem%c_ub, new_lambda, dphi0)
+                    call linesearch%merit%directional_derivative(jac, g, p, c, problem%c_lb, problem%c_ub, new_lambda, dphi0)
                     if (options%hessian_mode == sqpopt_hessian_exact) then
                         if (.not. (dphi0 >= 0.0_wp .or. qp_istat == sqpopt_qp_solve_failed .or. &
                                    qp_solver%negative_curvature) .or. n_shift >= max_shift) exit
@@ -382,7 +382,7 @@
             ! feasibility, keeping the current multipliers (see
             ! [[sqpopt_restoration_module]]):
             new_lambda = lambda
-            linesearch%joint_active = .false.
+            linesearch%merit%joint_active = .false.
             call restoration_step(problem, jac, x, c, qp_solver%max_step*qp_solver%step_scale, x_new, alpha, step_istat)
             if (step_istat /= sqpopt_success .and. norm2(p) > 0.0_wp) then
                 ! no first-order decrease of the violation is possible from `x`
@@ -410,7 +410,7 @@
 
             ! with the augmented Lagrangian's joint step, the new multipliers are
             ! those along the step, not the QP's (see [[update_penalty_parameter]]):
-            if (linesearch%joint_active) new_lambda = lambda + alpha*(new_lambda - lambda)
+            if (linesearch%merit%joint_active) new_lambda = lambda + alpha*(new_lambda - lambda)
 
             ! adapt the step-length cap like a trust radius (see [[sqpopt_qp_solver_module]]):
             if (step_istat == sqpopt_success .and. qp_solver%capped .and. alpha >= 1.0_wp) then
@@ -442,9 +442,9 @@
                     real(wp) :: theta
                     theta = l1_violation(c, problem%c_lb, problem%c_ub)
                     if (linesearch%mode == sqpopt_linesearch_funnel) then
-                        call linesearch%funnel_restoration(theta)
+                        call linesearch%funnel%restoration(theta)
                     else
-                        call linesearch%filter_record(theta, f)
+                        call linesearch%filter%record(theta, f)
                     end if
                     if (theta > 0.0_wp) then
                         restore    = .true.
@@ -494,7 +494,7 @@
     info%stepped     = .true.
     info%alpha       = alpha
     info%step_norm   = norm2(x_new - x)
-    info%penalty     = linesearch%penalty
+    info%penalty     = linesearch%merit%penalty
     info%qp_istat    = qp_istat
     info%qp_iter     = qp_solver%n_iter
     info%restoration = restore
@@ -558,9 +558,9 @@
         theta = l1_violation(c, problem%c_lb, problem%c_ub)
         if (record) then
             if (linesearch%mode == sqpopt_linesearch_funnel) then
-                call linesearch%funnel_restoration(theta)
+                call linesearch%funnel%restoration(theta)
             else if (linesearch%mode == sqpopt_linesearch_filter) then
-                call linesearch%filter_record(theta, f)
+                call linesearch%filter%record(theta, f)
             end if
         end if
         call restoration%enter(x, theta, qp_solver)
@@ -594,7 +594,7 @@
         !! and multipliers `new_lambda` (see [[update_penalty_parameter]])
         real(wp), dimension(problem%n) :: hp
         call hessian%hv_product(p, hp)
-        call linesearch%update_penalty(jac, g, p, dot_product(p, hp), c, problem%c_lb, problem%c_ub, &
+        call linesearch%merit%update_penalty(jac, g, p, dot_product(p, hp), c, problem%c_lb, problem%c_ub, &
                                        lambda, new_lambda)
         end subroutine update_penalty
 
