@@ -8,6 +8,210 @@
         "files.trimTrailingWhitespace": true,
         "editor.insertSpaces": true,
         "editor.tabSize": 4,
-        "editor.trimAutoWhitespace": true
+        "editor.trimAutoWhitespace": true,
+
+        // ---- Fortran (the Modern Fortran extension), using the pixi toolchain
+        "files.associations": {
+            "*.F90": "FortranFreeForm"
+        },
+        "[FortranFreeForm]": {
+            "editor.rulers": [132]
+        },
+        // the language server (go to definition, hover docs, completion); its
+        // settings are in .fortlsrc
+        "fortran.fortls.path": "${workspaceFolder}/.pixi/envs/default/bin/fortls",
+        // the linter compiles each file on its own, so it needs the module files
+        // of a build (any build/gfortran_* directory: build the project first)
+        "fortran.linter.compiler": "gfortran",
+        "fortran.linter.compilerPath": "${workspaceFolder}/.pixi/envs/default/bin/gfortran",
+        "fortran.linter.includePaths": [
+            "${workspaceFolder}/build/gfortran_*"
+        ],
+        // (keeps the linter's own .mod files out of the source directories)
+        "fortran.linter.modOutput": "${workspaceFolder}/build/linter",
+
+        // ---- Python (python/), using the pixi environment
+        "python.defaultInterpreterPath": "${workspaceFolder}/.pixi/envs/default/bin/python",
+        "python.testing.unittestEnabled": true,
+        "python.testing.pytestEnabled": false,
+        "python.testing.unittestArgs": ["-v", "-s", "./python/tests", "-p", "test_*.py"],
+
+        // ---- project words, for the spell checker (Code Spell Checker)
+        "cSpell.words": [
+            "sqpopt", "gfortran", "fortls", "fpm", "pixi", "slsqp", "nlpqlp", "snopt", "sqopt", "npsol", "ipopt",
+            "lusol", "lsqr", "fmin", "Schittkowski", "Maratos", "Wächter", "Biegler", "Leyffer", "Vanaret",
+            "Kiessling", "Byrd", "Nocedal", "lbfgs", "bfgs", "Hessian", "Hessians", "Lagrangian", "Jacobian",
+            "Jacobians", "nonfinite", "superbasic", "superbasics", "unscaled", "pycache", "pytest", "qtpy",
+            "pyside", "vadimcn", "tamasfe", "fortlsrc", "linesearch", "nonmonotone", "gjac", "istat", "ktol",
+            "ctol", "ftol", "xtol", "wp", "inout"
+        ],
+
+        // ---- generated files: out of search results and file watching
+        "files.exclude": {
+            "**/__pycache__": true
+        },
+        "search.exclude": {
+            "build/**": true,
+            ".pixi/**": true,
+            "doc/**": true,
+            "coverage/**": true,
+            "web/api/**": true,
+            "pixi.lock": true
+        },
+        "files.watcherExclude": {
+            "**/build/**": true,
+            "**/.pixi/**": true,
+            "**/doc/**": true,
+            "**/coverage/**": true,
+            "**/web/api/**": true
+        }
+    },
+
+    "extensions": {
+        "recommendations": [
+            "fortran-lang.linter-gfortran",
+            "vadimcn.vscode-lldb",
+            "ms-python.python",
+            "tamasfe.even-better-toml"
+        ]
+    },
+
+    "tasks": {
+        "version": "2.0.0",
+        "options": {
+            "cwd": "${workspaceFolder}"
+        },
+        "tasks": [
+            {
+                "label": "build",
+                "type": "shell",
+                "command": "pixi run fpm build",
+                "group": { "kind": "build", "isDefault": true },
+                "problemMatcher": []
+            },
+            {
+                "label": "build (release)",
+                "type": "shell",
+                "command": "pixi run fpm build --profile release",
+                "group": "build",
+                "problemMatcher": []
+            },
+            {
+                "label": "test: all",
+                "type": "shell",
+                "command": "pixi run fpm test",
+                "group": { "kind": "test", "isDefault": true },
+                "problemMatcher": []
+            },
+            {
+                "label": "test: one",
+                "type": "shell",
+                "command": "pixi run fpm test ${input:testName}",
+                "group": "test",
+                "problemMatcher": []
+            },
+            {
+                "label": "test: HS suite (release)",
+                "type": "shell",
+                "command": "pixi run fpm test test_hs_suite --profile release",
+                "group": "test",
+                "problemMatcher": []
+            },
+            {
+                "label": "HS: one problem, with its iterations",
+                "type": "shell",
+                "command": "pixi run fpm test test_hs_suite -- /dev/null --problem=${input:hsProblem} --print=2",
+                "problemMatcher": []
+            },
+            {
+                "label": "HS: compare one problem with SLSQP",
+                "type": "shell",
+                "command": "pixi run tools/hs_compare.sh ${input:hsProblem}",
+                "problemMatcher": []
+            },
+            {
+                "label": "HS: regenerate the guide's performance table",
+                "type": "shell",
+                "command": "pixi run tools/hs_performance_table.sh",
+                "problemMatcher": []
+            },
+            {
+                "label": "benchmark",
+                "type": "shell",
+                "command": "pixi run fpm run --example benchmark --profile release",
+                "problemMatcher": []
+            },
+            {
+                "label": "coverage report",
+                "type": "shell",
+                "command": "pixi run ./coverage.sh",
+                "problemMatcher": []
+            },
+            {
+                "label": "API docs (FORD)",
+                "type": "shell",
+                "command": "pixi run ford ford.md --output_dir web/api",
+                "problemMatcher": []
+            },
+            {
+                "label": "clean build directories",
+                "detail": "fixes stale-module errors (build/dependencies is kept)",
+                "type": "shell",
+                "command": "rm -rf build/gfortran_* build/linter",
+                "problemMatcher": []
+            },
+            {
+                "label": "python: options dialog",
+                "type": "shell",
+                "command": "pixi run python -m sqpopt_options",
+                "options": { "cwd": "${workspaceFolder}/python" },
+                "problemMatcher": []
+            },
+            {
+                "label": "python: tests",
+                "type": "shell",
+                "command": "pixi run python -m unittest discover -s python/tests",
+                "group": "test",
+                "problemMatcher": []
+            }
+        ],
+        "inputs": [
+            {
+                "id": "testName",
+                "type": "pickString",
+                "description": "Test to run",
+                "options": [
+                    "test_acceptance",
+                    "test_basic",
+                    "test_callbacks",
+                    "test_convergence",
+                    "test_hessian_consistency",
+                    "test_hs71",
+                    "test_hs_slsqp",
+                    "test_hs_suite",
+                    "test_independent_columns",
+                    "test_infeasible",
+                    "test_infinite_bounds",
+                    "test_input_validation",
+                    "test_kkt_sign",
+                    "test_large_sparse",
+                    "test_maratos",
+                    "test_medium",
+                    "test_nonfinite",
+                    "test_qp_dense",
+                    "test_qp_fuzz",
+                    "test_qp_reduced_hessian",
+                    "test_resolve",
+                    "test_results",
+                    "test_termination",
+                    "print_iterations"
+                ]
+            },
+            {
+                "id": "hsProblem",
+                "type": "promptString",
+                "description": "Hock-Schittkowski problem number (e.g. 71)"
+            }
+        ]
     }
 }
