@@ -203,6 +203,11 @@
     ! functions are never evaluated outside them:
     me%x = min(max(x0, me%problem%x_lb), me%problem%x_ub)
 
+    ! the QP step-length cap starts relative to the size of the variables (so
+    ! a solution far away isn't approached by doubling the cap from
+    ! `max_step`; see [[sqpopt_qp_solver_module]]):
+    me%qp_solver%step_scale = max(1.0_wp, maxval(abs(me%x))/me%qp_solver%max_step)
+
     ! empty evaluation caches, and (optionally) gradient-based scaling:
     call me%problem%reset_evaluations()
     if (me%options%scaling) call me%problem%compute_scaling(me%x, me%options%scaling_max_gradient)

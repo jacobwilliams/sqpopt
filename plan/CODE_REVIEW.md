@@ -103,6 +103,17 @@ a single `m` and deprecate the split.
 ## 2. Robustness
 
 **R1. Variables are not scaled, and the QP step cap is absolute** (medium).
+*(Partly done 2026-09-27: the cap now starts at
+`max(max_step, ‖x₀‖∞)` (`step_scale = max(1, ‖x₀‖∞/max_step)` at the start of
+each solve; it still halves back down to `max_step`). HS default (release):
+275/30/0 → 278/27/0 (TP202, 236, 239 now solved), `fc` 9,059 → 8,920; every
+line-search row of the guide's table solves as many or more problems
+(GMSW 266 → 274), except the exact Hessian (267 → 266, but `fc` 15,491 →
+10,957); the trust region is unchanged. Variants tried: starting at 0.5,
+0.1, or 0.01 times ‖x₀‖∞, and keeping the start as the halving floor, were
+all worse. TP26/27/375 are unaffected. TP220's slow start is **not** the
+cap: its steps grow ×5 per iteration from the quasi-Newton model's initial
+scaling. User-supplied variable scaling is still open.)*
 The objective and constraints are scaled (gradient-based, as in IPOPT), but
 the variables are not, and `qp_solver%max_step` (2, doubling after capped
 full steps) is an absolute length. Problems whose variables are large or

@@ -497,7 +497,7 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <tbody>
 <tr><td><code>mode</code></td><td><code>sqpopt_qp_auto</code></td><td>which QP algorithm to use (overwritten from <code>options%qp_solver_mode</code>); see <a href="#qp-modes">modes</a> below</td></tr>
 <tr><td><code>auto_dense_max_n</code></td><td><code>200</code></td><td><code>mode = sqpopt_qp_auto</code> uses <code>sqpopt_qp_dense</code> for problems with at most this many variables, else <code>sqpopt_qp_reduced_hessian</code></td></tr>
-<tr><td><code>max_step</code></td><td><code>2.0</code></td><td>initial trust-region-style cap on \( \lVert p\rVert_2 \), applied after every QP solve regardless of <code>mode</code>. The cap adapts like a trust radius: it doubles after a capped step that the line search accepts in full, and halves back toward <code>max_step</code> after a shortened one, so solutions far from the start are still reached in a few iterations.</td></tr>
+<tr><td><code>max_step</code></td><td><code>2.0</code></td><td>trust-region-style cap on \( \lVert p\rVert_2 \), applied after every QP solve regardless of <code>mode</code>. The cap starts at \( \max(\) <code>max_step</code>\(,\ \lVert x_0\rVert_\infty) \), relative to the size of the variables, and adapts like a trust radius: it doubles after a capped step that the line search accepts in full, and halves back toward <code>max_step</code> after a shortened one, so solutions far from the start are still reached in a few iterations.</td></tr>
 <tr><td><code>dense_qp</code></td><td>&mdash;</td><td>the dense QP solver's own options (used only when <code>mode == sqpopt_qp_dense</code>); see <a href="#dense-qp">below</a></td></tr>
 <tr><td><code>sparse_qp</code></td><td>&mdash;</td><td>the sparse QP solver's own options (used only when <code>mode == sqpopt_qp_reduced_hessian</code>); see <a href="#sparse-qp">below</a></td></tr>
 </tbody>
@@ -718,16 +718,16 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <div class="table-wrap"><table class="bench">
 <thead><tr><th>globalization</th><th class="num">solved</th><th class="num">local</th><th class="num">failed</th><th class="num"><code>fc</code> calls (solved)</th></tr></thead>
 <tbody>
-<tr class="best"><td><strong>filter</strong> (default, with interpolation)</td><td class="num"><strong>275</strong></td><td class="num">30</td><td class="num"><strong>0</strong></td><td class="num"><strong>9,059</strong></td></tr>
-<tr><td>filter, without interpolation</td><td class="num">274</td><td class="num">31</td><td class="num">0</td><td class="num">9,463</td></tr>
-<tr><td>funnel (with interpolation)</td><td class="num">275</td><td class="num">30</td><td class="num">0</td><td class="num">9,536</td></tr>
-<tr><td>filter, exact Hessian (finite differences of the gradients)</td><td class="num">267</td><td class="num">34</td><td class="num">4</td><td class="num">15,491</td></tr>
-<tr><td>Armijo / \( \ell_1 \) / multipliers</td><td class="num">269</td><td class="num">30</td><td class="num">6</td><td class="num">28,902</td></tr>
-<tr><td>Armijo / \( \ell_1 \) / model (Byrd&ndash;Nocedal)</td><td class="num">271</td><td class="num">30</td><td class="num">4</td><td class="num">27,911</td></tr>
-<tr><td>Armijo / augmented Lagrangian / multipliers</td><td class="num">270</td><td class="num">33</td><td class="num">2</td><td class="num">9,741</td></tr>
-<tr><td>Armijo / augmented Lagrangian / multipliers, interpolation + non-monotone (10)</td><td class="num">273</td><td class="num">31</td><td class="num">1</td><td class="num">10,346</td></tr>
-<tr><td>Armijo / augmented Lagrangian / model (GMSW)</td><td class="num">266</td><td class="num">33</td><td class="num">6</td><td class="num">13,427</td></tr>
-<tr><td>watchdog / \( \ell_1 \) / model</td><td class="num">271</td><td class="num">31</td><td class="num">3</td><td class="num">32,311</td></tr>
+<tr class="best"><td><strong>filter</strong> (default, with interpolation)</td><td class="num"><strong>278</strong></td><td class="num">27</td><td class="num"><strong>0</strong></td><td class="num"><strong>8,920</strong></td></tr>
+<tr><td>filter, without interpolation</td><td class="num">277</td><td class="num">28</td><td class="num">0</td><td class="num">9,327</td></tr>
+<tr><td>funnel (with interpolation)</td><td class="num">278</td><td class="num">27</td><td class="num">0</td><td class="num">9,351</td></tr>
+<tr><td>filter, exact Hessian (finite differences of the gradients)</td><td class="num">266</td><td class="num">35</td><td class="num">4</td><td class="num">10,957</td></tr>
+<tr><td>Armijo / \( \ell_1 \) / multipliers</td><td class="num">271</td><td class="num">29</td><td class="num">5</td><td class="num">25,260</td></tr>
+<tr><td>Armijo / \( \ell_1 \) / model (Byrd&ndash;Nocedal)</td><td class="num">273</td><td class="num">29</td><td class="num">3</td><td class="num">27,633</td></tr>
+<tr><td>Armijo / augmented Lagrangian / multipliers</td><td class="num">273</td><td class="num">30</td><td class="num">2</td><td class="num">10,058</td></tr>
+<tr><td>Armijo / augmented Lagrangian / multipliers, interpolation + non-monotone (10)</td><td class="num">276</td><td class="num">28</td><td class="num">1</td><td class="num">10,524</td></tr>
+<tr><td>Armijo / augmented Lagrangian / model (GMSW)</td><td class="num">274</td><td class="num">29</td><td class="num">2</td><td class="num">13,276</td></tr>
+<tr><td>watchdog / \( \ell_1 \) / model</td><td class="num">273</td><td class="num">29</td><td class="num">3</td><td class="num">32,162</td></tr>
 <tr><td>trust region / filter</td><td class="num">261</td><td class="num">41</td><td class="num">3</td><td class="num">9,159</td></tr>
 <tr><td>trust region / funnel</td><td class="num">261</td><td class="num">42</td><td class="num">2</td><td class="num">10,473</td></tr>
 </tbody>
@@ -735,9 +735,9 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 
 <p><a href="hs_results.html"><strong>Explore the results of every problem &rarr;</strong></a> An interactive page with the default configuration's result on each of the 305 problems, compared with NLPQLP's published results and with <a href="https://github.com/jacobwilliams/slsqp">SLSQP</a> run on the same problems: charts of the function evaluations, and sortable, filterable tables.</p>
 
-<p class="small">The merit-function rows are without interpolation, except where noted. With interpolation, Armijo / \( \ell_1 \) / multipliers needs 17,642 <code>fc</code> calls instead of 28,902, but fails on one more problem. Analytic derivatives are used throughout, except for the 16 problems for which the collection provides none (they are solved with finite-difference derivatives, as the collection intends); the analytic derivatives that were wrong in the original collection are fixed in <code>test/schittkowski_problems.f90</code>.</p>
+<p class="small">The merit-function rows are without interpolation, except where noted. With interpolation, Armijo / \( \ell_1 \) / multipliers needs 16,238 <code>fc</code> calls instead of 25,260, but fails on one more problem. Analytic derivatives are used throughout, except for the 16 problems for which the collection provides none (they are solved with finite-difference derivatives, as the collection intends); the analytic derivatives that were wrong in the original collection are fixed in <code>test/schittkowski_problems.f90</code>.</p>
 
-<p class="small">The collection has no second derivatives, so the exact-Hessian row uses Hessians of the Lagrangian computed by the test harness by central differences of the analytic gradients (the 16 problems without analytic derivatives keep BFGS). On the problems that both it and the default solve, it needs 29% fewer iterations (median), and far fewer on some (TP116: 25 instead of 199); its larger <code>fc</code> total comes from a few problems where Newton steps crawl along a curved valley (TP210, 281, 380).</p>
+<p class="small">The collection has no second derivatives, so the exact-Hessian row uses Hessians of the Lagrangian computed by the test harness by central differences of the analytic gradients (the 16 problems without analytic derivatives keep BFGS). On the problems that both it and the default solve, it needs 29% fewer iterations (median), and far fewer on some (TP116: 9 instead of 127); its larger <code>fc</code> total comes from a few problems where Newton steps crawl along a curved valley (TP101, 210, 281).</p>
 
 <p class="small">This table is generated by <code>tools/hs_performance_table.sh</code> (run it with <code>pixi run tools/hs_performance_table.sh</code>; it prints the rows above, and the footnote's figures). Individual configurations can be run with the test suite's command-line options, e.g. <code>fpm test test_hs_suite --profile release -- results.md --linesearch=armijo --merit=al</code>.</p>
 

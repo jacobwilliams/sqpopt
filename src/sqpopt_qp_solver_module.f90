@@ -26,8 +26,11 @@
 !  `max_step*step_scale` (a trust-region-style safeguard), where the major
 !  iterations adapt `step_scale` like a trust radius: it doubles after a
 !  capped step that the line search accepted in full, and halves (down to
-!  1) after a shortened one. So the cap starts at `max_step`, but a
-!  solution far away is still reached in a few iterations.
+!  1) after a shortened one. Each solve starts with
+!  `step_scale = max(1, ||x0||_inf/max_step)`, so the cap starts at
+!  \( \max(\) `max_step` \(, \lVert x_0 \rVert_\infty) \): relative to the
+!  size of the variables, and a solution far away is still reached in a
+!  few iterations.
 
     module sqpopt_qp_solver_module
 
@@ -54,8 +57,10 @@
         integer  :: auto_dense_max_n    = 200                  !! `mode==sqpopt_qp_auto` uses the dense QP solver for problems
                                                                  !! with at most this many variables, and the sparse
                                                                  !! reduced-Hessian QP solver for larger ones
-        real(wp) :: max_step           = 2.0_wp                 !! initial trust-region-style cap on \( \lVert p \rVert_2 \):
+        real(wp) :: max_step           = 2.0_wp                 !! trust-region-style cap on \( \lVert p \rVert_2 \):
                                                                  !! `p` is rescaled if it is longer than `max_step*step_scale`
+                                                                 !! (the cap starts at \( \max(\) `max_step`
+                                                                 !! \(, \lVert x_0 \rVert_\infty) \), see the module docs)
         real(wp) :: step_scale         = 1.0_wp                 !! the adaptive factor on `max_step` (internal state,
                                                                  !! see the module docs; reset on each `solve`)
         logical  :: capped             = .false.                !! whether the last step was capped (output)
