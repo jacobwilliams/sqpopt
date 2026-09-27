@@ -263,7 +263,14 @@ evaluations to success in 207.
   searches.
 
 **Open issue: attraction to points where constraint qualifications
-fail.** This carries over from Phase 0 and stays open. On
+fail.** *(Resolved 2026-09-27: `options%elastic_multiplier_limit`
+re-solves the QP with a constraint elastic, at a bounded weight, when its
+multiplier is large at two successive iterates and still growing, at most
+3 times per solve. All 18 cases of `test/test_degenerate.f90` (three line
+searches × two QP solvers × three corners) now reach the minimum. Before
+this, the sparse QP reported a false success at the tangent points
+with λ ≈ 1e6. HS default: 278/27/0 unchanged, `fc` 8,920 → 8,915
+(TP221 42 → 8, TP13 68 → 42). The trust region doesn't use this yet.)* This carries over from Phase 0 and stays open. On
 `min x₁+x₂` s.t. `x₁²+x₂²=1` in the box `[-1,1]²`, from a box corner,
 the active-set modes approach (0,−1), where the circle is tangent to a
 bound. They now report `sqpopt_success` there, whereas after Phase 0

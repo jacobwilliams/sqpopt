@@ -55,7 +55,8 @@ The tests are in `test/`:
   function, filter, funnel), `test_convergence`, and
   `test_independent_columns`.
 - **Solver tests** on small problems with known solutions (`test_basic`,
-  `test_hs71`, `test_medium`, `test_maratos`), larger sparse ones
+  `test_hs71`, `test_medium`, `test_maratos`, and `test_degenerate`, a
+  constraint tangent to a bound), larger sparse ones
   (`test_large_sparse`), and regression tests of the interface and edge cases
   (`test_callbacks`, `test_input_validation`, `test_infeasible`,
   `test_nonfinite`, `test_resolve`, `test_results`, `test_termination`, ...).

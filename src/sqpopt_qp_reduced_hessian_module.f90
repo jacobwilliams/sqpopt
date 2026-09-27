@@ -121,6 +121,14 @@
                                          !! warm starts work the same way here, with `LSQR` computing the
                                          !! minimum-norm starting step)
 
+        ! forced elastic mode (internal inputs, set for one solve by [[sqpopt_qp_solver_module]], see
+        ! `solve_qp_subproblem`): the rows with a nonzero `force_sign` are made elastic even if not violated
+        ! at the starting step, in that direction (`+1`: the slack relaxes the row's lower bound, `-1` its
+        ! upper bound), and every slack has the fixed weight `force_weight` (not raised); positive slacks at
+        ! the solution are then accepted (`istat=sqpopt_success`), since they are the point of the solve
+        integer,  dimension(:), allocatable :: force_sign
+        real(wp) :: force_weight = 0.0_wp
+
         integer :: n_iter = 0 !! number of active-set iterations taken by the last solve (output)
         logical :: negative_curvature = .false. !! whether the last solve found a direction of negative curvature
                                                 !! of the Hessian in the variables (output; the QP was nonconvex)
@@ -221,10 +229,13 @@
         else if (jp0(i) > row_ub(i) + me%feas_tol*max(1.0_wp, abs(row_ub(i)))) then
             s_sign(i) = -1.0_wp
         end if
+        if (s_sign(i) == 0.0_wp .and. forced()) then
+            if (me%force_sign(i) /= 0) s_sign(i) = real(sign(1, me%force_sign(i)), wp)
+        end if
         if (s_sign(i) /= 0.0_wp) then
             nv = nv + 1
             slack_row(nv) = i
-            s0(nv) = merge(row_lb(i) - jp0(i), jp0(i) - row_ub(i), s_sign(i) > 0.0_wp)
+            s0(nv) = max(0.0_wp, merge(row_lb(i) - jp0(i), jp0(i) - row_ub(i), s_sign(i) > 0.0_wp))
         end if
     end do
     s0 = s0(1:nv)
@@ -246,6 +257,10 @@
     if (n > 0) gscale = max(1.0_wp, maxval(abs(g)))
     rho     = me%elastic_weight*gscale
     rho_max = me%elastic_weight_max*gscale
+    if (forced()) then
+        rho     = me%force_weight
+        rho_max = me%force_weight
+    end if
 
     ! ---- feasible starting point: p0, with the slacks just large enough ----
     allocate(u(nt))
@@ -259,6 +274,7 @@
         u(1:n)    = p0
         u(n+1:nt) = s0
         rho       = me%elastic_weight*gscale
+        if (forced()) rho = me%force_weight
     end if
 
     ! ---- initial working set ----
@@ -378,7 +394,7 @@
             end block
 
             ! optimal for the current elastic weight. Any slack still positive?
-            if (any(u(n+1:nt) > me%feas_tol*max(1.0_wp, s0))) then
+            if (any(u(n+1:nt) > me%feas_tol*max(1.0_wp, s0)) .and. .not. forced()) then
                 if (rho < rho_max) then
                     rho = min(100.0_wp*rho, rho_max)
                     cycle
@@ -404,6 +420,12 @@
     me%warm_status = status(1:m+n)
 
     contains
+
+        pure logical function forced()
+        !! whether this solve is in forced elastic mode (see `force_sign`)
+        forced = me%force_weight > 0.0_wp .and. allocated(me%force_sign)
+        if (forced) forced = size(me%force_sign) == m
+        end function forced
 
         subroutine starting_step(p0)
         !! the minimum-norm step satisfying the initial working-set guess (the
@@ -963,7 +985,7 @@
             end if
 
             ! optimal for the current elastic weight. Any slack still positive?
-            if (any(v(n+1:nt) > me%feas_tol*max(1.0_wp, s0))) then
+            if (any(v(n+1:nt) > me%feas_tol*max(1.0_wp, s0)) .and. .not. forced()) then
                 if (rho < rho_max) then
                     rho = min(100.0_wp*rho, rho_max)
                     cycle

@@ -404,6 +404,9 @@
         msg = 'options%max_iter must be >= 0'
         return
     end if
+    if (.not. (o%elastic_multiplier_limit >= 0.0_wp)) then
+        msg = 'options%elastic_multiplier_limit must be >= 0 (0: disabled)'; return
+    end if
     if (o%lbfgs_memory < 0) then
         msg = 'options%lbfgs_memory must be >= 0 (0: automatic)'
         return

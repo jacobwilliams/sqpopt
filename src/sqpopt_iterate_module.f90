@@ -336,6 +336,7 @@
         call qp_solver%solve(hessian, jac, x, g, c, problem%x_lb, problem%x_ub, &
                               problem%c_lb, problem%c_ub, p, new_lambda, qp_istat)
         restore = qp_istat == sqpopt_infeasible
+        if (.not. restore) call elastic_resolve()
 
         if (.not. restore) then
 
@@ -590,6 +591,54 @@
             restoration%active = .false.
         end if
         end subroutine restoration_phase_iteration
+
+        subroutine elastic_resolve()
+        !! if a constraint's multiplier is diverging, re-solve the QP with that
+        !! constraint elastic (SNOPT-style elastic mode). At a point where the
+        !! constraint qualification fails (e.g. a constraint tangent to a
+        !! bound), the linearization lets each step cover only a fraction of
+        !! the distance to it, so the iterates creep toward the point with a
+        !! multiplier that grows every iteration, and may converge there to a
+        !! point that is not a minimizer. An \( \ell_1 \) penalty with a
+        !! bounded weight on the constraint (the elastic slack) caps its
+        !! multiplier, and lets the step relax the linearization and leave.
+        !!
+        !! A constraint `i` triggers it when its multiplier's "push"
+        !! \( |\lambda_i| \lVert \nabla c_i \rVert_\infty \) exceeds
+        !! `options%elastic_multiplier_limit` \( \times \max(1, \lVert g \rVert_\infty) \)
+        !! both now and at the previous iterate, and has grown by more than
+        !! `growth` since then. The re-solve is done at most `max_resolves`
+        !! times per solve: at a solution that itself has an unbounded
+        !! multiplier (e.g. a cusp), it would otherwise keep pushing the
+        !! iterates away.
+        real(wp), parameter :: growth       = 1.5_wp !! the multiplier growth that indicates divergence
+        integer,  parameter :: max_resolves = 3      !! maximum elastic re-solves per solve
+        real(wp) :: lim, rownorm(problem%m), wmax
+        integer  :: sgn(problem%m), k, i
+        if (options%elastic_multiplier_limit <= 0.0_wp .or. problem%m == 0 .or. &
+            qp_solver%n_elastic >= max_resolves) return
+        lim = options%elastic_multiplier_limit*max(1.0_wp, maxval(abs(g)))
+        rownorm = 0.0_wp
+        do k = 1, jac%nnz
+            rownorm(jac%irow(k)) = max(rownorm(jac%irow(k)), abs(jac%val(k)))
+        end do
+        sgn  = 0
+        wmax = 0.0_wp
+        do i = 1, problem%m
+            if (abs(new_lambda(i))*rownorm(i) > lim .and. abs(lambda(i))*rownorm(i) > lim .and. &
+                abs(new_lambda(i)) > growth*abs(lambda(i))) then
+                sgn(i) = merge(1, -1, new_lambda(i) > 0.0_wp)   ! (the side of the row that is active)
+                wmax   = max(wmax, rownorm(i))
+            end if
+        end do
+        if (all(sgn == 0)) return
+        qp_solver%n_elastic = qp_solver%n_elastic + 1
+        ! (the weight caps each elastic row's push at about the limit)
+        call qp_solver%solve(hessian, jac, x, g, c, problem%x_lb, problem%x_ub, &
+                              problem%c_lb, problem%c_ub, p, new_lambda, qp_istat, &
+                              elastic_sign=sgn, elastic_weight=lim/wmax)
+        restore = qp_istat == sqpopt_infeasible
+        end subroutine elastic_resolve
 
         subroutine update_penalty()
         !! update the merit function's penalty parameter for the QP step `p`

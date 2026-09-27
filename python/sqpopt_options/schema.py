@@ -342,6 +342,15 @@ TOPICS: tuple[Topic, ...] = (
                'phase (feasibility QPs, as in filter-SQP methods and Uno), or a single Gauss-Newton step on the '
                'violation each time.', choices=RESTORATION_MODES),
         )),
+        Section('Degenerate points', (
+            _o('options%elastic_multiplier_limit', 'float', 30.0,
+               "When a constraint's multiplier diverges (its push |λᵢ|·‖∇cᵢ‖∞ exceeds this × max(1, ‖g‖∞) "
+               'at two successive iterates, and keeps growing), a sign that the constraint qualification fails '
+               'nearby (e.g. a constraint tangent to a bound), the QP is re-solved with that constraint elastic '
+               '(an ℓ1 penalty with a bounded weight), so the iterates can leave instead of creeping toward the '
+               'degenerate point. At most 3 times per solve. 0 disables this.',
+               minimum=0.0, special={0.0: 'disabled'}),
+        )),
         Section('Globalization', (
             _o('trust_region%enabled', 'bool', False,
                'Use trust-region radius management instead of the line search for every major iteration '

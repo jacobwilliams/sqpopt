@@ -64,6 +64,8 @@
         real(wp) :: step_scale         = 1.0_wp                 !! the adaptive factor on `max_step` (internal state,
                                                                  !! see the module docs; reset on each `solve`)
         logical  :: capped             = .false.                !! whether the last step was capped (output)
+        integer  :: n_elastic          = 0                      !! elastic re-solves in this solve (internal state, see
+                                                                 !! [[sqpopt_iterate_module]])
         integer  :: n_short            = 0                      !! consecutive very short line-search steps (internal
                                                                  !! state, see [[sqpopt_iterate_module]])
         integer :: n_iter = 0 !! number of active-set iterations taken by the last QP solve (output)
@@ -88,7 +90,8 @@
 !  active-set solver selected by `me%mode` (see [[sqpopt_qp_dense_module]],
 !  [[sqpopt_qp_reduced_hessian_module]]).
 
-    subroutine solve_qp_subproblem(me, hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
+    subroutine solve_qp_subproblem(me, hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat, &
+                                   elastic_sign, elastic_weight)
 
     class(sqpopt_qp_solver_type), intent(inout) :: me
     type(sqpopt_hessian_type),  intent(inout) :: hessian !! matrix-free Hessian approximation (never a dense `n x n` matrix)
@@ -103,14 +106,40 @@
     real(wp), dimension(:),     intent(out)   :: p       !! computed search direction `dimension(n)`
     real(wp), dimension(:),     intent(out)   :: lambda  !! Lagrange multipliers for the linearized constraints `dimension(m)`
     integer,                    intent(out)   :: istat   !! status code (see [[sqpopt_types_module]])
+    integer,  dimension(:), optional, intent(in) :: elastic_sign   !! forced elastic mode: the rows to make
+                                                                  !! elastic, and in which direction (`+1`
+                                                                  !! relaxes a row's lower bound, `-1` its upper
+                                                                  !! bound, `0` none) `dimension(m)`
+    real(wp),               optional, intent(in) :: elastic_weight !! forced elastic mode: the fixed \( \ell_1 \)
+                                                                  !! weight of every elastic slack
+
+    logical :: forced
+
+    forced = present(elastic_sign) .and. present(elastic_weight)
 
     select case (resolved_mode(me, size(g)))
     case (sqpopt_qp_dense)
+        if (forced) then
+            me%dense_qp%force_sign   = elastic_sign
+            me%dense_qp%force_weight = elastic_weight
+        end if
         call me%dense_qp%solve(hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
+        if (forced) then
+            deallocate(me%dense_qp%force_sign)
+            me%dense_qp%force_weight = 0.0_wp
+        end if
         me%n_iter = me%dense_qp%n_iter
         me%negative_curvature = me%dense_qp%negative_curvature
     case default ! sqpopt_qp_reduced_hessian
+        if (forced) then
+            me%sparse_qp%force_sign   = elastic_sign
+            me%sparse_qp%force_weight = elastic_weight
+        end if
         call me%sparse_qp%solve(hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
+        if (forced) then
+            deallocate(me%sparse_qp%force_sign)
+            me%sparse_qp%force_weight = 0.0_wp
+        end if
         me%n_iter = me%sparse_qp%n_iter
         me%negative_curvature = me%sparse_qp%negative_curvature
     end select

@@ -54,6 +54,12 @@
                                                      !! factor times its value where the phase started, and the point is
                                                      !! acceptable to the filter or funnel (`0 < factor < 1`)
         integer  :: restoration_max_iter = 50        !! maximum number of iterations of a restoration phase
+        real(wp) :: elastic_multiplier_limit = 30.0_wp !! when a constraint's multiplier diverges (its push
+                                                     !! \( |\lambda_i| \lVert \nabla c_i \rVert_\infty \) exceeds this
+                                                     !! \( \times \max(1,\lVert g \rVert_\infty) \) and keeps growing,
+                                                     !! a sign that the constraint qualification fails nearby), the QP
+                                                     !! is re-solved with that constraint elastic, so the iterates can
+                                                     !! leave (see [[sqpopt_iterate_module]]); `0` disables this
         integer  :: max_consecutive_failures = 5 !! stop (with the failing component's status code, e.g.
                                                   !! `sqpopt_line_search_failed` or `sqpopt_qp_solve_failed`)
                                                   !! after this many consecutive major iterations in which the
