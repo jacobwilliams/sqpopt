@@ -75,6 +75,12 @@ The tests are in `test/`:
   `--qp=`, `--restoration=`, `--trust-region`, `--no-interpolate`,
   `--nonmonotone=N`, `--lbfgs-memory=N`, `--problem=N`, `--print=L`, and
   `--web-data=FILE` (see the header of `test/test_hs_suite.f90`).
+- **`test_hs_solutions`** checks the collection's reference solutions: at
+  each problem's recorded optimal point, the objective must equal the
+  recorded optimal value and the constraints must hold, up to the rounding
+  of the recorded digits. It guards the problem definitions, and lists the
+  collection's own inconsistencies (`known_inconsistent`, with the reason
+  for each).
 - **`test_hs_slsqp`** runs the same problems with
   [SLSQP](https://github.com/jacobwilliams/slsqp) (a dev-dependency), for
   the comparison on the results page.

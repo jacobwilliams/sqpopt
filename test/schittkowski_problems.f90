@@ -36,7 +36,11 @@
 !  105, 114, 212, 244, 246, 247, 287, 303/304/305, 308, 310, and 380, and
 !  the Jacobians of TP264 and 372. The objectives and constraints are
 !  unchanged (even where they look unintended, e.g. TP105's penalty
-!  branch), since the reference solutions are for them as written. Some
+!  branch), since the reference solutions are for them as written. Two
+!  errors in the problem data are also fixed (found by
+!  `test/test_hs_solutions.f90`): TP216's reference solution (a typo), and
+!  TP340's variable bounds (x2 and x3 were bounded above by 0, making its
+!  reference solution infeasible). Some
 !  problems (TP332, 348, 356, 357, 362, 364, 365, 366, 369, 370, 371, 377,
 !  378, 391, 392, 393) have no analytic derivatives at all, as in the
 !  original: they are meant to be solved with numerical derivatives.
@@ -10481,7 +10485,8 @@
       LEX=.TRUE.
       NEX=1
       FEX=1.0D+0
-      XEX(1)=2.0D+01
+      !! FIXED: was 2.0D+01 (outside the bound XU(1)=10; f(20,4)=1.6D+7, but f(2,4)=1=FEX)
+      XEX(1)=2.0D+00
       XEX(2)=4.0D+0
       RETURN
 2     FX=100.D+0*(X(1)**2-X(2))**2+(X(1)-1.D+0)**2
@@ -17174,7 +17179,9 @@
       NENL=0
       DO I=1,3
       X(I)=.1D+1
-      LXU(I)=.TRUE.
+      !! FIXED: was LXU(I)=.TRUE., but only XU(1) is set (below), so X(2) and X(3)
+      !! were bounded above by 0, and the solution XEX=(.6,.3,.3) was infeasible
+      LXU(I)=.FALSE.
 ! 6    LXL(I)=.FALSE.
       XL(I)=0.0D0
       LXL(I)=.TRUE.
