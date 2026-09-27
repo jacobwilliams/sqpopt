@@ -30,7 +30,7 @@
 
     private
 
-    public :: restoration_step
+    public :: restoration_step, escape_step
 
     contains
 !*******************************************************************************
@@ -123,6 +123,83 @@
     istat = sqpopt_line_search_failed
 
     end subroutine restoration_step
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  look for a second-order decrease of the constraint violation from a point
+!  `x` that is stationary for it (where [[check_convergence]] would report
+!  `sqpopt_infeasible`). Such a point may be a saddle of the violation rather
+!  than a minimum: e.g. on a symmetry plane of the problem (`x_j=0`, with
+!  every function even in `x_j`), where the gradients' `x_j` components all
+!  vanish, so no first-order method, and no exactly computed step, ever
+!  leaves the plane.
+!
+!  Each variable whose column of the Jacobian is negligible in the violated
+!  rows (up to `max_probe` of them) is perturbed by `t*max(1,|x_j|)` in each
+!  direction, for `t` = `1e-3`, `1e-2`, `1e-1` (within its bounds). The
+!  first trial point with a lower (squared, l2) violation is returned in
+!  `x_new`, with `istat=sqpopt_success`; if there is none, `x_new=x` and
+!  `istat=sqpopt_line_search_failed`. This costs at most `6*max_probe`
+!  evaluations of the constraints.
+
+    subroutine escape_step(problem, jac, x, c, x_new, istat)
+
+    type(sqpopt_problem_type),  intent(inout) :: problem  !! problem definition
+    type(sqpopt_sparse_matrix), intent(in)    :: jac      !! constraint Jacobian at `x`, `dimension(m,n)`
+    real(wp), dimension(:),     intent(in)    :: x        !! current point `dimension(n)`
+    real(wp), dimension(:),     intent(in)    :: c        !! constraint values at `x` `dimension(m)`
+    real(wp), dimension(:),     intent(out)   :: x_new    !! new point `dimension(n)`
+    integer,                    intent(out)   :: istat    !! status code (see [[sqpopt_types_module]])
+
+    integer,  parameter :: max_probe = 10 !! maximum number of variables probed
+    real(wp), parameter :: steps(3) = [1.0e-3_wp, 1.0e-2_wp, 1.0e-1_wp] !! relative perturbations tried
+    real(wp), parameter :: col_tol = sqrt(epsilon(1.0_wp)) !! a column is negligible below this (relative)
+
+    real(wp), dimension(size(c)) :: rc, c_trial
+    real(wp), dimension(size(x)) :: colmax, x_trial
+    real(wp) :: h0, h_trial, jmax, xj
+    integer :: j, k, i, s, n_probe
+
+    x_new = x
+    istat = sqpopt_line_search_failed
+
+    rc = violation(c, problem%c_lb, problem%c_ub)
+    h0 = 0.5_wp*dot_product(rc, rc)
+    if (h0 <= 0.0_wp) return
+
+    ! largest Jacobian element of each variable in the violated rows:
+    colmax = 0.0_wp
+    do k = 1, jac%nnz
+        if (rc(jac%irow(k)) /= 0.0_wp) colmax(jac%icol(k)) = max(colmax(jac%icol(k)), abs(jac%val(k)))
+    end do
+    jmax = maxval(colmax)
+
+    n_probe = 0
+    do j = 1, size(x)
+        if (colmax(j) > col_tol*jmax) cycle
+        n_probe = n_probe + 1
+        if (n_probe > max_probe) exit
+        do i = 1, size(steps)
+            do s = 1, -1, -2
+                xj = min(max(x(j) + s*steps(i)*max(1.0_wp, abs(x(j))), problem%x_lb(j)), problem%x_ub(j))
+                if (xj == x(j)) cycle
+                x_trial    = x
+                x_trial(j) = xj
+                call problem%c(x_trial, c_trial)
+                if (.not. sqpopt_all_finite(c_trial)) cycle
+                rc = violation(c_trial, problem%c_lb, problem%c_ub)
+                h_trial = 0.5_wp*dot_product(rc, rc)
+                if (h_trial < h0) then
+                    x_new = x_trial
+                    istat = sqpopt_success
+                    return
+                end if
+            end do
+        end do
+    end do
+
+    end subroutine escape_step
 !*******************************************************************************
 
 !*******************************************************************************

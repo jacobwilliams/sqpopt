@@ -48,6 +48,13 @@ program test_hs_suite
     !! * `--penalty=multipliers|model` (`options%penalty_update`)
     !! * `--no-interpolate` (`linesearch%interpolate = .false.`)
     !! * `--nonmonotone=N` (`linesearch%nonmonotone_len = N`)
+    !! * `--qp=auto|dense|sparse|sparse-lsqr` (`options%qp_solver_mode`; the
+    !!   HS problems are small, so `auto` picks the dense QP for all of them:
+    !!   `sparse` runs them through the sparse QP instead, and `sparse-lsqr`
+    !!   through its `LSQR` null-space method)
+    !!
+    !! For debugging, `--problem=N` solves only problem `TPN`, and
+    !! `--print=L` sets `options%print_level = L`.
     !!
     !! If any of these options is given, the regression test is skipped (the
     !! baseline is for the defaults). The last line printed before the
@@ -60,6 +67,9 @@ program test_hs_suite
     use sqpopt_module,         only: sqpopt_type
     use sqpopt_problem_module, only: sqpopt_problem_type
     use sqpopt_options_module, only: sqpopt_options_type
+    use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type, sqpopt_qp_auto, sqpopt_qp_dense, &
+                                        sqpopt_qp_reduced_hessian
+    use sqpopt_qp_reduced_hessian_module, only: sqpopt_null_space_lu, sqpopt_null_space_lsqr
     use sqpopt_linesearch_module, only: sqpopt_linesearch_type, sqpopt_linesearch_armijo, sqpopt_linesearch_exact, &
                                         sqpopt_linesearch_watchdog, sqpopt_linesearch_filter, sqpopt_merit_l1, &
                                         sqpopt_merit_augmented_lagrangian, sqpopt_penalty_multipliers, &
@@ -116,6 +126,10 @@ program test_hs_suite
     integer :: cfg_penalty     = sqpopt_penalty_multipliers
     logical :: cfg_interpolate = .true.
     integer :: cfg_nonmonotone = 0
+    integer :: cfg_problem     = 0  !! `--problem=N`: solve only this problem (`0` = all)
+    integer :: cfg_print       = 0  !! `--print=L`: `options%print_level`
+    integer :: cfg_qp          = sqpopt_qp_auto
+    integer :: cfg_null_space  = sqpopt_null_space_lu
     logical :: cfg_default     = .true.   !! whether every setting is the default (then the regression test runs)
 
     call ieee_set_halting_mode(ieee_all, .false.)  ! (trial points may produce NaN/Inf, which the solver handles)
@@ -132,6 +146,7 @@ program test_hs_suite
     call system_clock(t0, rate)
 
     do k = 1, hs_n_problems
+        if (cfg_problem /= 0 .and. hs_problem_ids(k) /= cfg_problem) cycle
         call run_problem(hs_problem_ids(k), k)
     end do
 
@@ -146,8 +161,10 @@ program test_hs_suite
     write(*,'(A,2(I0,A))') '                               NLPQLP ', sum_nlpqlp_nf, ' f, ', sum_nlpqlp_ndf, ' g'
     write(*,'(A,F0.2,A)') 'time: ', real(t1-t0, dp)/real(rate, dp), ' s'
 
-    call write_report(report_file, real(t1-t0, dp)/real(rate, dp))
-    write(*,'(A)') 'report written to: '//report_file
+    if (cfg_problem == 0) then
+        call write_report(report_file, real(t1-t0, dp)/real(rate, dp))
+        write(*,'(A)') 'report written to: '//report_file
+    end if
     write(*,'(5(A,I0))') 'summary: solved=', n_solved, ' local=', n_local, ' failed=', n_failed, &
                          ' nf=', sum_nf, ' ng=', sum_ng
 
@@ -196,11 +213,23 @@ program test_hs_suite
         case ('--penalty=multipliers'); cfg_penalty = sqpopt_penalty_multipliers
         case ('--penalty=model');       cfg_penalty = sqpopt_penalty_model
         case ('--no-interpolate');      cfg_interpolate = .false.
+        case ('--qp=auto');             cfg_qp = sqpopt_qp_auto
+        case ('--qp=dense');            cfg_qp = sqpopt_qp_dense
+        case ('--qp=sparse');           cfg_qp = sqpopt_qp_reduced_hessian
+        case ('--qp=sparse-lsqr');      cfg_qp = sqpopt_qp_reduced_hessian; cfg_null_space = sqpopt_null_space_lsqr
         case default
             if (arg(1:14) == '--nonmonotone=') then
                 read(arg(15:), *, iostat=ios) n
                 if (ios /= 0 .or. n < 0) error stop 'test_hs_suite: bad --nonmonotone value'
                 cfg_nonmonotone = n
+            else if (arg(1:10) == '--problem=') then
+                read(arg(11:), *, iostat=ios) n
+                if (ios /= 0 .or. .not. any(hs_problem_ids == n)) error stop 'test_hs_suite: bad --problem value'
+                cfg_problem = n
+            else if (arg(1:8) == '--print=') then
+                read(arg(9:), *, iostat=ios) n
+                if (ios /= 0) error stop 'test_hs_suite: bad --print value'
+                cfg_print = n
             else
                 write(*,'(A)') 'test_hs_suite: unknown option: '//trim(arg)
                 error stop 1
@@ -217,6 +246,7 @@ program test_hs_suite
     type(sqpopt_problem_type) :: problem
     type(sqpopt_options_type) :: options
     type(sqpopt_linesearch_type) :: linesearch
+    type(sqpopt_qp_solver_type) :: qp_solver
     type(sqpopt_results_type) :: r
     integer, dimension(:), allocatable :: irow, icol
     integer  :: i, j, nnz, istat
@@ -246,10 +276,13 @@ program test_hs_suite
     options%linesearch_mode = cfg_linesearch
     options%merit_mode      = cfg_merit
     options%penalty_update  = cfg_penalty
+    options%qp_solver_mode  = cfg_qp
+    options%print_level     = cfg_print
+    qp_solver%sparse_qp%null_space = cfg_null_space
     linesearch%interpolate     = cfg_interpolate
     linesearch%nonmonotone_len = cfg_nonmonotone
 
-    call solver%initialize(problem=problem, options=options, linesearch=linesearch)
+    call solver%initialize(problem=problem, options=options, linesearch=linesearch, qp_solver=qp_solver)
     call solver%solve(real(p%x0, wp), istat)
     call solver%get_results(r)
 

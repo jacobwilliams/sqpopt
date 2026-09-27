@@ -23,7 +23,7 @@
     use sqpopt_convergence_module, only: check_convergence
     use sqpopt_soc_module,        only: soc_step
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
-    use sqpopt_restoration_module,  only: restoration_step
+    use sqpopt_restoration_module,  only: restoration_step, escape_step
 
     implicit none
 
@@ -78,8 +78,8 @@
 !  "no change") is skipped on the next iteration.
 
     subroutine sqpopt_iterate(problem, options, hessian, qp_solver, linesearch, trust_region, &
-                               x, lambda, x_prev, gl_prev, f_prev, viol_prev, jac, n_acceptable, n_stalled, iter, report, &
-                               done, &
+                               x, lambda, x_prev, gl_prev, f_prev, viol_prev, jac, n_acceptable, n_stalled, n_escape, &
+                               iter, report, done, &
                                istat, info)
 
     type(sqpopt_problem_type),    intent(inout) :: problem     !! problem definition
@@ -102,6 +102,8 @@
                                                           !! stalled-progress test has held (`0` before the 1st call)
     integer,                intent(inout) :: n_acceptable !! number of consecutive iterations (so far) at which the
                                                           !! acceptable-level test has held (`0` before the 1st call)
+    integer,                intent(inout) :: n_escape     !! number of second-order escapes from a stationary point of
+                                                          !! the violation taken so far (`0` before the 1st call)
     integer,                intent(in)    :: iter      !! major iteration number (starts at 1), passed to `report`
     procedure(sqpopt_report_func), optional, pointer :: report !! optional user progress-reporting callback (see [[sqpopt_types_module]])
     logical,                 intent(out)   :: done      !! true if the solver should stop at `x` (see `istat` for why)
@@ -114,6 +116,8 @@
     real(wp) :: alpha
     integer :: qp_istat, step_istat
     logical :: restore
+
+    integer, parameter :: max_escape = 3 !! maximum number of second-order escapes (see [[escape_step]])
 
     done = .false.
 
@@ -197,6 +201,36 @@
         end if
     else
         n_stalled = 0
+    end if
+
+    ! a point that is stationary for the violation may still be a saddle of
+    ! it (e.g. on a symmetry plane of the problem, which exactly computed
+    ! steps never leave): before declaring the problem infeasible, look for a
+    ! second-order decrease of the violation (see [[escape_step]]), and if
+    ! one is found, continue from there (a limited number of times):
+    if (done .and. istat == sqpopt_infeasible .and. n_escape < max_escape) then
+        call escape_step(problem, jac, x, c, x_new, step_istat)
+        if (step_istat == sqpopt_success) then
+            n_escape = n_escape + 1
+            done  = .false.
+            istat = sqpopt_success
+            x_prev = x
+            if (allocated(f_prev)) deallocate(f_prev)
+            viol_prev = maxval(max(problem%c_lb-c, 0.0_wp) + max(c-problem%c_ub, 0.0_wp))
+            block
+                real(wp), dimension(problem%n) :: jtlam
+                call sparse_matvec_transpose(jac, lambda, jtlam)
+                gl_prev = g - jtlam
+            end block
+            call hessian%reset()
+            info%stepped     = .true.
+            info%alpha       = 1.0_wp
+            info%step_norm   = norm2(x_new - x)
+            info%penalty     = linesearch%penalty
+            info%restoration = .true.
+            x = x_new
+            return
+        end if
     end if
     if (done) return
 

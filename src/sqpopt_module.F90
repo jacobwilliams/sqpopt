@@ -149,7 +149,7 @@
     type(sqpopt_sparse_matrix) :: jac !! Jacobian workspace (structure set once, values updated each iteration)
     type(sqpopt_iter_info) :: info
     logical :: done, valid
-    integer :: iter_istat, iter, n_fail, n_acceptable, n_stalled
+    integer :: iter_istat, iter, n_fail, n_acceptable, n_stalled, n_escape
     integer(int64) :: t_start, t_now, t_rate
     character(len=:), allocatable :: msg
 
@@ -209,10 +209,11 @@
     n_fail = 0
     n_acceptable = 0
     n_stalled    = 0
+    n_escape     = 0
     do iter = 1, me%options%max_iter
         me%results%iterations = iter
         call sqpopt_iterate(me%problem, me%options, me%hessian, me%qp_solver, me%linesearch, me%trust_region, &
-                             me%x, me%lambda, x_prev, gl_prev, f_prev, viol_prev, jac, n_acceptable, n_stalled, iter, me%report, &
+                             me%x, me%lambda, x_prev, gl_prev, f_prev, viol_prev, jac, n_acceptable, n_stalled, n_escape, iter, me%report, &
                              done, iter_istat, info)
         if (me%options%print_level >= 1) call print_iteration(iter, info, iter_istat)
         if (done) then
