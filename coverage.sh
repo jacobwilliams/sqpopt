@@ -34,6 +34,9 @@ echo "Using build directory: $BUILD_DIR"
 rm -rf "$COV_DIR"
 mkdir -p "$COV_DIR"
 cp -r "$BUILD_DIR"/*/* "$COV_DIR/" 2>/dev/null || true
+# don't show coverage of test/examples programs:
+rm -rf "$COV_DIR"/test_*
+rm -rf "$COV_DIR"/example_*
 # we want to skip the files that start with 'build_dependencies' because they are not part of the source code
 find "$COV_DIR" -name "build_dependencies*" -exec rm -rf {} +
 
