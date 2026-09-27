@@ -1,227 +1,156 @@
-
 ![Modern Fortran SQP OPTimizer](media/logo-small.png)
 
-Modern Fortran **SQP** **OPT**imizer. A modular and extensible framework for solving large-scale nonlinear optimization problems. A work in progress.
+Modern Fortran **SQP** **OPT**imizer: a modular sequential quadratic
+programming solver for large, sparse nonlinear optimization problems. A work
+in progress.
 
-### Overview
+**Using SQPOPT?** See the **[User Guide](https://jacobwilliams.github.io/sqpopt/)**.
+It covers installation as an FPM dependency, the API, every option, the
+status codes, worked examples, and benchmark results. The
+[API documentation](https://jacobwilliams.github.io/sqpopt/api/),
+[test coverage](https://jacobwilliams.github.io/sqpopt/coverage/), and
+[Hock–Schittkowski results](https://jacobwilliams.github.io/sqpopt/hs_results.html)
+are published there too.
 
-SQPOPT is a modern Fortran implementation of a Sequential Quadratic Programming (SQP) optimizer, for problems of the form:
+This README is for working on SQPOPT itself.
 
-```
-minimize    f(x)
-subject to  c_lb <= c(x) <= c_ub     (nonlinear, possibly two-sided, constraints)
-            x_lb <= x    <= x_ub     (variable bounds)
-```
+## Development environment
 
-where equality constraints are expressed as `c_lb(i) = c_ub(i)`. `f`, `c`,
-and their first derivatives are supplied by the user as callbacks; the
-constraint Jacobian is stored in sparse coordinate (COO) format and the
-Hessian of the Lagrangian is approximated by a matrix-free limited-memory
-quasi-Newton operator (or, optionally, supplied exactly by the user, also
-in sparse form) -- no dense `n x n` or `m x n` array is ever formed, so the
-library scales to large, sparse problems.
+Everything (gfortran, fpm, lcov, FORD, Python with Qt, ...) comes from the
+[pixi](https://pixi.sh) environment in `pixi.toml`, which CI uses too. Run
+commands with `pixi run ...`, or open a shell in the environment with
+`pixi shell`. (On macOS, use the pixi gfortran: a system gfortran may fail
+to link.)
 
-#### Features include:
-- SQP method: minimizes a nonlinear objective function subject to nonlinear equality and inequality constraints, and bounds.
-- Modern Fortran implementation
-- Modular architecture -- problem definition, options, Hessian approximation, QP subproblem solver, line search, and convergence checking are each their own module, so alternative algorithms can be developed and swapped in independently
-- Open-source and actively maintained
-- Sparse matrix support (COO constraint Jacobian; matrix-free limited-memory Hessian)
-- Easy integration with existing Fortran projects (uses the FPM build system)
-- Selectable real kinds (single, double, quadruple)
+## Building and testing
 
-### Basic usage
-
-```fortran
-use sqpopt_module,         only: sqpopt_type
-use sqpopt_problem_module, only: sqpopt_problem_type
-use sqpopt_options_module, only: sqpopt_options_type
-
-type(sqpopt_type)         :: solver
-type(sqpopt_problem_type) :: problem
-type(sqpopt_options_type) :: options
-real(wp) :: x(n), lambda(m)
-integer  :: istat
-
-call problem%set_problem_size(n, m)          ! n variables, m constraints
-call problem%set_bounds(x_lb, x_ub, c_lb, c_ub)
-call problem%set_jacobian_sparsity(nnz, irow, icol)  ! fixed sparsity pattern
-call problem%set_functions(fc=fc, gjac=gjac)         ! optionally also data=...
-
-call solver%initialize(problem=problem, options=options)
-call solver%solve(x0, istat)            ! optionally also lambda0=...
-call solver%get_solution(x, lambda)     ! optionally also z (bound multipliers)
-print *, solver%status_message()        ! e.g. 'converged successfully'
+```sh
+pixi run fpm build                     # debug build of the library
+pixi run fpm build --profile release
+pixi run fpm test                      # all the tests
+pixi run fpm test test_hs71            # one test
 ```
 
-The problem is defined by two user functions: `fc` evaluates the
-objective and the constraints together, and `gjac` evaluates the
-objective gradient and the nonzero values of the constraint Jacobian
-together (in the order of the `irow`/`icol` sparsity pattern):
+The default precision is double. For single or quadruple precision, define
+`REAL32` or `REAL128` (see `src/sqpopt_kinds.F90`):
 
-```fortran
-subroutine fc(x, f, c, status, data)
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp),               intent(out)   :: f
-    real(wp), dimension(:), intent(out)   :: c        ! dimension(m)
-    integer,                intent(inout) :: status   ! 0 on entry
-    class(*), optional,     intent(inout) :: data
-    f = ...
-    c = ...
-end subroutine fc
-
-subroutine gjac(x, g, jac_val, status, data)
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp), dimension(:), intent(out)   :: g        ! dimension(n)
-    real(wp), dimension(:), intent(out)   :: jac_val  ! dimension(nnz)
-    integer,                intent(inout) :: status   ! 0 on entry
-    class(*), optional,     intent(inout) :: data
-    g = ...
-    jac_val = ...
-end subroutine gjac
+```sh
+pixi run fpm test --flag "-DREAL128"
 ```
 
-The two trailing arguments are:
+### Tests
 
-- `status`: leave it `0` on success. Set it `> 0` if the function can't
-  be evaluated at `x` (e.g. a domain error): the solver treats that point
-  like one where the function returned NaN, and backs off from it. Set it
-  `< 0` to stop the solver (`sqpopt_user_requested_stop`); no user
-  function is called again after that.
-- `data`: the object passed as `set_functions(..., data=my_data)` (absent
-  if none was given), for passing any context to the functions without
-  module variables. Access it with `select type`. It is *pointed to*, not
-  copied, so the caller's object needs the `target` attribute; updates
-  the functions make to it are seen by the caller. It is also passed to
-  the `report` callback.
+The tests are in `test/`:
 
-After a solve, `solver%get_results(results)` returns a
-`sqpopt_results_type` (from `sqpopt_types_module`) containing:
-- the status and message, and the number of iterations;
-- the number of calls of `fc` and `gjac` (`n_eval_fc`, `n_eval_gjac`), and the run time;
-- the final `x`, `f`, and `c`;
-- the constraint multipliers `lambda` and the variable-bound multipliers
-  `z`;
-- the KKT and feasibility errors.
+- **Unit tests** of the components on their own: `test_qp_dense`,
+  `test_qp_reduced_hessian`, and `test_qp_fuzz` (both QP solvers on thousands
+  of random convex, nonconvex, degenerate, and infeasible QPs, checked against
+  the KKT conditions), `test_hessian_consistency`, `test_acceptance` (merit
+  function, filter, funnel), `test_convergence`, and
+  `test_independent_columns`.
+- **Solver tests** on small problems with known solutions (`test_basic`,
+  `test_hs71`, `test_medium`, `test_maratos`), larger sparse ones
+  (`test_large_sparse`), and regression tests of the interface and edge cases
+  (`test_callbacks`, `test_input_validation`, `test_infeasible`,
+  `test_nonfinite`, `test_resolve`, `test_results`, `test_termination`, ...).
+- **`test_hs_suite`**: the 305 Hock–Schittkowski problems
+  (`test/schittkowski_problems.f90`). It is also the regression baseline:
+  the test fails if a problem not listed in `known_unsolved` isn't solved,
+  and reports problems in that list that now are. Its command-line options
+  select other configurations (these skip the regression check):
 
-All of these are for the original problem, even when automatic scaling
-is on. The Lagrangian is \( f - \lambda^T c - z^T x \), so a multiplier is
-`>= 0` at a lower bound and `<= 0` at an upper bound.
+  ```sh
+  pixi run fpm test test_hs_suite --profile release -- results.md --linesearch=funnel
+  pixi run fpm test test_hs_suite -- /dev/null --problem=71 --print=2   # one problem, with its iterations
+  ```
 
-Before iterating, `solve` validates the problem definition and options
-(returning `istat=sqpopt_invalid_input`, with the reason in
-`status_message()`, if anything is wrong), and moves `x0` inside the
-variable bounds, so the user functions are never evaluated outside them.
-If no acceptable step can be found along a search direction, no step is
-taken (the point is never moved to one that makes the merit function
-worse); the Hessian approximation is reset so the next iteration tries a
-different direction. Every call to `solve` starts from the configuration given to `initialize`:
-no state (penalty parameter, filter, Hessian, ...) carries over from a
-previous solve.
+  The options are `--linesearch=`, `--merit=`, `--penalty=`, `--hessian=`,
+  `--qp=`, `--restoration=`, `--trust-region`, `--no-interpolate`,
+  `--nonmonotone=N`, `--lbfgs-memory=N`, `--problem=N`, `--print=L`, and
+  `--web-data=FILE` (see the header of `test/test_hs_suite.f90`).
+- **`test_hs_slsqp`** runs the same problems with
+  [SLSQP](https://github.com/jacobwilliams/slsqp) (a dev-dependency), for
+  the comparison on the results page.
 
-#### Status codes (`istat`, from `sqpopt_types_module`)
+### Benchmark
 
-| value | meaning |
+`example/benchmark.f90` measures function evaluations and run time on a
+discretized optimal-control problem and a constrained chained-Rosenbrock
+problem, at sizes that use each QP solver:
+
+```sh
+pixi run fpm run --example benchmark --profile release
+```
+
+## Tools
+
+| | |
 |---|---|
-| `sqpopt_success` (`0`) | the KKT conditions are satisfied to within `ktol`/`ctol` |
-| `sqpopt_max_iter_reached` (`1`) | `max_iter` major iterations were performed |
-| `sqpopt_infeasible` (`2`) | the constraints are violated at a point that is stationary for the constraint violation: the problem appears to be (locally) infeasible |
-| `sqpopt_line_search_failed` (`3`) | `max_consecutive_failures` consecutive iterations failed to find an acceptable step |
-| `sqpopt_qp_solve_failed` (`4`) | `max_consecutive_failures` consecutive QP subproblem solves failed |
-| `sqpopt_user_requested_stop` (`5`) | the `report` callback, or a user function (`status < 0`), asked the solver to stop |
-| `sqpopt_invalid_input` (`6`) | the problem definition or options are invalid (see `status_message()`) |
-| `sqpopt_stalled` (`7`) | feasible, but the objective and variables have stopped changing (see `ftol`/`xtol`) before the KKT test was satisfied; usually an acceptable, if less precise, solution |
-| `sqpopt_function_error` (`8`) | a problem function returned a non-finite value (NaN or Inf), or `status > 0`, at the current point (at a *trial* point, that just makes the line search/trust region reject the point and back off) |
-| `sqpopt_max_evals_reached` (`9`) | `max_evals` calls of `fc` were performed |
-| `sqpopt_time_limit_reached` (`10`) | the `max_time` limit was reached |
-| `sqpopt_unbounded` (`11`) | the objective fell below `obj_lower_limit` at a feasible point |
-| `sqpopt_acceptable` (`12`) | the looser `acceptable_ktol`/`acceptable_ctol` tests held for `acceptable_iter` consecutive iterations (as in IPOPT), but the normal ones did not |
+| `coverage.sh` | runs the tests with `--coverage` and makes an lcov HTML report in `coverage/html` (dark-mode aware) |
+| `tools/hs_performance_table.sh` | runs the HS suite in every configuration of the guide's Performance table and prints the table rows. It also regenerates the data of the results page (`web/js/hs_results_data.js`, `web/js/hs_slsqp_data.js`). Run it whenever a change affects the HS results. |
+| `tools/hs_compare.sh N [options]` | runs HS problem `N` with SQPOPT and SLSQP, printing both solvers' iterations, for investigating a difference |
+| `python/` | a Qt options dialog for SQPOPT, for use in other programs (see [python/README.md](python/README.md)) |
 
-See [test/test_basic.f90](test/test_basic.f90), [test/test_hs71.f90](test/test_hs71.f90),
-and [test/test_medium.f90](test/test_medium.f90) for complete worked examples.
+All are run from the repository root, e.g. `pixi run tools/hs_compare.sh 220`.
 
-### Configuration
+## Documentation and website
 
-`solver%initialize(problem=..., options=..., hessian=..., qp_solver=...,
-linesearch=..., trust_region=..., report=...)` accepts one instance of
-each sub-component, all optional (defaults are used for anything
-omitted). `sqpopt_options_type` covers the most commonly tuned settings,
-including the algorithm selectors; the other types expose further
-algorithm-specific tuning parameters and are configured by constructing
-them directly, e.g.:
+The website is `web/`: the user guide (`web/index.html`), the
+Hock–Schittkowski results page (`web/hs_results.html`), and their CSS and
+JavaScript. Update the guide along with any change to the API, options, or
+behavior. When the HS results change, regenerate its Performance table with
+`tools/hs_performance_table.sh`.
 
-```fortran
-type(sqpopt_qp_solver_type)  :: qp_solver
-type(sqpopt_linesearch_type) :: linesearch
+The API documentation is generated from the source comments with
+[FORD](https://github.com/Fortran-FOSS-Programmers/ford):
 
-qp_solver%max_step             = 5.0_wp
-qp_solver%sparse_qp%lsqr_atol  = 5.0e-10_wp
-linesearch%major_step_limit    = 1.0_wp
-
-call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, linesearch=linesearch)
+```sh
+pixi run ford ford.md --output_dir web/api
 ```
 
-The full reference for every option (problem definition, solver options,
-Hessian approximation, QP subproblem solvers, line search and merit
-functions, and trust region), along with benchmark results, is in the
-[user guide](web/index.html).
+The design documents and the roadmap are in [plan/](plan/): the
+architecture ([PLAN.md](plan/PLAN.md)), the backlog
+([ROADMAP.md](plan/ROADMAP.md)), and the latest code review
+([CODE_REVIEW.md](plan/CODE_REVIEW.md)).
 
-See [plan/PLAN.md](plan/PLAN.md) for the full architecture write-up, algorithm
-details, and backlog of future work.
+## Source layout
 
-### Developing
+| module | |
+|---|---|
+| `sqpopt_module` | the solver object: `initialize`, `solve`, results, and the validation of the inputs |
+| `sqpopt_iterate_module` | the major iterations |
+| `sqpopt_problem_module` | the problem definition, user-function interface, evaluation caching, and scaling |
+| `sqpopt_options_module` | the solver options |
+| `sqpopt_types_module` | status codes, the sparse matrix and results types, and small utilities |
+| `sqpopt_hessian_module` | the limited-memory BFGS/SR1 approximations, and the exact Hessian |
+| `sqpopt_qp_solver_module` | the QP subproblem front end, which chooses a solver |
+| `sqpopt_qp_dense_module` | the dense active-set QP |
+| `sqpopt_qp_reduced_hessian_module` | the sparse active-set QP (LUSOL basis, reduced-Hessian CG) |
+| `sqpopt_linesearch_module` | the line searches (Armijo, exact, watchdog, filter, funnel) |
+| `sqpopt_merit_module`, `sqpopt_filter_module`, `sqpopt_funnel_module` | the acceptance tests the line searches and the trust region use |
+| `sqpopt_trust_region_module` | the trust-region globalization |
+| `sqpopt_restoration_module` | feasibility restoration |
+| `sqpopt_soc_module` | second-order corrections |
+| `sqpopt_convergence_module` | the KKT convergence test |
+| `sqpopt_linalg_module`, `sqpopt_dense_linalg_module` | sparse and dense linear algebra |
+| `sqpopt_kinds` | the real kind (precision) |
 
-Use the `pixi` environment and the Fortran Package Manager (FPM):
+## Continuous integration
 
-```
-pixi shell
-fpm build --profile release
-fpm test --profile release
-```
+On every push, [CI](.github/workflows/CI.yml) builds the pixi environment
+from the locked `pixi.lock`, runs the tests with coverage, and builds the
+FORD documentation. On `master`, it deploys `web/` (with the coverage
+report and API docs) to GitHub Pages.
 
-The user guide is in [web/](web/). To generate the FORD API documentation
-that it links to:
+## Dependencies
 
-```
-ford ford.md --output_dir web/api
-```
+Fetched and built by fpm:
 
-A scalable benchmark (function evaluations and run time on a nonlinear
-optimal-control problem and a constrained chained-Rosenbrock problem, at
-sizes that exercise both QP solvers) is in `example/benchmark.f90`:
+- [LSQR](https://github.com/jacobwilliams/LSQR): iterative sparse least-squares solver
+- [lusol](https://github.com/jacobwilliams/lusol): sparse LU factorization (the sparse QP's basis factors and updates)
+- [fmin](https://github.com/jacobwilliams/fmin): derivative-free 1-D minimization (the exact line search)
+- [slsqp](https://github.com/jacobwilliams/slsqp) (tests only): the SLSQP comparison
 
-```
-fpm run --example benchmark --profile release
-```
+## License
 
-### Dependencies of this package
-
-This package depends on the following external libraries (which will be automatically fetched and built by FPM):
-
-* [LSQR](https://github.com/jacobwilliams/LSQR) -- iterative solver for sparse linear systems and least-squares problems
-* [lusol](https://github.com/jacobwilliams/lusol) -- sparse LU factorization library (the sparse QP's basis factors and updates, and its rank-revealing basis choice)
-* [fmin](https://github.com/jacobwilliams/fmin.git) -- derivative-free minimization routine used for exact line search
-
-### Other Fortran SQP Solvers
-
- * [SNOPT](https://ccom.ucsd.edu/~optimizers/solvers/snopt/) -- Large-scale SQP solver developed by Philip Gill, Walter Murray, and Michael Saunders. A commercial product.
- * [VF13AD](https://www.hsl.rl.ac.uk/archive/) -- Classic SQP method from the HSL Archive.
- * [SLSQP](https://github.com/jacobwilliams/slsqp) -- Originally by Dieter Kraft, one of the optimization methods in SciPy.
- * [PSQP](https://github.com/jacobwilliams/psqp) -- Another SQP code, originally by Ladislav Luksan.
-
-### Other Optimization Libraries
-
- * [IPOPT](https://github.com/coin-or/Ipopt) -- Interior Point OPTimizer for large-scale nonlinear optimization.
- * [Uno](https://github.com/cvanaret/Uno) -- Uno (Unifying Nonlinear Optimization) is a C++ framework for solving nonlinearly constrained optimization problems
-
-### References
-
- * Gill, P. E., Murray, W., Saunders, M. A. (2002). SNOPT: An SQP Algorithm for Large-Scale Constrained Optimization, SIAM Journal on Optimization, 12(4), 979-1006.
- * Kraft, D. (1988). A software package for sequential quadratic programming. Forschungsbericht Deutsche Forschungs- und Versuchsanstalt für Luft- und Raumfahrt.
- * Nocedal, J., & Wright, S. J. (2006). Numerical Optimization. Springer.
- * Fletcher, R., & Leyffer, S. (2002). Nonlinear programming without a penalty function. Mathematical Programming, 91(2), 239-269.
- * D. Kiessling, S. Leyffer, C. Vanaret, A Unified Funnel Restoration SQP Algorithm, Mathematical Programming, Volume 217, pages 323-367 (2026)
- * Gill, P E; Murray, W; Saunders, M A; Wright, M H, Some Theoretical Properties of an Augmented Lagrangian Merit Function, SOL-86-6, 1 April 1986
- * P. E. Gill and E. Wong, User's Guide for SQOPT Version 7.7: Software for Large-Scale Linear and Quadratic Programming, Mar 2021
- * R. Fletcher and S. Leyffer, User manual for filterSQP, University of Dundee, April 1998
- * C. Vanaret1, S. Leyffer, Implementing a unified solver for nonlinearly constrained optimization, Mathematical Programming Computation, 10 June 2026
+[MIT](LICENSE)
