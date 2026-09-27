@@ -6,7 +6,9 @@
 # configuration below (line search / merit function / penalty, or trust region), and prints the table rows (HTML by
 # default, or Markdown with --markdown), ready to paste into the guide. The
 # default configuration's run also regenerates the data of the interactive
-# results page (web/js/hs_results_data.js, for web/hs_results.html).
+# results page (web/js/hs_results_data.js, for web/hs_results.html), and the
+# SLSQP comparison's data is regenerated too (test/test_hs_slsqp.f90,
+# web/js/hs_slsqp_data.js).
 #
 # usage (from the repository root):
 #
@@ -95,4 +97,12 @@ done
 read -r solved local failed nf <<< "$(run "$outdir/extra.md" $extra)"
 echo
 echo "footnote: Armijo / l1 / multipliers with interpolation: solved=$solved local=$local failed=$failed nf=$(commas "$nf")"
+
+# the SLSQP comparison of the results page
+slsqp=$($FPM test test_hs_slsqp --profile release -- --web-data=web/js/hs_slsqp_data.js 2>&1 | grep -a '^summary:' || true)
+if [[ -z "$slsqp" ]]; then
+    echo "error: no summary from test_hs_slsqp" >&2
+    exit 1
+fi
+echo "SLSQP (results page data): ${slsqp#summary: }"
 echo "reports: $outdir"
