@@ -1008,6 +1008,50 @@ function.)
   means fixing that upstream or dropping the `REAL32` option. If the
   benchmark gain is small, drop LSMR, which also resolves §8.4 for it.
 
+- **F15: a persistent SNOPT-style elastic phase.** *(Possible future
+  update, not started.)* SQPOPT uses SNOPT's elastic idea in two places
+  today, but only one QP solve at a time:
+  - an **inconsistent QP**: the QP's elastic slacks start at weight
+    `elastic_weight` × max(1, ‖g‖∞) (1e4; SNOPT's "Elastic weight" is
+    1e6) and are raised ×100 (SNOPT: ×10) up to `elastic_weight_max`.
+    If slacks remain, the QP reports `sqpopt_infeasible`, and the solver
+    enters the **restoration phase** (Uno / filter-SQP style) instead of
+    staying elastic;
+  - **diverging multipliers**: `options%elastic_multiplier_limit`
+    (2026-09-27) re-solves one QP with the offending constraints elastic
+    at a fixed weight, at most 3 times per solve (see the resolved "open
+    issue" under Phase 1).
+
+  SNOPT instead enters an elastic *mode* that persists across major
+  iterations: it solves the elastic problem
+  \( \min f + \gamma \sum_i (v_i + w_i) \) s.t.
+  \( c_l \le c(x) - v + w \le c_u \), \( v, w \ge 0 \), with
+  \( \gamma \) = elastic weight × ‖g‖, leaving it once the constraints are
+  satisfied, and raising \( \gamma \) (×10) while the elastic solution is
+  infeasible for the original problem. A converged elastic problem with
+  positive violation is SNOPT's infeasibility certificate.
+
+  What it would take:
+  - state in the iterate loop (elastic on/off, \( \gamma \)), with the
+    elastic slacks carried through the QP (the forced elastic mode added
+    for `elastic_multiplier_limit` already lets the QP make chosen rows
+    elastic at a fixed weight), and the acceptance tests applied to the
+    elastic objective (the merit function adds \( \gamma \) × violation;
+    the filter and funnel would need the elastic objective as φ);
+  - entry rules (an inconsistent QP; diverging multipliers, replacing
+    the one-shot re-solve), exit rules (feasible again), and the
+    weight-increase rule;
+  - the infeasibility test and status (converged elastic problem with
+    positive violation → `sqpopt_infeasible`).
+
+  Open questions: whether it should replace the restoration phase for
+  inconsistent QPs or complement it (e.g. elastic first, restoration if
+  the elastic phase stalls); its interaction with the trust region; and
+  the default weight. **Benchmark before adopting**: the restoration phase
+  does well on the HS suite (0 failures with the default options), so
+  compare solved/local/failed and `fc` on every configuration of the
+  guide's Performance table, plus `test_infeasible` and `test_degenerate`.
+
 ## 6. Testing and infrastructure
 
 - **CUTEst test problems, as a pure-Fortran harness** *(planned,
