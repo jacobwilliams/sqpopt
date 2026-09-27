@@ -1002,6 +1002,51 @@ function.)
 
 ## 6. Testing and infrastructure
 
+- **CUTEst test problems, as a pure-Fortran harness** *(planned,
+  deferred 2026-09-27)*. A test like `test_hs_suite` on problems from the
+  CUTEst collection ([ralna/CUTEst](https://github.com/ralna/CUTEst): the
+  library, LGPL v3, built with Meson; the problems are SIF files decoded by
+  SIFDecode), without depending on CUTEst or SIFDecode at build time:
+  translate the SIF files ourselves into self-contained Fortran.
+  - **Why it's feasible.** SIF describes each problem in group partially
+    separable form (objective and constraints as sums of groups, each a
+    function of a linear term plus weighted element functions), and the
+    element and group functions are written in a Fortran-like expression
+    syntax *with their first and second derivatives supplied*, so the
+    translated problems get exact gradients (and exact Hessians, for
+    `sqpopt_hessian_exact`). Precedent: S2MPJ (Gratton & Toint, 2024)
+    translates the CUTEst SIF files into self-contained Python, Julia, and
+    MATLAB files plus a small runtime that evaluates the group structure;
+    we would do the same with Fortran as the output.
+  - **Pieces.** (1) A translator (a Python script in `tools/`, run once,
+    not part of the build) that interprets SIF's parameter language (loops,
+    indexed names, parameter arithmetic, size parameters) and writes one
+    Fortran module per problem: the data tables (variables, bounds, start,
+    groups and their linear terms, element uses, constraint types) and the
+    element/group functions. (2) A small Fortran runtime assembling `f`,
+    `c`, the gradient, and the sparse Jacobian (whose pattern comes from
+    the structure, so the sparse QP is exercised naturally) from those
+    tables. (3) A harness like `test_hs_suite` (sqpopt, optionally SLSQP;
+    Markdown report and web data, e.g. a CUTEst tab on
+    `web/hs_results.html`).
+  - **Hard or uncertain parts.** SIF is a large language (S2MPJ needed a
+    substantial translator to cover all of CUTEst), so start with a subset
+    and grow it file by file. Most CUTEst problems have no validated
+    optimum (some SIF files note one in a comment), so classify results by
+    convergence status and by comparison with the other solvers rather than
+    against known optima. Many problems have size parameters (up to 10⁵
+    variables and more), so sizes must be chosen per problem. The license
+    of the SIF problem files must be checked before committing generated
+    code.
+  - **Plan.** Start with 20–30 small, well-known CUTEst problems not
+    already in HS (e.g. BT, ROSENBR, HIMMELxx, and SIF versions of HS
+    problems, which can be cross-checked against `test_hs_suite`), and grow
+    the translator and runtime until they all pass the derivative check
+    (as in `hs_derivatives.f90`) and match S2MPJ's output or published
+    values; then widen the set. Rough effort: a few sessions for a working
+    translator on common problems, more to reach 100–300 validated
+    problems.
+
 - **Promote the review probes to regression tests** (they were throwaway
   programs built against the library):
   - `test_hessian_consistency`: secant condition for the newest pair and
