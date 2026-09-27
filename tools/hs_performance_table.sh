@@ -4,7 +4,9 @@
 # section "Performance"): runs the Hock-Schittkowski test suite
 # (test/test_hs_suite.f90, 305 problems) once for each globalization
 # configuration below (line search / merit function / penalty, or trust region), and prints the table rows (HTML by
-# default, or Markdown with --markdown), ready to paste into the guide.
+# default, or Markdown with --markdown), ready to paste into the guide. The
+# default configuration's run also regenerates the data of the interactive
+# results page (web/js/hs_results_data.js, for web/hs_results.html).
 #
 # usage (from the repository root):
 #
@@ -23,7 +25,7 @@ fi
 
 # label (HTML) | label (Markdown) | harness options  (the first row is the default)
 rows=(
-  "<strong>filter</strong> (default, with interpolation)|**filter** (default, with interpolation)|"
+  "<strong>filter</strong> (default, with interpolation)|**filter** (default, with interpolation)|--web-data=web/js/hs_results_data.js"
   "filter, without interpolation|filter, without interpolation|--no-interpolate"
   "funnel (with interpolation)|funnel (with interpolation)|--linesearch=funnel"
   "filter, exact Hessian (finite differences of the gradients)|filter, exact Hessian (finite differences of the gradients)|--hessian=exact"
