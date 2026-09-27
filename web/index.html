@@ -424,14 +424,22 @@ end subroutine gjac_y</code></pre>
   <div class="comp-row">
     <a class="comp" href="#problem-definition"><code>sqpopt_problem_type</code><span>sizes, bounds, callbacks</span></a>
     <a class="comp comp-accent" href="#solver-options"><code>sqpopt_options_type</code><span>common settings &amp; mode selectors</span></a>
-    <a class="comp" href="#hessian"><code>sqpopt_hessian_type</code><span>quasi-Newton Hessian</span></a>
-    <a class="comp" href="#qp-solver"><code>sqpopt_qp_solver_type</code><span>QP subproblem</span></a>
-    <a class="comp" href="#linesearch"><code>sqpopt_linesearch_type</code><span>line search &amp; merit</span></a>
-    <a class="comp" href="#trust-region"><code>sqpopt_trust_region_type</code><span>trust region (opt-in)</span></a>
+    <a class="comp" href="#hessian"><code>sqpopt_hessian_type</code><span>quasi-Newton or exact Hessian</span></a>
+    <div class="comp">
+      <a href="#qp-solver"><code>sqpopt_qp_solver_type</code></a><span>QP subproblem</span>
+      <div class="comp-subs"><a class="comp-sub" href="#dense-qp">%dense_qp</a><a class="comp-sub" href="#sparse-qp">%sparse_qp</a></div>
+    </div>
+    <div class="comp">
+      <a href="#linesearch"><code>sqpopt_linesearch_type</code></a><span>line search &amp; acceptance tests</span>
+      <div class="comp-subs"><a class="comp-sub" href="#merit-options">%merit</a><a class="comp-sub" href="#filter-options">%filter</a><a class="comp-sub" href="#funnel-options">%funnel</a></div>
+    </div>
+    <a class="comp" href="#trust-region"><code>sqpopt_trust_region_type</code><span>trust region (opt-in; uses the line search&rsquo;s acceptance tests)</span></a>
   </div>
 </div>
 
-<p><code>sqpopt_options_type</code> holds the most commonly tuned settings, including the ones that <em>select</em> an algorithm. The other types expose further tuning parameters for each algorithm. You set those by constructing the component yourself and passing it in:</p>
+<p><code>sqpopt_options_type</code> holds the most commonly tuned settings, including the ones that <em>select</em> an algorithm. The other types expose further tuning parameters for each algorithm. You set those by constructing the component yourself and passing it in.</p>
+
+<p>Two of the components contain components of their own, each with its own options: the QP solver holds the dense and sparse QP solvers (<code>qp_solver%dense_qp</code>, <code>qp_solver%sparse_qp</code>), and the line search holds the acceptance tests (<code>linesearch%merit</code>, the merit function and its penalty parameter; <code>linesearch%filter</code>; <code>linesearch%funnel</code>). The trust region judges its steps with those same acceptance tests, so the filter, funnel, and merit-function settings are made on <code>linesearch</code> even when the trust region is enabled.</p>
 
 <pre><code class="language-fortran">type(sqpopt_qp_solver_type)  :: qp_solver
 type(sqpopt_linesearch_type) :: linesearch
@@ -439,6 +447,7 @@ type(sqpopt_linesearch_type) :: linesearch
 qp_solver%max_step             = 5.0_wp
 qp_solver%sparse_qp%lsqr_atol  = 5.0e-10_wp
 linesearch%major_step_limit    = 1.0_wp
+linesearch%filter%gamma_theta  = 1.0e-6_wp
 
 call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, linesearch=linesearch)</code></pre>
 
@@ -642,7 +651,7 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 </tbody>
 </table></div>
 
-<h3 class="opt-group">Merit function <span class="h-note"><code>linesearch%merit%&lt;name&gt;</code></span></h3>
+<h3 class="opt-group" id="merit-options">Merit function <span class="h-note"><code>linesearch%merit%&lt;name&gt;</code></span></h3>
 <div class="table-wrap"><table class="opt-table">
 <thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
 <tbody>
@@ -676,7 +685,7 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 </tbody>
 </table></div>
 
-<h3 class="opt-group">Filter <span class="h-note"><code>linesearch%filter%&lt;name&gt;</code></span></h3>
+<h3 class="opt-group" id="filter-options">Filter <span class="h-note"><code>linesearch%filter%&lt;name&gt;</code></span></h3>
 <div class="table-wrap"><table class="opt-table">
 <thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
 <tbody>
@@ -688,7 +697,7 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 </tbody>
 </table></div>
 
-<h3 class="opt-group">Funnel <span class="h-note"><code>linesearch%funnel%&lt;name&gt;</code></span></h3>
+<h3 class="opt-group" id="funnel-options">Funnel <span class="h-note"><code>linesearch%funnel%&lt;name&gt;</code></span></h3>
 <div class="table-wrap"><table class="opt-table">
 <thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
 <tbody>

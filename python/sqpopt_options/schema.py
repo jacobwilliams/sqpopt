@@ -558,7 +558,8 @@ TOPICS: tuple[Topic, ...] = (
     )),
 
     Topic('Trust region', 'Trust-region globalization, an alternative to the line search (enable it on the '
-          'Algorithms page).', (
+          'Algorithms page). Its steps are judged by the line search\'s acceptance test selected by '
+          'linesearch_mode, so the Filter, Funnel, and Merit function settings apply to it too.', (
         Section('Radius', (
             _positive('trust_region%radius0', 1.0, 'Initial trust-region radius.'),
             _positive('trust_region%radius_min', 1e-8,
