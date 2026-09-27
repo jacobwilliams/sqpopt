@@ -947,8 +947,9 @@ function.)
   decision point.
 - **F8: derivative checking and finite differences.** Add a derivative
   verifier (SNOPT "Verify level") and a finite-difference fallback with
-  automatic sparsity detection. `NumDiff` is already a dev-dependency;
-  consider promoting it to a runtime dependency.
+  automatic sparsity detection. `NumDiff` could be added as a runtime
+  dependency for this (it was a dev-dependency until 2026-09-27, when it
+  was removed as unused).
 - **F9: warm start.** Accept user-supplied `λ₀` (and bound multipliers)
   and an initial Hessian scaling. Hot-start the QP working set across
   major iterations (E4) and across repeated `solve()` calls.
@@ -1071,8 +1072,9 @@ function.)
   plus a few scalable sparse problems (a discretized optimal-control
   problem, chained Rosenbrock with constraints). Record success rate and
   evaluation counts per mode as a checked-in baseline, compare against
-  `slsqp`/`psqp` (already dev-dependencies), and finish `test_dg.f90`
-  (Duran–Grossmann from the FilterSQP manual).
+  `slsqp` (a dev-dependency; `psqp` was removed on 2026-09-27), and add
+  the Duran–Grossmann problem from the FilterSQP manual (the unfinished
+  `test_dg.f90` was removed on 2026-09-27).
 - **CI** (none today): GitHub Actions running gfortran (two versions)
   and ifx, with debug `-fcheck=all -ffpe-trap=invalid,zero,overflow`
   and release builds, plus the `REAL32` and `REAL128` precision

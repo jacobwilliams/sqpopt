@@ -261,6 +261,8 @@ common component settings could move into `options`.
 ## 6. Testing and tooling
 
 **T1. Dependencies** (low; easy fix). In [fpm.toml](../fpm.toml):
+*(Done 2026-09-27: `nlesolver-fortran`, `psqp`, `NumDiff`, and
+`test_dg.f90` are removed, and `slsqp` is pinned to tag 1.6.1.)*
 - `nlesolver-fortran` and `psqp` are dev-dependencies that nothing uses,
   and `NumDiff` is used only by `test/test_dg.f90`, which is almost entirely
   commented out. Remove them (and `test_dg.f90`, or revive it).
