@@ -27,8 +27,10 @@
 !    violation. The phase ends (see [[restoration_phase_done]]) once the
 !    violation has dropped below `restoration_exit_factor` times its value
 !    at the start of the phase *and* the point is acceptable to the filter
-!    (or funnel), when the point is feasible, or after
-!    `restoration_max_iter` iterations. The point where the phase started
+!    (or funnel), when the point is feasible, after
+!    `restoration_max_iter` iterations, or when a phase step (and its
+!    Gauss-Newton fallback) fails, so that the next iteration tries the
+!    optimality QP again. The point where the phase started
 !    is added to the filter (or the funnel is tightened toward it), so the
 !    iterations can't cycle back to it.
 !  * `sqpopt_restoration_gauss_newton`: a single Gauss-Newton step on the

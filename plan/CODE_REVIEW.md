@@ -114,7 +114,12 @@ relative cap was tried once and hurt TP26/27/375, so this needs
 benchmarking.)
 
 **R2. A restoration phase whose steps keep failing stays in the phase**
-(medium). In [`restoration_phase_iteration`](../src/sqpopt_iterate_module.f90#L570),
+(medium).
+*(Done 2026-09-27: a failed phase step, whose Gauss-Newton fallback also
+fails, now ends the phase, so the next iteration re-solves the optimality
+QP. HS results are unchanged in every configuration. The new path is
+reached on TP13 in the debug build and in `test_infeasible`, with the same
+results.)* In [`restoration_phase_iteration`](../src/sqpopt_iterate_module.f90#L570),
 the phase's exit test (`restoration%done`, including its iteration limit)
 runs only after a *successful* step. If the phase step and its Gauss-Newton
 fallback both fail, the phase stays active, every later iteration retries

@@ -570,7 +570,9 @@
         subroutine restoration_phase_iteration()
         !! one iteration of the restoration phase (falling back to a
         !! Gauss-Newton step if it fails), and end the phase if the new point
-        !! is good enough (see [[restoration_phase_done]])
+        !! is good enough (see [[restoration_phase_done]]). If both steps
+        !! fail, the phase also ends, so that the next iteration tries the
+        !! optimality QP again instead of retrying the phase from the same point.
         real(wp) :: f_new
         real(wp), dimension(problem%m) :: c_new
         logical :: ended
@@ -582,6 +584,8 @@
             call problem%c(x_new, c_new)
             ended = restoration%done(linesearch, l1_violation(c_new, problem%c_lb, problem%c_ub), f_new, &
                                      options%restoration_exit_factor, options%ctol, options%restoration_max_iter)
+        else
+            restoration%active = .false.
         end if
         end subroutine restoration_phase_iteration
 
