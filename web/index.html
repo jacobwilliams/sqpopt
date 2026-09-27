@@ -309,11 +309,14 @@ end program hs71</code></pre>
 <tr><td><code>istat</code>, <code>message</code></td><td>status code and its description</td></tr>
 <tr><td><code>iterations</code></td><td>number of major iterations performed</td></tr>
 <tr><td><code>n_eval_fc</code>, <code>n_eval_gjac</code>, <code>n_eval_hess</code></td><td>number of calls of the user functions <code>fc</code>, <code>gjac</code>, and <code>hess</code></td></tr>
-<tr><td><code>time</code></td><td>wall-clock time of the solve (seconds)</td></tr>
+<tr><td><code>time</code>, <code>time_functions</code>, <code>time_qp</code></td><td>wall-clock time of the solve, and of it, the time in the user functions and in the QP subproblem solver (seconds)</td></tr>
 <tr><td><code>x</code>, <code>f</code>, <code>c</code></td><td>final point, and the objective and constraint values there</td></tr>
 <tr><td><code>lambda</code></td><td>constraint multipliers, <code>dimension(m)</code></td></tr>
 <tr><td><code>z</code></td><td>variable-bound multipliers, <code>dimension(n)</code> (zero for a variable not at a bound)</td></tr>
 <tr><td><code>kkt_error</code></td><td>KKT (stationarity/complementarity) error, of the scaled problem used by the convergence test</td></tr>
+<tr><td><code>stationarity_error</code></td><td>stationarity error of the original (unscaled) problem (see <code>dual_inf_tol</code>)</td></tr>
+<tr><td><code>n_qp_iterations</code></td><td>total active-set iterations of the QP subproblem solves</td></tr>
+<tr><td><code>n_soc</code>, <code>n_hessian_resets</code>, <code>n_restoration_steps</code>, <code>n_restoration_phases</code>, <code>n_elastic</code>, <code>n_escape</code></td><td>counts of the solve's events: accepted second-order corrections, Hessian resets (or shift increases), iterations with a restoration step, restoration phases entered, elastic QP re-solves, and escape steps</td></tr>
 <tr><td><code>feasibility_error</code></td><td>largest violation of a constraint or variable bound</td></tr>
 </tbody>
 </table></div>
@@ -541,7 +544,12 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <div class="table-wrap"><table class="opt-table">
 <thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>print_level</code></td><td><code>0</code></td><td><code>0</code> = no output; <code>1</code> = an iteration table (iteration, objective, infeasibility, KKT error, step length, and flags: <code>R</code> restoration step, <code>Q</code> QP failed, <code>F</code> no acceptable step) plus a final summary; <code>2</code> = also the penalty parameter, step norm, and QP iterations</td></tr>
+<tr><td><code>print_level</code></td><td><code>0</code></td><td>
+  <code>0</code>: no output.
+  <code>1</code>: the problem (sizes), the method (globalization, QP solver, Hessian, restoration), the scaling and the tolerances; one line per major iteration (objective, infeasibility and KKT error of the scaled problem, step length, <code>fc</code> calls so far, and flags for the iteration's events: <code>R</code> restoration step, <code>P</code> restoration phase, <code>S</code> second-order correction, <code>H</code> Hessian reset, <code>E</code> elastic QP re-solve, <code>X</code> escape step, <code>N</code> non-monotone step, <code>W</code> watchdog relaxed step, <code>Q</code> QP failed, <code>F</code> no acceptable step); and a summary (status, objective, feasibility, KKT and unscaled stationarity errors, largest multiplier, active constraints and bounds, evaluations, QP iterations, counts of the events, and the time split between the user functions, the QP, and the rest).
+  <code>2</code>: also, per iteration, the step norm, QP iterations, <code>fc</code> calls, largest multiplier, unscaled stationarity error, the globalization's state (merit penalty, filter entries, funnel width, or trust-region radius), and the Hessian's (stored quasi-Newton pairs, or the exact Hessian's shift).
+  <code>3</code>: also indented detail lines under each iteration: every QP solve (solver, iterations, working-set size, elastic slacks, status, negative curvature), every line-search or trust-region trial (step length or radius, violation and objective or merit value, and why it was accepted or rejected), second-order corrections, restoration phases (start, iterations, end and why), elastic re-solves, escape steps, and Hessian resets (and why); the smallest constraint scale factors; and the solution: the variables and constraints with their bounds, multipliers, and which are active (up to 100 of each).
+</td></tr>
 <tr><td><code>output_unit</code></td><td>standard output</td><td>Fortran unit the output is written to</td></tr>
 </tbody>
 </table></div>

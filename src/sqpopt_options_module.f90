@@ -27,9 +27,17 @@
         !! options that control the SQP algorithm.
 
         integer  :: max_iter          = 100      !! maximum number of major SQP iterations
-        integer  :: print_level       = 0        !! amount of printing to `output_unit`: `0` = none, `1` = one line
-                                                   !! per major iteration plus a final summary, `2` = also the
-                                                   !! penalty parameter, step norm, and QP iterations
+        integer  :: print_level       = 0        !! amount of printing to `output_unit`: `0` = none; `1` = the
+                                                   !! problem and method, one line per major iteration (objective,
+                                                   !! infeasibility, KKT error, step length, evaluations, and flags
+                                                   !! for the events of the iteration), and a final summary; `2` =
+                                                   !! also the step norm, QP iterations, evaluations per iteration,
+                                                   !! largest multiplier, unscaled stationarity, the globalization's
+                                                   !! state, and the Hessian's; `3` = also the details of each
+                                                   !! iteration (QP solves, every line-search or trust-region trial,
+                                                   !! restoration phases, Hessian resets), the constraint scale
+                                                   !! factors, and the solution (variables and constraints, with
+                                                   !! their bounds, multipliers, and which are active)
         integer  :: output_unit       = output_unit !! Fortran unit for the printed output (default: standard output)
         integer  :: hessian_mode      = sqpopt_hessian_bfgs !! Hessian approximation strategy to use
         integer  :: lbfgs_memory      = 0         !! number of `(s,y)` vector pairs retained by the limited-memory

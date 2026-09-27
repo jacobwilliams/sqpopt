@@ -93,6 +93,7 @@
     use sqpopt_filter_module,  only: sqpopt_filter_type
     use sqpopt_funnel_module,  only: sqpopt_funnel_type
     use fmin_module,           only: fmin
+    use sqpopt_log_module,     only: sqpopt_log_type, sqpopt_log_detail, fmt_e, fmt_g
 
     implicit none
 
@@ -188,6 +189,12 @@
         real(wp) :: watchdog_w_opt               = 0.0_wp   !! best merit value found so far
         real(wp), dimension(:), allocatable :: watchdog_x_opt !! best point found so far `dimension(n)`
 
+        ! the detailed log (set by `solve`), and what the last search used (outputs, for the log):
+        type(sqpopt_log_type) :: log
+        logical :: used_soc         = .false. !! the accepted step was a second-order-corrected one
+        logical :: used_nonmonotone = .false. !! the accepted step came from the non-monotone retry
+        logical :: used_relaxed     = .false. !! the step was a watchdog relaxed step
+
         contains
 
         procedure, public :: search                   => line_search
@@ -236,6 +243,10 @@
                                                     !! `x + alpha*p`; see above for the exceptions)
     integer,                  intent(out) :: istat  !! status code (see [[sqpopt_types_module]])
     procedure(sqpopt_soc_func), optional :: soc     !! computes a second-order-corrected step
+
+    me%used_soc         = .false.
+    me%used_nonmonotone = .false.
+    me%used_relaxed     = .false.
 
     select case (me%mode)
     case (sqpopt_linesearch_exact)
@@ -398,6 +409,7 @@
 
         x_trial = x + alpha*p
         call eval_trial(me, eval_f, eval_c, x_trial, c_lb, c_ub, lambda, c_trial, phi_trial, ok, alpha)
+        call log_merit_trial(me, alpha, phi_trial, phi_r + me%sigma*alpha*slope + slack, ok, .false.)
         if (ok .and. phi_trial <= phi_r + me%sigma*alpha*slope + slack) then
             accepted = .true.
             exit
@@ -412,8 +424,10 @@
                 if (soc_ok) then
                     x_trial = x + p_soc
                     call eval_trial(me, eval_f, eval_c, x_trial, c_lb, c_ub, lambda, c_trial, phi_trial, ok, alpha)
+                    call log_merit_trial(me, alpha, phi_trial, phi_r + me%sigma*alpha*slope + slack, ok, .true.)
                     if (ok .and. phi_trial <= phi_r + me%sigma*alpha*slope + slack) then
                         accepted = .true.
+                        me%used_soc = .true.
                         exit
                     end if
                 end if
@@ -476,9 +490,12 @@
     if (.not. accepted .and. me%nonmonotone_len > 0 .and. me%nm_count > 0) then
         ! the non-monotone retry: against the worst merit value of the recent iterates
         if (maxval(me%nm_phi(1:me%nm_count)) > phi0) then
+            call me%log%put(sqpopt_log_detail, 'ls  non-monotone retry, against merit '// &
+                            fmt_g(maxval(me%nm_phi(1:me%nm_count))))
             call backtrack_search(me, eval_f, eval_c, x, p, initial_step_length(x, p, me%major_step_limit), &
                                   phi0, dphi0, c, c_lb, c_ub, lambda, alpha, x_new, phi_new, accepted, soc, &
                                   phi_ref=maxval(me%nm_phi(1:me%nm_count)))
+            me%used_nonmonotone = accepted
         end if
     end if
     call nonmonotone_push(me, phi0, 0.0_wp, f)
@@ -542,16 +559,21 @@
                 call soc(alpha0*p, c_full, p_soc, soc_ok)
                 if (soc_ok) then
                     call eval_trial(me, eval_f, eval_c, x + p_soc, c_lb, c_ub, lambda, c_soc, phi_soc, ok, alpha0)
+                    call me%log%put(sqpopt_log_detail, 'ls  second-order correction: merit '//fmt_g(phi_soc)// &
+                                    merge(' (better, taken)   ', ' (not better)      ', ok .and. phi_soc < phi))
                     if (ok .and. phi_soc < phi) then
                         phi   = phi_soc
                         alpha = alpha0
                         x_new = x + p_soc
+                        me%used_soc = .true.
                     end if
                 end if
             end if
         end if
     end if
 
+    call me%log%put(sqpopt_log_detail, 'ls  exact search: alpha '//fmt_e(alpha)//', merit '//fmt_g(phi)// &
+                    ' (from '//fmt_g(phi0)//')')
     if (phi < phi0 + merit_slack(phi0)) then
         istat = sqpopt_success
     else
@@ -648,6 +670,8 @@
         x_new = x + alpha*p
         call eval_trial(me, eval_f, eval_c, x_new, c_lb, c_ub, lambda, c_trial, phi_trial, ok, alpha0)
         relaxed_used = ok
+        me%used_relaxed = ok
+        if (ok) call me%log%put(sqpopt_log_detail, 'ls  watchdog: relaxed step taken, merit '//fmt_g(phi_trial))
     end if
 
     if (.not. (standard_ok .or. relaxed_used)) then
@@ -749,7 +773,7 @@
     real(wp), dimension(size(x)) :: x_trial, p_soc
     real(wp), dimension(size(c)) :: c_trial
     real(wp) :: f_trial, theta0, theta_t, gtp, alpha_lim
-    logical :: ok, soc_ok, f_type
+    logical :: ok, soc_ok, f_type, acc
     integer :: it
 
     theta0 = l1_violation(c, c_lb, c_ub)
@@ -764,10 +788,14 @@
         call eval_fc(eval_f, eval_c, x_trial, f_trial, c_trial, ok)
         if (ok) then
             theta_t = l1_violation(c_trial, c_lb, c_ub)
-            if (me%filter%accept(theta0, f, gtp, alpha, theta_t, f_trial, f_type)) then
+            acc = me%filter%accept(theta0, f, gtp, alpha, theta_t, f_trial, f_type)
+            call log_theta_trial(me, alpha, theta_t, f_trial, .true., acc, f_type, .false.)
+            if (acc) then
                 call accept()
                 return
             end if
+        else
+            call log_theta_trial(me, alpha, 0.0_wp, 0.0_wp, .false., .false., .false., .false.)
         end if
 
         if (it == 1 .and. ok .and. present(soc)) then
@@ -780,7 +808,10 @@
                     call eval_fc(eval_f, eval_c, x_trial, f_trial, c_trial, ok)
                     if (ok) then
                         theta_t = l1_violation(c_trial, c_lb, c_ub)
-                        if (me%filter%accept(theta0, f, gtp, alpha, theta_t, f_trial, f_type)) then
+                        acc = me%filter%accept(theta0, f, gtp, alpha, theta_t, f_trial, f_type)
+                        call log_theta_trial(me, alpha, theta_t, f_trial, .true., acc, f_type, .true.)
+                        if (acc) then
+                            me%used_soc = .true.
                             call accept()
                             return
                         end if
@@ -813,6 +844,8 @@
             theta_ref = max(theta0, maxval(me%nm_theta(1:me%nm_count)))
             f_ref     = max(f, maxval(me%nm_f(1:me%nm_count)))
             if (theta_ref > theta0 .or. f_ref > f) then
+                call me%log%put(sqpopt_log_detail, 'ls  non-monotone retry, against violation '//fmt_e(theta_ref)// &
+                                ' and objective '//fmt_g(f_ref))
                 alpha = initial_step_length(x, p, me%major_step_limit)
                 do it = 1, me%max_ls_iter
                     x_trial = x + alpha*p
@@ -823,6 +856,7 @@
                             f_trial <= f_ref + me%filter%eta_phi*alpha*min(gtp, 0.0_wp)) then
                             call nonmonotone_push(me, 0.0_wp, theta0, f)
                             call me%filter%record(theta0, f)
+                            me%used_nonmonotone = .true.
                             x_new = x_trial
                             istat = sqpopt_success
                             return
@@ -837,6 +871,8 @@
     call nonmonotone_push(me, 0.0_wp, theta0, f)
 
     ! no acceptable point was found: no step is taken
+    call me%log%put(sqpopt_log_detail, 'ls  no acceptable step length (the next one would be below '// &
+                    fmt_e(alpha_lim)//')')
     alpha = 0.0_wp
     x_new = x
     istat = sqpopt_line_search_failed
@@ -964,7 +1000,7 @@
     real(wp), dimension(size(x)) :: x_trial, p_soc
     real(wp), dimension(size(c)) :: c_trial
     real(wp) :: f_trial, theta0, theta_t, gtp
-    logical :: ok, soc_ok, f_type
+    logical :: ok, soc_ok, f_type, acc
     integer :: it
 
     theta0 = l1_violation(c, c_lb, c_ub)
@@ -978,10 +1014,14 @@
         call eval_fc(eval_f, eval_c, x_trial, f_trial, c_trial, ok)
         if (ok) then
             theta_t = l1_violation(c_trial, c_lb, c_ub)
-            if (me%funnel%accept(theta0, f, -alpha*gtp, theta_t, f_trial, f_type)) then
+            acc = me%funnel%accept(theta0, f, -alpha*gtp, theta_t, f_trial, f_type)
+            call log_theta_trial(me, alpha, theta_t, f_trial, .true., acc, f_type, .false.)
+            if (acc) then
                 call accept()
                 return
             end if
+        else
+            call log_theta_trial(me, alpha, 0.0_wp, 0.0_wp, .false., .false., .false., .false.)
         end if
 
         if (it == 1 .and. ok .and. present(soc)) then
@@ -994,7 +1034,10 @@
                     call eval_fc(eval_f, eval_c, x_trial, f_trial, c_trial, ok)
                     if (ok) then
                         theta_t = l1_violation(c_trial, c_lb, c_ub)
-                        if (me%funnel%accept(theta0, f, -alpha*gtp, theta_t, f_trial, f_type)) then
+                        acc = me%funnel%accept(theta0, f, -alpha*gtp, theta_t, f_trial, f_type)
+                        call log_theta_trial(me, alpha, theta_t, f_trial, .true., acc, f_type, .true.)
+                        if (acc) then
+                            me%used_soc = .true.
                             call accept()
                             return
                         end if
@@ -1019,6 +1062,8 @@
     end do
 
     ! no acceptable point was found: no step is taken
+    call me%log%put(sqpopt_log_detail, 'ls  no acceptable step length (the next one would be below '// &
+                    fmt_e(me%alpha_min)//')')
     alpha = 0.0_wp
     x_new = x
     istat = sqpopt_line_search_failed
@@ -1033,6 +1078,80 @@
         end subroutine accept
 
     end subroutine funnel_line_search
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the detailed log's line for a trial point of a merit-function search:
+!  its step length, merit value, and the value it had to reach.
+
+    subroutine log_merit_trial(me, alpha, phi, target, ok, is_soc)
+
+    class(sqpopt_linesearch_type), intent(in) :: me
+    real(wp), intent(in) :: alpha, phi, target
+    logical,  intent(in) :: ok     !! whether the functions were finite there
+    logical,  intent(in) :: is_soc !! whether it was the second-order-corrected step
+
+    character(len=:), allocatable :: what
+
+    if (.not. me%log%on(sqpopt_log_detail)) return
+    what = merge('ls  SOC   alpha ', 'ls  trial alpha ', is_soc)
+    if (.not. ok) then
+        call me%log%put(sqpopt_log_detail, what//fmt_e(alpha)//': non-finite function value, rejected')
+    else
+        call me%log%put(sqpopt_log_detail, what//fmt_e(alpha)//': merit '//fmt_g(phi)//', needed <= '// &
+                        fmt_g(target)//merge(', accepted', ', rejected', phi <= target))
+    end if
+
+    end subroutine log_merit_trial
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the detailed log's line for a trial point of a filter or funnel search:
+!  its step length, violation, objective, and whether (and as which type of
+!  step) it was accepted.
+
+    subroutine log_theta_trial(me, alpha, theta, f, ok, accepted, f_type, is_soc)
+
+    class(sqpopt_linesearch_type), intent(in) :: me
+    real(wp), intent(in) :: alpha, theta, f
+    logical,  intent(in) :: ok       !! whether the functions were finite there
+    logical,  intent(in) :: accepted
+    logical,  intent(in) :: f_type   !! whether the switching condition held (an f-type step)
+    logical,  intent(in) :: is_soc   !! whether it was the second-order-corrected step
+
+    character(len=:), allocatable :: what, verdict
+
+    if (.not. me%log%on(sqpopt_log_detail)) return
+    what = merge('ls  SOC   alpha ', 'ls  trial alpha ', is_soc)
+    if (.not. ok) then
+        call me%log%put(sqpopt_log_detail, what//fmt_e(alpha)//': non-finite function value, rejected')
+        return
+    end if
+    if (accepted) then
+        if (f_type) then
+            verdict = 'accepted (f-type: objective decrease)'
+        else
+            verdict = 'accepted (h-type: violation/objective)'
+        end if
+    else if (me%mode == sqpopt_linesearch_funnel) then
+        verdict = 'rejected (funnel width '//fmt_e(me%funnel%width)//')'
+    else
+        verdict = 'rejected (filter: '//trim(adjustl(itoa(size(me%filter%theta))))//' entries)'
+    end if
+    call me%log%put(sqpopt_log_detail, what//fmt_e(alpha)//': violation '//fmt_e(theta)//', objective '// &
+                    fmt_g(f)//', '//verdict)
+
+    contains
+
+        pure function itoa(i) result(str)
+        integer, intent(in) :: i
+        character(len=16) :: str
+        write(str, '(I0)') i
+        end function itoa
+
+    end subroutine log_theta_trial
 !*******************************************************************************
 
 !*******************************************************************************

@@ -171,8 +171,9 @@ NULL_SPACE_METHODS = (
 )
 PRINT_LEVELS = (
     Choice(0, 'none'),
-    Choice(1, 'iteration table and summary'),
-    Choice(2, 'also penalty, step norm, and QP iterations'),
+    Choice(1, 'iteration log and summary'),
+    Choice(2, 'also more columns (step, QP, multipliers, globalization)'),
+    Choice(3, 'also the details of each iteration, and the solution'),
 )
 FUNNEL_UPDATES = (
     Choice(1, 'max(βτ, κθₖ + (1−κ)θ) if the violation decreased, else βτ'),
@@ -374,9 +375,13 @@ TOPICS: tuple[Topic, ...] = (
         )),
         Section('Output', (
             _o('options%print_level', 'choice', 0,
-               '0 = no output; 1 = an iteration table (iteration, objective, infeasibility, KKT error, step '
-               'length, and flags: R restoration step, Q QP failed, F no acceptable step) plus a final summary; '
-               '2 = also the penalty parameter, step norm, and QP iterations.', choices=PRINT_LEVELS),
+               '0 = no output. 1 = the problem and method, one line per iteration (objective, infeasibility, KKT '
+               'error, step length, evaluations, and flags for the iteration\'s events), and a summary. 2 = also '
+               'the step norm, QP iterations, evaluations per iteration, largest multiplier, unscaled stationarity, '
+               'and the globalization\'s and Hessian\'s state. 3 = also the details of every iteration (QP solves, '
+               'line-search or trust-region trials, restoration phases, Hessian resets) and the solution '
+               '(variables and constraints with their bounds, multipliers, and which are active).',
+               choices=PRINT_LEVELS),
             _o('options%output_unit', 'int', 6,
                'Fortran unit the output is written to. The Fortran default is output_unit from '
                'iso_fortran_env (standard output, unit 6 with gfortran).'),

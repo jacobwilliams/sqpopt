@@ -11,7 +11,12 @@ program test_termination
     !!   level (here, the first iterate with a KKT error below 1e-3) instead
     !!   of continuing;
     !! * `print_level=2` with `output_unit` set to a scratch file: the log
-    !!   and summary are written there.
+    !!   and summary are written there;
+    !! * `print_level=3`: the detailed log has each of its parts (the method,
+    !!   the column headings, detail lines, the events, and the solution
+    !!   tables), the results' event counts and times are consistent, and the
+    !!   solution is the same as with `print_level=0` (printing must not
+    !!   change the result).
     !!
     !! Problem (bounded case): the Rosenbrock function subject to
     !! x1^2 + x2^2 <= 1.5 (solution near (0.9072, 0.8228)).
@@ -98,6 +103,42 @@ program test_termination
     end do
     close(u)
     if (.not. found_summary) error stop 'test_termination FAILED: no summary written to output_unit'
+
+    ! ---- the detailed log (print_level=3), which must not change the result ----
+    block
+        type(sqpopt_results_type) :: r0
+        logical, dimension(6) :: found
+        character(len=*), dimension(6), parameter :: parts = [character(len=24) :: '   method:', '  iter ', &
+            '        . ', '   events ', '   variables:', '   constraints:']
+        integer :: k
+        options = sqpopt_options_type()
+        call solver%initialize(problem=problem, options=options)
+        call solver%solve([-1.2_wp, 1.0_wp], istat)
+        call solver%get_results(r0)
+        open(newunit=u, status='scratch', action='readwrite', form='formatted')
+        options%print_level = 3
+        options%output_unit = u
+        call solver%initialize(problem=problem, options=options)
+        call solver%solve([-1.2_wp, 1.0_wp], istat)
+        call solver%get_results(r)
+        rewind(u)
+        found = .false.
+        do
+            read(u, '(A)', iostat=ios) line
+            if (ios /= 0) exit
+            do k = 1, size(parts)
+                if (index(line, trim(parts(k))) == 1) found(k) = .true.
+            end do
+        end do
+        close(u)
+        print '(A,6L2,A,I0,A,I0)', 'print_level=3: parts found', found, '  QP iterations ', r%n_qp_iterations, &
+            '  iterations ', r%iterations
+        if (.not. all(found)) error stop 'test_termination FAILED: a part of the detailed log is missing'
+        if (any(r%x /= r0%x) .or. r%iterations /= r0%iterations .or. r%n_eval_fc /= r0%n_eval_fc) &
+            error stop 'test_termination FAILED: printing changed the result'
+        if (r%n_qp_iterations < r%iterations - 1 .or. r%time_functions < 0.0_wp .or. r%time_qp < 0.0_wp .or. &
+            r%time_functions + r%time_qp > r%time + 1.0e-3_wp) error stop 'test_termination FAILED: counts or times'
+    end block
 
     print '(A)', 'test_termination PASSED'
 

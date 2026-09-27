@@ -35,6 +35,7 @@
     module sqpopt_qp_solver_module
 
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
+    use, intrinsic :: iso_fortran_env, only: int64
     use sqpopt_types_module,   only: sqpopt_sparse_matrix
     use sqpopt_hessian_module, only: sqpopt_hessian_type
     use sqpopt_qp_dense_module, only: sqpopt_dense_qp_type
@@ -69,6 +70,9 @@
         integer  :: n_short            = 0                      !! consecutive very short line-search steps (internal
                                                                  !! state, see [[sqpopt_iterate_module]])
         integer :: n_iter = 0 !! number of active-set iterations taken by the last QP solve (output)
+        integer :: n_working = 0 !! size of the final working set of the last QP solve (output)
+        integer :: n_slacks  = 0 !! number of elastic slacks in the last QP solve (output)
+        real(wp) :: time = 0.0_wp !! wall-clock time spent in QP solves (output, seconds; reset on each `solve`)
         logical :: negative_curvature = .false. !! whether the last QP solve found negative curvature of the Hessian
                                                 !! in the variables (output; see [[sqpopt_iterate_module]])
         type(sqpopt_dense_qp_type)           :: dense_qp    !! the dense QP solver (used only when `mode==sqpopt_qp_dense`)
@@ -77,6 +81,7 @@
         contains
 
         procedure, public :: solve => solve_qp_subproblem
+        procedure, public :: mode_name
 
     end type sqpopt_qp_solver_type
 
@@ -114,7 +119,9 @@
                                                                   !! weight of every elastic slack
 
     logical :: forced
+    integer(int64) :: t0, t1, rate
 
+    call system_clock(t0, rate)
     forced = present(elastic_sign) .and. present(elastic_weight)
 
     select case (resolved_mode(me, size(g)))
@@ -129,6 +136,8 @@
             me%dense_qp%force_weight = 0.0_wp
         end if
         me%n_iter = me%dense_qp%n_iter
+        me%n_working = me%dense_qp%n_working
+        me%n_slacks  = me%dense_qp%n_slacks
         me%negative_curvature = me%dense_qp%negative_curvature
     case default ! sqpopt_qp_reduced_hessian
         if (forced) then
@@ -141,6 +150,8 @@
             me%sparse_qp%force_weight = 0.0_wp
         end if
         me%n_iter = me%sparse_qp%n_iter
+        me%n_working = me%sparse_qp%n_working
+        me%n_slacks  = me%sparse_qp%n_slacks
         me%negative_curvature = me%sparse_qp%negative_curvature
     end select
 
@@ -153,6 +164,9 @@
     ! `0<=alpha<=1`) is exactly within them -- the user functions must
     ! never be evaluated outside the variable bounds:
     p = min(max(x + p, x_lb), x_ub) - x
+
+    call system_clock(t1)
+    me%time = me%time + real(t1 - t0, wp)/real(rate, wp)
 
     end subroutine solve_qp_subproblem
 !*******************************************************************************
@@ -174,6 +188,26 @@
     end if
 
     end function resolved_mode
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the name of the QP algorithm used for a problem with `n` variables
+!  (`mode` with `sqpopt_qp_auto` resolved), for the printed output.
+
+    function mode_name(me, n) result(name)
+
+    class(sqpopt_qp_solver_type), intent(in) :: me
+    integer,                      intent(in) :: n
+    character(len=:), allocatable :: name
+
+    select case (resolved_mode(me, n))
+    case (sqpopt_qp_dense); name = 'dense QP'
+    case default;           name = 'sparse QP'
+    end select
+    if (me%mode == sqpopt_qp_auto) name = name//' (auto)'
+
+    end function mode_name
 !*******************************************************************************
 
     end module sqpopt_qp_solver_module

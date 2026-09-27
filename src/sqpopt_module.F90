@@ -29,12 +29,14 @@
                                          sqpopt_qp_reduced_hessian
     use sqpopt_qp_reduced_hessian_module, only: sqpopt_null_space_lu, sqpopt_null_space_lsqr
     use sqpopt_linesearch_module, only: sqpopt_linesearch_type, sqpopt_linesearch_armijo, sqpopt_linesearch_funnel, &
+                                         sqpopt_linesearch_filter, sqpopt_linesearch_watchdog, &
                                          sqpopt_merit_l1, sqpopt_merit_augmented_lagrangian, &
                                          sqpopt_penalty_multipliers, sqpopt_penalty_model
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
     use sqpopt_restoration_module,  only: sqpopt_restoration_type, sqpopt_restoration_phase, &
                                           sqpopt_restoration_gauss_newton
     use sqpopt_iterate_module,    only: sqpopt_iterate, sqpopt_evaluate_point, sqpopt_iter_info
+    use sqpopt_log_module,        only: sqpopt_log_type, sqpopt_log_detail, fmt_e, fmt_i, plural
 
     implicit none
 
@@ -150,7 +152,9 @@
     type(sqpopt_sparse_matrix) :: jac !! Jacobian workspace (structure set once, values updated each iteration)
     type(sqpopt_iter_info) :: info
     logical :: done, valid
-    integer :: iter_istat, iter, n_fail, n_acceptable, n_stalled, n_escape
+    integer :: iter_istat, iter, n_fail, n_acceptable, n_stalled, n_escape, n_fc0
+    logical :: in_phase !! whether the previous iteration was in a restoration phase (to count the phases)
+    integer :: detail_unit = -1 !! scratch file for the detail lines of the current iteration (`print_level >= 3`)
     integer(int64) :: t_start, t_now, t_rate
     character(len=:), allocatable :: msg
     type(sqpopt_restoration_type) :: fresh_restoration !! (default-initialized)
@@ -169,7 +173,7 @@
     if (allocated(me%lambda)) deallocate(me%lambda)
     allocate(me%lambda(max(me%problem%m,0)))
     me%lambda = 0.0_wp
-    me%results%iterations = 0
+    me%results = sqpopt_results_type()
 
     ! check the inputs before doing anything else:
     call me%problem%validate(istat, msg)
@@ -223,8 +227,18 @@
     me%linesearch%mode       = me%options%linesearch_mode
     me%linesearch%merit%mode           = me%options%merit_mode
     me%linesearch%merit%penalty_update = me%options%penalty_update
+    ! (the components that write detail lines to the log)
+    me%linesearch%log   = sqpopt_log_type(unit=me%options%output_unit, level=me%options%print_level)
+    if (me%options%print_level >= sqpopt_log_detail) then
+        ! (the detail lines of an iteration go to a scratch file, and are copied
+        ! out after the iteration's line of the log, see `print_details`)
+        open(newunit=detail_unit, status='scratch', action='readwrite', form='formatted')
+        me%linesearch%log%unit = detail_unit
+    end if
+    me%trust_region%log = me%linesearch%log
 
     if (me%options%print_level >= 1) call print_header()
+    in_phase = .false.
 
     n_fail = 0
     n_acceptable = 0
@@ -232,11 +246,15 @@
     n_escape     = 0
     do iter = 1, me%options%max_iter
         me%results%iterations = iter
+        n_fc0 = me%problem%n_eval_fc
         call sqpopt_iterate(me%problem, me%options, me%hessian, me%qp_solver, me%linesearch, me%trust_region, &
                              me%x, me%lambda, x_prev, gl_prev, f_prev, viol_prev, jac, n_acceptable, n_stalled, n_escape, &
                              me%restoration, iter, me%report, &
                              done, iter_istat, info)
+        info%n_fc = me%problem%n_eval_fc - n_fc0
+        call count_events()
         if (me%options%print_level >= 1) call print_iteration(iter, info, iter_istat)
+        if (me%options%print_level >= sqpopt_log_detail) call print_details()
         if (done) then
             ! converged, stalled, acceptable, infeasible, unbounded, function error, or user stop:
             call finish(iter_istat)
@@ -291,7 +309,9 @@
         me%results%x = me%x
         if (valid) then
             call sqpopt_evaluate_point(me%problem, me%options, me%x, me%lambda, jac, fs, cs, &
-                                       me%results%kkt_error, me%results%feasibility_error, zs)
+                                       me%results%kkt_error, me%results%feasibility_error, zs, &
+                                       stat_error=me%results%stationarity_error)
+            me%results%stationarity_error = me%results%stationarity_error/me%problem%f_scale
             me%results%f      = fs/me%problem%f_scale
             me%results%c      = cs/me%problem%c_scale
             me%results%lambda = me%lambda*me%problem%c_scale/me%problem%f_scale
@@ -312,72 +332,454 @@
         end if
         call system_clock(t_now)
         me%results%time = real(t_now-t_start, wp)/real(t_rate, wp)
+        me%results%time_functions = me%problem%time_user
+        me%results%time_qp        = me%qp_solver%time
 
         ! (not for invalid inputs, which may include `output_unit` itself)
         if (valid .and. me%options%print_level >= 1) call print_summary()
+        if (detail_unit /= -1) then
+            close(detail_unit)
+            detail_unit = -1
+        end if
         end subroutine finish
 
+        subroutine print_details()
+        !! copy the current iteration's detail lines from the scratch file to the log, and empty it
+        character(len=1024) :: line
+        integer :: ios
+        if (detail_unit == -1) return
+        rewind(detail_unit)
+        do
+            read(detail_unit, '(A)', iostat=ios) line
+            if (ios /= 0) exit
+            write(me%options%output_unit, '(A)') trim(line)
+        end do
+        rewind(detail_unit)
+        endfile(detail_unit)
+        rewind(detail_unit)
+        end subroutine print_details
+
+        subroutine count_events()
+        !! add this iteration's events to the counts in the results
+        me%results%n_qp_iterations = me%results%n_qp_iterations + info%qp_iter
+        if (info%soc)         me%results%n_soc            = me%results%n_soc + 1
+        if (info%hess_reset)  me%results%n_hessian_resets = me%results%n_hessian_resets + 1
+        if (info%elastic)     me%results%n_elastic        = me%results%n_elastic + 1
+        if (info%escape)      me%results%n_escape         = me%results%n_escape + 1
+        if (info%restoration) me%results%n_restoration_steps = me%results%n_restoration_steps + 1
+        if (info%phase .and. .not. in_phase) me%results%n_restoration_phases = me%results%n_restoration_phases + 1
+        in_phase = info%phase .and. me%restoration%active
+        end subroutine count_events
+
         subroutine print_header()
-        !! the iteration log's column headings
-        integer :: u
+        !! the problem, the method, and the iteration log's column headings,
+        !! with a legend (`print_level >= 1`), and at `print_level >= 3` the
+        !! scale factors
+        integer :: u, n_eq
         u = me%options%output_unit
+        n_eq = 0
+        if (me%problem%m > 0) n_eq = count(me%problem%c_ub - me%problem%c_lb <= 0.0_wp)
         write(u,'(A)') ''
-        write(u,'(A,I0,A,I0,A,ES9.2,A,ES9.2)') ' sqpopt: n = ', me%problem%n, ', m = ', me%problem%m, &
-            ', objective scale = ', me%problem%f_scale, ', min constraint scale = ', &
-            minval([1.0_wp, me%problem%c_scale])
-        if (me%options%print_level >= 2) then
-            write(u,'(A6,A18,3A11,A11,A11,A7,A6)') 'iter', 'objective', 'infeas', 'kkt', 'alpha', &
-                'penalty', '|step|', 'qp_it', 'flags'
+        write(u,'(A)') ' sqpopt: '//plural(me%problem%n, 'variable', 'variables')//', '// &
+                       plural(me%problem%m, 'constraint', 'constraints')//' ('//plural(n_eq, 'equality', 'equalities')// &
+                       '), '//plural(me%problem%jac_nnz, 'Jacobian nonzero', 'Jacobian nonzeros')
+        write(u,'(A)') '   method:     '//method_text()
+        if (me%options%scaling) then
+            write(u,'(A)') '   scaling:    objective x '//fmt_e(me%problem%f_scale)//constraint_scale_text()
         else
-            write(u,'(A6,A18,3A11,A6)') 'iter', 'objective', 'infeas', 'kkt', 'alpha', 'flags'
+            write(u,'(A)') '   scaling:    off'
+        end if
+        write(u,'(A)') '   tolerances: ktol '//fmt_e(me%options%ktol)//', ctol '//fmt_e(me%options%ctol)// &
+                       ', dual_inf_tol '//fmt_e(me%options%dual_inf_tol)//', max_iter '//fmt_i(me%options%max_iter)
+        if (me%options%print_level >= sqpopt_log_detail .and. me%problem%m > 0) call print_scale_factors()
+        write(u,'(A)') ''
+        if (me%options%print_level >= 2) then
+            write(u,'(A6,A17,3A10,A8,A10,2A6,2A10,2A10,2X,A)') 'iter', 'objective', 'infeas*', 'kkt*', 'alpha', &
+                'fc', '|step|', 'qp_it', 'ls_fc', '|lambda|', 'stat', glob_heading(), hess_heading(), 'flags'
+        else
+            write(u,'(A6,A17,3A10,A8,2X,A)') 'iter', 'objective', 'infeas*', 'kkt*', 'alpha', 'fc', 'flags'
         end if
         end subroutine print_header
 
+        subroutine print_legend()
+        !! what the columns and flags mean (printed with the summary, so the log stays compact)
+        integer :: u
+        u = me%options%output_unit
+        if (me%options%print_level >= 2) then
+            write(u,'(A)') '   columns: * = of the scaled problem (the convergence test); objective, |lambda| (the'
+            write(u,'(A)') '            largest multiplier) and stat (the stationarity error) are of the original'
+            write(u,'(A)') '            problem; fc = calls of fc so far, ls_fc = in this iteration; qp_it = QP'
+            write(u,'(A)') '            iterations; '//trim(adjustl(glob_heading()))//' = '//glob_meaning()//'; '// &
+                           trim(adjustl(hess_heading()))//' = '//hess_meaning()
+        else
+            write(u,'(A)') '   columns: * = of the scaled problem (the convergence test); the objective is of the'
+            write(u,'(A)') '            original problem; fc = calls of fc so far'
+        end if
+        write(u,'(A)') '   flags:   R restoration step, P restoration phase, S second-order correction, H Hessian'
+        write(u,'(A)') '            reset, E elastic QP re-solve, X escape step, N non-monotone step, W watchdog'
+        write(u,'(A)') '            relaxed step, Q QP failed, F no acceptable step'
+        end subroutine print_legend
+
+        subroutine print_scale_factors()
+        !! the constraint scale factors (all of them, or the smallest ones, `print_level >= 3`)
+        integer :: u, i, k, n_show
+        integer, dimension(me%problem%m) :: order
+        u = me%options%output_unit
+        if (all(me%problem%c_scale == 1.0_wp)) return
+        ! (the smallest factors first: the constraints scaled down the most)
+        order = [(i, i=1, me%problem%m)]
+        call sort_by_scale(order)
+        n_show = min(me%problem%m, 10)
+        write(u,'(A)') '   constraint scale factors (smallest '//fmt_i(n_show)//' of '//fmt_i(me%problem%m)//'):'
+        do k = 1, n_show
+            i = order(k)
+            write(u,'(A)') '     c('//fmt_i(i)//') x '//fmt_e(me%problem%c_scale(i))
+        end do
+        end subroutine print_scale_factors
+
+        subroutine sort_by_scale(order)
+        !! sort constraint indices by increasing scale factor (insertion sort: `m` is only printed at level 3)
+        integer, dimension(:), intent(inout) :: order
+        integer :: i, j, t
+        do i = 2, size(order)
+            t = order(i)
+            j = i - 1
+            do while (j >= 1)
+                if (me%problem%c_scale(order(j)) <= me%problem%c_scale(t)) exit
+                order(j+1) = order(j)
+                j = j - 1
+            end do
+            order(j+1) = t
+        end do
+        end subroutine sort_by_scale
+
+        function method_text() result(str)
+        !! the algorithms used, e.g. "filter line search, dense QP (auto), L-BFGS Hessian (10 pairs)"
+        character(len=:), allocatable :: str
+        character(len=:), allocatable :: glob, hess, merit
+        merit = ''
+        select case (me%options%merit_mode)
+        case (sqpopt_merit_augmented_lagrangian); merit = 'augmented Lagrangian merit'
+        case default;                              merit = 'l1 merit'
+        end select
+        if (me%options%penalty_update == sqpopt_penalty_model) then
+            merit = merit//', model penalty'
+        else
+            merit = merit//', multiplier penalty'
+        end if
+        select case (me%options%linesearch_mode)
+        case (sqpopt_linesearch_filter);   glob = 'filter'
+        case (sqpopt_linesearch_funnel);   glob = 'funnel'
+        case (sqpopt_linesearch_armijo);   glob = 'Armijo line search ('//merit//')'
+        case (sqpopt_linesearch_watchdog); glob = 'watchdog line search ('//merit//')'
+        case default;                      glob = 'exact line search ('//merit//')'
+        end select
+        if (me%trust_region%enabled) then
+            select case (me%options%linesearch_mode)
+            case (sqpopt_linesearch_filter, sqpopt_linesearch_funnel); glob = 'trust region with the '//glob
+            case default; glob = 'trust region (ratio test, '//merit//')'
+            end select
+        else if (me%options%linesearch_mode == sqpopt_linesearch_filter .or. &
+                 me%options%linesearch_mode == sqpopt_linesearch_funnel) then
+            glob = glob//' line search'
+        end if
+        select case (me%options%hessian_mode)
+        case (sqpopt_hessian_exact); hess = 'exact Hessian'
+        case (sqpopt_hessian_sr1);   hess = 'L-SR1 Hessian ('//fmt_i(me%hessian%max_history)//' pairs)'
+        case default;                hess = 'L-BFGS Hessian ('//fmt_i(me%hessian%max_history)//' pairs)'
+        end select
+        str = glob//', '//me%qp_solver%mode_name(me%problem%n)//', '//hess
+        if (me%problem%m > 0) then
+            if (me%options%restoration_mode == sqpopt_restoration_phase) then
+                str = str//', restoration phases'
+            else
+                str = str//', Gauss-Newton restoration steps'
+            end if
+        end if
+        end function method_text
+
+        function constraint_scale_text() result(str)
+        !! the range of the constraint scale factors
+        character(len=:), allocatable :: str
+        if (me%problem%m == 0) then
+            str = ''
+        else if (all(me%problem%c_scale == 1.0_wp)) then
+            str = ', constraints unscaled'
+        else
+            str = ', constraints x ['//fmt_e(minval(me%problem%c_scale))//', '//fmt_e(maxval(me%problem%c_scale))// &
+                  '] ('//fmt_i(count(me%problem%c_scale /= 1.0_wp))//' of '//fmt_i(me%problem%m)//' scaled)'
+        end if
+        end function constraint_scale_text
+
+        pure function glob_heading() result(str)
+        !! the heading of the globalization's column (`print_level >= 2`)
+        character(len=10) :: str
+        if (me%trust_region%enabled) then
+            str = 'radius'
+        else if (me%options%linesearch_mode == sqpopt_linesearch_filter) then
+            str = 'filter'
+        else if (me%options%linesearch_mode == sqpopt_linesearch_funnel) then
+            str = 'funnel'
+        else
+            str = 'penalty'
+        end if
+        str = adjustr(str)
+        end function glob_heading
+
+        function glob_meaning() result(str)
+        character(len=:), allocatable :: str
+        if (me%trust_region%enabled) then
+            str = 'trust-region radius'
+        else if (me%options%linesearch_mode == sqpopt_linesearch_filter) then
+            str = 'filter entries'
+        else if (me%options%linesearch_mode == sqpopt_linesearch_funnel) then
+            str = 'funnel width'
+        else
+            str = 'merit penalty parameter'
+        end if
+        end function glob_meaning
+
+        pure function hess_heading() result(str)
+        character(len=10) :: str
+        str = merge('shift', 'pairs', me%options%hessian_mode == sqpopt_hessian_exact)
+        str = adjustr(str)
+        end function hess_heading
+
+        function hess_meaning() result(str)
+        character(len=:), allocatable :: str
+        if (me%options%hessian_mode == sqpopt_hessian_exact) then
+            str = 'Hessian shift (inertia correction)'
+        else
+            str = 'stored quasi-Newton pairs'
+        end if
+        end function hess_meaning
+
         subroutine print_iteration(iter, info, iter_istat)
-        !! one line of the iteration log. Flags: `R` = feasibility
-        !! restoration step, `Q` = QP solve failed, `F` = no acceptable step
-        !! found (the Hessian approximation is reset).
+        !! one line of the iteration log (see `print_legend` for the flags)
         integer,                intent(in) :: iter, iter_istat
         type(sqpopt_iter_info), intent(in) :: info
-        character(len=3) :: flags
+        character(len=12) :: flags
+        character(len=10) :: gcol, hcol
         integer :: u
         u = me%options%output_unit
         flags = ''
-        if (info%restoration) flags = trim(flags)//'R'
+        if (info%restoration .and. .not. info%phase) flags = trim(flags)//'R'
+        if (info%phase)       flags = trim(flags)//'P'
+        if (info%soc)         flags = trim(flags)//'S'
+        if (info%hess_reset)  flags = trim(flags)//'H'
+        if (info%elastic)     flags = trim(flags)//'E'
+        if (info%escape)      flags = trim(flags)//'X'
+        if (info%nonmonotone) flags = trim(flags)//'N'
+        if (info%relaxed)     flags = trim(flags)//'W'
         if (info%qp_istat == sqpopt_qp_solve_failed) flags = trim(flags)//'Q'
         if (info%stepped .and. iter_istat /= sqpopt_success .and. iter_istat /= sqpopt_qp_solve_failed) then
             flags = trim(flags)//'F'
         end if
         if (.not. info%stepped) then
-            write(u,'(I6,ES18.9,2ES11.2)') iter, info%f/me%problem%f_scale, info%feas, info%kkt
+            ! (the final point: no step was taken from it)
+            if (me%options%print_level >= 2) then
+                write(u,'(I6,ES17.9,2ES10.2,A10,I8,A10,2A6,A10,ES10.2)') iter, info%f/me%problem%f_scale, &
+                    info%feas, info%kkt, '', me%problem%n_eval_fc, '', '', '', '', info%stat_unscaled
+            else
+                write(u,'(I6,ES17.9,2ES10.2,A10,I8)') iter, info%f/me%problem%f_scale, info%feas, info%kkt, '', &
+                    me%problem%n_eval_fc
+            end if
         else if (me%options%print_level >= 2) then
-            write(u,'(I6,ES18.9,5ES11.2,I7,2X,A)') iter, info%f/me%problem%f_scale, info%feas, info%kkt, &
-                info%alpha, info%penalty, info%step_norm, info%qp_iter, flags
+            if (.not. me%trust_region%enabled .and. me%options%linesearch_mode == sqpopt_linesearch_filter) then
+                write(gcol,'(I10)') nint(info%glob)
+            else
+                write(gcol,'(ES10.2)') info%glob
+            end if
+            if (me%options%hessian_mode == sqpopt_hessian_exact) then
+                write(hcol,'(ES10.2)') info%hess_measure
+            else
+                write(hcol,'(I10)') nint(info%hess_measure)
+            end if
+            write(u,'(I6,ES17.9,3ES10.2,I8,ES10.2,2I6,2ES10.2,2A10,2X,A)') iter, info%f/me%problem%f_scale, &
+                info%feas, info%kkt, info%alpha, me%problem%n_eval_fc, info%step_norm, info%qp_iter, info%n_fc, &
+                info%lam_max, info%stat_unscaled, gcol, hcol, trim(flags)
         else
-            write(u,'(I6,ES18.9,3ES11.2,2X,A)') iter, info%f/me%problem%f_scale, info%feas, info%kkt, &
-                info%alpha, flags
+            write(u,'(I6,ES17.9,3ES10.2,I8,2X,A)') iter, info%f/me%problem%f_scale, info%feas, info%kkt, &
+                info%alpha, me%problem%n_eval_fc, trim(flags)
         end if
         end subroutine print_iteration
 
         subroutine print_summary()
-        !! the final summary
+        !! the final summary (and, at `print_level >= 3`, the solution)
         integer :: u
+        real(wp) :: t_other
+        character(len=:), allocatable :: events
         u = me%options%output_unit
         write(u,'(A)') ''
+        call print_legend()
+        write(u,'(A)') ''
         write(u,'(A,I0,2A)')   ' sqpopt: status ', me%results%istat, ': ', me%results%message
-        write(u,'(A,ES18.10)') '   objective          = ', me%results%f
-        write(u,'(A,ES10.2)')  '   feasibility error  = ', me%results%feasibility_error
-        write(u,'(A,ES10.2)')  '   KKT error (scaled) = ', me%results%kkt_error
-        write(u,'(A,I0)')      '   iterations         = ', me%results%iterations
+        write(u,'(A,ES18.10)') '   objective           = ', me%results%f
+        write(u,'(A)')         '   feasibility error   = '//fmt_e(me%results%feasibility_error)// &
+                               '  (original problem)'
+        write(u,'(A)')         '   KKT error           = '//fmt_e(me%results%kkt_error)// &
+                               '  (scaled problem; ktol = '//fmt_e(me%options%ktol)//')'
+        write(u,'(A)')         '   stationarity error  = '//fmt_e(me%results%stationarity_error)// &
+                               '  (original problem; dual_inf_tol = '//fmt_e(me%options%dual_inf_tol)//')'
+        if (me%problem%m > 0) then
+            write(u,'(A)')     '   largest multiplier  = '//fmt_e(maxval(abs(me%results%lambda)))
+        end if
+        write(u,'(A)')         '   active              = '//active_text()
+        write(u,'(A,I0)')      '   iterations          = ', me%results%iterations
         if (me%results%n_eval_hess > 0) then
-            write(u,'(A,3(I0,A))') '   evaluations        = ', me%results%n_eval_fc, ' fc, ', me%results%n_eval_gjac, &
+            write(u,'(A,3(I0,A))') '   evaluations         = ', me%results%n_eval_fc, ' fc, ', me%results%n_eval_gjac, &
                                    ' gjac, ', me%results%n_eval_hess, ' hess'
         else
-            write(u,'(A,2(I0,A))') '   evaluations        = ', me%results%n_eval_fc, ' fc, ', me%results%n_eval_gjac, ' gjac'
+            write(u,'(A,2(I0,A))') '   evaluations         = ', me%results%n_eval_fc, ' fc, ', me%results%n_eval_gjac, ' gjac'
         end if
-        write(u,'(A,F0.3,A)')  '   time               = ', me%results%time, ' s'
+        write(u,'(A,I0)')      '   QP iterations       = ', me%results%n_qp_iterations
+        events = ''
+        call add_event(events, me%results%n_soc, 'second-order correction', 'second-order corrections')
+        call add_event(events, me%results%n_restoration_phases, 'restoration phase', 'restoration phases')
+        call add_event(events, me%results%n_restoration_steps, 'restoration step', 'restoration steps')
+        call add_event(events, me%results%n_hessian_resets, 'Hessian reset', 'Hessian resets')
+        call add_event(events, me%results%n_elastic, 'elastic re-solve', 'elastic re-solves')
+        call add_event(events, me%results%n_escape, 'escape step', 'escape steps')
+        if (len(events) == 0) events = 'none'
+        write(u,'(A)')         '   events              = '//events
+        t_other = max(0.0_wp, me%results%time - me%results%time_functions - me%results%time_qp)
+        write(u,'(A)')         '   time                = '//fmt_f(me%results%time)//' s (user functions '// &
+                               fmt_f(me%results%time_functions)//' s, QP '//fmt_f(me%results%time_qp)// &
+                               ' s, other '//fmt_f(t_other)//' s)'
+        if (me%options%print_level >= sqpopt_log_detail) call print_solution()
         write(u,'(A)') ''
         end subroutine print_summary
+
+        subroutine add_event(events, n, one, many)
+        !! add a count to the summary's list of events (e.g. "3 Hessian resets")
+        character(len=:), allocatable, intent(inout) :: events
+        integer,          intent(in) :: n
+        character(len=*), intent(in) :: one, many !! the event's name, singular and plural
+        if (n == 0) return
+        if (len(events) > 0) events = events//', '
+        if (n == 1) then
+            events = events//'1 '//one
+        else
+            events = events//fmt_i(n)//' '//many
+        end if
+        end subroutine add_event
+
+        function fmt_f(t) result(str)
+        !! a time in seconds
+        real(wp), intent(in) :: t
+        character(len=:), allocatable :: str
+        character(len=32) :: buf
+        write(buf,'(F0.3)') t
+        str = trim(buf)
+        if (str(1:1) == '.') str = '0'//str
+        end function fmt_f
+
+        function active_text() result(str)
+        !! how many constraints and variable bounds are active at the solution
+        character(len=:), allocatable :: str
+        integer :: n_c, n_x
+        n_c = count(constraint_side() /= 0)
+        n_x = count(bound_side() /= 0)
+        str = fmt_i(n_c)//' of '//fmt_i(me%problem%m)//' constraints, '//fmt_i(n_x)//' of '// &
+              fmt_i(me%problem%n)//' variable bounds'
+        end function active_text
+
+        function constraint_side() result(side)
+        !! for each constraint: 0 = inactive, -1 = at its lower bound, +1 = at its upper bound, 2 = equality
+        integer, dimension(me%problem%m) :: side
+        real(wp) :: lb, ub, tol
+        integer :: i
+        side = 0
+        do i = 1, me%problem%m
+            lb = me%problem%c_lb(i)/me%problem%c_scale(i)
+            ub = me%problem%c_ub(i)/me%problem%c_scale(i)
+            tol = max(me%options%ctol, 1.0e-8_wp)
+            if (ub - lb <= 0.0_wp) then
+                side(i) = 2
+            else if (abs(me%results%c(i) - lb) <= tol*max(1.0_wp, abs(lb))) then
+                side(i) = -1
+            else if (abs(me%results%c(i) - ub) <= tol*max(1.0_wp, abs(ub))) then
+                side(i) = 1
+            end if
+        end do
+        end function constraint_side
+
+        function bound_side() result(side)
+        !! for each variable: 0 = free, -1 = at its lower bound, +1 = at its upper bound, 2 = fixed
+        integer, dimension(me%problem%n) :: side
+        real(wp) :: tol
+        integer :: j
+        side = 0
+        tol = max(me%options%ctol, 1.0e-8_wp)
+        do j = 1, me%problem%n
+            if (me%problem%x_ub(j) - me%problem%x_lb(j) <= 0.0_wp) then
+                side(j) = 2
+            else if (abs(me%results%x(j) - me%problem%x_lb(j)) <= tol*max(1.0_wp, abs(me%problem%x_lb(j)))) then
+                side(j) = -1
+            else if (abs(me%results%x(j) - me%problem%x_ub(j)) <= tol*max(1.0_wp, abs(me%problem%x_ub(j)))) then
+                side(j) = 1
+            end if
+        end do
+        end function bound_side
+
+        subroutine print_solution()
+        !! the solution: the variables and constraints, with their bounds, multipliers, and which are active
+        !! (`print_level >= 3`; at most `max_rows` of each)
+        integer, parameter :: max_rows = 100
+        integer :: u, i
+        integer, dimension(me%problem%m) :: cside
+        integer, dimension(me%problem%n) :: xside
+        u = me%options%output_unit
+        cside = constraint_side()
+        xside = bound_side()
+        write(u,'(A)') ''
+        write(u,'(A)') '   variables:'
+        write(u,'(A8,5A17)') 'j', 'x', 'lower', 'upper', 'z', 'active'
+        do i = 1, min(me%problem%n, max_rows)
+            write(u,'(I8,4A17,A17)') i, num(me%results%x(i)), num(me%problem%x_lb(i)), num(me%problem%x_ub(i)), &
+                num(me%results%z(i)), side_text(xside(i), 'fixed   ')
+        end do
+        if (me%problem%n > max_rows) write(u,'(A)') '     ... ('//fmt_i(me%problem%n - max_rows)//' more)'
+        if (me%problem%m > 0) then
+            write(u,'(A)') ''
+            write(u,'(A)') '   constraints:'
+            write(u,'(A8,5A17)') 'i', 'c', 'lower', 'upper', 'lambda', 'active'
+            do i = 1, min(me%problem%m, max_rows)
+                write(u,'(I8,4A17,A17)') i, num(me%results%c(i)), num(me%problem%c_lb(i)/me%problem%c_scale(i)), &
+                    num(me%problem%c_ub(i)/me%problem%c_scale(i)), num(me%results%lambda(i)), &
+                    side_text(cside(i), 'equality')
+            end do
+            if (me%problem%m > max_rows) write(u,'(A)') '     ... ('//fmt_i(me%problem%m - max_rows)//' more)'
+        end if
+        end subroutine print_solution
+
+        pure function side_text(side, both) result(str)
+        integer,          intent(in) :: side
+        character(len=*), intent(in) :: both !! the text for `side==2`
+        character(len=17) :: str
+        select case (side)
+        case (-1); str = 'lower'
+        case (1);  str = 'upper'
+        case (2);  str = both
+        case default; str = ''
+        end select
+        str = adjustr(str)
+        end function side_text
+
+        function num(v) result(str)
+        !! a value for the solution tables (infinite bounds as `-inf`/`inf`)
+        real(wp), intent(in) :: v
+        character(len=17) :: str
+        if (v <= -sqpopt_infinity) then
+            str = '-inf'
+            str = adjustr(str)
+        else if (v >= sqpopt_infinity) then
+            str = 'inf'
+            str = adjustr(str)
+        else
+            write(str,'(ES17.8)') v
+        end if
+        end function num
 
     end subroutine sqpopt_solve
 !*******************************************************************************

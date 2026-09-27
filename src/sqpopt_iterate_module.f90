@@ -23,6 +23,7 @@
     use sqpopt_linalg_module,     only: sparse_matvec_transpose
     use sqpopt_convergence_module, only: check_convergence
     use sqpopt_soc_module,        only: soc_step
+    use sqpopt_log_module,        only: sqpopt_log_type, sqpopt_log_detail, fmt_e, fmt_i, plural, qp_status_text
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
     use sqpopt_restoration_module,  only: restoration_step, escape_step, sqpopt_restoration_type, &
                                           sqpopt_restoration_phase
@@ -43,8 +44,22 @@
         real(wp) :: penalty   = 0.0_wp  !! merit function penalty parameter
         integer  :: qp_istat  = 0       !! status of the QP solve
         integer  :: qp_iter   = 0       !! active-set iterations of the QP solve
-        logical  :: restoration = .false. !! whether a feasibility-restoration step was taken
+        logical  :: restoration = .false. !! whether a feasibility-restoration step was taken (a single step, or
+                                          !! an iteration of a restoration phase: see `phase`)
+        logical  :: phase     = .false. !! whether the step was an iteration of a restoration phase
         logical  :: stepped   = .false. !! whether the iteration got as far as computing a step
+        logical  :: soc       = .false. !! whether the accepted step was second-order corrected
+        logical  :: hess_reset = .false. !! whether the Hessian approximation was reset (or its shift increased)
+        logical  :: elastic   = .false. !! whether the QP was re-solved with diverging-multiplier constraints elastic
+        logical  :: escape    = .false. !! whether an escape step (from a stationary point of the violation) was taken
+        logical  :: nonmonotone = .false. !! whether the step came from the line search's non-monotone retry
+        logical  :: relaxed   = .false. !! whether the step was a watchdog relaxed step
+        real(wp) :: stat_unscaled = 0.0_wp !! stationarity error of the *unscaled* problem at the start of the iteration
+        real(wp) :: lam_max   = 0.0_wp  !! largest multiplier magnitude of the unscaled problem, after the step
+        real(wp) :: glob      = 0.0_wp  !! the globalization's state after the step: the merit penalty, the number
+                                        !! of filter entries, the funnel width, or the trust-region radius
+        real(wp) :: hess_measure = 0.0_wp !! the number of stored quasi-Newton pairs, or the exact Hessian's shift
+        integer  :: n_fc      = 0       !! calls of `fc` during the iteration (set by the caller)
     end type sqpopt_iter_info
 
     contains
@@ -122,8 +137,11 @@
     logical :: restore
 
     integer, parameter :: max_escape = 3 !! maximum number of second-order escapes (see [[escape_step]])
+    type(sqpopt_log_type) :: lg !! the detailed log
+    real(wp) :: stat_err
 
     done = .false.
+    lg = linesearch%log   ! (the detailed log, set up by `solve`)
 
     ! evaluate the problem functions and the sparse Jacobian at the current point:
     call problem%f(x, f)
@@ -193,7 +211,8 @@
                             lambda, options%ktol, options%ctol, done, istat, &
                             f=f, f_prev=f_prev, x_prev=x_prev, ftol=options%ftol, xtol=options%xtol, &
                             kkt_error=info%kkt, feas_error=info%feas, viol_prev=viol_prev, &
-                            dual_inf_tol=options%dual_inf_tol, f_scale=problem%f_scale)
+                            dual_inf_tol=options%dual_inf_tol, f_scale=problem%f_scale, stat_error=stat_err)
+    info%stat_unscaled = stat_err/problem%f_scale
     ! the stalled-progress test must hold for `stall_iter` consecutive
     ! iterations: a single negligible step (e.g. a short line-search step on a
     ! badly scaled problem) is not a stall, and stopping on it made results
@@ -216,6 +235,10 @@
     if (done .and. istat == sqpopt_infeasible .and. n_escape < max_escape) then
         call escape_step(problem, jac, x, c, x_new, step_istat)
         if (step_istat == sqpopt_success) then
+            call lg%put(sqpopt_log_detail, 'escape step from a stationary point of the violation '// &
+                        '(the Hessian approximation is reset)')
+            info%escape     = .true.
+            info%hess_reset = .true.
             n_escape = n_escape + 1
             done  = .false.
             istat = sqpopt_success
@@ -311,6 +334,7 @@
         restore    = .true.
         new_lambda = lambda
         linesearch%merit%joint_active = .false.
+        info%phase = .true.
         call restoration_phase_iteration()
 
     else if (trust_region%enabled) then
@@ -320,6 +344,7 @@
         ! filter, or funnel, depending on `linesearch%mode`) instead of a line
         ! search along one fixed `p` -- see [[sqpopt_trust_region_module]]:
         call trust_region%step(problem, hessian, qp_solver, linesearch, x, g, f, c, jac, x_new, new_lambda, alpha, step_istat)
+        info%soc = trust_region%used_soc
 
         ! if no step was acceptable at an infeasible point, start a
         ! restoration phase (as in Fletcher & Leyffer's trust-region filter SQP):
@@ -336,6 +361,7 @@
         ! solve the linearized QP subproblem for the search direction and multipliers:
         call qp_solver%solve(hessian, jac, x, g, c, problem%x_lb, problem%x_ub, &
                               problem%c_lb, problem%c_ub, p, new_lambda, qp_istat)
+        call note_qp()
         restore = qp_istat == sqpopt_infeasible
         if (.not. restore) call elastic_resolve()
 
@@ -367,8 +393,17 @@
                         n_shift = 1
                     end if
                     call hessian%reset()
+                    info%hess_reset = .true.
+                    if (options%hessian_mode == sqpopt_hessian_exact) then
+                        call lg%put(sqpopt_log_detail, 'QP step not usable (nonconvex, failed, or not a descent '// &
+                                    'direction): Hessian shift increased to '//fmt_e(hessian%shift)//', QP re-solved')
+                    else
+                        call lg%put(sqpopt_log_detail, 'QP step is not a descent direction: Hessian approximation '// &
+                                    'reset, QP re-solved')
+                    end if
                     call qp_solver%solve(hessian, jac, x, g, c, problem%x_lb, problem%x_ub, &
                                           problem%c_lb, problem%c_ub, p, new_lambda, qp_istat)
+                    call note_qp()
                     restore = qp_istat == sqpopt_infeasible
                     if (restore) exit
                     call update_penalty()
@@ -385,7 +420,9 @@
             ! [[sqpopt_restoration_module]]):
             new_lambda = lambda
             linesearch%merit%joint_active = .false.
+            call lg%put(sqpopt_log_detail, 'linearized constraints are inconsistent: restoration step')
             call restoration_step(problem, jac, x, c, qp_solver%max_step*qp_solver%step_scale, x_new, alpha, step_istat)
+            call note_restoration_step('Gauss-Newton')
             if (step_istat /= sqpopt_success .and. norm2(p) > 0.0_wp) then
                 ! no first-order decrease of the violation is possible from `x`
                 ! (it is stationary for the violation, e.g. `J=0` at a maximum
@@ -394,6 +431,7 @@
                 ! too, the next iteration's infeasibility test stops at `x`.
                 call restoration_step(problem, jac, x, c, qp_solver%max_step*qp_solver%step_scale, &
                                       x_new, alpha, step_istat, direction=p)
+                call note_restoration_step('along the elastic QP step')
             end if
 
         else
@@ -410,6 +448,10 @@
                 call linesearch%search(eval_f_cached, eval_c_cached, x, p, f, g, c, jac, new_lambda, &
                                         problem%c_lb, problem%c_ub, alpha, x_new, step_istat)
             end if
+
+            info%soc         = linesearch%used_soc
+            info%nonmonotone = linesearch%used_nonmonotone
+            info%relaxed     = linesearch%used_relaxed
 
             ! with the augmented Lagrangian's joint step, the new multipliers are
             ! those along the step, not the QP's (see [[update_penalty_parameter]]):
@@ -431,6 +473,8 @@
             end if
             if (qp_solver%n_short >= 3) then
                 call hessian%reset()
+                info%hess_reset = .true.
+                call lg%put(sqpopt_log_detail, '3 very short steps in a row: Hessian approximation reset')
                 qp_solver%n_short = 0
             end if
 
@@ -446,8 +490,11 @@
                     theta = l1_violation(c, problem%c_lb, problem%c_ub)
                     if (linesearch%mode == sqpopt_linesearch_funnel) then
                         call linesearch%funnel%restoration(theta)
+                        call lg%put(sqpopt_log_detail, 'no acceptable step: funnel tightened to width '// &
+                                    fmt_e(linesearch%funnel%width))
                     else
                         call linesearch%filter%record(theta, f)
+                        call lg%put(sqpopt_log_detail, 'no acceptable step: the current point is added to the filter')
                     end if
                     if (theta > 0.0_wp) then
                         restore    = .true.
@@ -457,6 +504,7 @@
                         else
                             call restoration_step(problem, jac, x, c, qp_solver%max_step*qp_solver%step_scale, &
                                                   x_new, alpha, step_istat)
+                            call note_restoration_step('Gauss-Newton')
                         end if
                     end if
                 end block
@@ -501,6 +549,9 @@
     info%qp_istat    = qp_istat
     info%qp_iter     = qp_solver%n_iter
     info%restoration = restore
+    if (problem%m > 0) info%lam_max = maxval(abs(new_lambda*problem%c_scale))/problem%f_scale
+    info%glob         = glob_value()
+    info%hess_measure = merge(hessian%shift, real(hessian%n_history, wp), options%hessian_mode == sqpopt_hessian_exact)
 
     x      = x_new
     lambda = new_lambda
@@ -511,6 +562,8 @@
         ! a different direction, and don't let the stalled-progress test
         ! mistake "no step taken" for convergence:
         call hessian%reset()
+        info%hess_reset = .true.
+        call lg%put(sqpopt_log_detail, 'no acceptable step: Hessian approximation reset')
         if (allocated(f_prev)) deallocate(f_prev)
     end if
 
@@ -526,6 +579,51 @@
     end if
 
     contains
+
+        subroutine note_qp()
+        !! the detailed log's line for the QP solve just done
+        if (.not. lg%on(sqpopt_log_detail)) return
+        call lg%put(sqpopt_log_detail, qp_solver%mode_name(problem%n)//': '// &
+                    plural(qp_solver%n_iter, 'iteration', 'iterations')//', working set '//fmt_i(qp_solver%n_working)// &
+                    ', '//plural(qp_solver%n_slacks, 'elastic slack', 'elastic slacks')//', '//qp_status_text(qp_istat)// &
+                    trim(merge(', negative curvature', '                    ', qp_solver%negative_curvature)))
+        end subroutine note_qp
+
+        subroutine note_restoration_step(how)
+        !! the detailed log's line for a single restoration step just taken (or not)
+        character(len=*), intent(in) :: how
+        real(wp), dimension(problem%m) :: c_new
+        if (.not. lg%on(sqpopt_log_detail)) return
+        if (step_istat == sqpopt_success) then
+            call problem%c(x_new, c_new)
+            call lg%put(sqpopt_log_detail, 'restoration step ('//how//'): violation '// &
+                        fmt_e(l1_violation(c, problem%c_lb, problem%c_ub))//' -> '// &
+                        fmt_e(l1_violation(c_new, problem%c_lb, problem%c_ub)))
+        else
+            call lg%put(sqpopt_log_detail, 'restoration step ('//how//'): no decrease of the violation found')
+        end if
+        end subroutine note_restoration_step
+
+        function glob_value() result(v)
+        !! the globalization's state (see `sqpopt_iter_info%glob`)
+        real(wp) :: v
+        if (trust_region%enabled) then
+            v = trust_region%radius
+        else if (linesearch%mode == sqpopt_linesearch_filter) then
+            v = 0.0_wp
+            if (allocated(linesearch%filter%theta)) v = real(size(linesearch%filter%theta), wp)
+        else if (linesearch%mode == sqpopt_linesearch_funnel) then
+            v = linesearch%funnel%width
+        else
+            v = linesearch%merit%penalty
+        end if
+        end function glob_value
+
+        pure function glob_name() result(name)
+        !! what the restoration phase's exit test uses
+        character(len=6) :: name
+        name = merge('funnel', 'filter', linesearch%mode == sqpopt_linesearch_funnel)
+        end function glob_name
 
         subroutine eval_f_cached(xx, ff)
         !! `f`, through the problem's evaluation cache (see [[sqpopt_problem_module]])
@@ -567,6 +665,8 @@
             end if
         end if
         call restoration%enter(x, theta, qp_solver)
+        call lg%put(sqpopt_log_detail, 'restoration phase started, at violation '//fmt_e(theta))
+        info%phase = .true.
         call restoration_phase_iteration()
         end subroutine start_restoration_phase
 
@@ -576,20 +676,40 @@
         !! is good enough (see [[restoration_phase_done]]). If both steps
         !! fail, the phase also ends, so that the next iteration tries the
         !! optimality QP again instead of retrying the phase from the same point.
-        real(wp) :: f_new
+        real(wp) :: f_new, theta0, theta_new
         real(wp), dimension(problem%m) :: c_new
         logical :: ended
+        character(len=:), allocatable :: how
+        theta0 = l1_violation(c, problem%c_lb, problem%c_ub)
+        how = 'feasibility QP'
         call restoration%step(problem, jac, x, c, x_new, alpha, step_istat)
         if (step_istat /= sqpopt_success) then
+            how = 'Gauss-Newton fallback'
             call restoration_step(problem, jac, x, c, qp_solver%max_step*qp_solver%step_scale, x_new, alpha, step_istat)
         end if
         if (step_istat == sqpopt_success) then
             call problem%f(x_new, f_new)
             call problem%c(x_new, c_new)
-            ended = restoration%done(linesearch, l1_violation(c_new, problem%c_lb, problem%c_ub), f_new, &
+            theta_new = l1_violation(c_new, problem%c_lb, problem%c_ub)
+            ended = restoration%done(linesearch, theta_new, f_new, &
                                      options%restoration_exit_factor, options%ctol, options%restoration_max_iter)
+            if (lg%on(sqpopt_log_detail)) then
+                call lg%put(sqpopt_log_detail, 'restoration phase iteration '//fmt_i(restoration%n_iter)//' ('//how// &
+                            '): violation '//fmt_e(theta0)//' -> '//fmt_e(theta_new))
+                if (ended) then
+                    if (theta_new <= options%ctol) then
+                        how = 'feasible'
+                    else if (restoration%n_iter >= options%restoration_max_iter) then
+                        how = 'iteration limit'
+                    else
+                        how = 'violation reduced, and acceptable to the '//trim(glob_name())
+                    end if
+                    call lg%put(sqpopt_log_detail, 'restoration phase ended ('//how//')')
+                end if
+            end if
         else
             restoration%active = .false.
+            call lg%put(sqpopt_log_detail, 'restoration phase ended (no step reduces the violation)')
         end if
         end subroutine restoration_phase_iteration
 
@@ -634,10 +754,15 @@
         end do
         if (all(sgn == 0)) return
         qp_solver%n_elastic = qp_solver%n_elastic + 1
+        info%elastic = .true.
+        call lg%put(sqpopt_log_detail, 'elastic re-solve: '// &
+                    plural(count(sgn /= 0), 'constraint', 'constraints')//' with a diverging multiplier, weight '// &
+                    fmt_e(lim/wmax))
         ! (the weight caps each elastic row's push at about the limit)
         call qp_solver%solve(hessian, jac, x, g, c, problem%x_lb, problem%x_ub, &
                               problem%c_lb, problem%c_ub, p, new_lambda, qp_istat, &
                               elastic_sign=sgn, elastic_weight=lim/wmax)
+        call note_qp()
         restore = qp_istat == sqpopt_infeasible
         end subroutine elastic_resolve
 
@@ -661,7 +786,7 @@
 !  at one of its bounds, zero otherwise (for the Lagrangian
 !  \( f - \lambda^Tc - z^Tx \)). Used to report the final state of a solve.
 
-    subroutine sqpopt_evaluate_point(problem, options, x, lambda, jac, f, c, kkt, feas, z)
+    subroutine sqpopt_evaluate_point(problem, options, x, lambda, jac, f, c, kkt, feas, z, stat_error)
 
     type(sqpopt_problem_type),  intent(inout) :: problem !! problem definition
     type(sqpopt_options_type),  intent(in)    :: options !! solver options
@@ -673,6 +798,8 @@
     real(wp),                   intent(out)   :: kkt     !! KKT error at `x`
     real(wp),                   intent(out)   :: feas    !! feasibility error at `x`
     real(wp), dimension(:),     intent(out)   :: z       !! variable-bound multipliers `dimension(n)`
+    real(wp), optional,         intent(out)   :: stat_error !! the stationarity residual (of the scaled problem,
+                                                             !! without the multiplier scaling; see [[check_convergence]])
 
     real(wp), dimension(size(x)) :: g, jtlam
     logical :: converged
@@ -693,7 +820,7 @@
 
     call check_convergence(x, g, jac, c, problem%x_lb, problem%x_ub, problem%c_lb, problem%c_ub, &
                             lambda, options%ktol, options%ctol, converged, istat, &
-                            kkt_error=kkt, feas_error=feas)
+                            kkt_error=kkt, feas_error=feas, stat_error=stat_error)
 
     call sparse_matvec_transpose(jac, lambda, jtlam)
     z = 0.0_wp

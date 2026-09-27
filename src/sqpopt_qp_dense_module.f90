@@ -100,6 +100,9 @@
         real(wp) :: force_weight = 0.0_wp
 
         integer :: n_iter = 0 !! number of active-set iterations taken by the last solve (output)
+        integer :: n_working = 0 !! number of general rows and variable bounds in the final working set of the
+                                 !! last solve (output)
+        integer :: n_slacks  = 0 !! number of elastic slacks in the last solve (output; see the module docs)
         logical :: negative_curvature = .false. !! whether the last solve found a direction of negative curvature
                                                 !! of the Hessian in the variables (output; the QP was nonconvex)
 
@@ -153,6 +156,8 @@
     m = size(c)
 
     me%negative_curvature = .false.
+    me%n_working = 0
+    me%n_slacks  = 0
 
     ! ---- the dense Jacobian ----
     allocate(jd(m,n)); jd = 0.0_wp
@@ -387,6 +392,8 @@
     end do
 
     me%n_iter = min(it, maxit)
+    me%n_working = count(status(1:m+n) /= 0)
+    me%n_slacks  = nv
     p = u(1:n)
     lambda = 0.0_wp
     do k = 1, size(coeff_idx)

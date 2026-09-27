@@ -65,6 +65,7 @@
                                          l1_violation
     use sqpopt_linalg_module,     only: sparse_matvec
     use sqpopt_soc_module,        only: soc_step
+    use sqpopt_log_module,        only: sqpopt_log_type, sqpopt_log_detail, fmt_e, fmt_g, qp_status_text
 
     implicit none
 
@@ -87,6 +88,10 @@
         ! internal state (persists across major iterations, like the watchdog/filter state on `sqpopt_linesearch_type`):
         logical  :: ready  = .false. !! whether `radius` has been initialized from `radius0` yet
         real(wp) :: radius = 0.0_wp  !! current trust-region radius
+
+        ! the detailed log (set by `solve`), and whether the last step was second-order corrected (output):
+        type(sqpopt_log_type) :: log
+        logical :: used_soc = .false.
 
         contains
 
@@ -135,6 +140,7 @@
         me%ready  = .true.
     end if
 
+    me%used_soc = .false.
     use_funnel = (linesearch%mode == sqpopt_linesearch_funnel)
     use_filter = (linesearch%mode == sqpopt_linesearch_filter) .or. use_funnel !! (no merit function in either)
     h0         = l1_violation(c, problem%c_lb, problem%c_ub)
@@ -178,6 +184,7 @@
         end if
 
         call evaluate(x + p, accept)
+        call log_trial('tr  radius '//fmt_e(me%radius)//', QP '//qp_status_text(qp_istat)//': ')
 
         if (.not. accept .and. ok .and. problem%m > 0) then
             if (h_trial >= h0) then
@@ -188,7 +195,11 @@
                 call soc_step(jac, x, p, c, c_trial, problem%c_lb, problem%c_ub, x_lb2, x_ub2, p_soc, soc_ok)
                 if (soc_ok) then
                     call evaluate(x + p_soc, accept)
-                    if (accept) p = p_soc
+                    call log_trial('tr  second-order correction: ')
+                    if (accept) then
+                        p = p_soc
+                        me%used_soc = .true.
+                    end if
                 end if
             end if
         end if
@@ -230,11 +241,35 @@
     ! is taken. The next major iteration starts from the (small) radius
     ! reached here, with a reset Hessian approximation (see
     ! [[sqpopt_iterate_module]]), so it won't repeat the same retries:
+    call me%log%put(sqpopt_log_detail, 'tr  no acceptable step (radius '//fmt_e(me%radius)//')')
     x_new = x
     alpha = 0.0_wp
     istat = sqpopt_line_search_failed
 
     contains
+
+        subroutine log_trial(prefix)
+        !! the detailed log's line for the last evaluated trial point
+        character(len=*), intent(in) :: prefix
+        character(len=:), allocatable :: line
+        if (.not. me%log%on(sqpopt_log_detail)) return
+        if (.not. ok) then
+            line = prefix//'non-finite function value, rejected'
+        else if (use_filter) then
+            line = prefix//'violation '//fmt_e(h_trial)//', objective '//fmt_g(f_trial)
+        else
+            line = prefix//'ratio '//fmt_e(ratio)//' (actual/predicted merit decrease)'
+        end if
+        if (ok) then
+            if (accept) then
+                line = line//', accepted'
+            else
+                line = line//', rejected'
+            end if
+        end if
+        call me%log%put(sqpopt_log_detail, line)
+        end subroutine log_trial
+
 
         subroutine evaluate(x_trial, accept)
         !! evaluate the trial point `x_trial` (setting `f_trial`, `c_trial`,

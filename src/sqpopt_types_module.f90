@@ -69,7 +69,21 @@
         real(wp) :: kkt_error  = 0.0_wp  !! KKT (stationarity/complementarity) error at `x` (of the scaled problem,
                                           !! as used by the convergence test)
         real(wp) :: feasibility_error = 0.0_wp !! largest violation of a constraint or variable bound at `x`
+        real(wp) :: stationarity_error = 0.0_wp !! stationarity error at `x` of the original (unscaled) problem (see
+                                                 !! `options%dual_inf_tol`)
         real(wp) :: time       = 0.0_wp  !! wall-clock time of the solve (seconds)
+        real(wp) :: time_functions = 0.0_wp !! of which, in the user's functions
+        real(wp) :: time_qp        = 0.0_wp !! of which, in the QP subproblem solver
+        integer  :: n_qp_iterations      = 0 !! total active-set iterations of the QP subproblem solves
+        integer  :: n_soc                = 0 !! accepted second-order-corrected steps
+        integer  :: n_hessian_resets     = 0 !! iterations in which the Hessian approximation was reset (or, with the
+                                             !! exact Hessian, its shift increased)
+        integer  :: n_restoration_steps  = 0 !! iterations that took a feasibility-restoration step (including those
+                                             !! of restoration phases)
+        integer  :: n_restoration_phases = 0 !! restoration phases entered
+        integer  :: n_elastic            = 0 !! QP re-solves with constraints elastic (see
+                                             !! `options%elastic_multiplier_limit`)
+        integer  :: n_escape             = 0 !! escape steps from a stationary point of the violation
         real(wp), dimension(:), allocatable :: x      !! final point `dimension(n)`
         real(wp), dimension(:), allocatable :: c      !! constraint values at `x` `dimension(m)`
         real(wp), dimension(:), allocatable :: lambda !! constraint multipliers `dimension(m)` (for the Lagrangian

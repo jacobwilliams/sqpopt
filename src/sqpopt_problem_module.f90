@@ -106,6 +106,7 @@
         integer  :: n_eval_fc   = 0 !! number of calls of the user's `fc`
         integer  :: n_eval_gjac = 0 !! number of calls of the user's `gjac`
         integer  :: n_eval_hess = 0 !! number of calls of the user's `hess`
+        real(wp) :: time_user   = 0.0_wp !! wall-clock time spent in the user's functions (seconds)
         real(wp) :: f_scale = 1.0_wp !! objective scale factor \( s_f \)
         real(wp), dimension(:), allocatable :: c_scale !! constraint scale factors \( s_{c,i} \) `dimension(m)`
         integer :: cache_n = 0, cache_next = 1 !! entries used, and the slot for the next one, in the `fc` cache
@@ -434,6 +435,7 @@
     me%cache_n = 0; me%cache_next = 1
     me%have_gjac = .false.
     me%n_eval_fc = 0; me%n_eval_gjac = 0; me%n_eval_hess = 0
+    me%time_user = 0.0_wp
     me%stop_requested = .false.
     me%f_scale = 1.0_wp
     me%c_scale = 1.0_wp
@@ -577,6 +579,7 @@
     real(wp), dimension(:),     intent(in)    :: x
     real(wp),                   intent(out)   :: f
     real(wp), dimension(:),     intent(out)   :: c
+    real(wp) :: t0 !! (for the time spent in the user's function)
 
     integer :: k, status
     real(wp), dimension(1+size(c)) :: v
@@ -596,11 +599,13 @@
         return
     end if
     status = 0
+    t0 = wall_time()
     if (associated(me%user_data)) then
         call me%eval_fc(x, f, c, status, me%user_data)
     else
         call me%eval_fc(x, f, c, status)
     end if
+    me%time_user = me%time_user + (wall_time() - t0)
     me%n_eval_fc = me%n_eval_fc + 1
     v = [f, c]
     call check_status(me, status, v)
@@ -628,6 +633,7 @@
     real(wp), dimension(:),     intent(in)    :: x
     real(wp), dimension(:),     intent(out)   :: g
     real(wp), dimension(:),     intent(out)   :: jac_val
+    real(wp) :: t0 !! (for the time spent in the user's function)
 
     integer :: status
     real(wp), dimension(size(g)+size(jac_val)) :: v
@@ -647,11 +653,13 @@
         return
     end if
     status = 0
+    t0 = wall_time()
     if (associated(me%user_data)) then
         call me%eval_gjac(x, g, jac_val, status, me%user_data)
     else
         call me%eval_gjac(x, g, jac_val, status)
     end if
+    me%time_user = me%time_user + (wall_time() - t0)
     me%n_eval_gjac = me%n_eval_gjac + 1
     v = [g, jac_val]
     call check_status(me, status, v)
@@ -681,6 +689,7 @@
     real(wp), dimension(:),     intent(in)    :: x        !! point `dimension(n)`
     real(wp), dimension(:),     intent(in)    :: lambda   !! multipliers of the scaled problem `dimension(m)`
     real(wp), dimension(:),     intent(out)   :: hess_val !! scaled Hessian values `dimension(hess_nnz)`
+    real(wp) :: t0 !! (for the time spent in the user's function)
 
     integer :: status
 
@@ -689,11 +698,13 @@
         return
     end if
     status = 0
+    t0 = wall_time()
     if (associated(me%user_data)) then
         call me%eval_hess(x, lambda*me%c_scale/me%f_scale, hess_val, status, me%user_data)
     else
         call me%eval_hess(x, lambda*me%c_scale/me%f_scale, hess_val, status)
     end if
+    me%time_user = me%time_user + (wall_time() - t0)
     me%n_eval_hess = me%n_eval_hess + 1
     call check_status(me, status, hess_val)
     hess_val = me%f_scale*hess_val
@@ -720,6 +731,24 @@
     v = ieee_value(1.0_wp, ieee_quiet_nan)
 
     end subroutine check_status
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the wall-clock time, in seconds (for the time spent in the user's functions).
+
+    function wall_time() result(t)
+
+    use, intrinsic :: iso_fortran_env, only: int64
+
+    real(wp) :: t
+
+    integer(int64) :: count, rate
+
+    call system_clock(count, rate)
+    t = real(count, wp)/real(rate, wp)
+
+    end function wall_time
 !*******************************************************************************
 
     end module sqpopt_problem_module

@@ -67,7 +67,7 @@
 
     subroutine check_convergence(x, g, jac, c, x_lb, x_ub, c_lb, c_ub, lambda, ktol, ctol, converged, istat, &
                                   f, f_prev, x_prev, ftol, xtol, kkt_error, feas_error, viol_prev, &
-                                  dual_inf_tol, f_scale)
+                                  dual_inf_tol, f_scale, stat_error)
 
     real(wp), dimension(:),     intent(in)  :: x         !! current point `dimension(n)`
     real(wp), dimension(:),     intent(in)  :: g         !! objective gradient at `x` `dimension(n)`
@@ -100,6 +100,8 @@
                                                                         !! also requires the stationarity residual of
                                                                         !! the *unscaled* problem to be at most this
                                                                         !! (as IPOPT's `dual_inf_tol`)
+    real(wp),                     optional, intent(out) :: stat_error   !! the (projected) stationarity residual of the
+                                                                        !! scaled problem, without the multiplier scaling
     real(wp),                     optional, intent(in)  :: f_scale      !! the objective's scale factor: the unscaled
                                                                         !! stationarity residual is the scaled one
                                                                         !! divided by it
@@ -140,6 +142,7 @@
     if (size(c) > 0) c_viol = maxval(max(c_lb-c, 0.0_wp) + max(c-c_ub, 0.0_wp))
     x_viol = maxval(max(x_lb-x, 0.0_wp) + max(x-x_ub, 0.0_wp))
     if (present(kkt_error))  kkt_error  = max(kkt_res, dual_res)/lam_scale
+    if (present(stat_error)) stat_error = kkt_res
     if (present(feas_error)) feas_error = max(c_viol, x_viol)
 
     if (kkt_res <= ktol*lam_scale .and. dual_res <= ktol*lam_scale .and. &
