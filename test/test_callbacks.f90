@@ -18,7 +18,7 @@ program test_callbacks
     use sqpopt_options_module,    only: sqpopt_options_type
     use sqpopt_linesearch_module, only: sqpopt_linesearch_type
     use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type
-    use sqpopt_types_module,      only: sqpopt_success, sqpopt_user_requested_stop, sqpopt_report_func
+    use sqpopt_types_module,      only: sqpopt_success, sqpopt_user_requested_stop
     use sqpopt_kinds,             only: wp => sqpopt_module_wp
 
     implicit none
@@ -38,7 +38,6 @@ program test_callbacks
     type(my_data), target        :: data
     real(wp) :: xsol(2), lam(1)
     integer  :: istat
-    procedure(sqpopt_report_func), pointer :: rep
 
     write(*,*) '----------------------------'
     write(*,*) 'test_callbacks'
@@ -52,10 +51,9 @@ program test_callbacks
     ! (step caps off, so the first step reaches the region where f is refused)
     linesearch%major_step_limit = huge(1.0_wp)
     qp_solver%max_step = huge(1.0_wp)
-    rep => report
 
     ! ---- user data, and status > 0 ----
-    call solver%initialize(problem=problem, options=options, linesearch=linesearch, qp_solver=qp_solver, report=rep)
+    call solver%initialize(problem=problem, options=options, linesearch=linesearch, qp_solver=qp_solver, report=report)
     call solver%solve([0.0_wp, 0.0_wp], istat)
     call solver%get_solution(xsol, lam)
     print '(A,2F10.6,A,I0,A,6I4)', 'x=', xsol, ' istat=', istat, ' calls f,g,c,jac,report,refused:', &

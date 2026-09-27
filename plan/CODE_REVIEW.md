@@ -220,6 +220,10 @@ e.g. `solver%check_derivatives(x, report)`, which compares `gjac` (and
 roadmap was dropped; this is the smaller, most valuable part of it.)
 
 **U2. The `report` callback must be a procedure pointer** (high; easy fix).
+*(Done 2026-09-27: `report` is now a plain optional dummy procedure, so
+`report=my_report` works. A pointer argument still works: a disassociated
+one counts as absent. `test/test_callbacks.f90` now passes the routine
+directly.)*
 [`initialize`](../src/sqpopt_module.F90#L104) declares `report` as an
 optional procedure *pointer* without `intent(in)`, so a user can't write
 `report=my_report`; they must declare a pointer variable and point it at

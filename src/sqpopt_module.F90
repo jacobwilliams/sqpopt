@@ -101,7 +101,7 @@
     type(sqpopt_trust_region_type),optional,intent(in) :: trust_region !! trust-region globalization (opt-in
                                                                         !! alternative to `linesearch`, see
                                                                         !! [[sqpopt_trust_region_module]])
-    procedure(sqpopt_report_func), optional, pointer :: report      !! optional user progress-reporting callback,
+    procedure(sqpopt_report_func), optional :: report               !! optional user progress-reporting callback,
                                                                      !! called once per major iteration with the
                                                                      !! current iterate; set its `user_stop` output
                                                                      !! to request the solver stop early
@@ -119,9 +119,7 @@
         me%trust_region0 = sqpopt_trust_region_type()
     end if
     me%report => null()
-    if (present(report)) then
-        if (associated(report)) me%report => report
-    end if
+    if (present(report)) me%report => report
 
     if (allocated(me%x))      deallocate(me%x)
     if (allocated(me%lambda)) deallocate(me%lambda)
