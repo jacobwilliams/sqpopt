@@ -40,7 +40,8 @@ program test_hs71
 
     use sqpopt_module,         only: sqpopt_type
     use sqpopt_problem_module, only: sqpopt_problem_type
-    use sqpopt_options_module, only: sqpopt_options_type, sqpopt_hessian_exact
+    use sqpopt_options_module, only: sqpopt_options_type
+    use sqpopt_hessian_module, only: sqpopt_hessian_exact
     use sqpopt_linesearch_module, only: sqpopt_merit_l1, sqpopt_merit_augmented_lagrangian, &
                                         sqpopt_linesearch_armijo, sqpopt_linesearch_watchdog, sqpopt_linesearch_filter, &
                                         sqpopt_linesearch_funnel, &

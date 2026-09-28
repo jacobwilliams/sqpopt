@@ -34,7 +34,8 @@ program test_large_sparse
 
     use sqpopt_module,           only: sqpopt_type
     use sqpopt_problem_module,   only: sqpopt_problem_type
-    use sqpopt_options_module,   only: sqpopt_options_type, sqpopt_hessian_exact
+    use sqpopt_options_module,   only: sqpopt_options_type
+    use sqpopt_hessian_module,  only: sqpopt_hessian_exact
     use sqpopt_qp_solver_module, only: sqpopt_qp_solver_type, sqpopt_qp_auto, sqpopt_qp_reduced_hessian, &
                                        sqpopt_qp_dense
     use sqpopt_types_module,     only: sqpopt_results_type, sqpopt_success, sqpopt_acceptable, sqpopt_stalled

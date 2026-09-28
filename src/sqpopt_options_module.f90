@@ -11,17 +11,12 @@
     use sqpopt_qp_solver_module,  only: sqpopt_qp_auto
     use sqpopt_restoration_module, only: sqpopt_restoration_phase
     use sqpopt_types_module,      only: sqpopt_infinity
+    use sqpopt_hessian_module,    only: sqpopt_hessian_bfgs
     use, intrinsic :: iso_fortran_env, only: output_unit
 
     implicit none
 
     private
-
-    integer, parameter, public :: sqpopt_hessian_bfgs   = 1  !! limited-memory (damped) BFGS quasi-Newton Hessian approximation
-    integer, parameter, public :: sqpopt_hessian_sr1    = 2  !! limited-memory symmetric rank-1 (SR1) quasi-Newton Hessian approximation
-    integer, parameter, public :: sqpopt_hessian_exact  = 3  !! user-supplied exact sparse Hessian of the Lagrangian (the
-                                                             !! `hess` function of [[set_functions]], with the pattern of
-                                                             !! [[set_hessian_sparsity]]; see [[sqpopt_hessian_module]])
 
     type, public :: sqpopt_options_type
         !! options that control the SQP algorithm.

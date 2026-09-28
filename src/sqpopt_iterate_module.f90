@@ -24,8 +24,8 @@
                                          sqpopt_infeasible, sqpopt_function_error, sqpopt_all_finite, sqpopt_unbounded, &
                                          sqpopt_acceptable, sqpopt_infinity, sqpopt_stalled, sqpopt_qp_solve_failed
     use sqpopt_problem_module,    only: sqpopt_problem_type
-    use sqpopt_options_module,    only: sqpopt_options_type, sqpopt_hessian_sr1, sqpopt_hessian_exact
-    use sqpopt_hessian_module,    only: sqpopt_hessian_type
+    use sqpopt_options_module,    only: sqpopt_options_type
+    use sqpopt_hessian_module,    only: sqpopt_hessian_type, sqpopt_hessian_sr1, sqpopt_hessian_exact
     use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type
     use sqpopt_linesearch_module, only: sqpopt_linesearch_type, sqpopt_linesearch_filter, sqpopt_linesearch_funnel, &
                                          l1_violation

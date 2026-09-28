@@ -82,7 +82,8 @@ program test_hs_suite
     use hs_derivatives_module, only: p => hs_current, check_derivatives, fd_gradient, fd_jacobian, fd_step
     use sqpopt_module,         only: sqpopt_type
     use sqpopt_problem_module, only: sqpopt_problem_type
-    use sqpopt_options_module, only: sqpopt_options_type, sqpopt_hessian_bfgs, sqpopt_hessian_sr1, sqpopt_hessian_exact
+    use sqpopt_options_module, only: sqpopt_options_type
+    use sqpopt_hessian_module, only: sqpopt_hessian_bfgs, sqpopt_hessian_sr1, sqpopt_hessian_exact
     use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type, sqpopt_qp_auto, sqpopt_qp_dense, &
                                         sqpopt_qp_reduced_hessian
     use sqpopt_qp_reduced_hessian_module, only: sqpopt_null_space_lu, sqpopt_null_space_lsqr

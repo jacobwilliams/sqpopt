@@ -2,7 +2,8 @@ program test_basic
 
     use sqpopt_module,         only: sqpopt_type
     use sqpopt_problem_module, only: sqpopt_problem_type
-    use sqpopt_options_module, only: sqpopt_options_type, sqpopt_hessian_sr1
+    use sqpopt_options_module, only: sqpopt_options_type
+    use sqpopt_hessian_module, only: sqpopt_hessian_sr1
     use sqpopt_linesearch_module, only: sqpopt_linesearch_exact, sqpopt_linesearch_watchdog, sqpopt_merit_augmented_lagrangian, &
                                          sqpopt_linesearch_type, sqpopt_linesearch_filter
     use sqpopt_qp_solver_module, only: sqpopt_qp_dense, sqpopt_qp_reduced_hessian

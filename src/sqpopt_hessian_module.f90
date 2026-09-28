@@ -42,6 +42,13 @@
 
     private
 
+    ! the Hessian modes (`options%hessian_mode`):
+    integer, parameter, public :: sqpopt_hessian_bfgs   = 1  !! limited-memory (damped) BFGS quasi-Newton Hessian approximation
+    integer, parameter, public :: sqpopt_hessian_sr1    = 2  !! limited-memory symmetric rank-1 (SR1) quasi-Newton Hessian approximation
+    integer, parameter, public :: sqpopt_hessian_exact  = 3  !! user-supplied exact sparse Hessian of the Lagrangian (the
+                                                             !! `hess` function of [[set_functions]], with the pattern of
+                                                             !! [[set_hessian_sparsity]]; see the module documentation)
+
     type, public :: sqpopt_hessian_type
         !! stores and updates a limited-memory approximation to the
         !! Hessian of the Lagrangian (never forms a dense `n x n` matrix).
