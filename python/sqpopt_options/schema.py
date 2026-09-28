@@ -165,6 +165,10 @@ RESTORATION_MODES = (
     Choice(1, 'feasibility restoration phase', 'sqpopt_restoration_phase'),
     Choice(2, 'single Gauss-Newton step', 'sqpopt_restoration_gauss_newton'),
 )
+DERIVATIVE_ACCURACIES = (
+    Choice(1, 'fast, then accurate near the solution', 'sqpopt_derivatives_fast'),
+    Choice(2, 'accurate throughout', 'sqpopt_derivatives_accurate'),
+)
 NULL_SPACE_METHODS = (
     Choice(1, 'sparse LU basis (SQOPT-style)', 'sqpopt_null_space_lu'),
     Choice(2, 'orthogonal projections with LSQR', 'sqpopt_null_space_lsqr'),
@@ -181,7 +185,7 @@ FUNNEL_UPDATES = (
 )
 
 ALL_CHOICES = (HESSIAN_MODES, QP_MODES, LINESEARCH_MODES, MERIT_MODES, PENALTY_UPDATES,
-               RESTORATION_MODES, NULL_SPACE_METHODS)
+               RESTORATION_MODES, NULL_SPACE_METHODS, DERIVATIVE_ACCURACIES)
 
 
 def _o(path: str, kind: str, default: Any, doc: str, **kw) -> Option:
@@ -347,6 +351,18 @@ TOPICS: tuple[Topic, ...] = (
                'Feasibility restoration when no acceptable step is found at an infeasible point: a restoration '
                'phase (feasibility QPs, as in filter-SQP methods and Uno), or a single Gauss-Newton step on the '
                'violation each time.', choices=RESTORATION_MODES),
+        )),
+        Section('Derivatives', (
+            _o('options%derivative_accuracy', 'choice', 2,
+               "The accuracy of the derivatives the solver asks gjac for (its accuracy argument). With fast, "
+               "gjac may return cheaper, less accurate derivatives (e.g. forward instead of central differences) "
+               "until the solver is near a solution, then it asks for accurate ones for the rest of the solve. "
+               "It also switches when a step fails, when progress stalls, and before stopping.",
+               choices=DERIVATIVE_ACCURACIES),
+            _o('options%derivative_switch_tol', 'float', 1e-5,
+               'With fast derivatives: the KKT and feasibility errors (of the scaled problem) below which the '
+               'solver switches to accurate ones. Switching earlier costs accurate derivatives on iterations '
+               'that do not need them.', minimum=0.0),
         )),
         Section('Degenerate points', (
             _o('options%elastic_multiplier_limit', 'float', 30.0,

@@ -145,11 +145,12 @@ program test_results
     if (status == 0) call cons(x, c, status, data)
     end subroutine fc_obj_cons
 
-    subroutine gjac_grad_jacv(x, g, jac_val, status, data)
+    subroutine gjac_grad_jacv(x, g, jac_val, accuracy, status, data)
     !! `gjac` for `set_functions`: the gradient (`grad`) and the Jacobian values (`jacv`)
     real(wp), dimension(:), intent(in)    :: x       !! point `dimension(n)`
     real(wp), dimension(:), intent(out)   :: g       !! objective gradient at `x` `dimension(n)`
     real(wp), dimension(:), intent(out)   :: jac_val !! nonzero values of the constraint Jacobian at `x` (in the sparsity pattern's order)
+    integer,                intent(in)    :: accuracy !! requested accuracy: `sqpopt_derivatives_fast` or `sqpopt_derivatives_accurate`
     integer,                intent(inout) :: status  !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
     class(*), optional,     intent(inout) :: data    !! the user data passed to `set_functions` (if any)
     call grad(x, g, status, data)

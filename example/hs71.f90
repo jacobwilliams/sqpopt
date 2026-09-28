@@ -46,11 +46,12 @@ contains
     c = [sum(x**2), product(x)]
     end subroutine fc
 
-    subroutine gjac(x, g, jac_val, status, data)
+    subroutine gjac(x, g, jac_val, accuracy, status, data)
     !! evaluate the gradient of the objective and the Jacobian of the constraints at the current point `x`
     real(wp), dimension(:), intent(in)    :: x !! current point `dimension(n)`
     real(wp), dimension(:), intent(out)   :: g !! gradient of the objective at `x`
     real(wp), dimension(:), intent(out)   :: jac_val !! nonzero entries of the Jacobian at `x`
+    integer,                intent(in)    :: accuracy !! requested accuracy: `sqpopt_derivatives_fast` or `sqpopt_derivatives_accurate`
     integer,                intent(inout) :: status !! status flag (input/output)
     class(*), optional,     intent(inout) :: data !! user-provided data (optional)
     g = [x(4)*(2.0_wp*x(1)+x(2)+x(3)), x(1)*x(4), x(1)*x(4) + &

@@ -95,11 +95,12 @@ contains
     c(1) = x(1)**2 + x(2)**2
     end subroutine fc
 
-    subroutine gjac(x, g, jac_val, status, data)
+    subroutine gjac(x, g, jac_val, accuracy, status, data)
     !! `gjac` for `set_functions`: the objective gradient and the constraint's Jacobian
     real(wp), dimension(:), intent(in)    :: x       !! point `dimension(n)`
     real(wp), dimension(:), intent(out)   :: g       !! objective gradient at `x` `dimension(n)`
     real(wp), dimension(:), intent(out)   :: jac_val !! nonzero values of the constraint Jacobian at `x` (in the sparsity pattern's order)
+    integer,                intent(in)    :: accuracy !! requested accuracy: `sqpopt_derivatives_fast` or `sqpopt_derivatives_accurate`
     integer,                intent(inout) :: status  !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
     class(*), optional,     intent(inout) :: data    !! the user data passed to `set_functions` (if any)
     g       = [1.0_wp, 1.0_wp]

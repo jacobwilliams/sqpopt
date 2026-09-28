@@ -47,6 +47,7 @@
     <a href="#installation">Installation</a>
     <a href="#quick-start">Quick start</a>
     <a href="#user-functions">User functions</a>
+    <a href="#fast-derivatives" class="toc-sub">Fast derivatives</a>
     <a href="#exact-hessian" class="toc-sub">Exact Hessian</a>
     <a href="#example">Worked example</a>
     <a href="#results">Results</a>
@@ -174,10 +175,11 @@ print *, solver%status_message()        ! e.g. 'converged successfully'</code></
     c = ...
 end subroutine fc
 
-subroutine gjac(x, g, jac_val, status, data)
+subroutine gjac(x, g, jac_val, accuracy, status, data)
     real(wp), dimension(:), intent(in)    :: x
     real(wp), dimension(:), intent(out)   :: g        ! dimension(n)
     real(wp), dimension(:), intent(out)   :: jac_val  ! dimension(nnz); nnz may be 0
+    integer,                intent(in)    :: accuracy ! sqpopt_derivatives_fast or _accurate
     integer,                intent(inout) :: status   ! 0 on entry
     class(*), optional,     intent(inout) :: data
     g = ...
@@ -187,11 +189,32 @@ end subroutine gjac</code></pre>
 <p>The Jacobian values must be in the order of the <code>irow</code>/<code>icol</code> pattern given to <code>set_jacobian_sparsity</code>. The solver keeps a small cache of recent evaluations, so asking for <code>c</code> at a point where it just evaluated <code>f</code> (or for the Jacobian where it just evaluated the gradient) doesn't call your routine again.</p>
 
 <dl class="defs">
+  <dt><code>accuracy</code></dt>
+  <dd>The accuracy the solver asks for: <code>sqpopt_derivatives_accurate</code>, or, with <code>options%derivative_accuracy = sqpopt_derivatives_fast</code>, <code>sqpopt_derivatives_fast</code> while it is far from a solution (see <a href="#fast-derivatives">Fast derivatives</a>). With analytic derivatives, ignore it.</dd>
   <dt><code>status</code></dt>
   <dd>Leave it <code>0</code> on success. Set it <code>&gt; 0</code> if the function can't be evaluated at <code>x</code> (for example, a domain error). The solver treats that point like one where the function returned NaN (all of its outputs, e.g. both <code>f</code> and <code>c</code>), and backs off from it. Set it <code>&lt; 0</code> to stop the solver (<code>sqpopt_user_requested_stop</code>). No user function is called again after that.</dd>
   <dt><code>data</code></dt>
   <dd>The object passed as <code>set_functions(..., data=my_data)</code> (absent if none was given). Use it to pass any context to the functions without module variables, and access it with <code>select type</code>. It is <em>pointed to</em>, not copied, so the caller's object needs the <code>target</code> attribute, and any changes the functions make to it are seen by the caller. It is also passed to the <code>report</code> callback.</dd>
 </dl>
+
+<h3 id="fast-derivatives">Fast derivatives (optional)</h3>
+
+<p>If your derivatives are approximations whose accuracy has a cost (finite differences, most often: a forward difference costs \( n \) function evaluations, a central one \( 2n \) and is far more accurate), set <code>options%derivative_accuracy = sqpopt_derivatives_fast</code>. Then the solver asks <code>gjac</code> for fast derivatives (<code>accuracy = sqpopt_derivatives_fast</code>) far from a solution, where rough derivatives give about as good a step, and switches to accurate ones (<code>sqpopt_derivatives_accurate</code>) for the rest of the solve (as SNOPT switches from forward to central differences). It switches as soon as either of these holds:</p>
+<ul>
+  <li>it is near a solution: the KKT and feasibility errors are below <code>derivative_switch_tol</code>;</li>
+  <li>it would stop at this point (converged, acceptable, stalled, or infeasible): the gradient and Jacobian are re-evaluated accurately and the tests redone, so it never stops on the strength of fast derivatives;</li>
+  <li>progress stalls, or a step fails: both can be caused by derivatives that are too rough.</li>
+</ul>
+<p>Because of the last two rules, <code>derivative_switch_tol</code> is only a shortcut, and a small one works best: on the Hock&ndash;Schittkowski problems with finite-difference derivatives for all of them, switching from forward to central differences took about 40% fewer function evaluations than central differences throughout, with the same problems solved, for any <code>derivative_switch_tol</code> from \( 10^{-5} \) (the default, \( 10 \times \) <code>ktol</code>) down; switching earlier (\( 10^{-3} \)) saved only 15%. Forward differences throughout were cheaper still, but failed on 2 problems. The iteration of the switch is in <code>results%derivative_switch_iteration</code>, and flagged <code>D</code> in the log.</p>
+
+<pre><code class="language-fortran">subroutine gjac(x, g, jac_val, accuracy, status, data)
+    ...
+    if (accuracy == sqpopt_derivatives_fast) then
+        ! forward differences of fc
+    else
+        ! central differences of fc
+    end if
+end subroutine gjac</code></pre>
 
 <h3 id="exact-hessian">Exact Hessian (optional)</h3>
 
@@ -285,11 +308,12 @@ contains
     c = [sum(x**2), product(x)]
     end subroutine fc
 
-    subroutine gjac(x, g, jac_val, status, data)
+    subroutine gjac(x, g, jac_val, accuracy, status, data)
     !! evaluate the gradient of the objective and the Jacobian of the constraints at the current point `x`
     real(wp), dimension(:), intent(in)    :: x !! current point `dimension(n)`
     real(wp), dimension(:), intent(out)   :: g !! gradient of the objective at `x`
     real(wp), dimension(:), intent(out)   :: jac_val !! nonzero entries of the Jacobian at `x`
+    integer,                intent(in)    :: accuracy !! requested accuracy: `sqpopt_derivatives_fast` or `sqpopt_derivatives_accurate`
     integer,                intent(inout) :: status !! status flag (input/output)
     class(*), optional,     intent(inout) :: data !! user-provided data (optional)
     g = [x(4)*(2.0_wp*x(1)+x(2)+x(3)), x(1)*x(4), x(1)*x(4) + &
@@ -323,6 +347,7 @@ end program hs71</code></pre>
 <tr><td><code>n_qp_iterations</code></td><td>total active-set iterations of the QP subproblem solves</td></tr>
 <tr><td><code>n_soc</code>, <code>n_hessian_resets</code>, <code>n_restoration_steps</code>, <code>n_restoration_phases</code>, <code>n_elastic</code>, <code>n_escape</code></td><td>counts of the solve's events: accepted second-order corrections, Hessian resets (or shift increases), iterations with a restoration step, restoration phases entered, elastic QP re-solves, and escape steps</td></tr>
 <tr><td><code>feasibility_error</code></td><td>largest violation of a constraint or variable bound</td></tr>
+<tr><td><code>derivative_switch_iteration</code></td><td>the iteration at which the solver switched from fast to accurate derivatives (<code>0</code> if it didn't; see <a href="#fast-derivatives">Fast derivatives</a>)</td></tr>
 </tbody>
 </table></div>
 
@@ -398,12 +423,13 @@ subroutine fc_y(y, f, c, status, data)   ! the problem in y = x/d
     call fc(d*y, f, c, status, data)
 end subroutine fc_y
 
-subroutine gjac_y(y, g, jac_val, status, data)
+subroutine gjac_y(y, g, jac_val, accuracy, status, data)
     real(wp), dimension(:), intent(in)    :: y
     real(wp), dimension(:), intent(out)   :: g, jac_val
+    integer,                intent(in)    :: accuracy
     integer,                intent(inout) :: status
     class(*), optional,     intent(inout) :: data
-    call gjac(d*y, g, jac_val, status, data)
+    call gjac(d*y, g, jac_val, accuracy, status, data)
     ! (icol: the column indices of the Jacobian's sparsity pattern)
     g       = d*g                 ! df/dy_j   = d_j df/dx_j
     jac_val = d(icol)*jac_val     ! dc_i/dy_j = d_j dc_i/dx_j
@@ -532,6 +558,8 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <tr><td><code>restoration_mode</code></td><td><code>sqpopt_restoration_phase</code></td><td>feasibility restoration strategy (see <a href="#restoration">Feasibility restoration</a>): a restoration phase, or <code>sqpopt_restoration_gauss_newton</code> for a single Gauss-Newton step each time</td></tr>
 <tr><td><code>restoration_exit_factor</code></td><td><code>0.9</code></td><td>a restoration phase ends once the \( \ell_1 \) violation is below this factor times its value where the phase started and the point is acceptable to the filter or funnel</td></tr>
 <tr><td><code>restoration_max_iter</code></td><td><code>50</code></td><td>maximum number of iterations of a restoration phase</td></tr>
+<tr><td><code>derivative_accuracy</code></td><td><code>sqpopt_derivatives_accurate</code></td><td>the accuracy of the derivatives asked of <code>gjac</code>: <code>sqpopt_derivatives_fast</code> asks for fast ones until near a solution, then accurate ones (see <a href="#fast-derivatives">Fast derivatives</a>)</td></tr>
+<tr><td><code>derivative_switch_tol</code></td><td><code>1e-5</code></td><td>with fast derivatives: the KKT and feasibility errors (of the scaled problem) below which the solver switches to accurate ones (it also switches when a step fails, progress stalls, or before stopping)</td></tr>
 <tr><td><code>elastic_multiplier_limit</code></td><td><code>30</code></td><td>guards against converging to a point where the constraint qualification fails (e.g. a constraint tangent to a bound), which the iterates can creep toward with a multiplier that grows every iteration. When a constraint's push \( |\lambda_i|\,\lVert\nabla c_i\rVert_\infty \) exceeds this times \( \max(1,\lVert g\rVert_\infty) \) at two successive iterates and is still growing, the QP is re-solved with that constraint <em>elastic</em> (an \( \ell_1 \) penalty with a bounded weight, as in SNOPT), which caps its multiplier and lets the step leave. At most 3 times per solve. <code>0</code> disables it.</td></tr>
 </tbody>
 </table></div>
@@ -551,7 +579,7 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <tbody>
 <tr><td><code>print_level</code></td><td><code>0</code></td><td>
   <code>0</code>: no output.
-  <code>1</code>: the problem (sizes), the method (globalization, QP solver, Hessian, restoration), the scaling and the tolerances; one line per major iteration (objective, infeasibility and KKT error of the scaled problem, step length, <code>fc</code> calls so far, and flags for the iteration's events: <code>R</code> restoration step, <code>P</code> restoration phase, <code>S</code> second-order correction, <code>H</code> Hessian reset, <code>E</code> elastic QP re-solve, <code>X</code> escape step, <code>N</code> non-monotone step, <code>W</code> watchdog relaxed step, <code>Q</code> QP failed, <code>F</code> no acceptable step); and a summary (status, objective, feasibility, KKT and unscaled stationarity errors, largest multiplier, active constraints and bounds, evaluations, QP iterations, counts of the events, and the time split between the user functions, the QP, and the rest).
+  <code>1</code>: the problem (sizes), the method (globalization, QP solver, Hessian, restoration), the scaling and the tolerances; one line per major iteration (objective, infeasibility and KKT error of the scaled problem, step length, <code>fc</code> calls so far, and flags for the iteration's events: <code>R</code> restoration step, <code>P</code> restoration phase, <code>S</code> second-order correction, <code>H</code> Hessian reset, <code>E</code> elastic QP re-solve, <code>X</code> escape step, <code>N</code> non-monotone step, <code>W</code> watchdog relaxed step, <code>D</code> switched to accurate derivatives, <code>Q</code> QP failed, <code>F</code> no acceptable step); and a summary (status, objective, feasibility, KKT and unscaled stationarity errors, largest multiplier, active constraints and bounds, evaluations, QP iterations, counts of the events, and the time split between the user functions, the QP, and the rest).
   <code>2</code>: also, per iteration, the step norm, QP iterations, <code>fc</code> calls, largest multiplier, unscaled stationarity error, the globalization's state (merit penalty, filter entries, funnel width, or trust-region radius), and the Hessian's (stored quasi-Newton pairs, or the exact Hessian's shift).
   <code>3</code>: also indented detail lines under each iteration: every QP solve (solver, iterations, working-set size, elastic slacks, status, negative curvature), every line-search or trust-region trial (step length or radius, violation and objective or merit value, and why it was accepted or rejected), second-order corrections, restoration phases (start, iterations, end and why), elastic re-solves, escape steps, and Hessian resets (and why); the smallest constraint scale factors; and the solution: the variables and constraints with their bounds, multipliers, and which are active (up to 100 of each).
 </td></tr>

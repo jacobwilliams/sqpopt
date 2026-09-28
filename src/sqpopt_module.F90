@@ -26,7 +26,7 @@
                                          sqpopt_invalid_input, sqpopt_status_message, sqpopt_sparse_matrix, &
                                          sqpopt_results_type, sqpopt_max_evals_reached, sqpopt_time_limit_reached, &
                                          sqpopt_qp_solve_failed, sqpopt_infinity, sqpopt_all_finite
-    use sqpopt_problem_module,    only: sqpopt_problem_type
+    use sqpopt_problem_module,    only: sqpopt_problem_type, sqpopt_derivatives_fast, sqpopt_derivatives_accurate
     use sqpopt_options_module,    only: sqpopt_options_type
     use sqpopt_hessian_module,    only: sqpopt_hessian_type, sqpopt_hessian_bfgs, sqpopt_hessian_sr1, sqpopt_hessian_exact
     use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type, sqpopt_qp_auto, sqpopt_qp_dense, &
@@ -221,6 +221,7 @@
 
     ! empty evaluation caches, and (optionally) gradient-based scaling:
     call me%problem%reset_evaluations()
+    call me%problem%set_derivative_accuracy(me%options%derivative_accuracy)
     if (me%options%scaling) call me%problem%compute_scaling(me%x, me%options%scaling_max_gradient)
     if (present(lambda0)) me%lambda = lambda0*me%problem%f_scale/me%problem%c_scale
 
@@ -378,6 +379,7 @@
         if (info%hess_reset)  me%results%n_hessian_resets = me%results%n_hessian_resets + 1
         if (info%elastic)     me%results%n_elastic        = me%results%n_elastic + 1
         if (info%escape)      me%results%n_escape         = me%results%n_escape + 1
+        if (info%derivatives) me%results%derivative_switch_iteration = iter
         if (info%restoration) me%results%n_restoration_steps = me%results%n_restoration_steps + 1
         if (info%phase .and. .not. in_phase) me%results%n_restoration_phases = me%results%n_restoration_phases + 1
         in_phase = info%phase .and. me%restoration%active
@@ -432,7 +434,8 @@
         end if
         write(u, '(A)', iostat=ios) '   flags:   R restoration step, P restoration phase, S second-order correction, H Hessian'
         write(u, '(A)', iostat=ios) '            reset, E elastic QP re-solve, X escape step, N non-monotone step, W watchdog'
-        write(u, '(A)', iostat=ios) '            relaxed step, Q QP failed, F no acceptable step'
+        write(u, '(A)', iostat=ios) '            relaxed step, D switched to accurate derivatives, Q QP failed, F no'
+        write(u, '(A)', iostat=ios) '            acceptable step'
         end subroutine print_legend
 
         subroutine print_scale_factors()
@@ -592,6 +595,7 @@
         if (info%escape)      flags = trim(flags)//'X'
         if (info%nonmonotone) flags = trim(flags)//'N'
         if (info%relaxed)     flags = trim(flags)//'W'
+        if (info%derivatives) flags = trim(flags)//'D'
         if (info%qp_istat == sqpopt_qp_solve_failed) flags = trim(flags)//'Q'
         if (info%stepped .and. iter_istat /= sqpopt_success .and. iter_istat /= sqpopt_qp_solve_failed) then
             flags = trim(flags)//'F'
@@ -666,6 +670,10 @@
         call add_event(events, me%results%n_hessian_resets, 'Hessian reset', 'Hessian resets')
         call add_event(events, me%results%n_elastic, 'elastic re-solve', 'elastic re-solves')
         call add_event(events, me%results%n_escape, 'escape step', 'escape steps')
+        if (me%results%derivative_switch_iteration > 0) then
+            if (len(events) > 0) events = events//', '
+            events = events//'accurate derivatives from iteration '//fmt_i(me%results%derivative_switch_iteration)
+        end if
         if (len(events) == 0) events = 'none'
         write(u, '(A)', iostat=ios)         '   events              = '//events
         t_other = max(0.0_wp, me%results%time - me%results%time_functions - me%results%time_qp)
@@ -879,6 +887,11 @@
     end if
     if (.not. (o%ktol > 0.0_wp .and. o%ctol > 0.0_wp)) then
         msg = 'options%ktol and options%ctol must be > 0'
+        return
+    end if
+    if (all(o%derivative_accuracy /= [sqpopt_derivatives_fast, sqpopt_derivatives_accurate]) .or. &
+        .not. (o%derivative_switch_tol >= 0.0_wp)) then
+        msg = 'options%derivative_accuracy must be a sqpopt_derivatives_* value, and derivative_switch_tol >= 0'
         return
     end if
     if (.not. (o%dual_inf_tol > 0.0_wp)) then

@@ -88,16 +88,29 @@
     end do
     end function mismatch
 
-    subroutine fd_gradient(id, x, g, hfac)
+    subroutine fd_gradient(id, x, g, hfac, forward)
     !! finite-difference gradient of problem `id`'s objective (see [[fd_step]])
     integer,                intent(in)  :: id   !! problem number
     real(dp), dimension(:), intent(in)  :: x    !! point `dimension(n)`
     real(dp), dimension(:), intent(out) :: g    !! the finite-difference gradient `dimension(n)`
     real(dp), optional,     intent(in)  :: hfac !! factor on the default difference step
+    logical,  optional,     intent(in)  :: forward !! use (first-order) forward differences instead (see
+                                                   !! [[forward_step]]): half the function evaluations,
+                                                   !! but less accurate
     real(dp), dimension(size(x)) :: xp
     real(dp) :: f0, f1, f2, h
     integer :: j, side
     call hs_f(id, x, f0)
+    if (present(forward)) then
+        if (forward) then
+            do j = 1, size(x)
+                h = forward_step(x, j)
+                xp = x; xp(j) = x(j) + h;  call hs_f(id, xp, f1)
+                g(j) = (f1 - f0)/h
+            end do
+            return
+        end if
+    end if
     do j = 1, size(x)
         call fd_step(x, j, h, side, hfac)
         xp = x; xp(j) = x(j) + h;          call hs_f(id, xp, f1)
@@ -110,17 +123,29 @@
     end do
     end subroutine fd_gradient
 
-    subroutine fd_jacobian(id, x, jac, hfac)
+    subroutine fd_jacobian(id, x, jac, hfac, forward)
     !! finite-difference Jacobian of problem `id`'s constraints (see [[fd_step]])
     integer,                  intent(in)  :: id   !! problem number
     real(dp), dimension(:),   intent(in)  :: x    !! point `dimension(n)`
     real(dp), dimension(:,:), intent(out) :: jac  !! the finite-difference Jacobian `dimension(m,n)`
     real(dp), optional,       intent(in)  :: hfac !! factor on the default difference step
+    logical,  optional,       intent(in)  :: forward !! use (first-order) forward differences instead (see
+                                                     !! [[forward_step]])
     real(dp), dimension(size(x)) :: xp
     real(dp), dimension(size(jac,1)) :: c0, c1, c2
     real(dp) :: h
     integer :: j, side
     call hs_c(id, x, c0)
+    if (present(forward)) then
+        if (forward) then
+            do j = 1, size(x)
+                h = forward_step(x, j)
+                xp = x; xp(j) = x(j) + h;  call hs_c(id, xp, c1)
+                jac(:,j) = (c1 - c0)/h
+            end do
+            return
+        end if
+    end if
     do j = 1, size(x)
         call fd_step(x, j, h, side, hfac)
         xp = x; xp(j) = x(j) + h;          call hs_c(id, xp, c1)
@@ -156,6 +181,15 @@
         h = -h
     end if
     end subroutine fd_step
+
+    real(dp) function forward_step(x, j) result(h)
+    !! the step for a forward difference along `x(j)`: `sqrt(eps)` relative,
+    !! backward instead if a forward step would cross the upper bound
+    real(dp), dimension(:), intent(in) :: x !! point `dimension(n)`
+    integer,                intent(in) :: j !! the variable to difference along
+    h = sqrt(epsilon(1.0_dp))*max(1.0_dp, abs(x(j)))
+    if (x(j) + h > hs_current%x_ub(j)) h = -h
+    end function forward_step
 
     end module hs_derivatives_module
 !*******************************************************************************

@@ -23,7 +23,7 @@
     use sqpopt_types_module,      only: sqpopt_sparse_matrix, sqpopt_success, sqpopt_user_requested_stop, sqpopt_report_func, &
                                          sqpopt_infeasible, sqpopt_function_error, sqpopt_all_finite, sqpopt_unbounded, &
                                          sqpopt_acceptable, sqpopt_infinity, sqpopt_stalled, sqpopt_qp_solve_failed
-    use sqpopt_problem_module,    only: sqpopt_problem_type
+    use sqpopt_problem_module,    only: sqpopt_problem_type, sqpopt_derivatives_fast, sqpopt_derivatives_accurate
     use sqpopt_options_module,    only: sqpopt_options_type
     use sqpopt_hessian_module,    only: sqpopt_hessian_type, sqpopt_hessian_sr1, sqpopt_hessian_exact
     use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type
@@ -69,6 +69,8 @@
                                         !! of filter entries, the funnel width, or the trust-region radius
         real(wp) :: hess_measure = 0.0_wp !! the number of stored quasi-Newton pairs, or the exact Hessian's shift
         integer  :: n_fc      = 0       !! calls of `fc` during the iteration (set by the caller)
+        logical  :: derivatives = .false. !! whether the solver switched from fast to accurate derivatives (see
+                                          !! `options%derivative_accuracy`)
     end type sqpopt_iter_info
 
     contains
@@ -149,6 +151,7 @@
     integer, parameter :: max_escape = 3 !! maximum number of second-order escapes (see [[escape_step]])
     type(sqpopt_log_type) :: lg !! the detailed log
     real(wp) :: stat_err
+    integer :: n_stalled0 !! `n_stalled` on entry
 
     done = .false.
     lg = linesearch%log   ! (the detailed log, set up by `solve`)
@@ -217,25 +220,39 @@
     ! the stalled-progress test is also skipped right after a failed step,
     ! when `f_prev` is deallocated (an unallocated actual argument counts as
     ! absent for an optional dummy argument):
-    call check_convergence(x, g, jac, c, problem%x_lb, problem%x_ub, problem%c_lb, problem%c_ub, &
-                            lambda, options%ktol, options%ctol, done, istat, &
-                            f=f, f_prev=f_prev, x_prev=x_prev, ftol=options%ftol, xtol=options%xtol, &
-                            kkt_error=info%kkt, feas_error=info%feas, viol_prev=viol_prev, &
-                            dual_inf_tol=options%dual_inf_tol, f_scale=problem%f_scale, stat_error=stat_err)
-    info%stat_unscaled = stat_err/problem%f_scale
-    ! the stalled-progress test must hold for `stall_iter` consecutive
-    ! iterations: a single negligible step (e.g. a short line-search step on a
-    ! badly scaled problem) is not a stall, and stopping on it made results
-    ! depend on last-bit differences between platforms
-    if (done .and. istat == sqpopt_stalled) then
-        n_stalled = n_stalled + 1
-        if (n_stalled < options%stall_iter) then
-            done  = .false.
-            istat = sqpopt_success
+    ! With fast derivatives (see `options%derivative_accuracy`), switch to
+    ! accurate ones, for the rest of the solve, as soon as the point is near
+    ! a solution (the KKT and feasibility errors are below
+    ! `derivative_switch_tol`), or the solver would stop here (convergence,
+    ! acceptable level, or infeasibility, which inaccurate derivatives may
+    ! fake), or progress has stalled; then redo the tests with them:
+    n_stalled0 = n_stalled
+    do
+        call convergence_tests()
+        if (problem%derivative_accuracy /= sqpopt_derivatives_fast) exit
+        if (.not. (done .or. n_stalled > 0 .or. &
+                   (info%kkt <= options%derivative_switch_tol .and. info%feas <= options%derivative_switch_tol) .or. &
+                   (options%acceptable_iter > 0 .and. n_acceptable + 1 >= options%acceptable_iter .and. &
+                    info%kkt <= options%acceptable_ktol .and. info%feas <= options%acceptable_ctol))) exit
+        call problem%set_derivative_accuracy(sqpopt_derivatives_accurate)
+        info%derivatives = .true.
+        call lg%put(sqpopt_log_detail, 'switched to accurate derivatives (KKT error '//fmt_e(info%kkt)// &
+                    ', feasibility error '//fmt_e(info%feas)//'): gradient and Jacobian re-evaluated')
+        call problem%g(x, g)
+        call problem%jac(x, jac%val)
+        if (problem%stop_requested) then
+            istat = sqpopt_user_requested_stop
+            done  = .true.
+            return
         end if
-    else
-        n_stalled = 0
-    end if
+        if (.not. (sqpopt_all_finite(g) .and. sqpopt_all_finite(jac%val))) then
+            istat = sqpopt_function_error
+            done  = .true.
+            return
+        end if
+        done      = .false.
+        n_stalled = n_stalled0
+    end do
 
     ! a point that is stationary for the violation may still be a saddle of
     ! it (e.g. on a symmetry plane of the problem, which exactly computed
@@ -324,9 +341,11 @@
             ! failed one, or during a run of very short ones)
             call hessian%set_values(hval, decay=qp_solver%n_short == 0 .and. allocated(f_prev))
         end block
-    else if (allocated(x_prev)) then
+    else if (allocated(x_prev) .and. .not. info%derivatives) then
         ! update the quasi-Newton Hessian approximation using the previous step
-        ! (skipped on the very first iteration, since there is no previous point):
+        ! (skipped on the very first iteration, since there is no previous point,
+        ! and when the derivatives were just switched to accurate ones, since
+        ! `gl_prev` was formed with the fast ones):
         if (options%hessian_mode == sqpopt_hessian_sr1) then
             call hessian%update_sr1(x - x_prev, gl - gl_prev)
         else
@@ -579,6 +598,15 @@
         info%hess_reset = .true.
         call lg%put(sqpopt_log_detail, 'no acceptable step: Hessian approximation reset')
         if (allocated(f_prev)) deallocate(f_prev)
+        if (problem%derivative_accuracy == sqpopt_derivatives_fast) then
+            ! (the failure may be due to the inaccurate derivatives: use accurate
+            ! ones from the next iteration on; `x_prev` is dropped, since
+            ! `gl_prev` was formed with the fast ones)
+            call problem%set_derivative_accuracy(sqpopt_derivatives_accurate)
+            info%derivatives = .true.
+            call lg%put(sqpopt_log_detail, 'switched to accurate derivatives (from the next iteration)')
+            if (allocated(x_prev)) deallocate(x_prev)
+        end if
     end if
 
     ! report the first failure, if any (a QP that stopped at its iteration
@@ -593,6 +621,30 @@
     end if
 
     contains
+
+        subroutine convergence_tests()
+        !! the convergence tests at the current point, setting `done` and `istat`
+        !! (see [[check_convergence]]), and the count of consecutive stalled iterations
+        call check_convergence(x, g, jac, c, problem%x_lb, problem%x_ub, problem%c_lb, problem%c_ub, &
+                                lambda, options%ktol, options%ctol, done, istat, &
+                                f=f, f_prev=f_prev, x_prev=x_prev, ftol=options%ftol, xtol=options%xtol, &
+                                kkt_error=info%kkt, feas_error=info%feas, viol_prev=viol_prev, &
+                                dual_inf_tol=options%dual_inf_tol, f_scale=problem%f_scale, stat_error=stat_err)
+        info%stat_unscaled = stat_err/problem%f_scale
+        ! the stalled-progress test must hold for `stall_iter` consecutive
+        ! iterations: a single negligible step (e.g. a short line-search step on a
+        ! badly scaled problem) is not a stall, and stopping on it made results
+        ! depend on last-bit differences between platforms
+        if (done .and. istat == sqpopt_stalled) then
+            n_stalled = n_stalled + 1
+            if (n_stalled < options%stall_iter) then
+                done  = .false.
+                istat = sqpopt_success
+            end if
+        else
+            n_stalled = 0
+        end if
+        end subroutine convergence_tests
 
         subroutine note_qp()
         !! the detailed log's line for the QP solve just done

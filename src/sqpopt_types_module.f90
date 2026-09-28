@@ -86,6 +86,9 @@
         integer  :: n_elastic            = 0 !! QP re-solves with constraints elastic (see
                                              !! `options%elastic_multiplier_limit`)
         integer  :: n_escape             = 0 !! escape steps from a stationary point of the violation
+        integer  :: derivative_switch_iteration = 0 !! the iteration at which the solver switched from fast to
+                                                    !! accurate derivatives (`0` if it didn't: see
+                                                    !! `options%derivative_accuracy`)
         real(wp), dimension(:), allocatable :: x      !! final point `dimension(n)`
         real(wp), dimension(:), allocatable :: c      !! constraint values at `x` `dimension(m)`
         real(wp), dimension(:), allocatable :: lambda !! constraint multipliers `dimension(m)` (for the Lagrangian

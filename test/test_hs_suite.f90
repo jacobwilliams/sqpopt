@@ -62,6 +62,15 @@ program test_hs_suite
     !!   HS problems are small, so `auto` picks the dense QP for all of them:
     !!   `sparse` runs them through the sparse QP instead, and `sparse-lsqr`
     !!   through its `LSQR` null-space method)
+    !! * `--derivatives=central|forward|fast`: finite-difference derivatives
+    !!   for *every* problem (as if none had analytic ones): central
+    !!   differences, forward differences (half the function evaluations,
+    !!   but less accurate), or forward differences while the solver asks for
+    !!   fast derivatives and central ones once it asks for accurate ones
+    !!   (`options%derivative_accuracy = sqpopt_derivatives_fast`). The
+    !!   function evaluations of the differences (one per point, for `f` and
+    !!   `c` together) are counted and reported.
+    !! * `--derivative-switch-tol=X` (`options%derivative_switch_tol`)
     !!
     !! **Web data:** `--web-data=FILE` also writes the results as a JavaScript
     !! data file for the interactive results page of the user guide
@@ -81,7 +90,7 @@ program test_hs_suite
     use hs_problems_module
     use hs_derivatives_module, only: p => hs_current, check_derivatives, fd_gradient, fd_jacobian, fd_step
     use sqpopt_module,         only: sqpopt_type
-    use sqpopt_problem_module, only: sqpopt_problem_type
+    use sqpopt_problem_module, only: sqpopt_problem_type, sqpopt_derivatives_fast
     use sqpopt_options_module, only: sqpopt_options_type
     use sqpopt_hessian_module, only: sqpopt_hessian_bfgs, sqpopt_hessian_sr1, sqpopt_hessian_exact
     use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type, sqpopt_qp_auto, sqpopt_qp_dense, &
@@ -115,6 +124,8 @@ program test_hs_suite
         integer :: id = 0
         integer :: n = 0, m = 0
         logical :: fd_g = .false., fd_jac = .false. !! use central differences for the gradient/Jacobian
+        logical :: forward = .false. !! use forward differences instead (for the current `gjac` call)
+        integer :: n_fd_evals = 0    !! function evaluations of the differences (one per point)
     end type problem_context
 
     type :: run_record
@@ -135,6 +146,8 @@ program test_hs_suite
     type(run_record), dimension(hs_n_problems) :: rec
     integer :: k, n_solved, n_local, n_failed, n_fd, n_regressions, n_improved
     integer :: sum_nf, sum_ng, sum_nlpqlp_nf, sum_nlpqlp_ndf
+    integer :: sum_nfd !! function evaluations of the finite differences (solved problems)
+    integer :: n_switched !! problems on which the solver switched to accurate derivatives
     character(len=6) :: outcome
     integer(int64) :: t0, t1, rate
     character(len=:), allocatable :: report_file
@@ -155,6 +168,8 @@ program test_hs_suite
     integer :: cfg_print       = 0  !! `--print=L`: `options%print_level`
     integer :: cfg_qp          = sqpopt_qp_auto
     integer :: cfg_null_space  = sqpopt_null_space_lu
+    integer :: cfg_derivatives = 0  !! `--derivatives=`: `0` the problems' own, `1` central, `2` forward, `3` fast
+    real(dp) :: cfg_switch_tol = -1.0_dp !! `--derivative-switch-tol=X` (`< 0`: the default)
     logical :: cfg_default     = .true.   !! whether every setting is the default (then the regression test runs)
 
     call ieee_set_halting_mode(ieee_all, .false.)  ! (trial points may produce NaN/Inf, which the solver handles)
@@ -167,7 +182,7 @@ program test_hs_suite
         'rel.err', 'viol', 'nf', 'ng', 'Q:nf', 'Q:ndf', 'fd'
 
     n_solved = 0; n_local = 0; n_failed = 0; n_fd = 0; n_regressions = 0; n_improved = 0
-    sum_nf = 0; sum_ng = 0; sum_nlpqlp_nf = 0; sum_nlpqlp_ndf = 0
+    sum_nf = 0; sum_ng = 0; sum_nlpqlp_nf = 0; sum_nlpqlp_ndf = 0; sum_nfd = 0; n_switched = 0
     call system_clock(t0, rate)
 
     do k = 1, hs_n_problems
@@ -184,6 +199,11 @@ program test_hs_suite
     write(*,'(A,I0)') 'with FD derivatives:      ', n_fd
     write(*,'(A,2(I0,A))') 'evaluations (solved problems): sqpopt ', sum_nf, ' f, ', sum_ng, ' g'
     write(*,'(A,2(I0,A))') '                               NLPQLP ', sum_nlpqlp_nf, ' f, ', sum_nlpqlp_ndf, ' g'
+    if (cfg_derivatives > 0) then
+        write(*,'(A,I0,A,I0,A)') 'finite differences (solved problems): ', sum_nfd, ' function evaluations (', &
+            sum_nf + sum_nfd, ' in all)'
+        if (cfg_derivatives == 3) write(*,'(A,I0)') 'switched to accurate derivatives: ', n_switched
+    end if
     write(*,'(A,F0.2,A)') 'time: ', real(t1-t0, dp)/real(rate, dp), ' s'
 
     if (cfg_problem == 0) then
@@ -261,6 +281,9 @@ program test_hs_suite
         case ('--qp=dense');            cfg_qp = sqpopt_qp_dense
         case ('--qp=sparse');           cfg_qp = sqpopt_qp_reduced_hessian
         case ('--qp=sparse-lsqr');      cfg_qp = sqpopt_qp_reduced_hessian; cfg_null_space = sqpopt_null_space_lsqr
+        case ('--derivatives=central'); cfg_derivatives = 1
+        case ('--derivatives=forward'); cfg_derivatives = 2
+        case ('--derivatives=fast');    cfg_derivatives = 3
         case default
             if (arg(1:14) == '--nonmonotone=') then
                 read(arg(15:), *, iostat=ios) n
@@ -274,6 +297,9 @@ program test_hs_suite
                 read(arg(11:), *, iostat=ios) n
                 if (ios /= 0 .or. .not. any(hs_problem_ids == n)) error stop 'test_hs_suite: bad --problem value'
                 cfg_problem = n
+            else if (arg(1:24) == '--derivative-switch-tol=') then
+                read(arg(25:), *, iostat=ios) cfg_switch_tol
+                if (ios /= 0 .or. cfg_switch_tol < 0.0_dp) error stop 'test_hs_suite: bad --derivative-switch-tol value'
             else if (arg(1:8) == '--print=') then
                 read(arg(9:), *, iostat=ios) n
                 if (ios /= 0) error stop 'test_hs_suite: bad --print value'
@@ -306,6 +332,10 @@ program test_hs_suite
     call hs_setup(id, p)
     ctx = problem_context(id=id, n=p%n, m=p%m)
     call check_derivatives(id, p%n, p%m, ctx%fd_g, ctx%fd_jac)
+    if (cfg_derivatives > 0) then
+        ctx%fd_g   = .true.
+        ctx%fd_jac = p%m > 0
+    end if
     if (ctx%fd_g .or. ctx%fd_jac) n_fd = n_fd + 1
 
     ! dense Jacobian pattern (row by row):
@@ -345,6 +375,8 @@ program test_hs_suite
     options%restoration_mode = cfg_restoration
     options%hessian_mode    = cfg_hessian
     if (cfg_memory > 0) options%lbfgs_memory = cfg_memory
+    if (cfg_derivatives == 3) options%derivative_accuracy = sqpopt_derivatives_fast
+    if (cfg_switch_tol >= 0.0_dp) options%derivative_switch_tol = cfg_switch_tol
     if (cfg_hessian == sqpopt_hessian_exact .and. (ctx%fd_g .or. ctx%fd_jac)) options%hessian_mode = sqpopt_hessian_bfgs
     qp_solver%sparse_qp%null_space = cfg_null_space
     linesearch%interpolate     = cfg_interpolate
@@ -366,6 +398,8 @@ program test_hs_suite
         n_solved = n_solved + 1
         sum_nf = sum_nf + r%n_eval_fc
         sum_ng = sum_ng + r%n_eval_gjac
+        sum_nfd = sum_nfd + ctx%n_fd_evals
+        if (r%derivative_switch_iteration > 0) n_switched = n_switched + 1
         sum_nlpqlp_nf  = sum_nlpqlp_nf  + hs_nlpqlp_nf(k)
         sum_nlpqlp_ndf = sum_nlpqlp_ndf + hs_nlpqlp_ndf(k)
     else if (feasible .and. converged) then
@@ -663,7 +697,7 @@ program test_hs_suite
     select type (data)
     type is (problem_context)
         if (data%fd_g) then
-            call fd_gradient(data%id, real(x, dp), gd)
+            call fd_gradient(data%id, real(x, dp), gd, forward=data%forward)
         else
             call hs_g(data%id, real(x, dp), gd)
         end if
@@ -698,7 +732,7 @@ program test_hs_suite
     type is (problem_context)
         allocate(jd(data%m, data%n))
         if (data%fd_jac) then
-            call fd_jacobian(data%id, real(x, dp), jd)
+            call fd_jacobian(data%id, real(x, dp), jd, forward=data%forward)
         else
             call hs_jac(data%id, real(x, dp), jd)
         end if
@@ -773,13 +807,22 @@ program test_hs_suite
     if (status == 0) call cons(x, c, status, data)
     end subroutine fc_obj_cons
 
-    subroutine gjac_grad_jacv(x, g, jac_val, status, data)
+    subroutine gjac_grad_jacv(x, g, jac_val, accuracy, status, data)
     !! `gjac` for `set_functions`: the gradient (`grad`) and the Jacobian values (`jacv`)
     real(wp), dimension(:), intent(in)    :: x       !! point `dimension(n)`
     real(wp), dimension(:), intent(out)   :: g       !! objective gradient at `x` `dimension(n)`
     real(wp), dimension(:), intent(out)   :: jac_val !! nonzero values of the constraint Jacobian at `x` (in the sparsity pattern's order)
+    integer,                intent(in)    :: accuracy !! requested accuracy: `sqpopt_derivatives_fast` or `sqpopt_derivatives_accurate`
     integer,                intent(inout) :: status  !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
     class(*), optional,     intent(inout) :: data    !! the user data passed to `set_functions` (if any)
+    select type (data)
+    type is (problem_context)
+        ! (forward differences if asked for, or if fast derivatives are asked
+        ! for; each difference costs one function evaluation per point, for
+        ! `f` and `c` together)
+        data%forward = cfg_derivatives == 2 .or. (cfg_derivatives == 3 .and. accuracy == sqpopt_derivatives_fast)
+        if (data%fd_g .or. data%fd_jac) data%n_fd_evals = data%n_fd_evals + merge(1, 2, data%forward)*data%n
+    end select
     call grad(x, g, status, data)
     if (status == 0) call jacv(x, jac_val, status, data)
     end subroutine gjac_grad_jacv

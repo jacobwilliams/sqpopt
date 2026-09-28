@@ -68,6 +68,13 @@
 
     public :: sqpopt_fc_func, sqpopt_gjac_func, sqpopt_hessian_func
 
+    ! the accuracy of the derivatives the solver asks `gjac` for (its `accuracy` argument; see
+    ! `options%derivative_accuracy`):
+    integer, parameter, public :: sqpopt_derivatives_fast     = 1 !! cheaper, less accurate derivatives are fine (e.g.
+                                                                  !! forward differences): the solver is far from a solution
+    integer, parameter, public :: sqpopt_derivatives_accurate = 2 !! the most accurate derivatives available are wanted
+                                                                  !! (e.g. analytic, or central differences)
+
     type, public :: sqpopt_problem_type
         !! defines the problem to be solved: the problem size, the
         !! variable and constraint bounds, the sparsity patterns of the
@@ -113,6 +120,8 @@
         real(wp), dimension(:,:), allocatable :: cache_x !! points at which `fc` was evaluated `dimension(n,cache_size)`
         real(wp), dimension(:),   allocatable :: cache_f !! (unscaled) `f` at those points `dimension(cache_size)`
         real(wp), dimension(:,:), allocatable :: cache_c !! (unscaled) `c` at those points `dimension(m,cache_size)`
+        integer :: derivative_accuracy = sqpopt_derivatives_accurate !! the accuracy `gjac` is asked for (see
+                                                                     !! [[set_derivative_accuracy]])
         logical :: have_gjac = .false. !! whether the one-entry `gjac` cache is filled
         real(wp), dimension(:), allocatable :: cache_xg  !! point at which `gjac` was evaluated `dimension(n)`
         real(wp), dimension(:), allocatable :: cache_g   !! (unscaled) `g` there `dimension(n)`
@@ -132,6 +141,7 @@
         procedure, public :: jac => eval_jac_cached !! evaluate the (scaled) Jacobian values
         procedure, public :: hess => eval_hess_scaled !! evaluate the (scaled) Lagrangian Hessian values
         procedure, public :: reset_evaluations     !! empty the caches, zero the counters, and remove any scaling
+        procedure, public :: set_derivative_accuracy !! set the accuracy `gjac` is asked for
         procedure, public :: compute_scaling       !! set gradient-based objective/constraint scale factors
 
     end type sqpopt_problem_type
@@ -150,17 +160,22 @@
             class(*), optional,     intent(inout) :: data   !! user data (see [[set_functions]])
         end subroutine sqpopt_fc_func
 
-        subroutine sqpopt_gjac_func(x, g, jac_val, status, data)
+        subroutine sqpopt_gjac_func(x, g, jac_val, accuracy, status, data)
             !! evaluates the gradient of the objective function \( \nabla f(x) \)
             !! and the nonzero values of the Jacobian of the constraint vector,
             !! \( J_{ij} = \partial c_i / \partial x_j \), ordered to match the
-            !! sparsity pattern set by `set_jacobian_sparsity`
+            !! sparsity pattern set by `set_jacobian_sparsity`. `accuracy` says
+            !! how accurate they need to be: functions with a cheaper, less
+            !! accurate way of computing them (e.g. forward instead of central
+            !! differences) may use it while `accuracy=sqpopt_derivatives_fast`;
+            !! others can ignore it.
             import :: wp
             implicit none
-            real(wp), dimension(:), intent(in)    :: x       !! optimization variable vector `dimension(n)`
-            real(wp), dimension(:), intent(out)   :: g       !! gradient vector `dimension(n)`
-            real(wp), dimension(:), intent(out)   :: jac_val !! nonzero Jacobian values `dimension(jac_nnz)` (may be 0)
-            integer,                intent(inout) :: status  !! `0` on entry; `>0`: can't evaluate here, `<0`: stop
+            real(wp), dimension(:), intent(in)    :: x        !! optimization variable vector `dimension(n)`
+            real(wp), dimension(:), intent(out)   :: g        !! gradient vector `dimension(n)`
+            real(wp), dimension(:), intent(out)   :: jac_val  !! nonzero Jacobian values `dimension(jac_nnz)` (may be 0)
+            integer,                intent(in)    :: accuracy !! `sqpopt_derivatives_fast` or `sqpopt_derivatives_accurate`
+            integer,                intent(inout) :: status   !! `0` on entry; `>0`: can't evaluate here, `<0`: stop
             class(*), optional,     intent(inout) :: data    !! user data (see [[set_functions]])
         end subroutine sqpopt_gjac_func
 
@@ -655,9 +670,9 @@
     status = 0
     t0 = wall_time()
     if (associated(me%user_data)) then
-        call me%eval_gjac(x, g, jac_val, status, me%user_data)
+        call me%eval_gjac(x, g, jac_val, me%derivative_accuracy, status, me%user_data)
     else
-        call me%eval_gjac(x, g, jac_val, status)
+        call me%eval_gjac(x, g, jac_val, me%derivative_accuracy, status)
     end if
     me%time_user = me%time_user + (wall_time() - t0)
     me%n_eval_gjac = me%n_eval_gjac + 1
@@ -733,6 +748,22 @@
     end subroutine check_status
 !*******************************************************************************
 
+!*******************************************************************************
+!>
+!  set the accuracy the user's `gjac` is asked for (`sqpopt_derivatives_fast`
+!  or `sqpopt_derivatives_accurate`). A change empties the `gjac` cache, so
+!  that derivatives at a point already evaluated are evaluated again, at the
+!  new accuracy.
+
+    subroutine set_derivative_accuracy(me, accuracy)
+
+    class(sqpopt_problem_type), intent(inout) :: me
+    integer,                    intent(in)    :: accuracy !! `sqpopt_derivatives_fast` or `sqpopt_derivatives_accurate`
+
+    if (accuracy /= me%derivative_accuracy) me%have_gjac = .false.
+    me%derivative_accuracy = accuracy
+
+    end subroutine set_derivative_accuracy
 !*******************************************************************************
 !>
 !  the wall-clock time, in seconds (for the time spent in the user's functions).

@@ -12,6 +12,7 @@
     use sqpopt_restoration_module, only: sqpopt_restoration_phase
     use sqpopt_types_module,      only: sqpopt_infinity
     use sqpopt_hessian_module,    only: sqpopt_hessian_bfgs
+    use sqpopt_problem_module,    only: sqpopt_derivatives_accurate
     use, intrinsic :: iso_fortran_env, only: output_unit
 
     implicit none
@@ -57,6 +58,22 @@
                                                      !! factor times its value where the phase started, and the point is
                                                      !! acceptable to the filter or funnel (`0 < factor < 1`)
         integer  :: restoration_max_iter = 50        !! maximum number of iterations of a restoration phase
+        integer  :: derivative_accuracy = sqpopt_derivatives_accurate !! the accuracy of the derivatives the solver
+                                                   !! asks the user's `gjac` for (its `accuracy` argument): with
+                                                   !! `sqpopt_derivatives_fast`, it asks for fast (e.g.
+                                                   !! forward-difference) derivatives until it is near a
+                                                   !! solution, then for accurate ones (see
+                                                   !! [[sqpopt_iterate_module]] and `derivative_switch_tol`); with
+                                                   !! `sqpopt_derivatives_accurate` (the default), always for
+                                                   !! accurate ones
+        real(wp) :: derivative_switch_tol = 1.0e-5_wp !! with `derivative_accuracy = sqpopt_derivatives_fast`: the
+                                                   !! KKT and feasibility errors (of the scaled problem) below which
+                                                   !! the solver is near enough a solution to switch to accurate
+                                                   !! derivatives. It also switches when a step fails, when progress
+                                                   !! stalls, and before stopping (at a solution, or as infeasible),
+                                                   !! so this is only a shortcut: switching earlier costs accurate
+                                                   !! derivatives on iterations that don't need them (on the HS
+                                                   !! suite, anything from about `10*ktol` down did equally well)
         real(wp) :: elastic_multiplier_limit = 30.0_wp !! when a constraint's multiplier diverges (its push
                                                      !! \( |\lambda_i| \lVert \nabla c_i \rVert_\infty \) exceeds this
                                                      !! \( \times \max(1,\lVert g \rVert_\infty) \) and keeps growing,

@@ -128,11 +128,12 @@ program benchmark
     end do
     end subroutine fc_control
 
-    subroutine gjac_control(x, g, jac, status, data)
+    subroutine gjac_control(x, g, jac, accuracy, status, data)
     !! objective gradient and constraint Jacobian values of the control problem
     real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
     real(wp), dimension(:), intent(out)   :: g      !! objective gradient at `x` `dimension(n)`
     real(wp), dimension(:), intent(out)   :: jac    !! nonzero values of the constraint Jacobian at `x` (in the sparsity pattern's order)
+    integer,                intent(in)    :: accuracy !! requested accuracy: `sqpopt_derivatives_fast` or `sqpopt_derivatives_accurate`
     integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
     class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
     integer :: k
@@ -198,11 +199,12 @@ program benchmark
     end do
     end subroutine fc_rosen
 
-    subroutine gjac_rosen(x, g, jac, status, data)
+    subroutine gjac_rosen(x, g, jac, accuracy, status, data)
     !! objective gradient and constraint Jacobian values of the chained Rosenbrock problem
     real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
     real(wp), dimension(:), intent(out)   :: g      !! objective gradient at `x` `dimension(n)`
     real(wp), dimension(:), intent(out)   :: jac    !! nonzero values of the constraint Jacobian at `x` (in the sparsity pattern's order)
+    integer,                intent(in)    :: accuracy !! requested accuracy: `sqpopt_derivatives_fast` or `sqpopt_derivatives_accurate`
     integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
     class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
     integer :: n, i
