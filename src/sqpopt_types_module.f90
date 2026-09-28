@@ -18,24 +18,26 @@
 
     ! solver status/exit codes:
     integer, parameter, public :: sqpopt_success              = 0  !! converged successfully
-    integer, parameter, public :: sqpopt_max_iter_reached     = 1  !! stopped -- maximum number of iterations reached
-    integer, parameter, public :: sqpopt_infeasible           = 2  !! stopped -- problem appears to be infeasible
-    integer, parameter, public :: sqpopt_line_search_failed   = 3  !! stopped -- line search failed to find an acceptable step
-    integer, parameter, public :: sqpopt_qp_solve_failed      = 4  !! stopped -- QP subproblem solver failed
-    integer, parameter, public :: sqpopt_user_requested_stop  = 5  !! stopped -- user requested stop
-    integer, parameter, public :: sqpopt_invalid_input        = 6  !! stopped -- the problem definition or options are invalid
-    integer, parameter, public :: sqpopt_stalled              = 7  !! stopped -- the point is feasible but the objective and variables
-                                                                    !! have stopped changing (see `ftol`/`xtol`) before the KKT test
-                                                                    !! was satisfied -- usually an acceptable, if imprecise, solution
-    integer, parameter, public :: sqpopt_function_error       = 8  !! stopped -- the problem functions returned a non-finite value
+    integer, parameter, public :: sqpopt_acceptable           = 1  !! converged to the "acceptable" (looser) tolerances, for
+                                                                   !! several consecutive iterations, but not to the normal ones
+    integer, parameter, public :: sqpopt_stalled              = 2  !! stopped -- the point is feasible but the objective and variables
+                                                                   !! have stopped changing (see `ftol`/`xtol`) before the KKT test
+                                                                   !! was satisfied -- usually an acceptable, if imprecise, solution
+
+    integer, parameter, public :: sqpopt_max_iter_reached     = 10 !! stopped -- maximum number of iterations reached
+    integer, parameter, public :: sqpopt_user_requested_stop  = 11 !! stopped -- user requested stop
+    integer, parameter, public :: sqpopt_max_evals_reached    = 12 !! stopped -- maximum number of function evaluations reached
+    integer, parameter, public :: sqpopt_time_limit_reached   = 13 !! stopped -- time limit reached
+
+    integer, parameter, public :: sqpopt_infeasible           = 21  !! stopped -- problem appears to be infeasible
+    integer, parameter, public :: sqpopt_line_search_failed   = 22  !! stopped -- line search failed to find an acceptable step
+    integer, parameter, public :: sqpopt_qp_solve_failed      = 23  !! stopped -- QP subproblem solver failed
+    integer, parameter, public :: sqpopt_invalid_input        = 24  !! stopped -- the problem definition or options are invalid
+    integer, parameter, public :: sqpopt_function_error       = 25  !! stopped -- the problem functions returned a non-finite value
                                                                     !! (NaN or Inf) at the current point (trial points with
                                                                     !! non-finite values are rejected instead)
-    integer, parameter, public :: sqpopt_max_evals_reached    = 9  !! stopped -- maximum number of function evaluations reached
-    integer, parameter, public :: sqpopt_time_limit_reached   = 10 !! stopped -- time limit reached
-    integer, parameter, public :: sqpopt_unbounded            = 11 !! stopped -- the objective fell below its lower limit at a
-                                                                    !! feasible point (the problem appears to be unbounded)
-    integer, parameter, public :: sqpopt_acceptable           = 12 !! converged to the "acceptable" (looser) tolerances, for
-                                                                    !! several consecutive iterations, but not to the normal ones
+    integer, parameter, public :: sqpopt_unbounded            = 26 !! stopped -- the objective fell below its lower limit at a
+                                                                   !! feasible point (the problem appears to be unbounded)
 
     real(wp), parameter, public :: sqpopt_infinity = 1.0e20_wp !! any bound with magnitude `>= sqpopt_infinity` is treated
                                                                 !! as absent (bounds are clamped to `[-sqpopt_infinity,
@@ -129,19 +131,19 @@
 
     select case (istat)
     case (sqpopt_success);             msg = 'converged successfully'
+    case (sqpopt_acceptable);          msg = 'converged to an acceptable level'
+    case (sqpopt_stalled);             msg = 'feasible, but no further progress is being made'
     case (sqpopt_max_iter_reached);    msg = 'maximum number of iterations reached'
+    case (sqpopt_user_requested_stop); msg = 'user requested stop'
+    case (sqpopt_max_evals_reached);   msg = 'maximum number of function evaluations reached'
+    case (sqpopt_time_limit_reached);  msg = 'time limit reached'
     case (sqpopt_infeasible);          msg = 'problem appears to be (locally) infeasible'
     case (sqpopt_line_search_failed);  msg = 'line search failed to find an acceptable step'
     case (sqpopt_qp_solve_failed);     msg = 'QP subproblem solver failed'
-    case (sqpopt_user_requested_stop); msg = 'user requested stop'
     case (sqpopt_invalid_input);       msg = 'invalid problem definition or options'
-    case (sqpopt_stalled);             msg = 'feasible, but no further progress is being made'
     case (sqpopt_function_error);      msg = 'the problem functions returned a non-finite value (NaN or Inf), '// &
                                                'or could not be evaluated, at the current point'
-    case (sqpopt_max_evals_reached);   msg = 'maximum number of function evaluations reached'
-    case (sqpopt_time_limit_reached);  msg = 'time limit reached'
     case (sqpopt_unbounded);           msg = 'the objective fell below its lower limit (the problem appears to be unbounded)'
-    case (sqpopt_acceptable);          msg = 'converged to an acceptable level'
     case default;                      msg = 'unknown status code'
     end select
 
