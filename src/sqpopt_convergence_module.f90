@@ -39,7 +39,11 @@
 !      to the bound, which is at most \( |\lambda_i| \) (the other bound may
 !      be far away, or infinite, and a round-off multiplier of the wrong sign
 !      is then not a large violation); equality constraints are free);
-!    - primal feasibility of the constraints and variable bounds.
+!    - primal feasibility of the constraints and variable bounds;
+!    - with `dual_inf_tol` and `f_scale`, stationarity of the *unscaled*
+!      problem (the scaled residual divided by `f_scale`) to within
+!      `dual_inf_tol`: with automatic scaling, `ktol` applies to the scaled
+!      problem, which can be very loose in the original units.
 !
 !    The stationarity and complementarity residuals are measured against
 !    `ktol*s_d`, where \( s_d = \max(s_{max}, \lVert\lambda\rVert_1/m)/s_{max} \)
@@ -84,7 +88,7 @@
     real(wp),                   intent(in)  :: ktol      !! KKT optimality tolerance
     real(wp),                   intent(in)  :: ctol      !! feasibility tolerance
     logical,                     intent(out) :: converged !! true if the solver should stop at `x` (see `istat` for why)
-    integer,                     intent(out) :: istat     !! why: `sqpopt_success`, `sqpopt_stalled`, or `sqpopt_infeasible`
+    integer,                     intent(out) :: istat     !! the reason: `sqpopt_success`, `sqpopt_stalled`, or `sqpopt_infeasible`
                                                           !! if `converged`, else `sqpopt_success` (see [[sqpopt_types_module]])
     real(wp),                     optional, intent(in) :: f      !! objective value at `x` (enables the stalled-progress test with `f_prev`/`ftol`)
     real(wp),                     optional, intent(in) :: f_prev !! objective value at the previous iterate

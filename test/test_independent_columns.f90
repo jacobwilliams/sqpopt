@@ -69,10 +69,11 @@ program test_independent_columns
     !! call [[independent_columns]] on the dense matrix `a` (as COO triplets),
     !! and check the number of columns kept, that the kept columns are
     !! independent and span the others, and any required choices
-    character(len=*),         intent(in) :: name
-    real(wp), dimension(:,:), intent(in) :: a
-    integer,                  intent(in) :: expected_rank
-    integer, dimension(:),    intent(in), optional :: must_keep, must_drop
+    character(len=*),         intent(in)           :: name          !! the case, for the output
+    real(wp), dimension(:,:), intent(in)           :: a             !! the dense matrix
+    integer,                  intent(in)           :: expected_rank !! the number of columns that must be kept
+    integer, dimension(:),    intent(in), optional :: must_keep     !! columns that must be kept
+    integer, dimension(:),    intent(in), optional :: must_drop     !! columns that must be dropped
     integer,  dimension(:), allocatable :: ir, ic
     real(wp), dimension(:), allocatable :: vv
     logical,  dimension(size(a,2)) :: indep
@@ -100,7 +101,7 @@ program test_independent_columns
 
     integer function rank_of(b)
     !! numerical rank of a small dense matrix (Gaussian elimination with complete pivoting)
-    real(wp), dimension(:,:), intent(in) :: b
+    real(wp), dimension(:,:), intent(in) :: b !! the matrix
     real(wp), dimension(size(b,1),size(b,2)) :: w
     real(wp) :: tol
     integer :: k, loc(2), i
@@ -120,7 +121,9 @@ program test_independent_columns
     end function rank_of
 
     subroutine fail(name, msg)
-    character(len=*), intent(in) :: name, msg
+    !! stop with a failure message
+    character(len=*), intent(in) :: name !! the case
+    character(len=*), intent(in) :: msg  !! what failed
     print '(A)', 'test_independent_columns FAILED: '//name//': '//msg
     error stop 1
     end subroutine fail

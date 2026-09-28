@@ -133,8 +133,8 @@ program test_hs_slsqp
 
     subroutine run_problem(id, r)
     !! solve problem `id` with SLSQP and classify the outcome
-    integer,          intent(in)  :: id
-    type(run_record), intent(out) :: r
+    integer,          intent(in)  :: id !! problem number
+    type(run_record), intent(out) :: r  !! the outcome
 
     type(slsqp_solver) :: solver
     real(dp), dimension(:), allocatable :: x, c
@@ -190,10 +190,10 @@ program test_hs_slsqp
     !! largest violation of the mapped constraints, the step from the previous
     !! iterate, the evaluation counts so far, and (for small problems) `x`
     class(slsqp_solver),    intent(inout) :: me
-    integer,                intent(in)    :: iter
-    real(dp), dimension(:), intent(in)    :: x
-    real(dp),               intent(in)    :: f
-    real(dp), dimension(:), intent(in)    :: c
+    integer,                intent(in) :: iter !! SLSQP iteration number
+    real(dp), dimension(:), intent(in) :: x    !! point `dimension(n)`
+    real(dp),               intent(in) :: f    !! objective at `x`
+    real(dp), dimension(:), intent(in) :: c    !! the mapped constraints at `x`
     real(dp), dimension(:), allocatable, save :: x_last
     real(dp) :: viol, step
     if (.not. cfg_print) return
@@ -249,9 +249,9 @@ program test_hs_slsqp
     subroutine slsqp_func(me, x, f, c)
     !! SLSQP's problem function: the objective and the mapped constraints
     class(slsqp_solver),    intent(inout) :: me
-    real(dp), dimension(:), intent(in)    :: x
-    real(dp),               intent(out)   :: f
-    real(dp), dimension(:), intent(out)   :: c
+    real(dp), dimension(:), intent(in)  :: x !! point `dimension(n)`
+    real(dp),               intent(out) :: f !! objective at `x`
+    real(dp), dimension(:), intent(out) :: c !! the mapped constraints at `x`
     real(dp), dimension(p%m) :: cp
     n_fc = n_fc + 1
     call hs_f(cur_id, x, f)
@@ -266,9 +266,9 @@ program test_hs_slsqp
     !! SLSQP's gradient function: the objective gradient and the mapped
     !! constraints' Jacobian (central differences where `test_hs_suite` uses them)
     class(slsqp_solver),      intent(inout) :: me
-    real(dp), dimension(:),   intent(in)    :: x
-    real(dp), dimension(:),   intent(out)   :: g
-    real(dp), dimension(:,:), intent(out)   :: a
+    real(dp), dimension(:),   intent(in)  :: x !! point `dimension(n)`
+    real(dp), dimension(:),   intent(out) :: g !! objective gradient at `x`
+    real(dp), dimension(:,:), intent(out) :: a !! the mapped constraints' Jacobian at `x`
     real(dp), dimension(p%m, p%n) :: jac
     integer :: j
     n_gjac = n_gjac + 1
@@ -294,7 +294,7 @@ program test_hs_slsqp
     subroutine write_web_data(file)
     !! the results as a JavaScript data file (the format of `test_hs_suite`'s
     !! `--web-data`, without NLPQLP's counts and the KKT error)
-    character(len=*), intent(in) :: file
+    character(len=*), intent(in) :: file !! the file to write
     integer :: u, i
     character(len=8)  :: date
     character(len=10) :: time
@@ -325,7 +325,7 @@ program test_hs_slsqp
 
     function s_i(i) result(s)
     !! integer to string
-    integer, intent(in) :: i
+    integer, intent(in) :: i !! the integer
     character(len=:), allocatable :: s
     character(len=16) :: buf
     write(buf,'(I0)') i
@@ -334,7 +334,7 @@ program test_hs_slsqp
 
     function s_js(x) result(s)
     !! a real as a JavaScript number literal (`null` if not finite or huge)
-    real(dp), intent(in) :: x
+    real(dp), intent(in) :: x !! the number
     character(len=:), allocatable :: s
     character(len=32) :: buf
     if (.not. ieee_is_finite(x) .or. abs(x) >= huge(1.0_dp)) then
@@ -347,7 +347,7 @@ program test_hs_slsqp
 
     function json_escape(t) result(s)
     !! `t` with backslashes and double quotes escaped, for a JavaScript string literal
-    character(len=*), intent(in) :: t
+    character(len=*), intent(in) :: t !! the text
     character(len=:), allocatable :: s
     integer :: i
     s = ''

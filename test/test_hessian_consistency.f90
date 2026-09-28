@@ -203,7 +203,7 @@ contains
     subroutine check_diagonal(label)
     !! `h%diagonal` must match the diagonal of `B`, from products with the
     !! unit vectors (called twice, to check the cached value too)
-    character(len=*), intent(in) :: label
+    character(len=*), intent(in) :: label !! the case, for the message
     real(wp) :: diag(n), e(n), be(n), ref(n)
     integer :: j, pass
     do j = 1, n

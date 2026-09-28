@@ -18,21 +18,21 @@
 
     ! solver status/exit codes:
     integer, parameter, public :: sqpopt_success              = 0  !! converged successfully
-    integer, parameter, public :: sqpopt_max_iter_reached     = 1  !! stopped: maximum number of iterations reached
-    integer, parameter, public :: sqpopt_infeasible           = 2  !! stopped: problem appears to be infeasible
-    integer, parameter, public :: sqpopt_line_search_failed   = 3  !! stopped: line search failed to find an acceptable step
-    integer, parameter, public :: sqpopt_qp_solve_failed      = 4  !! stopped: QP subproblem solver failed
-    integer, parameter, public :: sqpopt_user_requested_stop  = 5  !! stopped: user requested stop
-    integer, parameter, public :: sqpopt_invalid_input        = 6  !! stopped: the problem definition or options are invalid
-    integer, parameter, public :: sqpopt_stalled              = 7  !! stopped: the point is feasible but the objective and variables
+    integer, parameter, public :: sqpopt_max_iter_reached     = 1  !! stopped -- maximum number of iterations reached
+    integer, parameter, public :: sqpopt_infeasible           = 2  !! stopped -- problem appears to be infeasible
+    integer, parameter, public :: sqpopt_line_search_failed   = 3  !! stopped -- line search failed to find an acceptable step
+    integer, parameter, public :: sqpopt_qp_solve_failed      = 4  !! stopped -- QP subproblem solver failed
+    integer, parameter, public :: sqpopt_user_requested_stop  = 5  !! stopped -- user requested stop
+    integer, parameter, public :: sqpopt_invalid_input        = 6  !! stopped -- the problem definition or options are invalid
+    integer, parameter, public :: sqpopt_stalled              = 7  !! stopped -- the point is feasible but the objective and variables
                                                                     !! have stopped changing (see `ftol`/`xtol`) before the KKT test
                                                                     !! was satisfied -- usually an acceptable, if imprecise, solution
-    integer, parameter, public :: sqpopt_function_error       = 8  !! stopped: the problem functions returned a non-finite value
+    integer, parameter, public :: sqpopt_function_error       = 8  !! stopped -- the problem functions returned a non-finite value
                                                                     !! (NaN or Inf) at the current point (trial points with
                                                                     !! non-finite values are rejected instead)
-    integer, parameter, public :: sqpopt_max_evals_reached    = 9  !! stopped: maximum number of function evaluations reached
-    integer, parameter, public :: sqpopt_time_limit_reached   = 10 !! stopped: time limit reached
-    integer, parameter, public :: sqpopt_unbounded            = 11 !! stopped: the objective fell below its lower limit at a
+    integer, parameter, public :: sqpopt_max_evals_reached    = 9  !! stopped -- maximum number of function evaluations reached
+    integer, parameter, public :: sqpopt_time_limit_reached   = 10 !! stopped -- time limit reached
+    integer, parameter, public :: sqpopt_unbounded            = 11 !! stopped -- the objective fell below its lower limit at a
                                                                     !! feasible point (the problem appears to be unbounded)
     integer, parameter, public :: sqpopt_acceptable           = 12 !! converged to the "acceptable" (looser) tolerances, for
                                                                     !! several consecutive iterations, but not to the normal ones
@@ -156,7 +156,7 @@
 
     pure logical function sqpopt_all_finite(v)
 
-    real(wp), dimension(:), intent(in) :: v
+    real(wp), dimension(:), intent(in) :: v !! the values to check
 
     sqpopt_all_finite = all(ieee_is_finite(v))
 
@@ -171,7 +171,9 @@
 
     pure function l1_violation(c, c_lb, c_ub) result(h)
 
-    real(wp), dimension(:), intent(in) :: c, c_lb, c_ub
+    real(wp), dimension(:), intent(in) :: c    !! constraint values `dimension(m)`
+    real(wp), dimension(:), intent(in) :: c_lb !! their lower bounds `dimension(m)`
+    real(wp), dimension(:), intent(in) :: c_ub !! their upper bounds `dimension(m)`
     real(wp) :: h
 
     h = sum(max(c_lb-c, 0.0_wp) + max(c-c_ub, 0.0_wp))

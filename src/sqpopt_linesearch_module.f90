@@ -18,7 +18,7 @@
 !    with an Armijo-type sufficient-decrease test on the merit function (as
 !    used by default in `slsqp`).
 !  * `sqpopt_linesearch_exact` -- (approximately) minimizes the merit
-!    function along the search direction using the derivative-free [[fmin]]
+!    function along the search direction using the derivative-free `fmin`
 !    routine (from the `fmin` dependency), rather than a hand-written
 !    exact-search implementation.
 !  * `sqpopt_linesearch_watchdog` -- Powell's watchdog technique
@@ -81,6 +81,12 @@
 !  unreasonably large (e.g. from a poorly-scaled problem or an early,
 !  inaccurate Hessian approximation), and this guards against the
 !  resulting merit-function evaluations diverging or becoming undefined.
+!
+!  At `options%print_level >= 3`, every trial point (step length, merit
+!  value or violation and objective, and whether and why it was accepted)
+!  is written to the detailed log (`log`, see [[sqpopt_log_module]]), and
+!  `used_soc`, `used_nonmonotone`, and `used_relaxed` report what the last
+!  search used, for the iteration log's flags.
 
 
     module sqpopt_linesearch_module
@@ -104,7 +110,7 @@
     public :: sqpopt_merit_l1, sqpopt_merit_augmented_lagrangian, sqpopt_penalty_multipliers, sqpopt_penalty_model
 
     integer, parameter, public :: sqpopt_linesearch_armijo   = 1  !! backtracking Armijo-type line search on a merit function
-    integer, parameter, public :: sqpopt_linesearch_exact    = 2  !! (approximate) exact 1-D minimization of the merit function, via [[fmin]]
+    integer, parameter, public :: sqpopt_linesearch_exact    = 2  !! (approximate) exact 1-D minimization of the merit function, via `fmin`
     integer, parameter, public :: sqpopt_linesearch_watchdog = 3  !! Powell's watchdog technique (relaxed acceptance + backtracking, see module docs)
     integer, parameter, public :: sqpopt_linesearch_filter   = 4  !! (default) Fletcher & Leyffer's filter method (no merit
                                                                   !! function/penalty parameter, see module docs)
@@ -116,15 +122,15 @@
             !! evaluates the (scaled) objective at `x` (NaN if it can't be evaluated)
             import :: wp
             implicit none
-            real(wp), dimension(:), intent(in)  :: x
-            real(wp),               intent(out) :: f
+            real(wp), dimension(:), intent(in)  :: x !! point `dimension(n)`
+            real(wp),               intent(out) :: f !! objective at `x`
         end subroutine sqpopt_ls_objective_func
         subroutine sqpopt_ls_constraint_func(x, c)
             !! evaluates the (scaled) constraints at `x` (NaN if they can't be evaluated)
             import :: wp
             implicit none
-            real(wp), dimension(:), intent(in)  :: x
-            real(wp), dimension(:), intent(out) :: c
+            real(wp), dimension(:), intent(in)  :: x !! point `dimension(n)`
+            real(wp), dimension(:), intent(out) :: c !! constraints at `x` `dimension(m)`
         end subroutine sqpopt_ls_constraint_func
         subroutine sqpopt_soc_func(p, c_trial, p_soc, ok)
             !! computes the second-order-corrected version `p_soc` of a
@@ -305,12 +311,12 @@
 
     subroutine eval_fc(eval_f, eval_c, x_trial, f_trial, c_trial, ok)
 
-    procedure(sqpopt_ls_objective_func)  :: eval_f
-    procedure(sqpopt_ls_constraint_func) :: eval_c
-    real(wp), dimension(:), intent(in)  :: x_trial !! trial point `dimension(n)`
-    real(wp),               intent(out) :: f_trial !! objective function value at `x_trial`
-    real(wp), dimension(:), intent(out) :: c_trial !! constraint values at `x_trial` `dimension(m)`
-    logical,                intent(out) :: ok      !! true if `f_trial` and `c_trial` are all finite
+    procedure(sqpopt_ls_objective_func)  :: eval_f  !! evaluates the objective
+    procedure(sqpopt_ls_constraint_func) :: eval_c  !! evaluates the constraints
+    real(wp), dimension(:), intent(in)   :: x_trial !! trial point `dimension(n)`
+    real(wp),               intent(out)  :: f_trial !! objective function value at `x_trial`
+    real(wp), dimension(:), intent(out)  :: c_trial !! constraint values at `x_trial` `dimension(m)`
+    logical,                intent(out)  :: ok      !! true if `f_trial` and `c_trial` are all finite
 
     call eval_f(x_trial, f_trial)
     call eval_c(x_trial, c_trial)
@@ -327,16 +333,16 @@
     subroutine eval_trial(me, eval_f, eval_c, x_trial, c_lb, c_ub, lambda, c_trial, phi_trial, ok, alpha)
 
     class(sqpopt_linesearch_type), intent(inout) :: me
-    procedure(sqpopt_ls_objective_func)  :: eval_f
-    procedure(sqpopt_ls_constraint_func) :: eval_c
-    real(wp), dimension(:), intent(in)  :: x_trial   !! trial point `dimension(n)`
-    real(wp), dimension(:), intent(in)  :: c_lb      !! constraint lower bounds `dimension(m)`
-    real(wp), dimension(:), intent(in)  :: c_ub      !! constraint upper bounds `dimension(m)`
-    real(wp), dimension(:), intent(in)  :: lambda    !! Lagrange multiplier estimate `dimension(m)`
-    real(wp), dimension(:), intent(out) :: c_trial   !! constraint values at `x_trial` `dimension(m)`
-    real(wp),               intent(out) :: phi_trial !! merit function value at `x_trial`
-    logical,                intent(out) :: ok        !! true if everything is finite
-    real(wp), optional,     intent(in)  :: alpha     !! step length (for the joint step, see [[eval_merit_function]])
+    procedure(sqpopt_ls_objective_func)  :: eval_f    !! evaluates the objective
+    procedure(sqpopt_ls_constraint_func) :: eval_c    !! evaluates the constraints
+    real(wp), dimension(:), intent(in)   :: x_trial   !! trial point `dimension(n)`
+    real(wp), dimension(:), intent(in)   :: c_lb      !! constraint lower bounds `dimension(m)`
+    real(wp), dimension(:), intent(in)   :: c_ub      !! constraint upper bounds `dimension(m)`
+    real(wp), dimension(:), intent(in)   :: lambda    !! Lagrange multiplier estimate `dimension(m)`
+    real(wp), dimension(:), intent(out)  :: c_trial   !! constraint values at `x_trial` `dimension(m)`
+    real(wp),               intent(out)  :: phi_trial !! merit function value at `x_trial`
+    logical,                intent(out)  :: ok        !! true if everything is finite
+    real(wp), optional,     intent(in)   :: alpha     !! step length (for the joint step, see [[eval_merit_function]])
 
     real(wp) :: f_trial
 
@@ -373,23 +379,23 @@
                                 alpha, x_new, phi_new, accepted, soc, phi_ref)
 
     class(sqpopt_linesearch_type), intent(inout) :: me
-    procedure(sqpopt_ls_objective_func)  :: eval_f
-    procedure(sqpopt_ls_constraint_func) :: eval_c
-    real(wp), dimension(:), intent(in)  :: x        !! current point `dimension(n)`
-    real(wp), dimension(:), intent(in)  :: p        !! search direction `dimension(n)`
-    real(wp),               intent(in)  :: alpha0   !! initial trial step length
-    real(wp),               intent(in)  :: phi0     !! merit function value at `x`
-    real(wp),               intent(in)  :: dphi0    !! directional derivative of the merit function along `p`
-    real(wp), dimension(:), intent(in)  :: c        !! constraint values at `x` `dimension(m)`
-    real(wp), dimension(:), intent(in)  :: c_lb     !! constraint lower bounds `dimension(m)`
-    real(wp), dimension(:), intent(in)  :: c_ub     !! constraint upper bounds `dimension(m)`
-    real(wp), dimension(:), intent(in)  :: lambda   !! Lagrange multiplier estimate `dimension(m)`
-    real(wp),               intent(out) :: alpha    !! accepted step length (meaningful only if `accepted`)
-    real(wp), dimension(:), intent(out) :: x_new    !! accepted point `dimension(n)` (meaningful only if `accepted`)
-    real(wp),               intent(out) :: phi_new  !! merit function value at `x_new` (meaningful only if `accepted`)
-    logical,                intent(out) :: accepted !! true if a step satisfying the Armijo test was found
-    procedure(sqpopt_soc_func), optional :: soc     !! computes a second-order-corrected step
-    real(wp), optional,     intent(in)  :: phi_ref  !! reference value for the sufficient-decrease test, instead of
+    procedure(sqpopt_ls_objective_func)  :: eval_f   !! evaluates the objective
+    procedure(sqpopt_ls_constraint_func) :: eval_c   !! evaluates the constraints
+    real(wp), dimension(:), intent(in)   :: x        !! current point `dimension(n)`
+    real(wp), dimension(:), intent(in)   :: p        !! search direction `dimension(n)`
+    real(wp),               intent(in)   :: alpha0   !! initial trial step length
+    real(wp),               intent(in)   :: phi0     !! merit function value at `x`
+    real(wp),               intent(in)   :: dphi0    !! directional derivative of the merit function along `p`
+    real(wp), dimension(:), intent(in)   :: c        !! constraint values at `x` `dimension(m)`
+    real(wp), dimension(:), intent(in)   :: c_lb     !! constraint lower bounds `dimension(m)`
+    real(wp), dimension(:), intent(in)   :: c_ub     !! constraint upper bounds `dimension(m)`
+    real(wp), dimension(:), intent(in)   :: lambda   !! Lagrange multiplier estimate `dimension(m)`
+    real(wp),               intent(out)  :: alpha    !! accepted step length (meaningful only if `accepted`)
+    real(wp), dimension(:), intent(out)  :: x_new    !! accepted point `dimension(n)` (meaningful only if `accepted`)
+    real(wp),               intent(out)  :: phi_new  !! merit function value at `x_new` (meaningful only if `accepted`)
+    logical,                intent(out)  :: accepted !! true if a step satisfying the Armijo test was found
+    procedure(sqpopt_soc_func), optional :: soc      !! computes a second-order-corrected step
+    real(wp), optional,     intent(in)   :: phi_ref  !! reference value for the sufficient-decrease test, instead of
                                                     !! `phi0` (the non-monotone retry, see `nonmonotone_len`)
 
     real(wp), dimension(size(x)) :: x_trial, p_soc
@@ -462,21 +468,21 @@
     subroutine armijo_line_search(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, alpha, x_new, istat, soc)
 
     class(sqpopt_linesearch_type), intent(inout) :: me
-    procedure(sqpopt_ls_objective_func)  :: eval_f
-    procedure(sqpopt_ls_constraint_func) :: eval_c
-    real(wp), dimension(:), intent(in) :: x !! current point `x`
-    real(wp), dimension(:), intent(in) :: p !! search direction `p`
-    real(wp), dimension(:), intent(in) :: g !! gradient of the objective at `x`
-    real(wp), dimension(:), intent(in) :: c !! constraint values at `x`
-    real(wp), dimension(:), intent(in) :: lambda !! Lagrange multipliers at `x`
-    real(wp), dimension(:), intent(in) :: c_lb   !! lower bounds on the constraints
-    real(wp), dimension(:), intent(in) :: c_ub   !! upper bounds on the constraints
-    type(sqpopt_sparse_matrix), intent(in) :: jac    !! constraint Jacobian at `x` (`dimension(m,n)`)
-    real(wp),                   intent(in)  :: f     !! objective function value at `x`
-    real(wp),                   intent(out) :: alpha !! step length along `p` (`0` if no step was taken)
-    real(wp), dimension(:),     intent(out) :: x_new !! new point `x + alpha*p` (or the corrected step)
-    integer,                    intent(out) :: istat !! status of the line search (success or failure)
-    procedure(sqpopt_soc_func), optional :: soc      !! computes a second-order-corrected step
+    procedure(sqpopt_ls_objective_func)     :: eval_f !! evaluates the objective
+    procedure(sqpopt_ls_constraint_func)    :: eval_c !! evaluates the constraints
+    real(wp), dimension(:), intent(in)      :: x      !! current point `x`
+    real(wp), dimension(:), intent(in)      :: p      !! search direction `p`
+    real(wp), dimension(:), intent(in)      :: g      !! gradient of the objective at `x`
+    real(wp), dimension(:), intent(in)      :: c      !! constraint values at `x`
+    real(wp), dimension(:), intent(in)      :: lambda !! Lagrange multipliers at `x`
+    real(wp), dimension(:), intent(in)      :: c_lb   !! lower bounds on the constraints
+    real(wp), dimension(:), intent(in)      :: c_ub   !! upper bounds on the constraints
+    type(sqpopt_sparse_matrix), intent(in)  :: jac    !! constraint Jacobian at `x` (`dimension(m,n)`)
+    real(wp),                   intent(in)  :: f      !! objective function value at `x`
+    real(wp),                   intent(out) :: alpha  !! step length along `p` (`0` if no step was taken)
+    real(wp), dimension(:),     intent(out) :: x_new  !! new point `x + alpha*p` (or the corrected step)
+    integer,                    intent(out) :: istat  !! status of the line search (success or failure)
+    procedure(sqpopt_soc_func), optional    :: soc    !! computes a second-order-corrected step
 
     real(wp) :: phi0, dphi0, phi_new
     logical  :: accepted
@@ -514,7 +520,7 @@
 !*******************************************************************************
 !>
 !  (approximately) minimize the merit function along `p` using the
-!  derivative-free 1-D minimizer [[fmin]]. The step is only accepted if it
+!  derivative-free 1-D minimizer `fmin`. The step is only accepted if it
 !  does not increase the merit function by more than roundoff (see
 !  [[merit_slack]]; otherwise no step is taken and
 !  `istat=sqpopt_line_search_failed`); non-finite trial values are treated
@@ -587,7 +593,7 @@
     !*******************************************************************************
     !>
     !  the merit function \( \phi(x + \alpha p) \) along the search direction,
-    !  in the form required by [[fmin]] (`huge` at a non-finite trial point).
+    !  in the form required by `fmin` (`huge` at a non-finite trial point).
     !  Uses the host-associated variables set by [[exact_line_search]].
 
         function merit_along_direction(alpha) result(phi)
@@ -624,21 +630,21 @@
     subroutine watchdog_line_search(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, alpha, x_new, istat, soc)
 
     class(sqpopt_linesearch_type), intent(inout) :: me
-    procedure(sqpopt_ls_objective_func)  :: eval_f
-    procedure(sqpopt_ls_constraint_func) :: eval_c
-    real(wp), dimension(:), intent(in)  :: x !! current point in the search space
-    real(wp), dimension(:), intent(in)  :: p !! search direction
-    real(wp), dimension(:), intent(in)  :: g !! gradient of the objective function at `x`
-    real(wp), dimension(:), intent(in)  :: c !! constraint function values at `x`
-    real(wp), dimension(:), intent(in)  :: lambda !! Lagrange multipliers at `x`
-    real(wp), dimension(:), intent(in)  :: c_lb !! lower bounds on the constraints
-    real(wp), dimension(:), intent(in)  :: c_ub !! upper bounds on the constraints
-    type(sqpopt_sparse_matrix), intent(in)  :: jac !! Jacobian of the constraints at `x`
-    real(wp),                   intent(in)  :: f !! objective function value at `x`
-    real(wp),                   intent(out) :: alpha !! step length found by the line search
-    real(wp), dimension(:),     intent(out) :: x_new !! new point after the line search
-    integer,                    intent(out) :: istat !! status of the line search (0 if successful)
-    procedure(sqpopt_soc_func), optional :: soc      !! computes a second-order-corrected step
+    procedure(sqpopt_ls_objective_func)     :: eval_f !! evaluates the objective
+    procedure(sqpopt_ls_constraint_func)    :: eval_c !! evaluates the constraints
+    real(wp), dimension(:), intent(in)      :: x      !! current point in the search space
+    real(wp), dimension(:), intent(in)      :: p      !! search direction
+    real(wp), dimension(:), intent(in)      :: g      !! gradient of the objective function at `x`
+    real(wp), dimension(:), intent(in)      :: c      !! constraint function values at `x`
+    real(wp), dimension(:), intent(in)      :: lambda !! Lagrange multipliers at `x`
+    real(wp), dimension(:), intent(in)      :: c_lb   !! lower bounds on the constraints
+    real(wp), dimension(:), intent(in)      :: c_ub   !! upper bounds on the constraints
+    type(sqpopt_sparse_matrix), intent(in)  :: jac    !! Jacobian of the constraints at `x`
+    real(wp),                   intent(in)  :: f      !! objective function value at `x`
+    real(wp),                   intent(out) :: alpha  !! step length found by the line search
+    real(wp), dimension(:),     intent(out) :: x_new  !! new point after the line search
+    integer,                    intent(out) :: istat  !! status of the line search (0 if successful)
+    procedure(sqpopt_soc_func), optional    :: soc    !! computes a second-order-corrected step
 
     real(wp), dimension(size(c)) :: c_trial !! constraint values at the trial point
     real(wp) :: phi0, dphi0, phi_trial, alpha0 !! merit function values, directional derivative, initial step length
@@ -756,19 +762,19 @@
     subroutine filter_line_search(me, eval_f, eval_c, x, p, f, g, c, c_lb, c_ub, alpha, x_new, istat, soc)
 
     class(sqpopt_linesearch_type), intent(inout) :: me
-    procedure(sqpopt_ls_objective_func)  :: eval_f
-    procedure(sqpopt_ls_constraint_func) :: eval_c
-    real(wp), dimension(:), intent(in)  :: x      !! current point `dimension(n)`
-    real(wp), dimension(:), intent(in)  :: p      !! search direction `dimension(n)`
-    real(wp),               intent(in)  :: f      !! objective function value at `x`
-    real(wp), dimension(:), intent(in)  :: g      !! objective gradient at `x` `dimension(n)`
-    real(wp), dimension(:), intent(in)  :: c      !! constraint values at `x` `dimension(m)`
-    real(wp), dimension(:), intent(in)  :: c_lb   !! constraint lower bounds `dimension(m)`
-    real(wp), dimension(:), intent(in)  :: c_ub   !! constraint upper bounds `dimension(m)`
-    real(wp),               intent(out) :: alpha  !! accepted step length (`0` if no step was taken)
-    real(wp), dimension(:), intent(out) :: x_new  !! the accepted new point `dimension(n)`
-    integer,                intent(out) :: istat  !! status code (see [[sqpopt_types_module]])
-    procedure(sqpopt_soc_func), optional :: soc   !! computes a second-order-corrected step
+    procedure(sqpopt_ls_objective_func)  :: eval_f !! evaluates the objective
+    procedure(sqpopt_ls_constraint_func) :: eval_c !! evaluates the constraints
+    real(wp), dimension(:), intent(in)   :: x      !! current point `dimension(n)`
+    real(wp), dimension(:), intent(in)   :: p      !! search direction `dimension(n)`
+    real(wp),               intent(in)   :: f      !! objective function value at `x`
+    real(wp), dimension(:), intent(in)   :: g      !! objective gradient at `x` `dimension(n)`
+    real(wp), dimension(:), intent(in)   :: c      !! constraint values at `x` `dimension(m)`
+    real(wp), dimension(:), intent(in)   :: c_lb   !! constraint lower bounds `dimension(m)`
+    real(wp), dimension(:), intent(in)   :: c_ub   !! constraint upper bounds `dimension(m)`
+    real(wp),               intent(out)  :: alpha  !! accepted step length (`0` if no step was taken)
+    real(wp), dimension(:), intent(out)  :: x_new  !! the accepted new point `dimension(n)`
+    integer,                intent(out)  :: istat  !! status code (see [[sqpopt_types_module]])
+    procedure(sqpopt_soc_func), optional :: soc    !! computes a second-order-corrected step
 
     real(wp), dimension(size(x)) :: x_trial, p_soc
     real(wp), dimension(size(c)) :: c_trial
@@ -928,7 +934,9 @@
     subroutine nonmonotone_push(me, phi, theta, f)
 
     class(sqpopt_linesearch_type), intent(inout) :: me
-    real(wp), intent(in) :: phi, theta, f
+    real(wp), intent(in) :: phi   !! merit value at the iterate (`armijo` mode)
+    real(wp), intent(in) :: theta !! constraint violation at the iterate (`filter` mode)
+    real(wp), intent(in) :: f     !! objective at the iterate (`filter` mode)
 
     integer :: n
 
@@ -983,19 +991,19 @@
     subroutine funnel_line_search(me, eval_f, eval_c, x, p, f, g, c, c_lb, c_ub, alpha, x_new, istat, soc)
 
     class(sqpopt_linesearch_type), intent(inout) :: me
-    procedure(sqpopt_ls_objective_func)  :: eval_f
-    procedure(sqpopt_ls_constraint_func) :: eval_c
-    real(wp), dimension(:), intent(in)  :: x      !! current point `dimension(n)`
-    real(wp), dimension(:), intent(in)  :: p      !! search direction `dimension(n)`
-    real(wp),               intent(in)  :: f      !! objective function value at `x`
-    real(wp), dimension(:), intent(in)  :: g      !! objective gradient at `x` `dimension(n)`
-    real(wp), dimension(:), intent(in)  :: c      !! constraint values at `x` `dimension(m)`
-    real(wp), dimension(:), intent(in)  :: c_lb   !! constraint lower bounds `dimension(m)`
-    real(wp), dimension(:), intent(in)  :: c_ub   !! constraint upper bounds `dimension(m)`
-    real(wp),               intent(out) :: alpha  !! accepted step length (`0` if no step was taken)
-    real(wp), dimension(:), intent(out) :: x_new  !! the accepted new point `dimension(n)`
-    integer,                intent(out) :: istat  !! status code (see [[sqpopt_types_module]])
-    procedure(sqpopt_soc_func), optional :: soc   !! computes a second-order-corrected step
+    procedure(sqpopt_ls_objective_func)  :: eval_f !! evaluates the objective
+    procedure(sqpopt_ls_constraint_func) :: eval_c !! evaluates the constraints
+    real(wp), dimension(:), intent(in)   :: x      !! current point `dimension(n)`
+    real(wp), dimension(:), intent(in)   :: p      !! search direction `dimension(n)`
+    real(wp),               intent(in)   :: f      !! objective function value at `x`
+    real(wp), dimension(:), intent(in)   :: g      !! objective gradient at `x` `dimension(n)`
+    real(wp), dimension(:), intent(in)   :: c      !! constraint values at `x` `dimension(m)`
+    real(wp), dimension(:), intent(in)   :: c_lb   !! constraint lower bounds `dimension(m)`
+    real(wp), dimension(:), intent(in)   :: c_ub   !! constraint upper bounds `dimension(m)`
+    real(wp),               intent(out)  :: alpha  !! accepted step length (`0` if no step was taken)
+    real(wp), dimension(:), intent(out)  :: x_new  !! the accepted new point `dimension(n)`
+    integer,                intent(out)  :: istat  !! status code (see [[sqpopt_types_module]])
+    procedure(sqpopt_soc_func), optional :: soc    !! computes a second-order-corrected step
 
     real(wp), dimension(size(x)) :: x_trial, p_soc
     real(wp), dimension(size(c)) :: c_trial
@@ -1088,7 +1096,9 @@
     subroutine log_merit_trial(me, alpha, phi, target, ok, is_soc)
 
     class(sqpopt_linesearch_type), intent(in) :: me
-    real(wp), intent(in) :: alpha, phi, target
+    real(wp), intent(in) :: alpha  !! step length
+    real(wp), intent(in) :: phi    !! merit value at the trial point
+    real(wp), intent(in) :: target !! the value the merit had to reach to be accepted
     logical,  intent(in) :: ok     !! whether the functions were finite there
     logical,  intent(in) :: is_soc !! whether it was the second-order-corrected step
 
@@ -1115,9 +1125,11 @@
     subroutine log_theta_trial(me, alpha, theta, f, ok, accepted, f_type, is_soc)
 
     class(sqpopt_linesearch_type), intent(in) :: me
-    real(wp), intent(in) :: alpha, theta, f
+    real(wp), intent(in) :: alpha    !! step length
+    real(wp), intent(in) :: theta    !! constraint violation at the trial point
+    real(wp), intent(in) :: f        !! objective at the trial point
     logical,  intent(in) :: ok       !! whether the functions were finite there
-    logical,  intent(in) :: accepted
+    logical,  intent(in) :: accepted !! whether the trial point was accepted
     logical,  intent(in) :: f_type   !! whether the switching condition held (an f-type step)
     logical,  intent(in) :: is_soc   !! whether it was the second-order-corrected step
 
@@ -1146,7 +1158,8 @@
     contains
 
         pure function itoa(i) result(str)
-        integer, intent(in) :: i
+        !! integer to string
+        integer, intent(in) :: i !! the integer to format
         character(len=16) :: str
         write(str, '(I0)') i
         end function itoa

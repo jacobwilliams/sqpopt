@@ -6,12 +6,16 @@
 !  Sequential Quadratic Programming solver. It is used via the
 !  [[sqpopt_type]] class, which is the only public entity in this module.
 !  The other components of the algorithm (problem definition, options,
-!  Hessian approximation, QP subproblem solver, line search, and
-!  convergence checking) are each implemented in their own module so
-!  that they may be developed, tested, and swapped out independently.
-!  Internally, sparse (COO) storage is used by default for the
-!  constraint Jacobian and the Lagrangian Hessian is a matrix-free
-!  limited-memory operator -- dense `n x n`/`m x n` arrays are never formed.
+!  Hessian approximation, QP subproblem solvers, line search, merit
+!  function, filter and funnel, trust region, feasibility restoration,
+!  second-order correction, convergence checking, and the detailed log)
+!  are each implemented in their own module so that they may be
+!  developed, tested, and swapped out independently. Internally, sparse
+!  (COO) storage is used for the constraint Jacobian, and the Hessian of
+!  the Lagrangian is a matrix-free limited-memory operator (or the user's
+!  sparse exact Hessian), so dense `n x n`/`m x n` arrays are only formed
+!  by the dense QP solver (used for small problems, see
+!  [[sqpopt_qp_solver_module]]).
 
     module sqpopt_module
 
@@ -95,11 +99,11 @@
     subroutine sqpopt_initialize(me, problem, options, hessian, qp_solver, linesearch, trust_region, report)
 
     class(sqpopt_type), intent(inout) :: me
-    type(sqpopt_problem_type),optional,intent(in)    :: problem      !! the nonlinear program to be solved
-    type(sqpopt_options_type),optional,intent(in)    :: options      !! solver options
-    type(sqpopt_hessian_type),optional,intent(in)    :: hessian      !! Hessian of the Lagrangian approximation
-    type(sqpopt_qp_solver_type),optional,intent(in)  :: qp_solver    !! QP subproblem solver
-    type(sqpopt_linesearch_type),optional,intent(in) :: linesearch   !! merit function / line search
+    type(sqpopt_problem_type),optional,intent(in)      :: problem      !! the nonlinear program to be solved
+    type(sqpopt_options_type),optional,intent(in)      :: options      !! solver options
+    type(sqpopt_hessian_type),optional,intent(in)      :: hessian      !! Hessian of the Lagrangian approximation
+    type(sqpopt_qp_solver_type),optional,intent(in)    :: qp_solver    !! QP subproblem solver
+    type(sqpopt_linesearch_type),optional,intent(in)   :: linesearch   !! merit function / line search
     type(sqpopt_trust_region_type),optional,intent(in) :: trust_region !! trust-region globalization (opt-in
                                                                         !! alternative to `linesearch`, see
                                                                         !! [[sqpopt_trust_region_module]])
@@ -300,7 +304,7 @@
         subroutine finish(stat, detail)
         !! set the final status and message, fill in the results (for the
         !! original, unscaled problem), and print the summary
-        integer, intent(in) :: stat
+        integer, intent(in)                    :: stat   !! the final status code
         character(len=*), intent(in), optional :: detail !! extra detail appended to the status message
         real(wp) :: fs
         real(wp), dimension(me%problem%m) :: cs
@@ -380,9 +384,10 @@
         end subroutine count_events
 
         subroutine print_header()
-        !! the problem, the method, and the iteration log's column headings,
-        !! with a legend (`print_level >= 1`), and at `print_level >= 3` the
-        !! scale factors
+        !! the problem, the method, the scaling, the tolerances, and the
+        !! iteration log's column headings (`print_level >= 1`; the legend is
+        !! printed with the summary, see `print_legend`), and at
+        !! `print_level >= 3` the smallest constraint scale factors
         integer :: u, n_eq
         integer :: ios
         u = me%options%output_unit
@@ -431,7 +436,7 @@
         end subroutine print_legend
 
         subroutine print_scale_factors()
-        !! the constraint scale factors (all of them, or the smallest ones, `print_level >= 3`)
+        !! the smallest constraint scale factors (at most 10, `print_level >= 3`)
         integer :: u, i, k, n_show
         integer, dimension(me%problem%m) :: order
         integer :: ios
@@ -450,7 +455,7 @@
 
         subroutine sort_by_scale(order)
         !! sort constraint indices by increasing scale factor (insertion sort: `m` is only printed at level 3)
-        integer, dimension(:), intent(inout) :: order
+        integer, dimension(:), intent(inout) :: order !! the constraint indices, sorted in place
         integer :: i, j, t
         do i = 2, size(order)
             t = order(i)
@@ -538,6 +543,7 @@
         end function glob_heading
 
         function glob_meaning() result(str)
+        !! what the globalization's column of the log (`print_level >= 2`) shows, for the legend
         character(len=:), allocatable :: str
         if (me%trust_region%enabled) then
             str = 'trust-region radius'
@@ -551,12 +557,14 @@
         end function glob_meaning
 
         pure function hess_heading() result(str)
+        !! the heading of the Hessian's column (`print_level >= 2`)
         character(len=10) :: str
         str = merge('shift', 'pairs', me%options%hessian_mode == sqpopt_hessian_exact)
         str = adjustr(str)
         end function hess_heading
 
         function hess_meaning() result(str)
+        !! what the Hessian's column of the log shows, for the legend
         character(len=:), allocatable :: str
         if (me%options%hessian_mode == sqpopt_hessian_exact) then
             str = 'Hessian shift (inertia correction)'
@@ -567,8 +575,9 @@
 
         subroutine print_iteration(iter, info, iter_istat)
         !! one line of the iteration log (see `print_legend` for the flags)
-        integer,                intent(in) :: iter, iter_istat
-        type(sqpopt_iter_info), intent(in) :: info
+        integer,                intent(in) :: iter       !! major iteration number
+        integer,                intent(in) :: iter_istat !! the iteration's status code
+        type(sqpopt_iter_info), intent(in) :: info       !! what happened in the iteration
         character(len=12) :: flags
         character(len=10) :: gcol, hcol
         integer :: u
@@ -667,9 +676,9 @@
 
         subroutine add_event(events, n, one, many)
         !! add a count to the summary's list of events (e.g. "3 Hessian resets")
-        character(len=:), allocatable, intent(inout) :: events
-        integer,          intent(in) :: n
-        character(len=*), intent(in) :: one, many !! the event's name, singular and plural
+        character(len=:), allocatable, intent(inout) :: events    !! the list so far
+        integer,          intent(in)                 :: n         !! the count
+        character(len=*), intent(in)                 :: one, many !! the event's name, singular and plural
         if (n == 0) return
         if (len(events) > 0) events = events//', '
         if (n == 1) then
@@ -681,7 +690,7 @@
 
         function fmt_f(t) result(str)
         !! a time in seconds
-        real(wp), intent(in) :: t
+        real(wp), intent(in) :: t !! the time, in seconds
         character(len=:), allocatable :: str
         character(len=32) :: buf
         integer :: ios
@@ -775,7 +784,8 @@
         end subroutine print_solution
 
         pure function side_text(side, both) result(str)
-        integer,          intent(in) :: side
+        !! the "active" column of the solution tables
+        integer,          intent(in) :: side !! `-1` at the lower bound, `+1` at the upper bound, `2` fixed (or an equality), `0` neither
         character(len=*), intent(in) :: both !! the text for `side==2`
         character(len=17) :: str
         select case (side)
@@ -789,7 +799,7 @@
 
         function num(v) result(str)
         !! a value for the solution tables (infinite bounds as `-inf`/`inf`)
-        real(wp), intent(in) :: v
+        real(wp), intent(in) :: v !! the value
         character(len=17) :: str
         integer :: ios
         if (v <= -sqpopt_infinity) then
@@ -1032,7 +1042,7 @@
     subroutine sqpopt_get_results(me, results)
 
     class(sqpopt_type),        intent(in)  :: me
-    type(sqpopt_results_type), intent(out) :: results
+    type(sqpopt_results_type), intent(out) :: results !! the results of the last `solve`
 
     results = me%results
 

@@ -53,6 +53,11 @@
 !  specific options (`major_step_limit`, `alpha_min`/`sigma`/`backtrack`/
 !  `max_ls_iter`, and the watchdog fields) are not used when trust region
 !  is enabled -- there is no `alpha`, so nothing to cap or backtrack.
+!
+!  At `options%print_level >= 3`, every QP re-solve (radius, QP status, and
+!  the trial point's ratio, or violation and objective, and whether it was
+!  accepted) is written to the detailed log (`log`, see
+!  [[sqpopt_log_module]]).
 
     module sqpopt_trust_region_module
 
@@ -112,10 +117,10 @@
                                   x, g, f, c, jac, x_new, new_lambda, alpha, istat)
 
     class(sqpopt_trust_region_type), intent(inout) :: me
-    type(sqpopt_problem_type),      intent(inout) :: problem
-    type(sqpopt_hessian_type),      intent(inout) :: hessian     !! matrix-free Hessian approximation
-    type(sqpopt_qp_solver_type),    intent(inout) :: qp_solver
-    type(sqpopt_linesearch_type),   intent(inout) :: linesearch  !! supplies the merit function (`merit`, ratio test) or
+    type(sqpopt_problem_type),      intent(inout) :: problem    !! problem definition
+    type(sqpopt_hessian_type),      intent(inout) :: hessian    !! matrix-free Hessian approximation
+    type(sqpopt_qp_solver_type),    intent(inout) :: qp_solver  !! QP subproblem solver
+    type(sqpopt_linesearch_type),   intent(inout) :: linesearch !! supplies the merit function (`merit`, ratio test) or
                                                                   !! the filter (`filter`, `mode==sqpopt_linesearch_filter`)
                                                                   !! or funnel (`funnel`, `mode==sqpopt_linesearch_funnel`)
     real(wp), dimension(:),         intent(in)  :: x       !! current point `dimension(n)`
@@ -250,7 +255,7 @@
 
         subroutine log_trial(prefix)
         !! the detailed log's line for the last evaluated trial point
-        character(len=*), intent(in) :: prefix
+        character(len=*), intent(in) :: prefix !! the start of the line (what was tried)
         character(len=:), allocatable :: line
         if (.not. me%log%on(sqpopt_log_detail)) return
         if (.not. ok) then
@@ -275,8 +280,8 @@
         !! evaluate the trial point `x_trial` (setting `f_trial`, `c_trial`,
         !! `h_trial`, `ok`, and `ratio`), and whether it is acceptable. A
         !! trial point where `f` or `c` is not finite is never acceptable.
-        real(wp), dimension(:), intent(in)  :: x_trial
-        logical,                intent(out) :: accept
+        real(wp), dimension(:), intent(in)  :: x_trial !! the trial point `dimension(n)`
+        logical,                intent(out) :: accept  !! whether it is acceptable
         real(wp) :: phi_trial, ared
 
         call problem%f(x_trial, f_trial)

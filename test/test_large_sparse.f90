@@ -82,12 +82,12 @@ program test_large_sparse
     !! check the solve: converged (or stopped at an acceptable/stalled point),
     !! to the known optimum, and feasible (and, in the `sqpopt_qp_auto` mode,
     !! with the sparse QP)
-    character(len=*),  intent(in) :: name
-    integer,           intent(in) :: qp_mode
-    integer,           intent(in) :: n
-    type(sqpopt_type), intent(in) :: solver
-    real(wp),          intent(in) :: f_star
-    logical,           intent(in) :: exact !! whether the exact Hessian was used
+    character(len=*),  intent(in) :: name    !! the problem, for the output
+    integer,           intent(in) :: qp_mode !! `options%qp_solver_mode` used
+    integer,           intent(in) :: n       !! number of variables
+    type(sqpopt_type), intent(in) :: solver  !! the solver, after the solve
+    real(wp),          intent(in) :: f_star  !! the known optimal objective
+    logical,           intent(in) :: exact   !! whether the exact Hessian was used
     type(sqpopt_results_type) :: r
     type(sqpopt_qp_solver_type) :: qp
     character(len=:), allocatable :: label
@@ -122,10 +122,11 @@ program test_large_sparse
     !------------------------------------------------------------------------
 
     subroutine run_control(nn, qp_mode, f_star, exact)
-    integer,  intent(in) :: nn
-    integer,  intent(in) :: qp_mode
-    real(wp), intent(in) :: f_star
-    logical,  intent(in), optional :: exact !! use the exact Hessian (default `.false.`)
+    !! solve the discretized optimal-control problem, and check the solution
+    integer,  intent(in)           :: nn      !! number of time steps `N` (`n = 2N+1` variables)
+    integer,  intent(in)           :: qp_mode !! `options%qp_solver_mode`
+    real(wp), intent(in)           :: f_star  !! the known optimal objective
+    logical,  intent(in), optional :: exact   !! use the exact Hessian (default `.false.`)
     type(sqpopt_type)         :: solver
     type(sqpopt_problem_type) :: problem
     type(sqpopt_options_type) :: options
@@ -178,11 +179,11 @@ program test_large_sparse
 
     subroutine fc_control(x, f, c, status, data)
     !! objective and constraints of the control problem
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp),               intent(out)   :: f
-    real(wp), dimension(:), intent(out)   :: c
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp),               intent(out)   :: f      !! objective value at `x`
+    real(wp), dimension(:), intent(out)   :: c      !! constraint values at `x` `dimension(m)`
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
     integer :: k
     f = 0.5_wp*h*(sum(x(1:nsteps)**2) + sum(x(nsteps+2:)**2)) + x(nsteps+1)**2
     c(1) = x(1)
@@ -193,11 +194,11 @@ program test_large_sparse
 
     subroutine gjac_control(x, g, jac, status, data)
     !! objective gradient and constraint Jacobian values of the control problem
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp), dimension(:), intent(out)   :: g
-    real(wp), dimension(:), intent(out)   :: jac
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: g      !! objective gradient at `x` `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: jac    !! nonzero values of the constraint Jacobian at `x` (in the sparsity pattern's order)
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
     integer :: k
     g = h*x
     g(nsteps+1) = 2.0_wp*x(nsteps+1)
@@ -212,11 +213,11 @@ program test_large_sparse
     subroutine hess_control(x, lambda, hess_val, status, data)
     !! the (diagonal) Hessian of the Lagrangian of the control problem: the
     !! objective's, minus `lambda(k+2)*6*h*y_k` from constraint `k+2`
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp), dimension(:), intent(in)    :: lambda
-    real(wp), dimension(:), intent(out)   :: hess_val
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    real(wp), dimension(:), intent(in)    :: x        !! point `dimension(n)`
+    real(wp), dimension(:), intent(in)    :: lambda   !! constraint multipliers `dimension(m)`
+    real(wp), dimension(:), intent(out)   :: hess_val !! nonzero values of the Hessian of the Lagrangian at `x` (in its sparsity pattern's order)
+    integer,                intent(inout) :: status   !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data     !! the user data passed to `set_functions` (if any)
     integer :: k
     hess_val = h
     hess_val(nsteps+1) = 2.0_wp
@@ -230,10 +231,11 @@ program test_large_sparse
     !------------------------------------------------------------------------
 
     subroutine run_rosenbrock(n, qp_mode, f_star, exact)
-    integer,  intent(in) :: n
-    integer,  intent(in) :: qp_mode
-    real(wp), intent(in) :: f_star
-    logical,  intent(in), optional :: exact !! use the exact Hessian (default `.false.`)
+    !! solve the constrained chained-Rosenbrock problem, and check the solution
+    integer,  intent(in)           :: n       !! number of variables
+    integer,  intent(in)           :: qp_mode !! `options%qp_solver_mode`
+    real(wp), intent(in)           :: f_star  !! the known optimal objective
+    logical,  intent(in), optional :: exact   !! use the exact Hessian (default `.false.`)
     type(sqpopt_type)         :: solver
     type(sqpopt_problem_type) :: problem
     type(sqpopt_options_type) :: options
@@ -272,11 +274,11 @@ program test_large_sparse
 
     subroutine fc_rosen(x, f, c, status, data)
     !! objective and constraints of the chained Rosenbrock problem
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp),               intent(out)   :: f
-    real(wp), dimension(:), intent(out)   :: c
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp),               intent(out)   :: f      !! objective value at `x`
+    real(wp), dimension(:), intent(out)   :: c      !! constraint values at `x` `dimension(m)`
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
     integer :: n, i
     n = size(x)
     f = sum(100.0_wp*(x(2:n)-x(1:n-1)**2)**2 + (1.0_wp-x(1:n-1))**2)
@@ -287,11 +289,11 @@ program test_large_sparse
 
     subroutine gjac_rosen(x, g, jac, status, data)
     !! objective gradient and constraint Jacobian values of the chained Rosenbrock problem
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp), dimension(:), intent(out)   :: g
-    real(wp), dimension(:), intent(out)   :: jac
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: g      !! objective gradient at `x` `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: jac    !! nonzero values of the constraint Jacobian at `x` (in the sparsity pattern's order)
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
     integer :: n, i
     n = size(x)
     g = 0.0_wp
@@ -306,11 +308,11 @@ program test_large_sparse
     subroutine hess_rosen(x, lambda, hess_val, status, data)
     !! the (tridiagonal) Hessian of the Lagrangian of the chained Rosenbrock
     !! problem: the diagonal (`n` values), then the subdiagonal (`n-1`)
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp), dimension(:), intent(in)    :: lambda
-    real(wp), dimension(:), intent(out)   :: hess_val
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    real(wp), dimension(:), intent(in)    :: x        !! point `dimension(n)`
+    real(wp), dimension(:), intent(in)    :: lambda   !! constraint multipliers `dimension(m)`
+    real(wp), dimension(:), intent(out)   :: hess_val !! nonzero values of the Hessian of the Lagrangian at `x` (in its sparsity pattern's order)
+    integer,                intent(inout) :: status   !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data     !! the user data passed to `set_functions` (if any)
     integer :: n, i
     n = size(x)
     hess_val = 0.0_wp

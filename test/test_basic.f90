@@ -69,55 +69,59 @@ program test_basic
     end subroutine test_equality_constrained
 
     subroutine obj1(x, f, status, data)
-    real(wp), dimension(:), intent(in)  :: x
-    real(wp),                intent(out) :: f
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    !! the objective
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp),                intent(out)  :: f      !! objective value at `x`
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
     f = (x(1)-2.0_wp)**2 + (x(2)-3.0_wp)**2
     end subroutine obj1
 
     subroutine grad1(x, g, status, data)
-    real(wp), dimension(:), intent(in)  :: x
-    real(wp), dimension(:), intent(out) :: g
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    !! the objective's gradient
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: g      !! objective gradient at `x` `dimension(n)`
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
     g(1) = 2.0_wp*(x(1)-2.0_wp)
     g(2) = 2.0_wp*(x(2)-3.0_wp)
     end subroutine grad1
 
     !> no constraints (used for the bounds-only test, where m=0)
     subroutine cons0(x, c, status, data)
-    real(wp), dimension(:), intent(in)  :: x
-    real(wp), dimension(:), intent(out) :: c
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: c      !! constraint values at `x` `dimension(m)`
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
     associate(unused => x); end associate
     associate(unused => c); end associate
     end subroutine cons0
 
     !> no constraints (used for the bounds-only test, where m=0)
     subroutine jacv0(x, jac_val, status, data)
-    real(wp), dimension(:), intent(in)  :: x
-    real(wp), dimension(:), intent(out) :: jac_val
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    real(wp), dimension(:), intent(in)    :: x       !! point `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: jac_val !! nonzero values of the constraint Jacobian at `x` (in the sparsity pattern's order)
+    integer,                intent(inout) :: status  !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data    !! the user data passed to `set_functions` (if any)
     associate(unused => x); end associate
     associate(unused => jac_val); end associate
     end subroutine jacv0
 
     subroutine cons1(x, c, status, data)
-    real(wp), dimension(:), intent(in)  :: x
-    real(wp), dimension(:), intent(out) :: c
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    !! the constraints
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: c      !! constraint values at `x` `dimension(m)`
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
     c(1) = x(1) + x(2)
     end subroutine cons1
 
     subroutine jacv1(x, jac_val, status, data)
-    real(wp), dimension(:), intent(in)  :: x
-    real(wp), dimension(:), intent(out) :: jac_val
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    !! the nonzero values of the constraint Jacobian (in the sparsity pattern's order)
+    real(wp), dimension(:), intent(in)    :: x       !! point `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: jac_val !! nonzero values of the constraint Jacobian at `x` (in the sparsity pattern's order)
+    integer,                intent(inout) :: status  !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data    !! the user data passed to `set_functions` (if any)
     jac_val = [1.0_wp, 1.0_wp]
     end subroutine jacv1
 
@@ -608,44 +612,44 @@ program test_basic
 
     subroutine fc_obj1_cons0(x, f, c, status, data)
     !! `fc` for `set_functions`: the objective (`obj1`) and the constraints (`cons0`)
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp),               intent(out)   :: f
-    real(wp), dimension(:), intent(out)   :: c
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp),               intent(out)   :: f      !! objective value at `x`
+    real(wp), dimension(:), intent(out)   :: c      !! constraint values at `x` `dimension(m)`
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
     call obj1(x, f, status, data)
     if (status == 0) call cons0(x, c, status, data)
     end subroutine fc_obj1_cons0
 
     subroutine fc_obj1_cons1(x, f, c, status, data)
     !! `fc` for `set_functions`: the objective (`obj1`) and the constraints (`cons1`)
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp),               intent(out)   :: f
-    real(wp), dimension(:), intent(out)   :: c
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp),               intent(out)   :: f      !! objective value at `x`
+    real(wp), dimension(:), intent(out)   :: c      !! constraint values at `x` `dimension(m)`
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
     call obj1(x, f, status, data)
     if (status == 0) call cons1(x, c, status, data)
     end subroutine fc_obj1_cons1
 
     subroutine gjac_grad1_jacv0(x, g, jac_val, status, data)
     !! `gjac` for `set_functions`: the gradient (`grad1`) and the Jacobian values (`jacv0`)
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp), dimension(:), intent(out)   :: g
-    real(wp), dimension(:), intent(out)   :: jac_val
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    real(wp), dimension(:), intent(in)    :: x       !! point `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: g       !! objective gradient at `x` `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: jac_val !! nonzero values of the constraint Jacobian at `x` (in the sparsity pattern's order)
+    integer,                intent(inout) :: status  !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data    !! the user data passed to `set_functions` (if any)
     call grad1(x, g, status, data)
     if (status == 0) call jacv0(x, jac_val, status, data)
     end subroutine gjac_grad1_jacv0
 
     subroutine gjac_grad1_jacv1(x, g, jac_val, status, data)
     !! `gjac` for `set_functions`: the gradient (`grad1`) and the Jacobian values (`jacv1`)
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp), dimension(:), intent(out)   :: g
-    real(wp), dimension(:), intent(out)   :: jac_val
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    real(wp), dimension(:), intent(in)    :: x       !! point `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: g       !! objective gradient at `x` `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: jac_val !! nonzero values of the constraint Jacobian at `x` (in the sparsity pattern's order)
+    integer,                intent(inout) :: status  !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data    !! the user data passed to `set_functions` (if any)
     call grad1(x, g, status, data)
     if (status == 0) call jacv1(x, jac_val, status, data)
     end subroutine gjac_grad1_jacv1

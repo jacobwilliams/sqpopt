@@ -96,10 +96,11 @@ program test_nonfinite
     contains
 
     subroutine obj(x, f, status, data)
-    real(wp), dimension(:), intent(in)  :: x
-    real(wp),               intent(out) :: f
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    !! the objective
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp),               intent(out)   :: f      !! objective value at `x`
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
     if (x(1) > 2.8_wp) then
         f = ieee_value(f, ieee_quiet_nan)
         n_nan = n_nan + 1
@@ -109,48 +110,51 @@ program test_nonfinite
     end subroutine obj
 
     subroutine grad(x, g, status, data)
-    real(wp), dimension(:), intent(in)  :: x
-    real(wp), dimension(:), intent(out) :: g
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    !! the objective's gradient
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: g      !! objective gradient at `x` `dimension(n)`
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
     g = [2.0_wp*(x(1)-3.0_wp), 2.0_wp*(x(2)-1.0_wp)]
     end subroutine grad
 
     subroutine cons(x, c, status, data)
-    real(wp), dimension(:), intent(in)  :: x
-    real(wp), dimension(:), intent(out) :: c
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    !! the constraints
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: c      !! constraint values at `x` `dimension(m)`
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
     c(1) = x(1) + x(2)
     end subroutine cons
 
     subroutine jacv(x, jac_val, status, data)
-    real(wp), dimension(:), intent(in)  :: x
-    real(wp), dimension(:), intent(out) :: jac_val
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    !! the nonzero values of the constraint Jacobian (in the sparsity pattern's order)
+    real(wp), dimension(:), intent(in)    :: x       !! point `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: jac_val !! nonzero values of the constraint Jacobian at `x` (in the sparsity pattern's order)
+    integer,                intent(inout) :: status  !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data    !! the user data passed to `set_functions` (if any)
     associate(unused => x); end associate
     jac_val = 1.0_wp
     end subroutine jacv
 
     subroutine fc_obj_cons(x, f, c, status, data)
     !! `fc` for `set_functions`: the objective (`obj`) and the constraints (`cons`)
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp),               intent(out)   :: f
-    real(wp), dimension(:), intent(out)   :: c
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp),               intent(out)   :: f      !! objective value at `x`
+    real(wp), dimension(:), intent(out)   :: c      !! constraint values at `x` `dimension(m)`
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
     call obj(x, f, status, data)
     if (status == 0) call cons(x, c, status, data)
     end subroutine fc_obj_cons
 
     subroutine gjac_grad_jacv(x, g, jac_val, status, data)
     !! `gjac` for `set_functions`: the gradient (`grad`) and the Jacobian values (`jacv`)
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp), dimension(:), intent(out)   :: g
-    real(wp), dimension(:), intent(out)   :: jac_val
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    real(wp), dimension(:), intent(in)    :: x       !! point `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: g       !! objective gradient at `x` `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: jac_val !! nonzero values of the constraint Jacobian at `x` (in the sparsity pattern's order)
+    integer,                intent(inout) :: status  !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data    !! the user data passed to `set_functions` (if any)
     call grad(x, g, status, data)
     if (status == 0) call jacv(x, jac_val, status, data)
     end subroutine gjac_grad_jacv

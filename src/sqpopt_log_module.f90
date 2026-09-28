@@ -42,7 +42,7 @@
     pure logical function log_on(me, level)
 
     class(sqpopt_log_type), intent(in) :: me
-    integer,                intent(in) :: level
+    integer,                intent(in) :: level !! the `print_level` a message needs
 
     log_on = me%level >= level
 
@@ -57,8 +57,8 @@
     subroutine log_put(me, level, line)
 
     class(sqpopt_log_type), intent(in) :: me
-    integer,                intent(in) :: level
-    character(len=*),       intent(in) :: line
+    integer,                intent(in) :: level !! the `print_level` the line needs
+    character(len=*),       intent(in) :: line  !! the text (without the indentation, which is added)
 
     integer :: ios
 
@@ -75,7 +75,7 @@
 
     pure function fmt_e(x) result(s)
 
-    real(wp), intent(in) :: x
+    real(wp), intent(in) :: x !! the number
     character(len=:), allocatable :: s
 
     character(len=32) :: buf
@@ -98,7 +98,7 @@
 
     pure function fmt_g(x) result(s)
 
-    real(wp), intent(in) :: x
+    real(wp), intent(in) :: x !! the number
     character(len=:), allocatable :: s
 
     character(len=32) :: buf
@@ -120,7 +120,7 @@
 
     pure function fmt_i(i) result(s)
 
-    integer, intent(in) :: i
+    integer, intent(in) :: i !! the number
     character(len=:), allocatable :: s
 
     character(len=32) :: buf
@@ -142,7 +142,7 @@
 
     pure function qp_status_text(istat) result(s)
 
-    integer, intent(in) :: istat
+    integer, intent(in) :: istat !! the QP solve's status code (see [[sqpopt_types_module]])
     character(len=:), allocatable :: s
 
     select case (istat)
@@ -161,7 +161,7 @@
 
     pure function plural(n, one, many) result(s)
 
-    integer,          intent(in) :: n
+    integer,          intent(in) :: n    !! the count
     character(len=*), intent(in) :: one  !! the noun, singular
     character(len=*), intent(in) :: many !! the noun, plural
     character(len=:), allocatable :: s

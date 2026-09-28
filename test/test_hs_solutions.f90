@@ -108,7 +108,8 @@ contains
 
     pure function label(ok, listed) result(s)
     !! how a problem shown in the table compares with `known_inconsistent`
-    logical, intent(in) :: ok, listed
+    logical, intent(in) :: ok     !! whether the problem's reference solution is consistent
+    logical, intent(in) :: listed !! whether the problem is in `known_inconsistent`
     character(len=:), allocatable :: s
     if (ok) then
         s = '<-- now consistent'

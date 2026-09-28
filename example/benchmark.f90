@@ -51,9 +51,11 @@ program benchmark
 
     subroutine report(name, size_param, n, m, solver)
     !! print one line of results (from the solver's results object)
-    character(len=*), intent(in) :: name
-    integer, intent(in) :: size_param, n, m
-    type(sqpopt_type), intent(in) :: solver
+    character(len=*), intent(in)  :: name       !! the problem
+    integer, intent(in)           :: size_param !! its size parameter (time steps, or variables)
+    integer, intent(in)           :: n          !! number of variables
+    integer, intent(in)           :: m          !! number of constraints
+    type(sqpopt_type), intent(in) :: solver     !! the solver, after the solve
     type(sqpopt_results_type) :: r
     call solver%get_results(r)
     write(*,'(A12,I8,I6,I6,I6,I8,I8,F10.3,ES16.8)') name, size_param, n, m, r%istat, &
@@ -65,7 +67,8 @@ program benchmark
     !------------------------------------------------------------------------
 
     subroutine run_control(nn)
-    integer, intent(in) :: nn
+    !! solve the discretized optimal-control problem with `nn` time steps, and print the results
+    integer, intent(in) :: nn !! number of time steps `N` (`n = 2N+1` variables)
     type(sqpopt_type)         :: solver
     type(sqpopt_problem_type) :: problem
     type(sqpopt_options_type) :: options
@@ -112,11 +115,11 @@ program benchmark
 
     subroutine fc_control(x, f, c, status, data)
     !! objective and constraints of the control problem
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp),               intent(out)   :: f
-    real(wp), dimension(:), intent(out)   :: c
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp),               intent(out)   :: f      !! objective value at `x`
+    real(wp), dimension(:), intent(out)   :: c      !! constraint values at `x` `dimension(m)`
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
     integer :: k
     f = 0.5_wp*h*(sum(x(1:nsteps)**2) + sum(x(nsteps+2:)**2)) + x(nsteps+1)**2
     c(1) = x(1)
@@ -127,11 +130,11 @@ program benchmark
 
     subroutine gjac_control(x, g, jac, status, data)
     !! objective gradient and constraint Jacobian values of the control problem
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp), dimension(:), intent(out)   :: g
-    real(wp), dimension(:), intent(out)   :: jac
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: g      !! objective gradient at `x` `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: jac    !! nonzero values of the constraint Jacobian at `x` (in the sparsity pattern's order)
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
     integer :: k
     g = h*x
     g(nsteps+1) = 2.0_wp*x(nsteps+1)
@@ -148,7 +151,8 @@ program benchmark
     !------------------------------------------------------------------------
 
     subroutine run_rosenbrock(n)
-    integer, intent(in) :: n
+    !! solve the constrained chained-Rosenbrock problem with `n` variables, and print the results
+    integer, intent(in) :: n !! number of variables
     type(sqpopt_type)         :: solver
     type(sqpopt_problem_type) :: problem
     type(sqpopt_options_type) :: options
@@ -181,11 +185,11 @@ program benchmark
 
     subroutine fc_rosen(x, f, c, status, data)
     !! objective and constraints of the chained Rosenbrock problem
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp),               intent(out)   :: f
-    real(wp), dimension(:), intent(out)   :: c
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp),               intent(out)   :: f      !! objective value at `x`
+    real(wp), dimension(:), intent(out)   :: c      !! constraint values at `x` `dimension(m)`
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
     integer :: n, i
     n = size(x)
     f = sum(100.0_wp*(x(2:n)-x(1:n-1)**2)**2 + (1.0_wp-x(1:n-1))**2)
@@ -196,11 +200,11 @@ program benchmark
 
     subroutine gjac_rosen(x, g, jac, status, data)
     !! objective gradient and constraint Jacobian values of the chained Rosenbrock problem
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp), dimension(:), intent(out)   :: g
-    real(wp), dimension(:), intent(out)   :: jac
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: g      !! objective gradient at `x` `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: jac    !! nonzero values of the constraint Jacobian at `x` (in the sparsity pattern's order)
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
     integer :: n, i
     n = size(x)
     g = 0.0_wp

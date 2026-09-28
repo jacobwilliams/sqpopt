@@ -287,7 +287,8 @@ program test_hs_suite
 
     subroutine run_problem(id, k)
     !! solve problem `id` (the `k`-th in the collection) and report the outcome
-    integer, intent(in) :: id, k
+    integer, intent(in) :: id !! problem number
+    integer, intent(in) :: k  !! its index in the collection
 
     type(sqpopt_type)         :: solver
     type(sqpopt_problem_type) :: problem
@@ -393,7 +394,7 @@ program test_hs_suite
 
     subroutine write_report(file, total_time)
     !! write the results of all the problems (`rec`) as a Markdown report
-    character(len=*), intent(in) :: file
+    character(len=*), intent(in) :: file       !! the file to write
     real(dp),         intent(in) :: total_time !! wall-clock time of the whole suite (s)
 
     integer :: u, i, istat, cnt(3), n_fewer, n_ratio
@@ -524,7 +525,7 @@ program test_hs_suite
     !! the page also works when opened as a local file): the configuration,
     !! and one object per problem with the columns of the report (non-finite
     !! values as `null`)
-    character(len=*), intent(in) :: file
+    character(len=*), intent(in) :: file !! the file to write
     integer :: u, i
     character(len=8)  :: date
     character(len=10) :: time
@@ -557,7 +558,7 @@ program test_hs_suite
 
     function s_js(x) result(s)
     !! a real as a JavaScript number literal (`null` if not finite)
-    real(dp), intent(in) :: x
+    real(dp), intent(in) :: x !! the number
     character(len=:), allocatable :: s
     character(len=32) :: buf
     if (.not. ieee_is_finite(x)) then
@@ -570,7 +571,7 @@ program test_hs_suite
 
     function json_escape(t) result(s)
     !! `t` with backslashes and double quotes escaped, for a JavaScript string literal
-    character(len=*), intent(in) :: t
+    character(len=*), intent(in) :: t !! the text
     character(len=:), allocatable :: s
     integer :: i
     s = ''
@@ -582,7 +583,7 @@ program test_hs_suite
 
     function notes(r) result(s)
     !! the "notes" column of the report for record `r`
-    type(run_record), intent(in) :: r
+    type(run_record), intent(in) :: r !! the problem's record
     character(len=:), allocatable :: s
     s = ''
     if (r%fd) s = '*fd*'
@@ -592,7 +593,7 @@ program test_hs_suite
 
     function s_i(i) result(s)
     !! integer to string
-    integer, intent(in) :: i
+    integer, intent(in) :: i !! the integer
     character(len=:), allocatable :: s
     character(len=20) :: buf
     write(buf,'(I0)') i
@@ -601,8 +602,8 @@ program test_hs_suite
 
     function s_r(x, fmt) result(s)
     !! real to string, with the edit descriptor `fmt`
-    real(dp),         intent(in) :: x
-    character(len=*), intent(in) :: fmt
+    real(dp),         intent(in) :: x   !! the number
+    character(len=*), intent(in) :: fmt !! the edit descriptor, e.g. `(ES10.2)`
     character(len=:), allocatable :: s
     character(len=40) :: buf
     write(buf, fmt) x
@@ -611,7 +612,7 @@ program test_hs_suite
 
     function median(a) result(med)
     !! median of `a` (0 if empty)
-    real(dp), dimension(:), intent(in) :: a
+    real(dp), dimension(:), intent(in) :: a !! the values
     real(dp) :: med
     real(dp), dimension(size(a)) :: b
     real(dp) :: t
@@ -637,10 +638,11 @@ program test_hs_suite
     ! ---- the problem functions for `sqpopt` (the problem is identified by the user data) ----
 
     subroutine obj(x, f, status, data)
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp),               intent(out)   :: f
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    !! the objective
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp),               intent(out)   :: f      !! objective value at `x`
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
     real(dp) :: fd
     select type (data)
     type is (problem_context)
@@ -651,10 +653,11 @@ program test_hs_suite
     end subroutine obj
 
     subroutine grad(x, g, status, data)
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp), dimension(:), intent(out)   :: g
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    !! the objective's gradient
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: g      !! objective gradient at `x` `dimension(n)`
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
     real(dp), dimension(size(x)) :: gd
     select type (data)
     type is (problem_context)
@@ -669,10 +672,11 @@ program test_hs_suite
     end subroutine grad
 
     subroutine cons(x, c, status, data)
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp), dimension(:), intent(out)   :: c
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    !! the constraints
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: c      !! constraint values at `x` `dimension(m)`
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
     real(dp), dimension(size(c)) :: cd
     select type (data)
     type is (problem_context)
@@ -683,10 +687,11 @@ program test_hs_suite
     end subroutine cons
 
     subroutine jacv(x, jac_val, status, data)
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp), dimension(:), intent(out)   :: jac_val
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    !! the nonzero values of the constraint Jacobian (in the sparsity pattern's order)
+    real(wp), dimension(:), intent(in)    :: x       !! point `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: jac_val !! nonzero values of the constraint Jacobian at `x` (in the sparsity pattern's order)
+    integer,                intent(inout) :: status  !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data    !! the user data passed to `set_functions` (if any)
     real(dp), dimension(:,:), allocatable :: jd
     select type (data)
     type is (problem_context)
@@ -706,11 +711,11 @@ program test_hs_suite
     !! \( \nabla^2 f - \sum_i \lambda_i \nabla^2 c_i \), by central differences
     !! (one-sided at a bound, see [[fd_step]]) of its analytic gradient
     !! \( \nabla f - J^T \lambda \), symmetrized; the lower triangle, row by row
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp), dimension(:), intent(in)    :: lambda
-    real(wp), dimension(:), intent(out)   :: hess_val
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    real(wp), dimension(:), intent(in)    :: x        !! point `dimension(n)`
+    real(wp), dimension(:), intent(in)    :: lambda   !! constraint multipliers `dimension(m)`
+    real(wp), dimension(:), intent(out)   :: hess_val !! nonzero values of the Hessian of the Lagrangian at `x` (in its sparsity pattern's order)
+    integer,                intent(inout) :: status   !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data     !! the user data passed to `set_functions` (if any)
     real(dp), dimension(size(x),size(x)) :: h
     real(dp), dimension(size(x)) :: xd, xp, gl0, gl1, gl2
     real(dp) :: step
@@ -743,9 +748,9 @@ program test_hs_suite
 
     function lagrangian_gradient(ctx, xx, lambda) result(gl)
     !! the analytic gradient of the Lagrangian, \( \nabla f - J^T \lambda \), for [[hess_fd]]
-    type(problem_context),  intent(in) :: ctx
-    real(dp), dimension(:), intent(in) :: xx
-    real(wp), dimension(:), intent(in) :: lambda
+    type(problem_context),  intent(in) :: ctx    !! the problem
+    real(dp), dimension(:), intent(in) :: xx     !! point `dimension(n)`
+    real(wp), dimension(:), intent(in) :: lambda !! constraint multipliers `dimension(m)`
     real(dp), dimension(size(xx)) :: gl
     real(dp), dimension(:,:), allocatable :: jd
     call hs_g(ctx%id, xx, gl)
@@ -758,22 +763,22 @@ program test_hs_suite
 
     subroutine fc_obj_cons(x, f, c, status, data)
     !! `fc` for `set_functions`: the objective (`obj`) and the constraints (`cons`)
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp),               intent(out)   :: f
-    real(wp), dimension(:), intent(out)   :: c
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp),               intent(out)   :: f      !! objective value at `x`
+    real(wp), dimension(:), intent(out)   :: c      !! constraint values at `x` `dimension(m)`
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
     call obj(x, f, status, data)
     if (status == 0) call cons(x, c, status, data)
     end subroutine fc_obj_cons
 
     subroutine gjac_grad_jacv(x, g, jac_val, status, data)
     !! `gjac` for `set_functions`: the gradient (`grad`) and the Jacobian values (`jacv`)
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp), dimension(:), intent(out)   :: g
-    real(wp), dimension(:), intent(out)   :: jac_val
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    real(wp), dimension(:), intent(in)    :: x       !! point `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: g       !! objective gradient at `x` `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: jac_val !! nonzero values of the constraint Jacobian at `x` (in the sparsity pattern's order)
+    integer,                intent(inout) :: status  !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data    !! the user data passed to `set_functions` (if any)
     call grad(x, g, status, data)
     if (status == 0) call jacv(x, jac_val, status, data)
     end subroutine gjac_grad_jacv

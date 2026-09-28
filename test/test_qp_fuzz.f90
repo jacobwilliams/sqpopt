@@ -70,6 +70,7 @@ program test_qp_fuzz
     contains
 
     subroutine seed_rng()
+    !! seed the random number generator with a fixed sequence (so failures are reproducible)
     integer :: n, i
     integer, dimension(:), allocatable :: seed
     call random_seed(size=n)
@@ -80,7 +81,8 @@ program test_qp_fuzz
 
     real(wp) function urand(a, b)
     !! uniform random number in `[a,b)`
-    real(wp), intent(in) :: a, b
+    real(wp), intent(in) :: a !! lower end of the interval
+    real(wp), intent(in) :: b !! upper end of the interval
     real(wp) :: r
     call random_number(r)
     urand = a + (b-a)*r
@@ -88,12 +90,17 @@ program test_qp_fuzz
 
     integer function irand(a, b)
     !! uniform random integer in `[a,b]`
-    integer, intent(in) :: a, b
+    integer, intent(in) :: a !! smallest value
+    integer, intent(in) :: b !! largest value
     irand = min(b, a + int(urand(0.0_wp, 1.0_wp)*(b-a+1)))
     end function irand
 
     logical function run_trial(trial, kind, solver) result(ok)
-    integer, intent(in) :: trial, kind, solver
+    !! generate and solve one random QP of the given kind with the given solver (twice: cold and
+    !! warm-started), and check the KKT conditions; `.false.` if a check failed
+    integer, intent(in) :: trial  !! trial number
+    integer, intent(in) :: kind   !! the kind of QP: 1-6 convex and feasible (various degeneracies), 7 nonconvex, 8 infeasible
+    integer, intent(in) :: solver !! which solver: `solver_dense`, `solver_rh` (LU), or `solver_rh_lsqr`
 
     integer :: n, m, i, j, k
     real(wp), dimension(:,:), allocatable :: jd, bd, a
@@ -288,7 +295,7 @@ program test_qp_fuzz
 
     subroutine fail(msg)
     !! record that the current trial failed (the first reason is kept)
-    character(len=*), intent(in) :: msg
+    character(len=*), intent(in) :: msg !! why the trial failed
     if (trial_ok) trial_why = msg
     trial_ok = .false.
     end subroutine fail

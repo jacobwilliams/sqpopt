@@ -198,7 +198,7 @@
     function mode_name(me, n) result(name)
 
     class(sqpopt_qp_solver_type), intent(in) :: me
-    integer,                      intent(in) :: n
+    integer,                      intent(in) :: n !! number of variables (which `sqpopt_qp_auto` depends on)
     character(len=:), allocatable :: name
 
     select case (resolved_mode(me, n))

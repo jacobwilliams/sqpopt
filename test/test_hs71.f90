@@ -96,11 +96,12 @@ program test_hs71
 
     subroutine run_hs71(label, merit_mode, linesearch_mode, qp_mode, lsqr_atol, lsqr_btol, lsqr_itnlim, penalty_update, &
                         nonmonotone_len, exact_hessian)
+    !! solve HS71 with the given merit function, line search, and QP solver, and check the solution
 
-    character(len=*), intent(in) :: label
-    integer,           intent(in) :: merit_mode
-    integer,           intent(in) :: linesearch_mode
-    integer,           intent(in) :: qp_mode
+    character(len=*), intent(in)   :: label                !! the configuration, for the output
+    integer,           intent(in)  :: merit_mode           !! `options%merit_mode`
+    integer,           intent(in)  :: linesearch_mode      !! `options%linesearch_mode`
+    integer,           intent(in)  :: qp_mode              !! `options%qp_solver_mode`
     real(wp), intent(in), optional :: lsqr_atol, lsqr_btol !! LSQR tuning (sqpopt_qp_reduced_hessian mode only)
     integer,  intent(in), optional :: lsqr_itnlim          !! LSQR tuning (sqpopt_qp_reduced_hessian mode only)
     integer,  intent(in), optional :: penalty_update       !! penalty update rule (default `sqpopt_penalty_multipliers`)
@@ -184,11 +185,11 @@ program test_hs71
     subroutine hess_lagrangian(x, lambda, hess_val, status, data)
     !! the Hessian of the Lagrangian \( \nabla^2 f - \lambda_1 \nabla^2 c_1 - \lambda_2 \nabla^2 c_2 \),
     !! lower triangle, in the order of the pattern set in `run_hs71`
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp), dimension(:), intent(in)    :: lambda
-    real(wp), dimension(:), intent(out)   :: hess_val
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    real(wp), dimension(:), intent(in)    :: x        !! point `dimension(n)`
+    real(wp), dimension(:), intent(in)    :: lambda   !! constraint multipliers `dimension(m)`
+    real(wp), dimension(:), intent(out)   :: hess_val !! nonzero values of the Hessian of the Lagrangian at `x` (in its sparsity pattern's order)
+    integer,                intent(inout) :: status   !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data     !! the user data passed to `set_functions` (if any)
     ! (1,1) (2,1) (3,1) (4,1) (2,2) (3,2) (4,2) (3,3) (4,3) (4,4):
     hess_val = [2.0_wp*x(4), x(4), x(4), 2.0_wp*x(1)+x(2)+x(3), 0.0_wp, 0.0_wp, x(1), 0.0_wp, x(1), 0.0_wp] &
              - lambda(1)*[2.0_wp, 0.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp] &
@@ -196,20 +197,22 @@ program test_hs71
     end subroutine hess_lagrangian
 
     subroutine obj(x, f, status, data)
-    real(wp), dimension(:), intent(in)  :: x
-    real(wp),                intent(out) :: f
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    !! the objective
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp),                intent(out)  :: f      !! objective value at `x`
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
     f = x(1)*x(4)*(x(1)+x(2)+x(3)) + x(3)
     i_obj = i_obj + 1
     if (any(x < 1.0_wp) .or. any(x > 5.0_wp)) outside_bounds = .true.
     end subroutine obj
 
     subroutine grad(x, g, status, data)
-    real(wp), dimension(:), intent(in)  :: x
-    real(wp), dimension(:), intent(out) :: g
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    !! the objective's gradient
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: g      !! objective gradient at `x` `dimension(n)`
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
     g(1) = x(4)*(2.0_wp*x(1)+x(2)+x(3))
     g(2) = x(1)*x(4)
     g(3) = x(1)*x(4) + 1.0_wp
@@ -219,10 +222,11 @@ program test_hs71
     end subroutine grad
 
     subroutine cons(x, c, status, data)
-    real(wp), dimension(:), intent(in)  :: x
-    real(wp), dimension(:), intent(out) :: c
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    !! the constraints
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: c      !! constraint values at `x` `dimension(m)`
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
     c(1) = x(1)**2 + x(2)**2 + x(3)**2 + x(4)**2
     c(2) = x(1)*x(2)*x(3)*x(4)
     i_cons = i_cons + 1
@@ -230,10 +234,11 @@ program test_hs71
     end subroutine cons
 
     subroutine jacv(x, jac_val, status, data)
-    real(wp), dimension(:), intent(in)  :: x
-    real(wp), dimension(:), intent(out) :: jac_val
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    !! the nonzero values of the constraint Jacobian (in the sparsity pattern's order)
+    real(wp), dimension(:), intent(in)    :: x       !! point `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: jac_val !! nonzero values of the constraint Jacobian at `x` (in the sparsity pattern's order)
+    integer,                intent(inout) :: status  !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data    !! the user data passed to `set_functions` (if any)
     ! order matches set_jacobian_sparsity: rows [1,1,1,1,2,2,2,2], cols [1,2,3,4,1,2,3,4]
     jac_val(1) = 2.0_wp*x(1)
     jac_val(2) = 2.0_wp*x(2)
@@ -249,22 +254,22 @@ program test_hs71
 
     subroutine fc_obj_cons(x, f, c, status, data)
     !! `fc` for `set_functions`: the objective (`obj`) and the constraints (`cons`)
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp),               intent(out)   :: f
-    real(wp), dimension(:), intent(out)   :: c
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp),               intent(out)   :: f      !! objective value at `x`
+    real(wp), dimension(:), intent(out)   :: c      !! constraint values at `x` `dimension(m)`
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
     call obj(x, f, status, data)
     if (status == 0) call cons(x, c, status, data)
     end subroutine fc_obj_cons
 
     subroutine gjac_grad_jacv(x, g, jac_val, status, data)
     !! `gjac` for `set_functions`: the gradient (`grad`) and the Jacobian values (`jacv`)
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp), dimension(:), intent(out)   :: g
-    real(wp), dimension(:), intent(out)   :: jac_val
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    real(wp), dimension(:), intent(in)    :: x       !! point `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: g       !! objective gradient at `x` `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: jac_val !! nonzero values of the constraint Jacobian at `x` (in the sparsity pattern's order)
+    integer,                intent(inout) :: status  !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data    !! the user data passed to `set_functions` (if any)
     call grad(x, g, status, data)
     if (status == 0) call jacv(x, jac_val, status, data)
     end subroutine gjac_grad_jacv

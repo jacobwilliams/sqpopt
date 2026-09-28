@@ -2,11 +2,20 @@
 !> author: Jacob Williams
 !  license: MIT
 !
-!  The core SQP major iteration: evaluates the problem functions, updates
-!  the (limited-memory, matrix-free) Hessian approximation, solves the
-!  sparse QP subproblem for the search direction, and performs a line
-!  search to update the current point. No dense `n x n` or `m x n`
-!  matrix is ever formed.
+!  The core SQP major iteration ([[sqpopt_iterate]]): evaluates the problem
+!  functions, tests for convergence, updates the Hessian approximation
+!  (limited-memory quasi-Newton, or the user's exact Hessian with an
+!  inertia-correcting shift), solves the QP subproblem for the search
+!  direction (re-solving it with diverging-multiplier constraints elastic,
+!  see `options%elastic_multiplier_limit`), and takes the step: by a line
+!  search (with second-order corrections), or a trust-region step, or, when
+!  no acceptable step is found at an infeasible point or the QP is
+!  inconsistent, a feasibility restoration step or phase (see
+!  [[sqpopt_restoration_module]]). What happened is returned in a
+!  [[sqpopt_iter_info]], for the iteration log (see `options%print_level`);
+!  at `print_level >= 3`, the details are also written to the detailed log
+!  (see [[sqpopt_log_module]]). No dense `n x n` or `m x n` matrix is ever
+!  formed (except by the dense QP solver).
 
     module sqpopt_iterate_module
 
@@ -92,18 +101,19 @@
 !  unchanged). After a failed step the Hessian approximation is reset, so
 !  the next iteration tries a different direction, and `f_prev` is
 !  deallocated, so the stalled-progress test (which would otherwise see
-!  "no change") is skipped on the next iteration.
+!  "no change") is skipped on the next iteration. `info` describes the
+!  iteration (its measures and events), for the iteration log.
 
     subroutine sqpopt_iterate(problem, options, hessian, qp_solver, linesearch, trust_region, &
                                x, lambda, x_prev, gl_prev, f_prev, viol_prev, jac, n_acceptable, n_stalled, n_escape, &
                                restoration, iter, report, done, &
                                istat, info)
 
-    type(sqpopt_problem_type),    intent(inout) :: problem     !! problem definition
-    type(sqpopt_options_type),    intent(in)    :: options     !! solver options
-    type(sqpopt_hessian_type),    intent(inout) :: hessian     !! Hessian of the Lagrangian approximation
-    type(sqpopt_qp_solver_type),  intent(inout) :: qp_solver   !! QP subproblem solver
-    type(sqpopt_linesearch_type), intent(inout) :: linesearch  !! merit function / line search
+    type(sqpopt_problem_type),    intent(inout)   :: problem      !! problem definition
+    type(sqpopt_options_type),    intent(in)      :: options      !! solver options
+    type(sqpopt_hessian_type),    intent(inout)   :: hessian      !! Hessian of the Lagrangian approximation
+    type(sqpopt_qp_solver_type),  intent(inout)   :: qp_solver    !! QP subproblem solver
+    type(sqpopt_linesearch_type), intent(inout)   :: linesearch   !! merit function / line search
     type(sqpopt_trust_region_type), intent(inout) :: trust_region !! trust-region globalization (used instead of
                                                                    !! `linesearch` when `trust_region%enabled`)
     real(wp), dimension(:), intent(inout) :: x       !! current point, updated on exit `dimension(n)`
@@ -595,7 +605,7 @@
 
         subroutine note_restoration_step(how)
         !! the detailed log's line for a single restoration step just taken (or not)
-        character(len=*), intent(in) :: how
+        character(len=*), intent(in) :: how !! which kind of step it was, for the message
         real(wp), dimension(problem%m) :: c_new
         if (.not. lg%on(sqpopt_log_detail)) return
         if (step_istat == sqpopt_success) then
@@ -631,15 +641,15 @@
 
         subroutine eval_f_cached(xx, ff)
         !! `f`, through the problem's evaluation cache (see [[sqpopt_problem_module]])
-        real(wp), dimension(:), intent(in)  :: xx
-        real(wp),               intent(out) :: ff
+        real(wp), dimension(:), intent(in)  :: xx !! point `dimension(n)`
+        real(wp),               intent(out) :: ff !! scaled objective at `xx`
         call problem%f(xx, ff)
         end subroutine eval_f_cached
 
         subroutine eval_c_cached(xx, cc)
         !! `c`, through the problem's evaluation cache (see [[sqpopt_problem_module]])
-        real(wp), dimension(:), intent(in)  :: xx
-        real(wp), dimension(:), intent(out) :: cc
+        real(wp), dimension(:), intent(in)  :: xx !! point `dimension(n)`
+        real(wp), dimension(:), intent(out) :: cc !! scaled constraints at `xx` `dimension(m)`
         call problem%c(xx, cc)
         end subroutine eval_c_cached
 
@@ -658,7 +668,7 @@
         !! iteration. If `record`, first add `x` to the filter (or tighten the
         !! funnel toward it), so the iterations can't cycle back to it (a
         !! failed filter or funnel line search has already done so).
-        logical, intent(in) :: record
+        logical, intent(in) :: record !! whether to first add `x` to the filter (or tighten the funnel toward it)
         real(wp) :: theta
         theta = l1_violation(c, problem%c_lb, problem%c_ub)
         if (record) then
@@ -792,16 +802,16 @@
 
     subroutine sqpopt_evaluate_point(problem, options, x, lambda, jac, f, c, kkt, feas, z, stat_error)
 
-    type(sqpopt_problem_type),  intent(inout) :: problem !! problem definition
-    type(sqpopt_options_type),  intent(in)    :: options !! solver options
-    real(wp), dimension(:),     intent(in)    :: x       !! point `dimension(n)`
-    real(wp), dimension(:),     intent(in)    :: lambda  !! constraint multipliers `dimension(m)`
-    type(sqpopt_sparse_matrix), intent(inout) :: jac     !! Jacobian workspace (as for [[sqpopt_iterate]])
-    real(wp),                   intent(out)   :: f       !! objective at `x`
-    real(wp), dimension(:),     intent(out)   :: c       !! constraints at `x` `dimension(m)`
-    real(wp),                   intent(out)   :: kkt     !! KKT error at `x`
-    real(wp),                   intent(out)   :: feas    !! feasibility error at `x`
-    real(wp), dimension(:),     intent(out)   :: z       !! variable-bound multipliers `dimension(n)`
+    type(sqpopt_problem_type),  intent(inout) :: problem    !! problem definition
+    type(sqpopt_options_type),  intent(in)    :: options    !! solver options
+    real(wp), dimension(:),     intent(in)    :: x          !! point `dimension(n)`
+    real(wp), dimension(:),     intent(in)    :: lambda     !! constraint multipliers `dimension(m)`
+    type(sqpopt_sparse_matrix), intent(inout) :: jac        !! Jacobian workspace (as for [[sqpopt_iterate]])
+    real(wp),                   intent(out)   :: f          !! objective at `x`
+    real(wp), dimension(:),     intent(out)   :: c          !! constraints at `x` `dimension(m)`
+    real(wp),                   intent(out)   :: kkt        !! KKT error at `x`
+    real(wp),                   intent(out)   :: feas       !! feasibility error at `x`
+    real(wp), dimension(:),     intent(out)   :: z          !! variable-bound multipliers `dimension(n)`
     real(wp), optional,         intent(out)   :: stat_error !! the stationarity residual (of the scaled problem,
                                                              !! without the multiplier scaling; see [[check_convergence]])
 

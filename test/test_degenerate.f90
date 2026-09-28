@@ -56,7 +56,11 @@ program test_degenerate
 contains
 
     subroutine run(ls, qp, k)
-    integer, intent(in) :: ls, qp, k
+    !! solve the problem with one line search, QP solver, and starting corner, and check that the minimum is
+    !! reached
+    integer, intent(in) :: ls !! index in `modes` (the line search)
+    integer, intent(in) :: qp !! index in `qps` (the QP solver)
+    integer, intent(in) :: k  !! index in `corners` (the starting point)
     type(sqpopt_type)         :: solver
     type(sqpopt_problem_type) :: problem
     type(sqpopt_options_type) :: options
@@ -81,21 +85,23 @@ contains
     end subroutine run
 
     subroutine fc(x, f, c, status, data)
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp),               intent(out)   :: f
-    real(wp), dimension(:), intent(out)   :: c
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    !! `fc` for `set_functions`: the objective \( x_1+x_2 \) and the constraint \( x_1^2+x_2^2 \)
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp),               intent(out)   :: f      !! objective value at `x`
+    real(wp), dimension(:), intent(out)   :: c      !! constraint values at `x` `dimension(m)`
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
     f    = x(1) + x(2)
     c(1) = x(1)**2 + x(2)**2
     end subroutine fc
 
     subroutine gjac(x, g, jac_val, status, data)
-    real(wp), dimension(:), intent(in)    :: x
-    real(wp), dimension(:), intent(out)   :: g
-    real(wp), dimension(:), intent(out)   :: jac_val
-    integer,                intent(inout) :: status
-    class(*), optional,     intent(inout) :: data
+    !! `gjac` for `set_functions`: the objective gradient and the constraint's Jacobian
+    real(wp), dimension(:), intent(in)    :: x       !! point `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: g       !! objective gradient at `x` `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: jac_val !! nonzero values of the constraint Jacobian at `x` (in the sparsity pattern's order)
+    integer,                intent(inout) :: status  !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data    !! the user data passed to `set_functions` (if any)
     g       = [1.0_wp, 1.0_wp]
     jac_val = [2.0_wp*x(1), 2.0_wp*x(2)]
     end subroutine gjac

@@ -37,6 +37,16 @@
 !  (which minimizes the \( \ell_1 \) violation of the linearized
 !  constraints, then the QP objective).
 !
+!  **Forced elastic mode** (`force_sign`, `force_weight`, set for one solve
+!  by [[sqpopt_qp_solver_module]] when the SQP iteration re-solves a QP
+!  with diverging-multiplier constraints elastic, see
+!  `options%elastic_multiplier_limit`): the chosen rows get an elastic
+!  slack in the given direction even if they aren't violated at the
+!  starting step, every slack has the fixed weight `force_weight` (not
+!  raised), and positive slacks at the solution are accepted
+!  (`istat=sqpopt_success`): the solution is that of the \( \ell_1 \)
+!  penalty QP, whose multipliers on those rows are at most the weight.
+!
 !  **Crash and warm start.** Rather than from `p=0`, the iterations start
 !  from the minimum-norm step that satisfies an initial guess of the
 !  working set: the previous solve's final working set (a *warm start*,
@@ -130,16 +140,16 @@
     subroutine solve_dense_qp(me, hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
 
     class(sqpopt_dense_qp_type), intent(inout) :: me
-    type(sqpopt_hessian_type),  intent(inout) :: hessian !! matrix-free Hessian approximation (densified here)
-    type(sqpopt_sparse_matrix), intent(in)    :: jac     !! sparse constraint Jacobian, `dimension(m,n)`
-    real(wp), dimension(:),     intent(in)    :: x       !! current point `dimension(n)`
-    real(wp), dimension(:),     intent(in)    :: g       !! objective gradient `dimension(n)`
-    real(wp), dimension(:),     intent(in)    :: c       !! constraint values `dimension(m)`
+    type(sqpopt_hessian_type),  intent(inout) :: hessian    !! matrix-free Hessian approximation (densified here)
+    type(sqpopt_sparse_matrix), intent(in)    :: jac        !! sparse constraint Jacobian, `dimension(m,n)`
+    real(wp), dimension(:),     intent(in)    :: x          !! current point `dimension(n)`
+    real(wp), dimension(:),     intent(in)    :: g          !! objective gradient `dimension(n)`
+    real(wp), dimension(:),     intent(in)    :: c          !! constraint values `dimension(m)`
     real(wp), dimension(:),     intent(in)    :: x_lb, x_ub !! variable bounds `dimension(n)`
     real(wp), dimension(:),     intent(in)    :: c_lb, c_ub !! constraint bounds `dimension(m)`
-    real(wp), dimension(:),     intent(out)   :: p       !! search direction `dimension(n)`
-    real(wp), dimension(:),     intent(out)   :: lambda  !! Lagrange multiplier estimate `dimension(m)`
-    integer,                    intent(out)   :: istat   !! status code (see [[sqpopt_types_module]])
+    real(wp), dimension(:),     intent(out)   :: p          !! search direction `dimension(n)`
+    real(wp), dimension(:),     intent(out)   :: lambda     !! Lagrange multiplier estimate `dimension(m)`
+    integer,                    intent(out)   :: istat      !! status code (see [[sqpopt_types_module]])
 
     integer :: n, m, nv, nt, mtot, k, i, it, n_z, n_active, maxit
     real(wp), dimension(:,:), allocatable :: h, arows, ja, z, jd
@@ -416,7 +426,7 @@
         !! previous solve's final working set, or the equality constraints and
         !! fixed variables), with any violated variable bounds added to the
         !! guess (up to 4 rounds), then clipped to the bounds
-        real(wp), dimension(n), intent(out) :: p0
+        real(wp), dimension(n), intent(out) :: p0 !! the starting step `dimension(n)`
         real(wp), dimension(n) :: blb, bub
         integer,  dimension(m+n) :: guess   ! side (-1/+1, 0 = not in the guess) of each general row / bound
         real(wp), dimension(n, n) :: qb     ! orthonormal basis of the selected rows
@@ -496,7 +506,7 @@
 
         function gradient(v) result(gr)
         !! the gradient of the (elastic) QP objective at `v`: `H*v_p + g`, then `rho` for each slack
-        real(wp), dimension(:), intent(in) :: v
+        real(wp), dimension(:), intent(in) :: v !! the unknowns: the step, then the elastic slacks `dimension(nt)`
         real(wp), dimension(size(v)) :: gr
         gr(1:n)    = matmul(h, v(1:n)) + g
         gr(n+1:nt) = rho
@@ -505,10 +515,11 @@
         subroutine ratio_test(d, alpha_cap, alpha, blocking, blocking_side)
         !! the largest `alpha <= alpha_cap` for which `u+alpha*d` satisfies every
         !! row not in the working set, and the row (and side) that blocks first
-        real(wp), dimension(:), intent(in)  :: d
-        real(wp),               intent(in)  :: alpha_cap
-        real(wp),               intent(out) :: alpha
-        integer,                intent(out) :: blocking, blocking_side
+        real(wp), dimension(:), intent(in)  :: d             !! search direction in the unknowns `dimension(nt)`
+        real(wp),               intent(in)  :: alpha_cap     !! largest step length to consider
+        real(wp),               intent(out) :: alpha         !! step length
+        integer,                intent(out) :: blocking      !! the blocking row (`0` if none blocks before `alpha_cap`)
+        integer,                intent(out) :: blocking_side !! its bound: `-1` lower, `+1` upper
         real(wp) :: rate, alpha_k, val, dnorm
         integer :: kk
         alpha = alpha_cap

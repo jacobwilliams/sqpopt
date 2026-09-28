@@ -497,8 +497,8 @@
     subroutine eval_f_cached(me, x, f)
 
     class(sqpopt_problem_type), intent(inout) :: me
-    real(wp), dimension(:),     intent(in)    :: x  !! point `dimension(n)`
-    real(wp),                   intent(out)   :: f  !! scaled objective function value at `x`
+    real(wp), dimension(:),     intent(in)  :: x !! point `dimension(n)`
+    real(wp),                   intent(out) :: f !! scaled objective function value at `x`
 
     real(wp), dimension(me%m) :: c
 
@@ -516,8 +516,8 @@
     subroutine eval_c_cached(me, x, c)
 
     class(sqpopt_problem_type), intent(inout) :: me
-    real(wp), dimension(:),     intent(in)    :: x  !! point `dimension(n)`
-    real(wp), dimension(:),     intent(out)   :: c  !! scaled constraint values at `x` `dimension(m)`
+    real(wp), dimension(:),     intent(in)  :: x !! point `dimension(n)`
+    real(wp), dimension(:),     intent(out) :: c !! scaled constraint values at `x` `dimension(m)`
 
     real(wp) :: f
 
@@ -535,8 +535,8 @@
     subroutine eval_g_cached(me, x, g)
 
     class(sqpopt_problem_type), intent(inout) :: me
-    real(wp), dimension(:),     intent(in)    :: x  !! point `dimension(n)`
-    real(wp), dimension(:),     intent(out)   :: g  !! scaled gradient at `x` `dimension(n)`
+    real(wp), dimension(:),     intent(in)  :: x !! point `dimension(n)`
+    real(wp), dimension(:),     intent(out) :: g !! scaled gradient at `x` `dimension(n)`
 
     real(wp), dimension(max(me%jac_nnz,0)) :: jac_val
 
@@ -554,8 +554,8 @@
     subroutine eval_jac_cached(me, x, jac_val)
 
     class(sqpopt_problem_type), intent(inout) :: me
-    real(wp), dimension(:),     intent(in)    :: x       !! point `dimension(n)`
-    real(wp), dimension(:),     intent(out)   :: jac_val !! scaled Jacobian values `dimension(jac_nnz)`
+    real(wp), dimension(:),     intent(in)  :: x       !! point `dimension(n)`
+    real(wp), dimension(:),     intent(out) :: jac_val !! scaled Jacobian values `dimension(jac_nnz)`
 
     integer :: k
     real(wp), dimension(me%n) :: g
@@ -576,9 +576,9 @@
     subroutine raw_fc(me, x, f, c)
 
     class(sqpopt_problem_type), intent(inout) :: me
-    real(wp), dimension(:),     intent(in)    :: x
-    real(wp),                   intent(out)   :: f
-    real(wp), dimension(:),     intent(out)   :: c
+    real(wp), dimension(:),     intent(in)  :: x !! point `dimension(n)`
+    real(wp),                   intent(out) :: f !! objective at `x` (unscaled)
+    real(wp), dimension(:),     intent(out) :: c !! constraints at `x` (unscaled) `dimension(m)`
     real(wp) :: t0 !! (for the time spent in the user's function)
 
     integer :: k, status
@@ -630,9 +630,9 @@
     subroutine raw_gjac(me, x, g, jac_val)
 
     class(sqpopt_problem_type), intent(inout) :: me
-    real(wp), dimension(:),     intent(in)    :: x
-    real(wp), dimension(:),     intent(out)   :: g
-    real(wp), dimension(:),     intent(out)   :: jac_val
+    real(wp), dimension(:),     intent(in)  :: x       !! point `dimension(n)`
+    real(wp), dimension(:),     intent(out) :: g       !! objective gradient at `x` (unscaled) `dimension(n)`
+    real(wp), dimension(:),     intent(out) :: jac_val !! nonzero Jacobian values at `x` (unscaled) `dimension(jac_nnz)`
     real(wp) :: t0 !! (for the time spent in the user's function)
 
     integer :: status
@@ -686,9 +686,9 @@
     subroutine eval_hess_scaled(me, x, lambda, hess_val)
 
     class(sqpopt_problem_type), intent(inout) :: me
-    real(wp), dimension(:),     intent(in)    :: x        !! point `dimension(n)`
-    real(wp), dimension(:),     intent(in)    :: lambda   !! multipliers of the scaled problem `dimension(m)`
-    real(wp), dimension(:),     intent(out)   :: hess_val !! scaled Hessian values `dimension(hess_nnz)`
+    real(wp), dimension(:),     intent(in)  :: x        !! point `dimension(n)`
+    real(wp), dimension(:),     intent(in)  :: lambda   !! multipliers of the scaled problem `dimension(m)`
+    real(wp), dimension(:),     intent(out) :: hess_val !! scaled Hessian values `dimension(hess_nnz)`
     real(wp) :: t0 !! (for the time spent in the user's function)
 
     integer :: status
@@ -723,8 +723,8 @@
     subroutine check_status(me, status, v)
 
     class(sqpopt_problem_type), intent(inout) :: me
-    integer,                    intent(in)    :: status
-    real(wp), dimension(:),     intent(inout) :: v
+    integer,                    intent(in)    :: status !! the `status` the user function returned
+    real(wp), dimension(:),     intent(inout) :: v      !! the values it returned (set to NaN if it could not evaluate them)
 
     if (status == 0) return
     if (status < 0) me%stop_requested = .true.

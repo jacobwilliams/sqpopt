@@ -49,7 +49,8 @@
 !  penalty, so the starting step plus those slacks is feasible, and
 !  inconsistent linearized constraints are detected (the penalty weight is
 !  raised up to `elastic_weight_max`, then `istat=sqpopt_infeasible`); see
-!  [[sqpopt_qp_dense_module]] for the details (here, the slacks also get a
+!  [[sqpopt_qp_dense_module]] for the details, and for the forced elastic
+!  mode, which works the same way here (here, the slacks also get a
 !  small proximal curvature, so CG steps along them stay bounded). Projected
 !  CG stops on
 !  (relative) convergence, and follows any direction of nonpositive
@@ -166,16 +167,16 @@
     subroutine solve_reduced_hessian_qp(me, hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
 
     class(sqpopt_reduced_hessian_qp_type), intent(inout) :: me
-    type(sqpopt_hessian_type),  intent(inout) :: hessian !! matrix-free Hessian approximation
-    type(sqpopt_sparse_matrix), intent(in)    :: jac     !! sparse constraint Jacobian, `dimension(m,n)`
-    real(wp), dimension(:),     intent(in)    :: x       !! current point `dimension(n)`
-    real(wp), dimension(:),     intent(in)    :: g       !! objective gradient `dimension(n)`
-    real(wp), dimension(:),     intent(in)    :: c       !! constraint values `dimension(m)`
+    type(sqpopt_hessian_type),  intent(inout) :: hessian    !! matrix-free Hessian approximation
+    type(sqpopt_sparse_matrix), intent(in)    :: jac        !! sparse constraint Jacobian, `dimension(m,n)`
+    real(wp), dimension(:),     intent(in)    :: x          !! current point `dimension(n)`
+    real(wp), dimension(:),     intent(in)    :: g          !! objective gradient `dimension(n)`
+    real(wp), dimension(:),     intent(in)    :: c          !! constraint values `dimension(m)`
     real(wp), dimension(:),     intent(in)    :: x_lb, x_ub !! variable bounds `dimension(n)`
     real(wp), dimension(:),     intent(in)    :: c_lb, c_ub !! constraint bounds `dimension(m)`
-    real(wp), dimension(:),     intent(out)   :: p       !! search direction `dimension(n)`
-    real(wp), dimension(:),     intent(out)   :: lambda  !! Lagrange multiplier estimate `dimension(m)`
-    integer,                    intent(out)   :: istat   !! status code (see [[sqpopt_types_module]])
+    real(wp), dimension(:),     intent(out)   :: p          !! search direction `dimension(n)`
+    real(wp), dimension(:),     intent(out)   :: lambda     !! Lagrange multiplier estimate `dimension(m)`
+    integer,                    intent(out)   :: istat      !! status code (see [[sqpopt_types_module]])
 
     integer :: n, m, nv, nt, mtot, k, i, it, maxit, max_pcg, itnlim
     type(csr_rows) :: rows
@@ -441,7 +442,7 @@
         !! gives the minimum-norm solution for the free ones of the guessed
         !! general rows. Any violated variable bounds are added to the guess
         !! (up to 4 rounds), then the step is clipped to the bounds.
-        real(wp), dimension(n), intent(out) :: p0
+        real(wp), dimension(n), intent(out) :: p0 !! the starting step `dimension(n)`
         real(wp), dimension(n) :: blb, bub
         integer,  dimension(m+n) :: guess
         logical,  dimension(n) :: fix
@@ -550,8 +551,8 @@
         !! variable bounds are added to the guess (up to 4 rounds), then the
         !! step is clipped to the bounds. `ok=.false.` if the factorization
         !! failed.
-        real(wp), dimension(n), intent(out) :: p0
-        logical,                intent(out) :: ok
+        real(wp), dimension(n), intent(out) :: p0 !! the starting step `dimension(n)`
+        logical,                intent(out) :: ok !! whether the basis could be factorized (else the LSQR starting step is used)
         integer,  dimension(n+m) :: st_v, cp
         integer,  dimension(:), allocatable :: cr, bv_idx
         real(wp), dimension(:), allocatable :: cv
@@ -696,7 +697,7 @@
 
         function gradient(v) result(gr)
         !! the gradient of the (elastic) QP objective at `v`: `H*v_p + g`, then `rho + delta*s` for each slack
-        real(wp), dimension(:), intent(in) :: v
+        real(wp), dimension(:), intent(in) :: v !! the unknowns: the step, then the elastic slacks `dimension(nt)`
         real(wp), dimension(size(v)) :: gr
         call hext_product(v, gr)
         gr(1:n)    = gr(1:n) + g
@@ -710,8 +711,8 @@
         !! at any feasible solution, so `delta` doesn't change the solution
         !! then, and only perturbs the size, not the positivity, of the
         !! slacks for inconsistent constraints.)
-        real(wp), dimension(:), intent(in)  :: v
-        real(wp), dimension(:), intent(out) :: hv
+        real(wp), dimension(:), intent(in)  :: v  !! the unknowns `dimension(nt)`
+        real(wp), dimension(:), intent(out) :: hv !! the QP Hessian times `v` `dimension(nt)`
         call hessian%hv_product(v(1:n), hv(1:n))
         hv(n+1:nt) = gscale*v(n+1:nt)
         end subroutine hext_product
@@ -721,10 +722,10 @@
         !! `fixed` coordinates (exactly), then `out = v - ja^T z` on the rest,
         !! with `z` the minimum-norm least-squares solution of `ja^T z ~ v`
         !! (`ja` has no entries in the fixed columns)
-        type(sqpopt_sparse_matrix), intent(in)  :: ja
-        logical,  dimension(:),     intent(in)  :: fixed
-        real(wp), dimension(:),     intent(in)  :: v
-        real(wp), dimension(:),     intent(out) :: out
+        type(sqpopt_sparse_matrix), intent(in)  :: ja    !! the working set's general rows, on the free unknowns
+        logical,  dimension(:),     intent(in)  :: fixed !! the unknowns fixed at a bound by the working set
+        real(wp), dimension(:),     intent(in)  :: v     !! the vector to project
+        real(wp), dimension(:),     intent(out) :: out   !! its projection
         type(lsqr_solver_ez) :: lsqr
         real(wp), dimension(ja%nrows) :: z
         integer :: istop, kk
@@ -743,13 +744,14 @@
         !! the accumulated step `d_total`; if a direction of nonpositive
         !! curvature is found, it is returned (oriented downhill) in `d_extra`
         !! with `truncated=.true.`
-        type(sqpopt_sparse_matrix), intent(in)  :: ja
-        logical,  dimension(:),     intent(in)  :: fixed   !! the unknowns fixed at a bound by the working set
-        real(wp), dimension(:),     intent(in)  :: hu_g0   !! `H*u+g` at `u`
-        real(wp), dimension(:),     intent(in)  :: gproj0  !! its projection onto the face
-        real(wp),                   intent(in)  :: abs_tol !! absolute stopping tolerance on the projected residual
-        real(wp), dimension(:),     intent(out) :: d_total, d_extra
-        logical,                    intent(out) :: truncated
+        type(sqpopt_sparse_matrix), intent(in)  :: ja        !! the working set's general rows, on the free unknowns
+        logical,  dimension(:),     intent(in)  :: fixed     !! the unknowns fixed at a bound by the working set
+        real(wp), dimension(:),     intent(in)  :: hu_g0     !! `H*u+g` at `u`
+        real(wp), dimension(:),     intent(in)  :: gproj0    !! its projection onto the face
+        real(wp),                   intent(in)  :: abs_tol   !! absolute stopping tolerance on the projected residual
+        real(wp), dimension(:),     intent(out) :: d_total   !! the accumulated CG step
+        real(wp), dimension(:),     intent(out) :: d_extra   !! a direction of nonpositive curvature (if `truncated`)
+        logical,                    intent(out) :: truncated !! whether CG stopped at a direction of nonpositive curvature
         real(wp), dimension(nt) :: r, gp, dvec, hd, tmp
         real(wp) :: rg_old, rg_new, kappa, alpha, beta, tol
         integer :: j, max_it
@@ -812,7 +814,7 @@
         !!
         !! Sets `p`, `lambda`, `istat`, `me%n_iter`, and `me%warm_status`, and
         !! `ok=.true.`; or `ok=.false.` if the factorization failed.
-        logical, intent(out) :: ok
+        logical, intent(out) :: ok !! whether the basis method finished (else the LSQR method is used)
 
         integer  :: j, k, l, r, iter, maxit_b, blk, side, st
         real(wp), dimension(:), allocatable :: gv, y, rs, dtot, dext
@@ -1021,7 +1023,7 @@
 
         integer function at_bound_v(jj)
         !! -1 or +1 if unknown `jj` is at its lower or upper bound, else 0
-        integer, intent(in) :: jj
+        integer, intent(in) :: jj !! index of the unknown
         at_bound_v = 0
         if (vlb(jj) > -sqpopt_infinity) then
             if (abs(v(jj)-vlb(jj)) <= me%active_tol*max(1.0_wp, abs(vlb(jj)))) at_bound_v = -1
@@ -1033,8 +1035,8 @@
 
         pure real(wp) function col_dot(jj, w)
         !! `a_jj^T w`
-        integer,                intent(in) :: jj
-        real(wp), dimension(:), intent(in) :: w
+        integer,                intent(in) :: jj !! column index
+        real(wp), dimension(:), intent(in) :: w  !! the vector, over the rows `dimension(m)`
         col_dot = dot_product(cval(cptr(jj):cptr(jj+1)-1), w(crow(cptr(jj):cptr(jj+1)-1)))
         end function col_dot
 
@@ -1069,8 +1071,8 @@
 
         subroutine z_times(vs, d)
         !! `d = Z vs`: `vs` on the superbasics, then the basics from `B d_B = -S vs`
-        real(wp), dimension(:), intent(in)  :: vs
-        real(wp), dimension(:), intent(out) :: d
+        real(wp), dimension(:), intent(in)  :: vs !! values on the superbasics
+        real(wp), dimension(:), intent(out) :: d  !! the step on all the unknowns
         real(wp), dimension(m) :: rhs, db
         integer :: kk, jj
         d = 0.0_wp
@@ -1088,9 +1090,9 @@
         subroutine zt_times(w, rr, yy)
         !! `rr = Z^T w = w_S - S^T yy`, with `B^T yy = w_B` (at a face
         !! optimum, `yy` are the general rows' multipliers)
-        real(wp), dimension(:), intent(in)  :: w
-        real(wp), dimension(:), intent(out) :: rr
-        real(wp), dimension(:), intent(out) :: yy
+        real(wp), dimension(:), intent(in)  :: w  !! the vector, on all the unknowns
+        real(wp), dimension(:), intent(out) :: rr !! `Z^T w`, on the superbasics
+        real(wp), dimension(:), intent(out) :: yy !! the solution of `B^T yy = w_B` (the multiplier estimates)
         integer :: kk
         if (m > 0) then
             call blu%solve(w(bvar), yy, transpose=.true.)
@@ -1103,8 +1105,8 @@
 
         subroutine hv_product(d, hd)
         !! the QP Hessian (in `v`) times `d`: zero on the row slacks
-        real(wp), dimension(:), intent(in)  :: d
-        real(wp), dimension(:), intent(out) :: hd
+        real(wp), dimension(:), intent(in)  :: d  !! direction, on all the unknowns
+        real(wp), dimension(:), intent(out) :: hd !! the QP Hessian times `d`
         call hext_product(d(1:nt), hd(1:nt))
         hd(nt+1:nn) = 0.0_wp
         end subroutine hv_product
@@ -1113,7 +1115,7 @@
         !! set `negative_curvature` if the Hessian has negative curvature along
         !! the variables' part `v` of a direction of nonpositive curvature
         !! (not just zero curvature, e.g. along an elastic slack)
-        real(wp), dimension(:), intent(in) :: v
+        real(wp), dimension(:), intent(in) :: v !! the direction, on all the unknowns
         real(wp), dimension(size(v)) :: hv
         if (dot_product(v, v) <= 0.0_wp) return
         call hessian%hv_product(v, hv)
@@ -1126,10 +1128,11 @@
         !! direction of nonpositive curvature is found, it is returned
         !! (downhill) in `d_extra` with `truncated=.true.`. Every step stays
         !! on the constraints by construction.
-        real(wp), dimension(:), intent(in)  :: rg0     !! reduced gradient
-        real(wp),               intent(in)  :: abs_tol !! absolute stopping tolerance on it
-        real(wp), dimension(:), intent(out) :: d_total, d_extra
-        logical,                intent(out) :: truncated
+        real(wp), dimension(:), intent(in)  :: rg0       !! reduced gradient
+        real(wp),               intent(in)  :: abs_tol   !! absolute stopping tolerance on it
+        real(wp), dimension(:), intent(out) :: d_total   !! the accumulated step, on all the unknowns
+        real(wp), dimension(:), intent(out) :: d_extra   !! a direction of nonpositive curvature (if `truncated`)
+        logical,                intent(out) :: truncated !! whether CG stopped at a direction of nonpositive curvature
         real(wp), dimension(size(rg0)) :: rr, ds, hd, zz, pm
         real(wp), dimension(m)  :: yy
         real(wp), dimension(nn) :: zd, hzd
@@ -1178,8 +1181,8 @@
         !! too (`stat=-1` if its basis update failed). This fixes many
         !! bounds in one active-set iteration where the plain step would
         !! need one each (e.g. the elastic slacks reaching zero together).
-        real(wp), dimension(:), intent(in) :: d
-        integer,  intent(out) :: stat
+        real(wp), dimension(:), intent(in) :: d    !! the CG step, on all the unknowns
+        integer,  intent(out)              :: stat !! `0`, or `-1` if a basis update failed
         real(wp), dimension(nn) :: w, v_old
         integer,  dimension(nn) :: st_old
         real(wp) :: a_b, ak, q_old, tolb
@@ -1254,7 +1257,7 @@
         real(wp) function qp_objective(vv)
         !! the (elastic) QP objective at `vv`: `1/2 v^T H v + g^T p + rho*sum(e)`
         !! (with the elastic slacks' proximal term)
-        real(wp), dimension(:), intent(in) :: vv
+        real(wp), dimension(:), intent(in) :: vv !! the unknowns
         real(wp), dimension(nn) :: hv
         call hv_product(vv, hv)
         qp_objective = 0.5_wp*dot_product(vv, hv) + dot_product(g, vv(1:n)) + rho*sum(vv(n+1:nt))
@@ -1268,8 +1271,8 @@
         !! updating the factors between faces). `.false.` (and CG is used
         !! instead) if `nS` is too large or the reduced Hessian isn't
         !! (numerically) positive definite.
-        real(wp), dimension(:), intent(in)  :: rg0
-        real(wp), dimension(:), intent(out) :: d_total
+        real(wp), dimension(:), intent(in)  :: rg0     !! reduced gradient, on the superbasics
+        real(wp), dimension(:), intent(out) :: d_total !! the Newton step on the face, on all the unknowns
         real(wp), dimension(size(rg0),size(rg0)) :: rh
         real(wp), dimension(size(rg0)) :: e_j, ds
         real(wp), dimension(m)  :: yy
@@ -1311,10 +1314,11 @@
         subroutine ratio_test_v(d, alpha_cap, alpha, blocking, blocking_side)
         !! the largest `alpha <= alpha_cap` for which `v+alpha*d` satisfies the
         !! bounds of every free unknown, and the unknown (and bound) that blocks first
-        real(wp), dimension(:), intent(in)  :: d
-        real(wp),               intent(in)  :: alpha_cap
-        real(wp),               intent(out) :: alpha
-        integer,                intent(out) :: blocking, blocking_side
+        real(wp), dimension(:), intent(in)  :: d             !! search direction, on all the unknowns
+        real(wp),               intent(in)  :: alpha_cap     !! largest step length to consider
+        real(wp),               intent(out) :: alpha         !! step length
+        integer,                intent(out) :: blocking      !! the blocking unknown (`0` if none blocks before `alpha_cap`)
+        integer,                intent(out) :: blocking_side !! its bound: `-1` lower, `+1` upper
         real(wp) :: alpha_k, dtol
         integer :: jj
         alpha = alpha_cap
@@ -1343,7 +1347,8 @@
         !! fix unknown `jj` at its bound `sd` (add it to the working set). If
         !! it is basic, the superbasic with the largest pivot in its row of
         !! `B^{-1} S` replaces it in the basis. `.false.` if the factorization failed.
-        integer, intent(in) :: jj, sd
+        integer, intent(in) :: jj !! index of the unknown
+        integer, intent(in) :: sd !! its bound: `-1` lower, `+1` upper
         real(wp), dimension(m) :: e_p, w
         real(wp) :: piv, best
         integer  :: pp, kk, q, stat
@@ -1388,10 +1393,12 @@
         subroutine ratio_test(base, d, alpha_cap, alpha, blocking, blocking_side)
         !! the largest `alpha <= alpha_cap` for which `base+alpha*d` satisfies every
         !! row not in the working set, and the row (and side) that blocks first
-        real(wp), dimension(:), intent(in)  :: base, d
-        real(wp),               intent(in)  :: alpha_cap
-        real(wp),               intent(out) :: alpha
-        integer,                intent(out) :: blocking, blocking_side
+        real(wp), dimension(:), intent(in)  :: base          !! the point the step starts from
+        real(wp), dimension(:), intent(in)  :: d             !! search direction
+        real(wp),               intent(in)  :: alpha_cap     !! largest step length to consider
+        real(wp),               intent(out) :: alpha         !! step length
+        integer,                intent(out) :: blocking      !! the blocking row (`0` if none blocks before `alpha_cap`)
+        integer,                intent(out) :: blocking_side !! its bound: `-1` lower, `+1` upper
         real(wp) :: rate, alpha_k, val, dnorm
         integer :: kk
         alpha = alpha_cap
@@ -1490,11 +1497,12 @@
         end subroutine initial_working_set
 
         subroutine add_independent_rows_lsqr(cand, cside)
-        !! the fallback for [[initial_working_set]]: add the candidate rows `cand`
+        !! the fallback for `initial_working_set`: add the candidate rows `cand`
         !! (at bound side `cside`) in order, skipping any whose component outside
         !! the span of the rows already added is negligible (i.e., that is
         !! linearly dependent). Each check costs an `LSQR` solve.
-        integer, dimension(:), intent(in) :: cand, cside
+        integer, dimension(:), intent(in) :: cand  !! the candidate rows, in order of preference
+        integer, dimension(:), intent(in) :: cside !! the bound side of each candidate: `-1` lower, `+1` upper
         type(sqpopt_sparse_matrix) :: ja_cur
         integer, dimension(:), allocatable :: idx_cur
         logical, dimension(:), allocatable :: fixed_cur
@@ -1515,7 +1523,7 @@
 
         integer function at_bound(kk)
         !! -1 or +1 if row `kk` is at its lower or upper bound at `u`, else 0
-        integer, intent(in) :: kk
+        integer, intent(in) :: kk !! index of the row
         real(wp) :: val
         val = row_dot(rows, kk, u)
         if (abs(val-row_lb(kk)) <= me%active_tol*max(1.0_wp, abs(row_lb(kk)))) then
@@ -1536,9 +1544,9 @@
 
     pure function row_dot(rows, k, v) result(s)
 
-    type(csr_rows),         intent(in) :: rows
-    integer,                intent(in) :: k
-    real(wp), dimension(:), intent(in) :: v
+    type(csr_rows),         intent(in) :: rows !! the rows, in compressed-row form
+    integer,                intent(in) :: k    !! index of the row
+    real(wp), dimension(:), intent(in) :: v    !! the vector
     real(wp) :: s
 
     integer :: j
@@ -1557,8 +1565,8 @@
 
     pure function row_norm(rows, k) result(s)
 
-    type(csr_rows), intent(in) :: rows
-    integer,        intent(in) :: k
+    type(csr_rows), intent(in) :: rows !! the rows, in compressed-row form
+    integer,        intent(in) :: k    !! index of the row
     real(wp) :: s
 
     s = norm2(rows%val(rows%ptr(k):rows%ptr(k+1)-1))
@@ -1589,13 +1597,16 @@
 
     subroutine choose_basis(m, nn, nx, cptr, crow, cval, state, is_eqv, chosen, istat)
 
-    integer,                intent(in)  :: m, nn, nx
-    integer,  dimension(:), intent(in)  :: cptr, crow
-    real(wp), dimension(:), intent(in)  :: cval
-    integer,  dimension(:), intent(in)  :: state   !! 0 = free, -1/+1 = fixed at a bound (a candidate)
-    logical,  dimension(:), intent(in)  :: is_eqv  !! unknowns with equal bounds
-    logical,  dimension(:), intent(out) :: chosen  !! the basic columns
-    integer,                intent(out) :: istat   !! 0 if exactly `m` columns were picked
+    integer,                intent(in)  :: m      !! number of rows
+    integer,                intent(in)  :: nn     !! number of columns (unknowns)
+    integer,                intent(in)  :: nx     !! number of columns before the row slacks
+    integer,  dimension(:), intent(in)  :: cptr   !! start of each column in `crow`/`cval` `dimension(nn+1)`
+    integer,  dimension(:), intent(in)  :: crow   !! row index of each nonzero
+    real(wp), dimension(:), intent(in)  :: cval   !! value of each nonzero
+    integer,  dimension(:), intent(in)  :: state  !! 0 = free, -1/+1 = fixed at a bound (a candidate)
+    logical,  dimension(:), intent(in)  :: is_eqv !! unknowns with equal bounds
+    logical,  dimension(:), intent(out) :: chosen !! the basic columns
+    integer,                intent(out) :: istat  !! 0 if exactly `m` columns were picked
 
     real(wp), dimension(size(cval)) :: wv
     integer,  dimension(size(cval)) :: wc
@@ -1646,13 +1657,13 @@
 
     subroutine build_working_set(rows, status, m, ja, fixed, orig_idx, n_active)
 
-    type(csr_rows),             intent(in)  :: rows
-    integer,  dimension(:),     intent(in)  :: status   !! 0 = inactive, -1/+1 = active at the lower/upper bound
-    integer,                    intent(in)  :: m        !! number of general rows (the rest are the bounds on each unknown)
-    type(sqpopt_sparse_matrix), intent(out) :: ja       !! the active general rows, on the free unknowns
+    type(csr_rows),             intent(in)           :: rows     !! all the rows: the general constraints, then the bounds on each unknown
+    integer,  dimension(:),     intent(in)           :: status   !! 0 = inactive, -1/+1 = active at the lower/upper bound
+    integer,                    intent(in)           :: m        !! number of general rows (the rest are the bounds on each unknown)
+    type(sqpopt_sparse_matrix), intent(out)          :: ja       !! the active general rows, on the free unknowns
     logical,  dimension(:), allocatable, intent(out) :: fixed    !! `dimension(ncols)`: unknowns fixed at a bound
     integer,  dimension(:), allocatable, intent(out) :: orig_idx !! index in `rows` of each active row
-    integer,                    intent(out) :: n_active !! number of active rows
+    integer,                    intent(out)          :: n_active !! number of active rows
 
     integer :: k, j, idx, nnz_a, n_gen
 

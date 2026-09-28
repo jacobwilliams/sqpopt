@@ -280,7 +280,7 @@
     pure integer function pair_col(me, i)
 
     class(sqpopt_hessian_type), intent(in) :: me
-    integer,                    intent(in) :: i
+    integer,                    intent(in) :: i !! age rank of the pair (`1` = oldest, `n_history` = newest)
 
     pair_col = mod(me%first + i - 2, me%max_history) + 1
 
@@ -596,8 +596,8 @@
     subroutine hessian_cg_solve(me, v, d)
 
     class(sqpopt_hessian_type), intent(inout) :: me
-    real(wp), dimension(:), intent(in)  :: v
-    real(wp), dimension(:), intent(out) :: d
+    real(wp), dimension(:), intent(in)  :: v !! right-hand side `dimension(n)`
+    real(wp), dimension(:), intent(out) :: d !! solution of \( B d = v \) `dimension(n)`
 
     real(wp), dimension(me%n) :: r, p, hp
     real(wp) :: rs_old, rs_new, alpha, beta, pHp

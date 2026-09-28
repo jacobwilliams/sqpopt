@@ -44,12 +44,14 @@ program test_acceptance
 contains
 
     subroutine check(ok, what)
-    logical,          intent(in) :: ok
-    character(len=*), intent(in) :: what
+    !! stop with a failure message unless `ok`
+    logical,          intent(in) :: ok   !! the condition that must hold
+    character(len=*), intent(in) :: what !! what failed, for the message
     if (.not. ok) error stop 'test_acceptance FAILED: '//what
     end subroutine check
 
     subroutine test_filter()
+    !! the filter on its own (see the program documentation)
     type(sqpopt_filter_type) :: flt
     logical :: f_type
 
@@ -90,6 +92,7 @@ contains
     end subroutine test_filter
 
     subroutine test_funnel()
+    !! the funnel on its own (see the program documentation)
     type(sqpopt_funnel_type) :: fun
     logical :: f_type
     real(wp) :: w
@@ -124,6 +127,7 @@ contains
     end subroutine test_funnel
 
     subroutine test_merit()
+    !! the merit function on its own (see the program documentation)
     type(sqpopt_merit_type) :: mer
     type(sqpopt_sparse_matrix) :: jac
     real(wp), dimension(2) :: c, c_lb, c_ub, lambda, lambda_qp
@@ -163,6 +167,8 @@ contains
     end subroutine test_merit
 
     subroutine test_dispatch()
+    !! the line search's `globalization_acceptable`, which uses the filter or the funnel according to the
+    !! mode
     type(sqpopt_linesearch_type) :: ls
     call ls%filter%record(1.0_wp, 5.0_wp)
     call ls%funnel%prepare(0.1_wp)            ! (width 1)

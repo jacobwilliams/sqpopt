@@ -6,7 +6,9 @@
 !  subproblem reports that the linearized constraints are inconsistent
 !  (`sqpopt_infeasible`), so that no QP step can be trusted, or when the
 !  filter or funnel line search, or the trust region, finds no acceptable
-!  step at an infeasible point. Two strategies are available
+!  step at an infeasible point (one whose largest constraint violation, as
+!  the convergence test measures it, exceeds `options%ctol`: a round-off
+!  violation has nothing to restore). Two strategies are available
 !  (`options%restoration_mode`):
 !
 !  * `sqpopt_restoration_phase` (**default**): when the filter or funnel

@@ -68,8 +68,8 @@
     !! step. A non-finite analytic value where a finite difference is finite
     !! is a mismatch (e.g. the original TP25's gradient took a fractional
     !! power of a negative number); non-finite finite differences are skipped.
-    real(dp), dimension(:),   intent(in) :: a
-    real(dp), dimension(:,:), intent(in) :: b
+    real(dp), dimension(:),   intent(in) :: a !! the analytic values
+    real(dp), dimension(:,:), intent(in) :: b !! the finite-difference values, at three steps (columns)
     integer :: q, k
     real(dp) :: best
     mismatch = .false.
@@ -90,9 +90,9 @@
 
     subroutine fd_gradient(id, x, g, hfac)
     !! finite-difference gradient of problem `id`'s objective (see [[fd_step]])
-    integer,                intent(in)  :: id
-    real(dp), dimension(:), intent(in)  :: x
-    real(dp), dimension(:), intent(out) :: g
+    integer,                intent(in)  :: id   !! problem number
+    real(dp), dimension(:), intent(in)  :: x    !! point `dimension(n)`
+    real(dp), dimension(:), intent(out) :: g    !! the finite-difference gradient `dimension(n)`
     real(dp), optional,     intent(in)  :: hfac !! factor on the default difference step
     real(dp), dimension(size(x)) :: xp
     real(dp) :: f0, f1, f2, h
@@ -112,9 +112,9 @@
 
     subroutine fd_jacobian(id, x, jac, hfac)
     !! finite-difference Jacobian of problem `id`'s constraints (see [[fd_step]])
-    integer,                  intent(in)  :: id
-    real(dp), dimension(:),   intent(in)  :: x
-    real(dp), dimension(:,:), intent(out) :: jac
+    integer,                  intent(in)  :: id   !! problem number
+    real(dp), dimension(:),   intent(in)  :: x    !! point `dimension(n)`
+    real(dp), dimension(:,:), intent(out) :: jac  !! the finite-difference Jacobian `dimension(m,n)`
     real(dp), optional,       intent(in)  :: hfac !! factor on the default difference step
     real(dp), dimension(size(x)) :: xp
     real(dp), dimension(size(jac,1)) :: c0, c1, c2
@@ -141,11 +141,11 @@
     !! upper bound). Some problems' functions have a kink at a bound (e.g.
     !! TP358 clips `x` to its bounds), where a central difference would
     !! average across it (TP331, 358, 376, 383 start on such a bound).
-    real(dp), dimension(:), intent(in)  :: x
-    integer,                intent(in)  :: j
-    real(dp),               intent(out) :: h
-    integer,                intent(out) :: side
-    real(dp), optional,     intent(in)  :: hfac
+    real(dp), dimension(:), intent(in)  :: x    !! point `dimension(n)`
+    integer,                intent(in)  :: j    !! the variable to difference along
+    real(dp),               intent(out) :: h    !! the step
+    integer,                intent(out) :: side !! `0` central, `+1`/`-1` one-sided forward/backward
+    real(dp), optional,     intent(in)  :: hfac !! factor on the default step (default 1)
     h = epsilon(1.0_dp)**(1.0_dp/3.0_dp)*max(1.0_dp, abs(x(j)))
     if (present(hfac)) h = hfac*h
     side = 0

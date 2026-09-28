@@ -77,8 +77,9 @@ program test_convergence
     contains
 
     subroutine check(label, ok)
-    character(len=*), intent(in) :: label
-    logical,          intent(in) :: ok
+    !! print the case, and stop with a failure message unless `ok`
+    character(len=*), intent(in) :: label !! the case, for the message
+    logical,          intent(in) :: ok    !! the condition that must hold
     print '(A,A,L1)', label, ': ', ok
     if (.not. ok) error stop 'test_convergence FAILED: '//label
     end subroutine check
