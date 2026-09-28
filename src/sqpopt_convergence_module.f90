@@ -201,8 +201,9 @@
         !! factor, the multipliers scale by their ratio, so the gradient of
         !! the unscaled Lagrangian is the scaled one divided by `f_scale`
         unscaled_ok = .true.
-        if (present(dual_inf_tol) .and. present(f_scale)) &
+        if (present(dual_inf_tol) .and. present(f_scale)) then
             unscaled_ok = kkt_res <= dual_inf_tol*f_scale
+        end if
         end function unscaled_ok
 
     end subroutine check_convergence

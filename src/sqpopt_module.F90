@@ -651,10 +651,12 @@
         write(u, '(A)', iostat=ios)         '   active              = '//active_text()
         write(u, '(A,I0)', iostat=ios)      '   iterations          = ', me%results%iterations
         if (me%results%n_eval_hess > 0) then
-            write(u, '(A,3(I0,A))', iostat=ios) '   evaluations         = ', me%results%n_eval_fc, ' fc, ', me%results%n_eval_gjac, &
+            write(u, '(A,3(I0,A))', iostat=ios) '   evaluations         = ', me%results%n_eval_fc, &
+                                   ' fc, ', me%results%n_eval_gjac, &
                                    ' gjac, ', me%results%n_eval_hess, ' hess'
         else
-            write(u, '(A,2(I0,A))', iostat=ios) '   evaluations         = ', me%results%n_eval_fc, ' fc, ', me%results%n_eval_gjac, ' gjac'
+            write(u, '(A,2(I0,A))', iostat=ios) '   evaluations         = ', &
+                  me%results%n_eval_fc, ' fc, ', me%results%n_eval_gjac, ' gjac'
         end if
         write(u, '(A,I0)', iostat=ios)      '   QP iterations       = ', me%results%n_qp_iterations
         events = ''
