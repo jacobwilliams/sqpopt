@@ -1230,3 +1230,123 @@ documentation.
    - drop `lbfgsb`, which is unused and has no identified role *(done)*;
    - either way, remove the unused `solve_sparse_linear_system` wrapper
      *(done)*.
+
+## 9. Cleanups
+
+Code-health items from a review of the library (2026-09-28): duplicated
+code, and places that make changes harder than they need to be. None
+changes behavior. Items C1 and C5–C7 are low-risk and mechanical; C2 and
+C3 are the biggest wins for future changes; C4 closes a gap in the
+consistency checks. Each should leave the HS results unchanged (see
+CLAUDE.md), which is the check that a cleanup is behavior-neutral.
+
+- **C1: merge the filter and funnel line searches.** `filter_line_search`
+  and `funnel_line_search` (`sqpopt_linesearch_module.f90`) are ~80-line
+  near-copies. They differ only in the acceptance call, the minimum step
+  (`alpha_lim` vs `alpha_min`), what is recorded after an accepted step, and
+  the non-monotone retry, which only the filter has. Merge them into one
+  routine with mode-specific hooks, dispatched like
+  `globalization_acceptable`. (Decide whether the funnel should get the
+  non-monotone retry too, and measure it.)
+- **C2: a common parent type for the two QP solvers.**
+  `sqpopt_dense_qp_type` and `sqpopt_reduced_hessian_qp_type` share 14
+  fields:
+  - the settings `max_iter`, `active_tol`, `opt_tol`, `feas_tol`,
+    `elastic_weight`, `elastic_weight_max`, and `warm_start`;
+  - the forced elastic mode's `force_sign` and `force_weight`;
+  - the outputs `n_iter`, `n_working`, `n_slacks`, `negative_curvature`,
+    and `warm_status`.
+
+  The `forced()` function is identical in both, and the ×100
+  elastic-weight escalation appears three times. The dispatcher
+  (`sqpopt_qp_solver_module.f90`, `solve`) also copies the forcing inputs
+  in, and the four outputs out, once per solver. Hold these once in a
+  parent type, and read the outputs through it. The two solvers' defaults
+  differ (`elastic_weight_max` is 1e10 in the dense QP and 1e8 in the
+  sparse one), so the parent must allow per-solver defaults. The Python
+  schema and `test_schema.py`'s `TYPES` table follow the new layout.
+- **C3: a helper module for the tests' user functions.** 15 test programs
+  each define the same `fc_obj_cons`/`gjac_grad_jacv` wrappers around their
+  own `obj`/`grad`/`cons`/`jacv`. Adding `gjac`'s `accuracy` argument meant
+  editing 19 files. Add a helper module whose `fc` and `gjac` call four
+  simple procedures, passed through the library's `data` argument, so a
+  test supplies only those. The next change to the user-function interface
+  then touches one file.
+- **C4: check the option limits against each other.** The limits are in
+  three places:
+  - Fortran's `validate_options` (`sqpopt_module.F90`, about 31 checks);
+  - the Python schema's `minimum`/`maximum`;
+  - the guide's option tables.
+
+  `test_schema.py` checks the names, defaults, and types, but not the limits.
+  Add a Python test that, for each option with a limit, solves a trivial
+  problem through the bindings with a value just inside and just outside
+  it, and expects success and `sqpopt_invalid_input`. It would also check
+  the guide's table defaults against the schema, by parsing
+  `web/index.html`.
+- **C5: small helpers for repeated computations:**
+  - `max_violation(c, c_lb, c_ub)` next to `l1_violation`, replacing the
+    three inline max-norm violations (in `sqpopt_convergence_module.f90`,
+    and twice in `sqpopt_iterate_module.f90`);
+  - `sqpopt_merit_module.f90` re-implements `l1_violation` inline in the
+    ℓ1 merit value: use `l1_violation`;
+  - `lagrangian_gradient(jac, g, lambda)` replacing the six
+    `sparse_matvec_transpose` + `g - jtlam` blocks (in
+    `sqpopt_iterate_module.f90`, `sqpopt_convergence_module.f90`, and
+    `sqpopt_merit_module.f90`).
+- **C6: one evaluation check in the iteration.** The
+  `if (problem%stop_requested) ... if (.not. sqpopt_all_finite(...)) ...`
+  block appears four times in `sqpopt_iterate_module.f90`. Replace it with
+  one internal `evaluation_ok()` that sets `done` and `istat`.
+- **C7: name the sparse QP's hard-coded tolerances.** In
+  `sqpopt_qp_reduced_hessian_module.f90`:
+  - the LU pivot tolerance `1.0e-12` is repeated in two `factorize` calls;
+  - the curvature test `1.0e-10` is repeated in both CG routines;
+  - the working-set priority weights are named parameters in
+    `initial_working_set` (`w_bound`, `w_ineq`), but literals (`1.0e-6`,
+    `1.0e-4`, `1.0e-2`, in a different order) in `choose_basis`.
+
+  Make them named module parameters, with comments on what they are for.
+  Check whether the two priority orderings are meant to differ.
+- **C8: move the printed output out of `sqpopt_solve`.** About 500 of
+  `sqpopt_module.F90`'s ~1,100 lines are printing routines contained in
+  `sqpopt_solve`. That includes `print_header`, `print_iteration`,
+  `print_summary`, `print_solution`, the legend, and their formatting
+  helpers. Move them to a `sqpopt_report_module`, which leaves `solve` short
+  enough to read. This is medium effort: they use host association (the
+  solver, the iteration info, the results), so they need an explicit context
+  argument.
+- **C9: one way for the step routines to evaluate the problem.** The line
+  search takes `eval_f`/`eval_c` procedure arguments, with its own three
+  abstract interfaces (`sqpopt_ls_objective_func`,
+  `sqpopt_ls_constraint_func`, `sqpopt_soc_func`), and the iteration passes
+  wrappers of the problem's cached evaluations. The trust region and the
+  restoration take the problem object directly. Both styles make separate
+  `f` and `c` calls, though the user API (and the cache) is one combined
+  `fc`. Pick one style, and evaluate `f` and `c` together. The procedure
+  arguments are only worth keeping if standalone testing of the line
+  search (as in `test_acceptance`) needs them.
+- **C10: decide whether to retire the LSQR null-space method.** The sparse
+  QP carries two complete null-space methods. `sqpopt_null_space_lu` is the
+  default; `sqpopt_null_space_lsqr` is kept "for comparison and as a
+  fallback", and has its own CG, projection, and working-set code
+  (`projected_cg`, `project_null`, `initial_working_set`,
+  `add_independent_rows_lsqr`). Retiring it would remove a few hundred lines
+  and the `LSQR` dependency. Before deciding, measure how often the
+  fallback actually fires (on the HS suite with `--qp=sparse`, and on
+  `test_large_sparse`), and whether `test_qp_fuzz` needs it as a reference.
+- **C11: the Python bindings' result layout in one place.** The
+  `iinfo`/`rinfo` layout is spread across three places:
+  - the array constructors in `python/sqpopt/fortran/sqpopt_python.f90`;
+  - the fixed sizes (13, 7) in `_sqpopt.pyf`;
+  - the positional indexing in `python/sqpopt/_minimize.py`.
+
+  Keep one list of field names in Python, checked against
+  `sqpopt_py_info()`, so that adding a result is a one-line change on the
+  Python side. Also, `_build.py` hard-codes `gfortran` and `ar`: take them
+  from the environment (`FC`, `AR`), with those as the defaults.
+- **C12: a version number in the code.** The version (0.1.0) is only in
+  `fpm.toml` and `pixi.toml`. Add a `sqpopt_version` constant to the
+  library, print it in the log header, and expose it as
+  `sqpopt.__version__` in Python. A test would check that it matches
+  `fpm.toml`.
