@@ -1170,7 +1170,7 @@ documentation.
    or procedure pointers plus a `class(*)` context argument (additive).
 3. **External sparse LDLᵀ** (e.g. MUMPS, as an optional dependency)
    for exact-Hessian inertia control. Alternatively, stay matrix-free
-   with PCG only.
+   with PCG only. See [INERTIA_CONTROL.md](INERTIA_CONTROL.md).
 4. **Dependency trim.** Keep `lusol` for F1's sparse KKT solve, or drop
    `lusol`/`LSMR`/`lbfgsb`. *Recommendation (2026-09-26):*
    - keep `lusol`, for F13 *(done: now used)* and then F1;
