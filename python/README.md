@@ -100,12 +100,15 @@ The build (`sqpopt/_build.py`) does the following:
 1. Builds the library with fpm and installs it under `build/fortran`.
 2. Generates the Fortran option setter from the options schema, so every
    option the dialog knows can be set.
-3. Compiles it, and the implementation module
-   `sqpopt/fortran/sqpopt_python_core.f90`, into a library.
-4. Has PRIK wrap `sqpopt/fortran/sqpopt_python.f90`. This is a single
-   `solve` routine whose arguments are arrays and four callbacks. PRIK
-   can't wrap the library's API directly, because it keeps procedure
-   pointers after `set_functions` returns and uses `class(*)` data.
+3. Compiles it into a library, along with the callbacks' interfaces
+   (`sqpopt/fortran/sqpopt_python_interfaces.f90`) and the implementation
+   module (`sqpopt/fortran/sqpopt_python_core.f90`).
+4. Has PRIK wrap `sqpopt/fortran/sqpopt_python.f90`, reading the interfaces
+   module too. This is a single `solve` routine whose arguments are arrays
+   and four callbacks. PRIK can't wrap the library's API directly, because
+   it keeps procedure pointers after `set_functions` returns and uses
+   `class(*)` data. PRIK never reads the core module, because its parser
+   rejects the `class(*)` arguments of the bridge procedures there.
 
 Rebuild the extension after changing the library or its options.
 `minimize` refuses to run if the options schema no longer matches the one

@@ -12,11 +12,12 @@ Steps:
 2. generate the Fortran option setter (``sqpopt_python_options.f90``) from
    the options schema (``sqpopt_options.schema``), so every option the
    options dialog knows can be set from Python;
-3. compile it and the implementation of the wrapped module
-   (``fortran/sqpopt_python_core.f90``) into ``libsqpopt_python.a``;
+3. compile it, the callbacks' interfaces (``fortran/sqpopt_python_interfaces.f90``),
+   and the implementation of the wrapped module (``fortran/sqpopt_python_core.f90``)
+   into ``libsqpopt_python.a``;
 4. build the extension from the wrapped module ``fortran/sqpopt_python.f90``
-   with PRIK, linked with both libraries, and copy it into the package as
-   ``sqpopt/_sqpopt<suffix>``.
+   (and the interfaces it uses) with PRIK, linked with both libraries, and
+   copy it into the package as ``sqpopt/_sqpopt<suffix>``.
 """
 
 from __future__ import annotations
@@ -154,12 +155,14 @@ def build(verbose: bool = False) -> Path:
     options_source = BUILD / 'generated' / 'sqpopt_python_options.f90'
     generate_option_setter(options_source)
 
-    core_library, core_modules = compile_core(prefix, [options_source, PACKAGE / 'fortran' / 'sqpopt_python_core.f90'])
+    fortran = PACKAGE / 'fortran'
+    interfaces = fortran / 'sqpopt_python_interfaces.f90'
+    core_library, core_modules = compile_core(prefix, [interfaces, options_source, fortran / 'sqpopt_python_core.f90'])
 
     link_flags = _use_dynamic_lookup()
     from prik import build_fortran_extension
     result = build_fortran_extension(
-        PACKAGE / 'fortran' / 'sqpopt_python.f90',
+        [interfaces, fortran / 'sqpopt_python.f90'],   # (PRIK reads the callbacks' interfaces too)
         output_dir=BUILD / 'prik',
         output_name=EXTENSION,
         export_symbols=['sqpopt_python::solve', 'sqpopt_python::n_info'],
