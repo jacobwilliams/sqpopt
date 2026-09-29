@@ -1,0 +1,99 @@
+# CLAUDE.md
+
+How this library is developed, and what has to be kept in sync when anything changes.
+
+## The project
+
+`sqpopt` is a modern Fortran SQP (sequential quadratic programming) solver for sparse, nonlinearly constrained problems. It is built with [fpm](https://fpm.fortran-lang.org), inside a [pixi](https://pixi.sh) environment.
+
+| Path | What it holds |
+|---|---|
+| `src/` | The library. `sqpopt_module.F90` has the solver (`initialize`/`solve`), input validation, and all the printed output. `sqpopt_iterate_module.f90` has one major iteration. There is one module per component: problem, options, Hessian, QP solvers, line search, merit, filter, funnel, trust region, restoration, SOC, convergence, and log. `sqpopt_types_module.f90` has the status codes and the results type. |
+| `test/` | Unit and regression tests (fpm auto-tests: every `test/*.f90` program is a test). It also has the Hock–Schittkowski (HS) harnesses: `test_hs_suite.f90` (305 problems, the main regression and benchmark test), `test_hs_slsqp.f90` (the SLSQP comparison), and `test_hs_solutions.f90`. |
+| `example/` | `hs71.f90` (mirrored in the guide's worked example) and `benchmark.f90`. |
+| `web/` | The user guide (`index.html`), the interactive HS results page (`hs_results.html`, with data in `web/js/*_data.js`), and CSS/JS. CI deploys it to GitHub Pages with the FORD API docs (`web/api`) and coverage (`web/coverage`). |
+| `python/` | A Qt options dialog (`sqpopt_options/schema.py` describes every option) and its tests. |
+| `tools/` | `hs_performance_table.sh` regenerates the guide's Performance table and the results-page data. `hs_compare.sh` runs one HS problem with both SQPOPT and SLSQP. |
+| `plan/` | Design documents. `plan/ROADMAP.md` is the current roadmap and backlog. |
+
+## Ground rules
+
+- **Never `git commit`** (or push). The user commits changes themselves.
+- **Build and test through pixi.** The system gfortran fails to link on the dev Mac.
+  ```bash
+  pixi run fpm build
+  pixi run fpm test                                   # everything
+  pixi run fpm test test_hs_suite --profile release   # the HS regression test
+  pixi run fortitude check                            # lint (src/ and example/)
+  cd python && QT_QPA_PLATFORM=offscreen pixi run python -m unittest discover -s tests
+  ```
+  fpm sometimes runs a stale build after edits (the old output appears). If results look unchanged when they shouldn't, delete `build/gfortran_*` and rebuild.
+- **Never initialize a local variable in its declaration** (`integer :: n = 0`). In Fortran that gives it the implicit `save` attribute, so it keeps its value between calls. Declare it, then assign it in the executable code. (Default values on derived-type *components* are fine.)
+- Every program unit has `implicit none`. Reals use `wp` (from `sqpopt_kinds`), and literals are written `1.0_wp`.
+- Style: 4-space indentation, lines up to 132 columns, single-quoted strings (see `fortitude.toml`). Match the density and tone of the surrounding comments.
+- No dense `n x n` or `m x n` arrays in the library, except in the dense QP solver.
+- Every `solve` must start from the configuration given to `initialize`. No state may carry over between solves (`test_resolve` checks this). New component state must be reset at the start of `solve`.
+- Printed output must never stop the solver. Every `write` in the logging and printing code uses `iostat=`, and writes `****` if it fails.
+- Status codes are always referred to by their named constants (`sqpopt_success`, …), never by their numeric values.
+
+## Documentation conventions (FORD)
+
+- Every module has a `!>` header describing what it does. Every procedure and type has a `!!` docstring.
+- **Every dummy argument gets a trailing `!!` comment**, including arguments of callbacks and test/example routines. The `me` (passed-object) argument doesn't need one.
+- Type components get `!!` comments that give their meaning and units or allowed values.
+- `[[name]]` makes a FORD link, and it must name a real entity. For anything else (e.g. external modules), use plain `` `code` ``.
+- Avoid comment lines that start with `word:` (e.g. `stopped:`). FORD parses them as metadata.
+- Keep docstrings true when behavior changes. Stale docstrings are treated as bugs.
+
+## What to update with every change
+
+Before calling a change done, go through the items that apply.
+
+### Always
+1. **Docstrings and argument comments** in every touched routine, and in the module header if the module's role changed.
+2. **Tests.** Add or extend a test in `test/` for new behavior (a new `test/test_<feature>.f90` is picked up automatically). Run the full `pixi run fpm test`, and report failures faithfully.
+3. **Lint** with `pixi run fortitude check`.
+4. **User guide** (`web/index.html`). Update any text, table, or code snippet that describes what changed. See the specific cases below.
+
+### New or changed option (a field of `sqpopt_options_type` or of a component type)
+- Add the field, with its default and a `!!` doc, to the type.
+- Add a check to `validate_options` in `sqpopt_module.F90`, or to the component's own validation. Add a case to `test_input_validation` if the check is new.
+- Add it to `print_header` if it affects the method or tolerances shown in the log.
+- Add it to the Python schema (`python/sqpopt_options/schema.py`): an `_o(...)` entry in the right section, with the same default and limits. For an enum-like option, add a `Choice` tuple of the integer values, and add that tuple to `ALL_CHOICES`. `python/tests/test_schema.py` fails if a Fortran field and the schema disagree.
+- Add a row to the guide's options table for that type, and add or update the prose section that explains the feature.
+- If a component is added or moved, update the guide's "How configuration works" section and diagram, and the Python layout.
+
+### New results field (`sqpopt_results_type`)
+- Add it to the type in `sqpopt_types_module.f90`, with a doc. Results are reset with `sqpopt_results_type()` at the start of `solve`.
+- Set it (in `finish`, or `count_events`, in `sqpopt_module.F90`).
+- Add it to the printed summary if it is useful there.
+- Add a row to the guide's Results table.
+
+### New or renamed status code
+- Add the constant to `sqpopt_types_module.f90`, keeping the numeric grouping: `0–2` success, `1x` limits and user stop, `2x` failures. Add a case to `sqpopt_status_message`.
+- Update the guide's Status codes table and its grouping sentence.
+- Check every `select case` and comparison on status codes in `src/` and in the tests.
+
+### New iteration-log flag or detail line
+- In `sqpopt_module.F90`, set the flag in `print_iteration` and describe it in `print_legend`. Add it to the guide's `print_level` description.
+- Detail lines (`print_level >= 3`) go through the log (`lg%put(sqpopt_log_detail, ...)`). `test_termination` checks that the level-3 log doesn't change results.
+
+### Change to a user-facing interface (callbacks, `set_*` routines, public constants)
+- Update **every** implementation in `test/`, `example/`, and the HS harnesses.
+- Update the guide's code snippets: Quick start, User functions, and Scaling (`fc_y`/`gjac_y`). Keep the worked example identical to `example/hs71.f90`.
+- Update the README if it shows the interface.
+- Note in the summary to the user that the change breaks existing user code.
+
+### Change that can affect convergence (algorithm, defaults, tolerances)
+Run the HS suite in release mode, and compare it with the baseline recorded in the `known_unsolved` comment of `test/test_hs_suite.f90`. That baseline is currently 280 solved, 25 local, 0 failed, and 8,963 `fc` calls.
+- If problems newly fail, it is a regression. Investigate it, don't just update the baseline.
+- If results change, do all of the following:
+  - Update the `known_unsolved` list and the counts and date in its comment.
+  - Regenerate the Performance table with `pixi run tools/hs_performance_table.sh` and paste its rows into the guide's Performance section. The script also regenerates `web/js/hs_results_data.js` and `web/js/hs_slsqp_data.js`.
+  - Update any numbers quoted elsewhere in the guide or README.
+- If results *don't* change, revert the regenerated files whose diffs are only timestamps: `test/hs_suite_results.md` and `web/js/*_data.js`. A debug-profile run also rewrites `test/hs_suite_results.md` with slightly different counts, so the committed report must come from `--profile release`.
+- When comparing alternatives (an option's value, a new rule), use the harness's command-line options (see `test_hs_suite.f90`'s header). Report the numbers, and give the reasons for the chosen default in its docstring or in the guide.
+
+### Planning
+- Ideas that are discussed but not implemented go in `plan/ROADMAP.md` as a roadmap entry. Mark implemented items there as done.
+- Don't start implementing a roadmap item unless asked.
