@@ -969,6 +969,57 @@ function.)
   re-linearizes them.
 - **F12: interoperability.** A `bind(c)` C API, then a thin Python
   wrapper. This is how SLSQP-style solvers get adopted.
+  *(Python part done 2026-09-28, without a C API: `python/sqpopt`, a
+  `scipy.optimize.minimize`-like `minimize` built with f2py; see
+  `python/README.md`. There are no finite differences, so the gradient and
+  the constraint Jacobians are required.)*
+
+  **Follow-up: make the sparsity interface scipy-like** (not started).
+  Today the Jacobian pattern comes from a non-scipy
+  `NonlinearConstraint.jac_sparsity` field, or from the structure of
+  `jac(x0)` if it is sparse, or it is dense. The Hessian pattern is always
+  the dense lower triangle: sparse `hess` results are densified to `n × n`
+  on every call. In scipy, sparsity is expressed by the *return types*: `jac` and
+  `hess` may return dense arrays, sparse matrices, or (for `hess`) a
+  `LinearOperator`, and `hess` may instead be a `HessianUpdateStrategy`
+  (`BFGS()`, `SR1()`). The only explicit patterns scipy has are the
+  finite-difference ones (`NonlinearConstraint.finite_diff_jac_sparsity`,
+  and `jac_sparsity` in `least_squares`). The plan:
+  - **Patterns from the return types, for both derivatives.** Take the
+    Jacobian pattern of each constraint from its `jac(x0)`, and the Hessian
+    pattern (lower triangle) from `hess(x0)` and each constraint's
+    `hess(x0, v)`, if sparse; dense otherwise. Assemble the Lagrangian
+    Hessian's values sparsely (no `n × n` array), and pass only the
+    pattern's entries.
+  - **Structural zeros.** A pattern read at `x0` misses entries that happen
+    to be zero there (e.g. `2*x[j]` at `x[j] = 0`, a common starting point).
+    Options: evaluate the structure at `x0` and at a perturbed point inside
+    the bounds and take the union; and/or document that sparse results must
+    keep a fixed structure (explicit zeros allowed), as `scipy.sparse`
+    matrices built with a fixed `indices`/`indptr` do. A value outside the
+    pattern should keep raising a clear `ValueError` naming the constraint
+    and entry.
+  - **Explicit patterns, scipy names.** For structures that can't be
+    inferred, accept scipy's name `finite_diff_jac_sparsity` on
+    `NonlinearConstraint` (it describes the same thing, even without finite
+    differences), and a `hess_sparsity` for `minimize` (not in scipy). Drop
+    or deprecate the current `jac_sparsity` field.
+  - **`hess` as a strategy.** Map `hess=BFGS()` / `SR1()` (scipy's
+    `HessianUpdateStrategy` instances, or our own equivalents) to
+    `options%hessian_mode`, so scipy code ports unchanged. A
+    `LinearOperator` result needs a Hessian-vector-product mode in the
+    library first (the F7 "not done" item), so it would be rejected with a
+    clear error until then.
+  - **Tests with real scipy objects.** scipy isn't in the pixi environment,
+    so the scipy classes and `scipy.sparse` results are only duck-typed
+    today (the tests use a minimal `tocoo()` stand-in). Add scipy as a test
+    dependency and run the tests with `scipy.optimize.Bounds`,
+    `NonlinearConstraint`, `LinearConstraint`, and `scipy.sparse` Jacobians
+    and Hessians (CSR, CSC, and COO, with duplicate entries).
+  - **A sparse benchmark from Python.** Port `test_large_sparse`'s control
+    problem to Python (sparse `jac` and `hess`), to check that the
+    bindings stay O(nnz) per evaluation, and to compare against the Fortran
+    run.
 
 - **F13: LUSOL rank detection for the working set.** *(Done
   2026-09-26; see "Phase 4 status".)* This is a small,
