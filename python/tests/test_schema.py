@@ -47,8 +47,12 @@ TYPES = {
 FIELD = re.compile(r'^\s*(integer|real\(wp\)|logical)\s*::\s*(\w+)\s*=\s*([^!]+?)\s*(!.*)?$', re.IGNORECASE)
 
 
-def fortran_fields(filename: str, type_name: str) -> dict[str, str]:
-    """the scalar fields with a default value of a Fortran derived type: {name: default (as written)}"""
+#: the Fortran type of each option kind
+FORTRAN_TYPE = {'int': 'integer', 'choice': 'integer', 'float': 'real(wp)', 'bool': 'logical'}
+
+
+def fortran_fields(filename: str, type_name: str) -> dict[str, tuple[str, str]]:
+    """the scalar fields with a default value of a Fortran derived type: {name: (type, default as written)}"""
     text = (SRC / filename).read_text()
     m = re.search(rf'type\s*,\s*public\s*::\s*{type_name}\b(.*?)^\s*(contains|end type)', text,
                   re.IGNORECASE | re.DOTALL | re.MULTILINE)
@@ -57,7 +61,7 @@ def fortran_fields(filename: str, type_name: str) -> dict[str, str]:
     for line in m.group(1).splitlines():
         f = FIELD.match(line)
         if f:
-            fields[f.group(2).lower()] = f.group(3).strip()
+            fields[f.group(2).lower()] = (f.group(1).lower(), f.group(3).strip())
     return fields
 
 
@@ -89,7 +93,11 @@ class TestAgainstFortran(unittest.TestCase):
             for name, o in options.items():
                 with self.subTest(option=o.fortran):
                     self.assertIn(name, fields, f'{o.fortran} is not a field of {type_name}')
-                    self.assertEqual(fortran_default(fields[name]), o.default, f'{o.fortran}: default')
+                    ftype, default = fields[name]
+                    self.assertEqual(fortran_default(default), o.default, f'{o.fortran}: default')
+                    # (the kind must match the Fortran type: the generated setter of the Python bindings
+                    # converts by kind, and e.g. `100 == 100.0` would hide a mismatch in the default test)
+                    self.assertEqual(ftype, FORTRAN_TYPE[o.kind], f'{o.fortran}: kind {o.kind!r} for a {ftype}')
                     self.assertIsInstance(o.default, {'int': int, 'float': float, 'bool': bool, 'choice': int}[o.kind])
             for name in fields:
                 with self.subTest(field=f'{type_name}%{name}'):

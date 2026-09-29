@@ -12,7 +12,7 @@ How this library is developed, and what has to be kept in sync when anything cha
 | `test/` | Unit and regression tests (fpm auto-tests: every `test/*.f90` program is a test). It also has the Hock–Schittkowski (HS) harnesses: `test_hs_suite.f90` (305 problems, the main regression and benchmark test), `test_hs_slsqp.f90` (the SLSQP comparison), and `test_hs_solutions.f90`. |
 | `example/` | `hs71.f90` (mirrored in the guide's worked example) and `benchmark.f90`. |
 | `web/` | The user guide (`index.html`), the interactive HS results page (`hs_results.html`, with data in `web/js/*_data.js`), and CSS/JS. CI deploys it to GitHub Pages with the FORD API docs (`web/api`) and coverage (`web/coverage`). |
-| `python/` | A Qt options dialog (`sqpopt_options/schema.py` describes every option) and its tests. |
+| `python/` | The Python bindings (`sqpopt/`: a scipy-like `minimize`, whose extension PRIK builds from the Fortran shim in `sqpopt/fortran/`), a Qt options dialog (`sqpopt_options/schema.py` describes every option), and their tests. |
 | `tools/` | `hs_performance_table.sh` regenerates the guide's Performance table and the results-page data. `hs_compare.sh` runs one HS problem with both SQPOPT and SLSQP. |
 | `plan/` | Design documents. `plan/ROADMAP.md` is the current roadmap and backlog. |
 
@@ -24,8 +24,9 @@ How this library is developed, and what has to be kept in sync when anything cha
   pixi run fpm build
   pixi run fpm test                                   # everything
   pixi run fpm test test_hs_suite --profile release   # the HS regression test
-  pixi run fortitude check                            # lint (src/ and example/)
-  cd python && QT_QPA_PLATFORM=offscreen pixi run python -m unittest discover -s tests
+  pixi run fortitude check                            # lint (src/, example/, and the Python bindings' Fortran)
+  pixi run build-python                               # rebuild the Python bindings' extension
+  pixi run test-python                                # the Python tests (bindings and options dialog)
   ```
   fpm sometimes runs a stale build after edits (the old output appears). If results look unchanged when they shouldn't, delete `build/gfortran_*` and rebuild.
 - **Never initialize a local variable in its declaration** (`integer :: n = 0`). In Fortran that gives it the implicit `save` attribute, so it keeps its value between calls. Declare it, then assign it in the executable code. (Default values on derived-type *components* are fine.)
@@ -63,11 +64,14 @@ Before calling a change done, go through the items that apply.
 - Add a row to the guide's options table for that type, and add or update the prose section that explains the feature.
 - If a component is added or moved, update the guide's "How configuration works" section and diagram, and the Python layout.
 
+- Rebuild the Python bindings (`pixi run build-python`). The option setter is generated from the schema, and `minimize` refuses to run with a stale extension.
+
 ### New results field (`sqpopt_results_type`)
 - Add it to the type in `sqpopt_types_module.f90`, with a doc. Results are reset with `sqpopt_results_type()` at the start of `solve`.
 - Set it (in `finish`, or `count_events`, in `sqpopt_module.F90`).
 - Add it to the printed summary if it is useful there.
 - Add a row to the guide's Results table.
+- If it's useful from Python, return it through the bindings: add it to `iinfo`/`rinfo` in `python/sqpopt/fortran/sqpopt_python_core.f90` (and their sizes in `sqpopt_python_n_info`), and to the `OptimizeResult` in `python/sqpopt/_minimize.py`.
 
 ### New or renamed status code
 - Add the constant to `sqpopt_types_module.f90`, keeping the numeric grouping: `0–2` success, `1x` limits and user stop, `2x` failures. Add a case to `sqpopt_status_message`.
@@ -82,6 +86,7 @@ Before calling a change done, go through the items that apply.
 - Update **every** implementation in `test/`, `example/`, and the HS harnesses.
 - Update the guide's code snippets: Quick start, User functions, and Scaling (`fc_y`/`gjac_y`). Keep the worked example identical to `example/hs71.f90`.
 - Update the README if it shows the interface.
+- Update the Python bindings' Fortran shim (`python/sqpopt/fortran/`) if the change affects it, then rebuild and run `pixi run test-python`.
 - Note in the summary to the user that the change breaks existing user code.
 
 ### Change that can affect convergence (algorithm, defaults, tolerances)

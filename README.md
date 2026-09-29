@@ -103,7 +103,7 @@ pixi run fpm run --example benchmark --profile release
 | `pixi run fortitude check` | lints the Fortran sources with [Fortitude](https://fortitude.readthedocs.io) (configured in `fortitude.toml`; also run by the VS Code extension) |
 | `tools/hs_performance_table.sh` | runs the HS suite in every configuration of the guide's Performance table and prints the table rows. It also regenerates the data of the results page (`web/js/hs_results_data.js`, `web/js/hs_slsqp_data.js`). Run it whenever a change affects the HS results. |
 | `tools/hs_compare.sh N [options]` | runs HS problem `N` with SQPOPT and SLSQP, printing both solvers' iterations, for investigating a difference |
-| `python/` | a Qt options dialog for SQPOPT, for use in other programs (see [python/README.md](python/README.md)) |
+| `python/` | Python bindings with a `scipy.optimize.minimize`-like interface, and a Qt options dialog for SQPOPT (see [python/README.md](python/README.md)) |
 
 All are run from the repository root, e.g. `pixi run tools/hs_compare.sh 220`.
 
