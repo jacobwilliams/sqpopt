@@ -1,0 +1,105 @@
+!    -*- f90 -*-
+!  f2py signature file of the Python bindings' extension (`sqpopt._sqpopt`):
+!  the routines of `sqpopt_python_f2py.f90`, and their callbacks (see
+!  `sqpopt_python.f90` for the Fortran interfaces, which must match).
+!
+!  Each callback gets the arrays (sizes hidden), writes its outputs in
+!  place, and returns only its `status` (or `stop`) flag, which is declared
+!  first: f2py can't take back a zero-size array returned by a callback,
+!  but in-place outputs of any size work.
+!
+!  `sqpopt_py_solve` gets the sizes explicitly, and its arrays as
+!  `dimension(*)`, each with at least one element (the caller pads them): f2py
+!  rejects a zero-size array whose size is another argument (it takes the
+!  size as 1). The outputs `x`, `lambda`, `z`, and `c` are allocated by the
+!  caller and filled in place.
+
+python module _sqpopt__user__routines
+    interface
+        subroutine fc(n, m, status, x, f, c)
+            integer intent(in,hide), depend(x) :: n = len(x)
+            integer intent(in,hide), depend(c) :: m = len(c)
+            integer intent(in,out) :: status
+            double precision dimension(n), intent(in) :: x
+            double precision dimension(1), intent(in,out) :: f
+            double precision dimension(m), intent(in,out) :: c
+        end subroutine fc
+        subroutine gjac(n, nnz, status, accuracy, x, g, jac_val)
+            integer intent(in,hide), depend(x) :: n = len(x)
+            integer intent(in,hide), depend(jac_val) :: nnz = len(jac_val)
+            integer intent(in,out) :: status
+            integer intent(in) :: accuracy
+            double precision dimension(n), intent(in) :: x
+            double precision dimension(n), intent(in,out) :: g
+            double precision dimension(nnz), intent(in,out) :: jac_val
+        end subroutine gjac
+        subroutine hess(n, m, nnz, status, x, lambda, hess_val)
+            integer intent(in,hide), depend(x) :: n = len(x)
+            integer intent(in,hide), depend(lambda) :: m = len(lambda)
+            integer intent(in,hide), depend(hess_val) :: nnz = len(hess_val)
+            integer intent(in,out) :: status
+            double precision dimension(n), intent(in) :: x
+            double precision dimension(m), intent(in) :: lambda
+            double precision dimension(nnz), intent(in,out) :: hess_val
+        end subroutine hess
+        subroutine report(n, m, stop, iter, x, f, c, lambda)
+            integer intent(in,hide), depend(x) :: n = len(x)
+            integer intent(in,hide), depend(c) :: m = len(c)
+            integer intent(in,out) :: stop
+            integer intent(in) :: iter
+            double precision dimension(n), intent(in) :: x
+            double precision intent(in) :: f
+            double precision dimension(m), intent(in) :: c
+            double precision dimension(m), intent(in) :: lambda
+        end subroutine report
+    end interface
+end python module _sqpopt__user__routines
+
+python module _sqpopt
+    interface
+        subroutine sqpopt_py_info(n_iinfo, n_rinfo, n_options, options_signature)
+            integer intent(out) :: n_iinfo
+            integer intent(out) :: n_rinfo
+            integer intent(out) :: n_options
+            integer intent(out) :: options_signature
+        end subroutine sqpopt_py_info
+        subroutine sqpopt_py_solve(fc, gjac, hess, report, use_hess, use_report, n, m, nnz, nnzh, nopt, &
+                                   x0, x_lb, x_ub, c_lb, c_ub, jac_irow, jac_icol, hess_irow, hess_icol, &
+                                   opt_id, opt_val, lambda0, use_lambda0, output_file, &
+                                   x, lambda, z, c, iinfo, rinfo, message)
+            use _sqpopt__user__routines
+            external fc
+            external gjac
+            external hess
+            external report
+            integer intent(in) :: use_hess
+            integer intent(in) :: use_report
+            integer intent(in) :: n
+            integer intent(in) :: m
+            integer intent(in) :: nnz
+            integer intent(in) :: nnzh
+            integer intent(in) :: nopt
+            double precision dimension(*), intent(in) :: x0
+            double precision dimension(*), intent(in) :: x_lb
+            double precision dimension(*), intent(in) :: x_ub
+            double precision dimension(*), intent(in) :: c_lb
+            double precision dimension(*), intent(in) :: c_ub
+            integer dimension(*), intent(in) :: jac_irow
+            integer dimension(*), intent(in) :: jac_icol
+            integer dimension(*), intent(in) :: hess_irow
+            integer dimension(*), intent(in) :: hess_icol
+            integer dimension(*), intent(in) :: opt_id
+            double precision dimension(*), intent(in) :: opt_val
+            double precision dimension(*), intent(in) :: lambda0
+            integer intent(in) :: use_lambda0
+            character*(*) intent(in) :: output_file
+            double precision dimension(*), intent(inout) :: x
+            double precision dimension(*), intent(inout) :: lambda
+            double precision dimension(*), intent(inout) :: z
+            double precision dimension(*), intent(inout) :: c
+            integer dimension(13), intent(out) :: iinfo
+            double precision dimension(7), intent(out) :: rinfo
+            character*256 intent(out) :: message
+        end subroutine sqpopt_py_solve
+    end interface
+end python module _sqpopt

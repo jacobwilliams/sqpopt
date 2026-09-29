@@ -12,12 +12,14 @@ Steps:
 2. generate the Fortran option setter (``sqpopt_python_options.f90``) from
    the options schema (``sqpopt_options.schema``), so every option the
    options dialog knows can be set from Python;
-3. compile it, the callbacks' interfaces (``fortran/sqpopt_python_interfaces.f90``),
-   and the implementation of the wrapped module (``fortran/sqpopt_python_core.f90``)
-   into ``libsqpopt_python.a``;
-4. build the extension from the wrapped module ``fortran/sqpopt_python.f90``
-   (and the interfaces it uses) with PRIK, linked with both libraries, and
-   copy it into the package as ``sqpopt/_sqpopt<suffix>``.
+3. compile it and the bindings' module (``fortran/sqpopt_python.f90``) into
+   ``libsqpopt_python.a``;
+4. build the extension with f2py (meson backend) from the signature file
+   ``fortran/_sqpopt.pyf`` and the routines it describes
+   (``fortran/sqpopt_python_f2py.f90``), linked with both libraries, and copy
+   it into the package as ``sqpopt/_sqpopt<suffix>``.
+
+Run with ``-v`` to see f2py's output.
 """
 
 from __future__ import annotations
@@ -113,9 +115,8 @@ def build_library(prefix: Path) -> None:
 
 
 def compile_core(prefix: Path, sources: list[Path]) -> tuple[Path, Path]:
-    """compile the modules the PRIK-wrapped module uses (in order) into a static library; returns it and the
-    directory of their ``.mod`` files. (PRIK compiles its native sources concurrently with the wrapped
-    module, which needs their ``.mod`` files first.)"""
+    """compile the modules the f2py-wrapped routines use (in order) into a static library; returns it and the
+    directory of their ``.mod`` files"""
     obj = BUILD / 'core'
     if obj.exists():
         shutil.rmtree(obj)
@@ -133,21 +134,6 @@ def compile_core(prefix: Path, sources: list[Path]) -> tuple[Path, Path]:
     return library, obj
 
 
-def _use_dynamic_lookup() -> list[str]:
-    """work around a PRIK issue: with a statically linked Python (as conda's), PRIK still links the
-    extension with ``libpython``, so it runs on a second copy of the interpreter and crashes on import.
-    Link it against the running interpreter's symbols instead (as Python's own ``LDSHARED`` does).
-    Returns the extra link flags."""
-    if sysconfig.get_config_var('Py_ENABLE_SHARED'):
-        return []
-    import prik.compiler.compiler_profiles as profiles
-    for toolchain in profiles.available_compilers.values():
-        for language in toolchain.values():
-            for key in ('dependencies', 'libdir', 'libs'):
-                language['python'].pop(key, None)
-    return ['-undefined', 'dynamic_lookup'] if sys.platform == 'darwin' else []
-
-
 def build(verbose: bool = False) -> Path:
     """build the extension, and return its path in the package"""
     prefix = BUILD / 'fortran'
@@ -156,28 +142,27 @@ def build(verbose: bool = False) -> Path:
     generate_option_setter(options_source)
 
     fortran = PACKAGE / 'fortran'
-    interfaces = fortran / 'sqpopt_python_interfaces.f90'
-    core_library, core_modules = compile_core(prefix, [interfaces, options_source, fortran / 'sqpopt_python_core.f90'])
+    core_library, core_modules = compile_core(prefix, [options_source, fortran / 'sqpopt_python.f90'])
 
-    link_flags = _use_dynamic_lookup()
-    from prik import build_fortran_extension
-    result = build_fortran_extension(
-        [interfaces, fortran / 'sqpopt_python.f90'],   # (PRIK reads the callbacks' interfaces too)
-        output_dir=BUILD / 'prik',
-        output_name=EXTENSION,
-        export_symbols=['sqpopt_python::solve', 'sqpopt_python::n_info'],
-        native_include_dirs=[core_modules, prefix / 'include'],
-        native_fortran_flags=['-O2', f'-I{core_modules}', f'-I{prefix / "include"}'],
-        native_objects=[core_library, prefix / 'lib' / 'libsqpopt.a'],
-        wrapper_fortran_flags=[f'-I{core_modules}', f'-I{prefix / "include"}'],
-        wrapper_c_flags=link_flags,
-        verbose=verbose,
-    )
-    target = PACKAGE / (EXTENSION + sysconfig.get_config_var('EXT_SUFFIX'))
-    shutil.copy2(result.shared_library, target)
-    stray = Path.cwd() / f'{EXTENSION}.so'   # (PRIK's stable alias, which points into the build directory)
-    if stray.is_symlink() or stray.exists():
-        stray.unlink()
+    work = BUILD / 'f2py'
+    if work.exists():
+        shutil.rmtree(work)
+    work.mkdir(parents=True)
+    command = [sys.executable, '-m', 'numpy.f2py', '-c', str(fortran / '_sqpopt.pyf'),
+               str(fortran / 'sqpopt_python_f2py.f90'),
+               f'-I{core_modules}', f'-I{prefix / "include"}',
+               f'-L{core_modules}', '-lsqpopt_python', f'-L{prefix / "lib"}', '-lsqpopt',
+               '--build-dir', str(work / 'meson')]
+    completed = subprocess.run(command, cwd=work, capture_output=not verbose, text=True)
+    if completed.returncode != 0:
+        if not verbose:
+            print(completed.stdout[-5000:], completed.stderr[-5000:], sep='\n')
+        raise RuntimeError('f2py failed')
+    built = list(work.glob(EXTENSION + '*' + sysconfig.get_config_var('EXT_SUFFIX')))
+    if len(built) != 1:
+        raise RuntimeError(f'f2py built {built}')
+    target = PACKAGE / built[0].name
+    shutil.copy2(built[0], target)
     print(f'built {target}')
     return target
 

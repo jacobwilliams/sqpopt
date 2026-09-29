@@ -43,12 +43,11 @@ def _native():
     except ImportError as e:
         raise ImportError('the sqpopt extension is not built: run `pixi run python python/sqpopt/_build.py`') from e
     from ._build import options_signature
-    ext = _sqpopt.sqpopt_python
-    _, _, n_options, signature = ext.n_info()
+    _, _, n_options, signature = _sqpopt.sqpopt_py_info()
     if n_options != len(schema.OPTIONS) or signature != options_signature():
         raise ImportError('the sqpopt extension was built with different options: rebuild it '
                           '(`pixi run python python/sqpopt/_build.py`)')
-    return ext
+    return _sqpopt
 
 
 # ------------------------------------------------------------------------------------------------------
@@ -316,39 +315,42 @@ class _Solve:
             i += c.k
         return h
 
-    # ---- the callbacks given to the Fortran solver (they must not raise: an exception is kept, and the
-    # solver is asked to stop, see `status < 0`)
+    # ---- the callbacks given to the Fortran solver, with f2py's calling convention (see `fortran/_sqpopt.pyf`):
+    # they write their outputs into the arrays they are given, and return only the status flag. They must not
+    # raise (f2py would jump out of the Fortran code, skipping its cleanup): an exception is kept, re-raised by
+    # `run`, and the solver is asked to stop (`status < 0`)
 
-    def fc(self, x, f, c, status):
+    def fc(self, status, x, f, c):
         try:
             xx = np.array(x)
-            fx = self.objective(xx)
-            cx = self.constraints(xx)
-            f[...] = fx
-            c[:] = cx
-        except Exception as e:  # noqa: BLE001
+            f[0] = self.objective(xx)
+            c[:] = self.constraints(xx)
+        except BaseException as e:  # noqa: BLE001
             self.error = e
-            status[...] = -1
+            status = -1
+        return (status,)
 
-    def gjac(self, x, g, jac_val, accuracy, status):
+    def gjac(self, status, accuracy, x, g, jac_val):
         # (`accuracy` is ignored: the user's derivatives are exact)
         try:
             xx = np.array(x)
             g[:] = self.gradient(xx)
             jac_val[:] = self.jacobian_values(xx)
-        except Exception as e:  # noqa: BLE001
+        except BaseException as e:  # noqa: BLE001
             self.error = e
-            status[...] = -1
+            status = -1
+        return (status,)
 
-    def hess(self, x, lam, hess_val, status):
+    def hess(self, status, x, lam, hess_val):
         try:
             h = self.lagrangian_hessian(np.array(x), np.array(lam))
             hess_val[:] = h[self.hess_rows, self.hess_cols]
-        except Exception as e:  # noqa: BLE001
+        except BaseException as e:  # noqa: BLE001
             self.error = e
-            status[...] = -1
+            status = -1
+        return (status,)
 
-    def report(self, it, x, f, c, lam, stop):
+    def report(self, stop, it, x, f, c, lam):
         try:
             xx = np.array(x)
             if self.callback_new_style:
@@ -358,12 +360,13 @@ class _Solve:
             else:
                 result = self.callback(xx)
             if result is True:
-                stop[...] = 1
+                stop = 1
         except StopIteration:
-            stop[...] = 1
-        except Exception as e:  # noqa: BLE001
+            stop = 1
+        except BaseException as e:  # noqa: BLE001
             self.error = e
-            stop[...] = 1
+            stop = 1
+        return (stop,)
 
     def split(self, v: np.ndarray) -> list[np.ndarray]:
         """a vector of all the constraint rows, split by constraint object"""
@@ -400,23 +403,25 @@ class _Solve:
         opt_val = np.array([float(v) for v in options.values()], dtype=float)
         c_lb = np.concatenate([c.lb for c in self.cons]) if self.cons else np.zeros(0)
         c_ub = np.concatenate([c.ub for c in self.cons]) if self.cons else np.zeros(0)
-        x = np.zeros(n)
-        lam = np.zeros(m)
-        z = np.zeros(n)
-        c = np.zeros(m)
         lam0 = np.zeros(m) if lambda0 is None else self.multipliers(lambda0)
-        n_iinfo, n_rinfo, _, _ = ext.n_info()
-        iinfo = np.zeros(int(n_iinfo), dtype=np.int32)
-        rinfo = np.zeros(int(n_rinfo))
 
-        def i32(a):
-            return np.ascontiguousarray(a, dtype=np.int32)
+        def pad(a, dtype=float):
+            # (a contiguous array with at least one element: see `fortran/_sqpopt.pyf`)
+            a = np.asarray(a, dtype=dtype).ravel()
+            return np.ascontiguousarray(a if a.size else np.zeros(1, dtype=dtype))
 
-        message = ext.solve(self.fc, self.gjac, self.hess, self.report, np.int32(use_hess),
-                            np.int32(self.callback is not None), self.x0, self.x_lb, self.x_ub, c_lb, c_ub,
-                            i32(irow + 1), i32(icol + 1), i32(self.hess_rows + 1), i32(self.hess_cols + 1),
-                            opt_id, opt_val, lam0, np.int32(lambda0 is not None),
-                            '' if output_file is None else str(output_file), x, lam, z, c, iinfo, rinfo)
+        x, lam, z, c = pad(np.zeros(n)), pad(np.zeros(m)), pad(np.zeros(n)), pad(np.zeros(m))
+        iinfo, rinfo, message = ext.sqpopt_py_solve(
+            self.fc, self.gjac, self.hess, self.report, int(use_hess), int(self.callback is not None),
+            n, m, irow.size, self.hess_rows.size, opt_id.size,
+            pad(self.x0), pad(self.x_lb), pad(self.x_ub), pad(c_lb), pad(c_ub),
+            pad(irow + 1, np.int32), pad(icol + 1, np.int32),
+            pad(self.hess_rows + 1, np.int32), pad(self.hess_cols + 1, np.int32),
+            pad(opt_id, np.int32), pad(opt_val), pad(lam0), int(lambda0 is not None),
+            '' if output_file is None else str(output_file), x, lam, z, c)
+        x, lam, c = x[:n], lam[:m], c[:m]
+        if isinstance(message, bytes):
+            message = message.decode(errors='replace')
         if self.error is not None:
             raise self.error
         istat = int(iinfo[0])

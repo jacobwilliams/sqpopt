@@ -3,10 +3,10 @@
     from sqpopt import minimize, NonlinearConstraint
 
     res = minimize(fun, x0, jac=grad, bounds=[(1, 5)] * 4,
-                   constraints=[NonlinearConstraint(cons, [25, 40], [np.inf, 40])])
+                   constraints=[NonlinearConstraint(cons, [40, 25], [40, np.inf], jac=cons_jac)])
     print(res.x, res.fun, res.message)
 
-The native extension is built with PRIK (see ``_build.py``)::
+The native extension is built with f2py (see ``_build.py``)::
 
     pixi run python python/sqpopt/_build.py
 """

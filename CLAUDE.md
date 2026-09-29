@@ -12,7 +12,7 @@ How this library is developed, and what has to be kept in sync when anything cha
 | `test/` | Unit and regression tests (fpm auto-tests: every `test/*.f90` program is a test). It also has the Hock–Schittkowski (HS) harnesses: `test_hs_suite.f90` (305 problems, the main regression and benchmark test), `test_hs_slsqp.f90` (the SLSQP comparison), and `test_hs_solutions.f90`. |
 | `example/` | `hs71.f90` (mirrored in the guide's worked example) and `benchmark.f90`. |
 | `web/` | The user guide (`index.html`), the interactive HS results page (`hs_results.html`, with data in `web/js/*_data.js`), and CSS/JS. CI deploys it to GitHub Pages with the FORD API docs (`web/api`) and coverage (`web/coverage`). |
-| `python/` | The Python bindings (`sqpopt/`: a scipy-like `minimize`, whose extension PRIK builds from the Fortran shim in `sqpopt/fortran/`), a Qt options dialog (`sqpopt_options/schema.py` describes every option), and their tests. |
+| `python/` | The Python bindings (`sqpopt/`: a scipy-like `minimize`, whose extension f2py builds from the Fortran shim and signature file in `sqpopt/fortran/`), a Qt options dialog (`sqpopt_options/schema.py` describes every option), and their tests. |
 | `tools/` | `hs_performance_table.sh` regenerates the guide's Performance table and the results-page data. `hs_compare.sh` runs one HS problem with both SQPOPT and SLSQP. |
 | `plan/` | Design documents. `plan/ROADMAP.md` is the current roadmap and backlog. |
 
@@ -71,7 +71,7 @@ Before calling a change done, go through the items that apply.
 - Set it (in `finish`, or `count_events`, in `sqpopt_module.F90`).
 - Add it to the printed summary if it is useful there.
 - Add a row to the guide's Results table.
-- If it's useful from Python, return it through the bindings: add it to `iinfo`/`rinfo` in `python/sqpopt/fortran/sqpopt_python_core.f90` (and their sizes in `sqpopt_python_n_info`), and to the `OptimizeResult` in `python/sqpopt/_minimize.py`.
+- If it's useful from Python, return it through the bindings: add it to `iinfo`/`rinfo` in `python/sqpopt/fortran/sqpopt_python.f90` (and their sizes `sqpopt_python_n_iinfo`/`sqpopt_python_n_rinfo` there, and in `python/sqpopt/fortran/_sqpopt.pyf`), and to the `OptimizeResult` in `python/sqpopt/_minimize.py`.
 
 ### New or renamed status code
 - Add the constant to `sqpopt_types_module.f90`, keeping the numeric grouping: `0–2` success, `1x` limits and user stop, `2x` failures. Add a case to `sqpopt_status_message`.
