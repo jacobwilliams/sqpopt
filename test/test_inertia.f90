@@ -17,6 +17,7 @@ program test_inertia
     use sqpopt_options_module,   only: sqpopt_options_type
     use sqpopt_hessian_module,   only: sqpopt_hessian_type, sqpopt_hessian_exact
     use sqpopt_inertia_module,   only: sqpopt_inertia_type, sqpopt_has_mumps
+    use sqpopt_kkt_module,       only: sqpopt_kkt_type
     use sqpopt_qp_solver_module, only: sqpopt_qp_dense, sqpopt_qp_reduced_hessian
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
     use sqpopt_types_module,     only: sqpopt_success, sqpopt_invalid_input, sqpopt_results_type, sqpopt_sparse_matrix
@@ -48,6 +49,7 @@ program test_inertia
     !! constraint row `J = [1 0]`, for several working sets
 
     type(sqpopt_inertia_type)  :: inertia
+    type(sqpopt_kkt_type)      :: kkt
     type(sqpopt_hessian_type)  :: h
     type(sqpopt_sparse_matrix) :: jac
     logical :: changed, ok
@@ -64,14 +66,15 @@ program test_inertia
     jac%icol  = [1]
     jac%val   = [1.0_wp]
 
-    call inertia%initialize(h, 1, jac%irow, jac%icol, ok)
-    if (.not. (ok .and. inertia%enabled)) error stop 'test_inertia FAILED: MUMPS could not be started'
+    call kkt%initialize(2, 1, jac%irow, jac%icol, ok, hess_irow=h%h_irow, hess_icol=h%h_icol)
+    if (.not. (ok .and. kkt%enabled)) error stop 'test_inertia FAILED: MUMPS could not be started'
+    inertia%enabled = .true.
 
     ! the constraint is in the working set: its null space is the second
     ! variable, where the curvature is -1, so the shift must exceed 1 (and
     ! the shift tried before it, an 8th of it, must not):
-    call inertia%correct(h, jac, [1, 0, 0], changed, ok, n_negative)
-    print '(A,ES10.2,A,I0,A)', 'shift = ', h%shift, ' (', inertia%n_factor, ' factorizations)'
+    call inertia%correct(kkt, h, jac, [1, 0, 0], changed, ok, n_negative)
+    print '(A,ES10.2,A,I0,A)', 'shift = ', h%shift, ' (', kkt%solver%n_factor, ' factorizations)'
     if (.not. (ok .and. changed)) error stop 'test_inertia FAILED: negative curvature not corrected'
     if (n_negative /= 1) error stop 'test_inertia FAILED: wrong number of negative eigenvalues'
     if (.not. (h%shift > 1.0_wp .and. h%shift/8.0_wp <= 1.0_wp)) error stop 'test_inertia FAILED: wrong shift'
@@ -79,50 +82,51 @@ program test_inertia
     shift = h%shift
 
     ! the same working set and shift again: no new factorization
-    n_factor0 = inertia%n_factor
-    call inertia%correct(h, jac, [-1, 0, 0], changed, ok)
-    if (.not. ok .or. changed .or. inertia%n_factor /= n_factor0) error stop 'test_inertia FAILED: outcome not reused'
+    n_factor0 = kkt%solver%n_factor
+    call inertia%correct(kkt, h, jac, [-1, 0, 0], changed, ok)
+    if (.not. ok .or. changed .or. kkt%solver%n_factor /= n_factor0) error stop 'test_inertia FAILED: outcome not reused'
 
     ! new matrices: the search restarts from a third of the last shift
     ! (two factorizations: the zero shift, then that one, which is enough)
-    call inertia%new_matrices()
+    call kkt%new_matrices()
     h%shift = 0.0_wp
-    call inertia%correct(h, jac, [1, 0, 0], changed, ok)
-    if (.not. (ok .and. changed) .or. inertia%n_factor /= n_factor0 + 2) error stop 'test_inertia FAILED: restart'
+    call inertia%correct(kkt, h, jac, [1, 0, 0], changed, ok)
+    if (.not. (ok .and. changed) .or. kkt%solver%n_factor /= n_factor0 + 2) error stop 'test_inertia FAILED: restart'
     if (abs(h%shift - shift/3.0_wp) > 1.0e-12_wp) error stop 'test_inertia FAILED: restart shift'
 
     ! the second variable is at a bound of the working set: nothing is left
     ! of the null space, so no shift is needed
-    call inertia%new_matrices()
+    call kkt%new_matrices()
     h%shift = 0.0_wp
-    call inertia%correct(h, jac, [1, 0, 1], changed, ok, n_negative)
+    call inertia%correct(kkt, h, jac, [1, 0, 1], changed, ok, n_negative)
     if (.not. ok .or. changed .or. n_negative /= 0) error stop 'test_inertia FAILED: variable at a bound'
 
     ! an empty working set: the Hessian itself is indefinite
-    call inertia%correct(h, jac, [0, 0, 0], changed, ok, n_negative)
+    call inertia%correct(kkt, h, jac, [0, 0, 0], changed, ok, n_negative)
     if (.not. (ok .and. changed) .or. n_negative /= 1 .or. .not. h%shift > 1.0_wp) then
         error stop 'test_inertia FAILED: empty working set'
     end if
 
     ! a shift that may not exceed shift_max can't correct it
-    call inertia%new_matrices()
+    call kkt%new_matrices()
     h%shift     = 0.0_wp
     h%shift_max = 0.5_wp
-    call inertia%correct(h, jac, [1, 0, 0], changed, ok)
+    call inertia%correct(kkt, h, jac, [1, 0, 0], changed, ok)
     if (ok .or. .not. changed .or. h%shift /= 0.5_wp) error stop 'test_inertia FAILED: shift_max'
     h%shift_max = 1.0e10_wp
 
     ! zero curvature (a singular KKT matrix) is not negative curvature
-    call inertia%new_matrices()
+    call kkt%new_matrices()
     call h%set_values([1.0_wp, 0.0_wp], decay=.false.)
     h%shift = 0.0_wp
-    call inertia%correct(h, jac, [1, 0, 0], changed, ok, n_negative)
+    call inertia%correct(kkt, h, jac, [1, 0, 0], changed, ok, n_negative)
     if (.not. ok .or. changed .or. n_negative /= 0) error stop 'test_inertia FAILED: zero curvature'
 
-    call inertia%destroy()
-    if (inertia%enabled .or. inertia%n_factor /= 0) error stop 'test_inertia FAILED: destroy'
-    call inertia%correct(h, jac, [1, 0, 0], changed, ok)
-    if (ok .or. changed) error stop 'test_inertia FAILED: correction after destroy'
+    ! without the KKT matrix, a correction does nothing, and inertia control turns itself off
+    call kkt%destroy()
+    if (kkt%enabled .or. kkt%solver%n_factor /= 0) error stop 'test_inertia FAILED: destroy'
+    call inertia%correct(kkt, h, jac, [1, 0, 0], changed, ok)
+    if (ok .or. changed .or. inertia%enabled) error stop 'test_inertia FAILED: correction after destroy'
 
     print '(A)', 'test_inertia [correction] PASSED'
 

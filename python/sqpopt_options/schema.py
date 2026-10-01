@@ -264,6 +264,16 @@ def _exact_used(values: dict) -> str | None:
     return None
 
 
+def _inertia_used(values: dict) -> str | None:
+    if get_value(values, ('options', 'hessian_mode')) not in (2, 3):
+        return 'only used with hessian_mode = sqpopt_hessian_exact or sqpopt_hessian_sr1'
+    return None
+
+
+def _direct_qp_used(values: dict) -> str | None:
+    return None if get_value(values, ('options', 'direct_qp')) else 'not used unless options%direct_qp'
+
+
 def _phase_used(values: dict) -> str | None:
     if get_value(values, ('options', 'restoration_mode')) != 1:
         return 'only used with restoration_mode = sqpopt_restoration_phase'
@@ -417,13 +427,15 @@ TOPICS: tuple[Topic, ...] = (
                "positive definite while still using the new curvature information. If off, such updates are "
                "skipped instead."),
         ), relevance=_quasi_newton_used),
-        Section('Exact Hessian', (
+        Section('Inertia control (a build with MUMPS)', (
             _o('options%inertia_control', 'bool', False,
-               'Find the shift δ from the inertia of the KKT matrix of the QP\'s working set, by a sparse LDLᵀ '
-               'factorization (MUMPS): the smallest shift tried that leaves no negative curvature, instead of '
-               'the one found by re-solving the QP with a shift 10 times larger whenever it finds negative '
-               'curvature. It needs a library built with MUMPS (the HAS_MUMPS preprocessor directive), and is '
-               'invalid without it.'),
+               'With the exact or the SR1 Hessian, which can be indefinite: find the shift δ of H + δI from the '
+               'inertia of the KKT matrix of the QP\'s working set, by a sparse LDLᵀ factorization (MUMPS): the '
+               'smallest shift tried that leaves no negative curvature. Without it, the exact Hessian is shifted '
+               'tenfold whenever a QP finds negative curvature, and SR1 is not corrected at all. It needs a '
+               'library built with MUMPS (the HAS_MUMPS preprocessor directive), and is invalid without it.'),
+        ), relevance=_inertia_used),
+        Section('Exact Hessian', (
             _positive('hessian%shift_min', 1e-4,
                       'The smallest nonzero shift δ of the inertia correction H + δI, relative to '
                       'max(1, max|Hᵢⱼ|).'),
@@ -432,6 +444,27 @@ TOPICS: tuple[Topic, ...] = (
     )),
 
     Topic('QP solver', 'The QP subproblem solvers (qp_solver_mode is on the Algorithms page).', (
+        Section('Direct method (a build with MUMPS)', (
+            _o('options%direct_qp', 'bool', False,
+               'First try to solve each QP subproblem directly, by sparse factorizations of the KKT matrix of '
+               'its working set, starting from the working set of the previous QP. The active-set QP solver is '
+               'only run if that fails. Meant for large problems, where it can be orders of magnitude faster; '
+               'with the exact Hessian, use it with inertia_control. With L-BFGS, a short memory (lbfgs_memory '
+               'about 10) keeps it cheap. It needs a library built with MUMPS (the HAS_MUMPS preprocessor '
+               'directive), and is invalid without it.'),
+            _o('options%direct_least_squares', 'bool', False,
+               'Compute the Gauss-Newton restoration steps and the second-order corrections by a sparse '
+               'factorization instead of the iterative LSQR. It needs a library built with MUMPS, and is invalid '
+               'without it.'),
+        )),
+        Section('Direct method settings', (
+            _o('qp_solver%direct_max_changes', 'int', 10,
+               'The direct method gives up, and the active-set QP solver is run, after this many changes of the '
+               'working set (each is a factorization) without reaching the QP\'s solution.', minimum=0),
+            _positive('qp_solver%direct_tol', 1e-8,
+                      'The direct method\'s relative tolerance for a violated row or bound, and for the sign of a '
+                      'multiplier.'),
+        ), relevance=_direct_qp_used),
         Section('General', (
             _o('qp_solver%auto_dense_max_n', 'int', 200,
                'With qp_solver_mode = automatic, the dense QP solver is used for problems with at most this many '

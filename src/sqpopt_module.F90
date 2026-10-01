@@ -8,8 +8,9 @@
 !  The other components of the algorithm (problem definition, options,
 !  Hessian approximation, QP subproblem solvers, line search, merit
 !  function, filter and funnel, trust region, feasibility restoration,
-!  second-order correction, convergence checking, inertia control, and the
-!  detailed log)
+!  second-order correction, convergence checking, the optional sparse
+!  factorizations (inertia control, direct QP steps, and direct
+!  least-squares solves), and the detailed log)
 !  are each implemented in their own module so that they may be
 !  developed, tested, and swapped out independently. Internally, sparse
 !  (COO) storage is used for the constraint Jacobian, and the Hessian of
@@ -42,7 +43,10 @@
                                           sqpopt_restoration_gauss_newton
     use sqpopt_iterate_module,    only: sqpopt_iterate, sqpopt_evaluate_point, sqpopt_iter_info
     use sqpopt_log_module,        only: sqpopt_log_type, sqpopt_log_detail, fmt_e, fmt_i, plural
-    use sqpopt_inertia_module,    only: sqpopt_inertia_type, sqpopt_has_mumps
+    use sqpopt_inertia_module,    only: sqpopt_inertia_type
+    use sqpopt_kkt_module,        only: sqpopt_kkt_type
+    use sqpopt_least_squares_module,    only: sqpopt_least_squares_type
+    use sqpopt_symmetric_solver_module, only: sqpopt_has_mumps
 
     implicit none
 
@@ -166,9 +170,13 @@
     integer(int64) :: t_start, t_now, t_rate
     character(len=:), allocatable :: msg
     type(sqpopt_restoration_type) :: fresh_restoration !! (default-initialized)
-    type(sqpopt_inertia_type) :: inertia !! inertia control of the exact Hessian (see `options%inertia_control`;
-                                         !! freed by `finish`)
-    logical :: inertia_ok
+    ! the optional sparse factorizations (a build with MUMPS). They live for one solve, and are freed by `finish`:
+    type(sqpopt_kkt_type)     :: kkt     !! the KKT matrix of the QP's working set (see `options%inertia_control`
+                                         !! and `options%direct_qp`)
+    type(sqpopt_inertia_type) :: inertia !! inertia control of the exact Hessian (see `options%inertia_control`)
+    type(sqpopt_least_squares_type) :: least_squares !! direct least-squares solver (see
+                                                     !! `options%direct_least_squares`)
+    logical :: started
 
     call system_clock(t_start, t_rate)
     valid = .false.
@@ -235,11 +243,26 @@
                                 scale0=me%options%hessian_scale0)
     if (me%options%hessian_mode == sqpopt_hessian_exact) then
         call me%hessian%set_exact(me%problem%hess_irow, me%problem%hess_icol)
-        ! (if MUMPS can't be started, the solve continues without inertia control)
-        if (me%options%inertia_control) call inertia%initialize(me%hessian, me%problem%m, me%problem%jac_irow, &
-                                                                 me%problem%jac_icol, inertia_ok)
+    end if
+    ! the optional sparse factorizations (if the sparse solver can't be
+    ! started, the solve continues without them):
+    if (me%options%hessian_mode == sqpopt_hessian_exact) then
+        if (me%options%inertia_control .or. me%options%direct_qp) then
+            call kkt%initialize(me%problem%n, me%problem%m, me%problem%jac_irow, me%problem%jac_icol, started, &
+                                hess_irow=me%problem%hess_irow, hess_icol=me%problem%hess_icol)
+        end if
+        inertia%enabled = me%options%inertia_control .and. kkt%enabled
+    else if (me%options%direct_qp .or. (me%options%inertia_control .and. me%options%hessian_mode == sqpopt_hessian_sr1)) then
+        ! (a quasi-Newton Hessian has no sparsity pattern: see [[sqpopt_kkt_module]])
+        call kkt%initialize(me%problem%n, me%problem%m, me%problem%jac_irow, me%problem%jac_icol, started)
+        ! (the BFGS matrix is positive definite: only SR1 needs the inertia control)
+        inertia%enabled = me%options%inertia_control .and. me%options%hessian_mode == sqpopt_hessian_sr1 .and. kkt%enabled
+    end if
+    if (me%options%direct_least_squares .and. me%problem%m > 0) then
+        call least_squares%initialize(me%problem%n, me%problem%m, me%problem%jac_irow, me%problem%jac_icol, started)
     end if
     me%qp_solver%mode        = me%options%qp_solver_mode
+    me%qp_solver%direct      = me%options%direct_qp .and. kkt%enabled
     me%linesearch%mode       = me%options%linesearch_mode
     me%linesearch%merit%mode           = me%options%merit_mode
     me%linesearch%merit%penalty_update = me%options%penalty_update
@@ -269,7 +292,7 @@
         n_fc0 = me%problem%n_eval_fc
         call sqpopt_iterate(me%problem, me%options, me%hessian, me%qp_solver, me%linesearch, me%trust_region, &
                              me%x, me%lambda, x_prev, gl_prev, f_prev, viol_prev, jac, n_acceptable, n_stalled, n_escape, &
-                             me%restoration, inertia, iter, me%report, &
+                             me%restoration, inertia, kkt, least_squares, iter, me%report, &
                              done, iter_istat, info)
         info%n_fc = me%problem%n_eval_fc - n_fc0
         call count_events()
@@ -355,8 +378,12 @@
         me%results%time = real(t_now-t_start, wp)/real(t_rate, wp)
         me%results%time_functions = me%problem%time_user
         me%results%time_qp        = me%qp_solver%time
-        me%results%n_factorizations = inertia%n_factor
-        call inertia%destroy()
+        me%results%n_qp_solves    = me%qp_solver%n_solves
+        me%results%n_direct_qp    = me%qp_solver%n_direct
+        me%results%n_factorizations   = kkt%solver%n_factor + least_squares%kkt%solver%n_factor
+        me%results%time_factorization = kkt%solver%time + least_squares%kkt%solver%time
+        call kkt%destroy()
+        call least_squares%destroy()
 
         ! (not for invalid inputs, which may include `output_unit` itself)
         if (valid .and. me%options%print_level >= 1) call print_summary()
@@ -515,9 +542,22 @@
         select case (me%options%hessian_mode)
         case (sqpopt_hessian_exact)
             hess = 'exact Hessian'
-            if (inertia%enabled) hess = hess//' (inertia control)'
-        case (sqpopt_hessian_sr1);   hess = 'L-SR1 Hessian ('//fmt_i(me%hessian%max_history)//' pairs)'
-        case default;                hess = 'L-BFGS Hessian ('//fmt_i(me%hessian%max_history)//' pairs)'
+            if (inertia%enabled .and. me%qp_solver%direct) then
+                hess = hess//' (inertia control, direct QP)'
+            else if (inertia%enabled) then
+                hess = hess//' (inertia control)'
+            else if (me%qp_solver%direct) then
+                hess = hess//' (direct QP)'
+            end if
+        case (sqpopt_hessian_sr1)
+            hess = 'L-SR1 Hessian ('//fmt_i(me%hessian%max_history)//' pairs'
+            if (inertia%enabled) hess = hess//', inertia control'
+            if (me%qp_solver%direct) hess = hess//', direct QP'
+            hess = hess//')'
+        case default
+            hess = 'L-BFGS Hessian ('//fmt_i(me%hessian%max_history)//' pairs'
+            if (me%qp_solver%direct) hess = hess//', direct QP'
+            hess = hess//')'
         end select
         str = glob//', '//me%qp_solver%mode_name(me%problem%n)//', '//hess
         if (me%problem%m > 0) then
@@ -526,6 +566,7 @@
             else
                 str = str//', Gauss-Newton restoration steps'
             end if
+            if (least_squares%enabled) str = str//', direct least squares'
         end if
         end function method_text
 
@@ -674,7 +715,12 @@
             write(u, '(A,2(I0,A))', iostat=ios) '   evaluations         = ', &
                   me%results%n_eval_fc, ' fc, ', me%results%n_eval_gjac, ' gjac'
         end if
-        write(u, '(A,I0)', iostat=ios)      '   QP iterations       = ', me%results%n_qp_iterations
+        if (me%results%n_direct_qp > 0) then
+            write(u, '(A,3(I0,A))', iostat=ios) '   QP iterations       = ', me%results%n_qp_iterations, ' (', &
+                                   me%results%n_direct_qp, ' of ', me%results%n_qp_solves, ' QPs solved directly)'
+        else
+            write(u, '(A,I0)', iostat=ios)  '   QP iterations       = ', me%results%n_qp_iterations
+        end if
         if (me%results%n_factorizations > 0) then
             write(u, '(A,I0)', iostat=ios)  '   factorizations      = ', me%results%n_factorizations
         end if
@@ -691,10 +737,18 @@
         end if
         if (len(events) == 0) events = 'none'
         write(u, '(A)', iostat=ios)         '   events              = '//events
-        t_other = max(0.0_wp, me%results%time - me%results%time_functions - me%results%time_qp)
-        write(u, '(A)', iostat=ios)         '   time                = '//fmt_f(me%results%time)//' s (user functions '// &
-                               fmt_f(me%results%time_functions)//' s, QP '//fmt_f(me%results%time_qp)// &
-                               ' s, other '//fmt_f(t_other)//' s)'
+        t_other = max(0.0_wp, me%results%time - me%results%time_functions - me%results%time_qp &
+                              - me%results%time_factorization)
+        if (me%results%n_factorizations > 0) then
+            write(u, '(A)', iostat=ios)     '   time                = '//fmt_f(me%results%time)//' s (user functions '// &
+                                   fmt_f(me%results%time_functions)//' s, QP '//fmt_f(me%results%time_qp)// &
+                                   ' s, factorizations '//fmt_f(me%results%time_factorization)// &
+                                   ' s, other '//fmt_f(t_other)//' s)'
+        else
+            write(u, '(A)', iostat=ios)     '   time                = '//fmt_f(me%results%time)//' s (user functions '// &
+                                   fmt_f(me%results%time_functions)//' s, QP '//fmt_f(me%results%time_qp)// &
+                                   ' s, other '//fmt_f(t_other)//' s)'
+        end if
         if (me%options%print_level >= sqpopt_log_detail) call print_solution()
         write(u, '(A)', iostat=ios) ''
         end subroutine print_summary
@@ -884,8 +938,9 @@
               'and its sparsity pattern (set_hessian_sparsity)'
         return
     end if
-    if (o%inertia_control .and. .not. sqpopt_has_mumps) then
-        msg = 'options%inertia_control requires a library built with MUMPS (the HAS_MUMPS preprocessor directive)'
+    if ((o%inertia_control .or. o%direct_qp .or. o%direct_least_squares) .and. .not. sqpopt_has_mumps) then
+        msg = 'options%inertia_control, direct_qp, and direct_least_squares require a library built with MUMPS '// &
+              '(the HAS_MUMPS preprocessor directive)'
         return
     end if
     if (all(o%qp_solver_mode /= [sqpopt_qp_auto, sqpopt_qp_dense, sqpopt_qp_reduced_hessian])) then
@@ -1005,6 +1060,10 @@
     ! ---- QP solver ----
     if (.not. qp%max_step > 0.0_wp .or. qp%auto_dense_max_n < 0) then
         msg = 'qp_solver%max_step must be > 0, and auto_dense_max_n >= 0'
+        return
+    end if
+    if (qp%direct_max_changes < 0 .or. .not. qp%direct_tol > 0.0_wp) then
+        msg = 'qp_solver%direct_max_changes must be >= 0, and direct_tol > 0'
         return
     end if
     associate (d => qp%dense_qp, r => qp%sparse_qp)

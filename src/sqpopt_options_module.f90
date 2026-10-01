@@ -36,13 +36,34 @@
                                                    !! their bounds, multipliers, and which are active)
         integer  :: output_unit       = output_unit !! Fortran unit for the printed output (default: standard output)
         integer  :: hessian_mode      = sqpopt_hessian_bfgs !! Hessian approximation strategy to use
-        logical  :: inertia_control   = .false.   !! with `hessian_mode = sqpopt_hessian_exact`: find the shift of an
-                                                   !! indefinite Hessian from the inertia of the KKT matrix, by a
-                                                   !! sparse factorization (see [[sqpopt_inertia_module]]), instead
-                                                   !! of from the QP solver's tests alone. It needs a library built
-                                                   !! with MUMPS (the `HAS_MUMPS` preprocessor directive, see
-                                                   !! `sqpopt_has_mumps`), and is invalid without it. It is not used
-                                                   !! with the other Hessian modes
+        logical  :: inertia_control   = .false.   !! with `hessian_mode = sqpopt_hessian_exact` or
+                                                   !! `sqpopt_hessian_sr1` (the Hessians that can be indefinite):
+                                                   !! find the shift \( \delta \) that makes \( H + \delta I \)
+                                                   !! convex on the QP's working set from the inertia of the KKT
+                                                   !! matrix, by a sparse factorization (see
+                                                   !! [[sqpopt_inertia_module]]). Without it, the exact Hessian's
+                                                   !! shift comes from the QP solver's tests alone, and SR1 is not
+                                                   !! corrected. It needs a library built with MUMPS (the
+                                                   !! `HAS_MUMPS` preprocessor directive, see `sqpopt_has_mumps`),
+                                                   !! and is invalid without it. It is not used with BFGS, which is
+                                                   !! positive definite
+        logical  :: direct_qp         = .false.   !! first try to solve each QP subproblem directly, by sparse
+                                                   !! factorizations of the KKT matrix of its working set, starting
+                                                   !! from the working set of the previous QP (see
+                                                   !! [[sqpopt_qp_direct_module]]); the active-set QP solver is
+                                                   !! only run if that doesn't give the solution after a few
+                                                   !! changes of the working set (`qp_solver%direct_max_changes`).
+                                                   !! Meant for large problems, where the active-set solvers take
+                                                   !! most of the time. With the exact Hessian, use it with
+                                                   !! `inertia_control`. With a quasi-Newton Hessian, each
+                                                   !! factorization costs two more solves per stored pair, so a
+                                                   !! short memory (`lbfgs_memory` about 10) is best. It needs a
+                                                   !! library built with MUMPS, and is invalid without it
+        logical  :: direct_least_squares = .false. !! compute the Gauss-Newton restoration steps and the
+                                                   !! second-order corrections by a sparse factorization instead
+                                                   !! of the iterative `LSQR` (see
+                                                   !! [[sqpopt_least_squares_module]]), with any Hessian mode. It
+                                                   !! needs a library built with MUMPS, and is invalid without it
         integer  :: lbfgs_memory      = 0         !! number of `(s,y)` vector pairs retained by the limited-memory
                                                    !! Hessian approximation. `0` (the default) picks it from the problem
                                                    !! size `n`: \( \max(10, \min(n, 100)) \) -- more pairs help the

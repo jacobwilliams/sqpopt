@@ -16,8 +16,9 @@
 #
 # With --mumps, the library is built with MUMPS (the HAS_MUMPS preprocessor
 # directive, which needs the sequential MUMPS library of the pixi
-# environment), and the table gets a row for the exact Hessian with inertia
-# control (options%inertia_control). The other rows don't depend on MUMPS.
+# environment), and the table gets rows for the options that use it
+# (options%inertia_control and options%direct_qp). The other rows don't
+# depend on MUMPS.
 #
 # Each run takes about a second (release build). The per-run Markdown
 # reports are left in a temporary directory, printed at the end.
@@ -63,6 +64,9 @@ if [[ $mumps == 1 ]]; then
         with_inertia+=("$row")
         if [[ "$row" == *"|--hessian=exact" ]]; then
             with_inertia+=("filter, exact Hessian with inertia control (MUMPS)|filter, exact Hessian with inertia control (MUMPS)|--hessian=exact --inertia")
+            with_inertia+=("filter, exact Hessian with inertia control and direct QP (MUMPS)|filter, exact Hessian with inertia control and direct QP (MUMPS)|--hessian=exact --inertia --direct")
+            with_inertia+=("filter, L-SR1 with inertia control (MUMPS)|filter, L-SR1 with inertia control (MUMPS)|--hessian=sr1 --inertia")
+            with_inertia+=("filter, L-BFGS with direct QP (MUMPS)|filter, L-BFGS with direct QP (MUMPS)|--direct")
         fi
     done
     rows=("${with_inertia[@]}")

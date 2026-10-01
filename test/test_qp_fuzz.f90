@@ -24,24 +24,37 @@ program test_qp_fuzz
     !!   warm-started from the first solve's final working set, and both
     !!   solutions must pass the checks.
     !!
+    !! In a build with MUMPS, the same kinds of QPs are then given to the
+    !! direct method ([[direct_qp_step]], with the quasi-Newton Hessian's
+    !! low-rank form in the KKT matrix). It may give up (it must, on the
+    !! infeasible QPs, and on a nonconvex face), but whenever it reports a
+    !! solution, that must pass the same checks; and it must solve most of the
+    !! convex QPs.
+    !!
     !! The random sequence is fixed (seeded), so failures are reproducible.
 
     use sqpopt_hessian_module,            only: sqpopt_hessian_type
     use sqpopt_qp_dense_module,           only: sqpopt_dense_qp_type
     use sqpopt_qp_reduced_hessian_module, only: sqpopt_reduced_hessian_qp_type, sqpopt_null_space_lu, sqpopt_null_space_lsqr
     use sqpopt_types_module,              only: sqpopt_sparse_matrix, sqpopt_success, sqpopt_infeasible, sqpopt_infinity
+    use sqpopt_kkt_module,                only: sqpopt_kkt_type
+    use sqpopt_qp_direct_module,          only: direct_qp_step, sqpopt_direct_solved
+    use sqpopt_symmetric_solver_module,   only: sqpopt_has_mumps
     use sqpopt_kinds,                     only: wp => sqpopt_module_wp
 
     implicit none
 
     integer, parameter :: n_trials = 400
-    integer, parameter :: solver_dense = 1, solver_rh = 2, solver_rh_lsqr = 3
+    integer, parameter :: solver_dense = 1, solver_rh = 2, solver_rh_lsqr = 3, solver_direct = 4
 
-    integer :: trial, solver, kind, n_fail(3), n_run(3)
+    integer :: trial, solver, kind, n_fail(4), n_run(4)
+    integer :: n_direct_convex !! convex, feasible QPs given to the direct method
+    integer :: n_direct_solved !! of which, it solved
+    logical :: direct_solved   !! whether the direct method solved the current trial (set by `run_trial`)
     logical :: trial_ok                          !! result of the current trial (set by `fail`)
     character(len=:), allocatable :: trial_why   !! why the current trial failed
-    character(len=*), parameter :: solver_name(3) = ['dense                 ', 'reduced-Hessian (LU)  ', &
-                                                     'reduced-Hessian (LSQR)']
+    character(len=*), parameter :: solver_name(4) = ['dense                 ', 'reduced-Hessian (LU)  ', &
+                                                     'reduced-Hessian (LSQR)', 'direct                ']
 
     write(*,*) '----------------------------'
     write(*,*) 'test_qp_fuzz'
@@ -61,10 +74,31 @@ program test_qp_fuzz
         end do
     end do
 
-    do solver = solver_dense, solver_rh_lsqr
+    ! the direct method (after the others, so that they get the same QPs in both builds):
+    n_direct_convex = 0
+    n_direct_solved = 0
+    if (sqpopt_has_mumps) then
+        do trial = 1, n_trials
+            kind = 1 + mod(trial-1, 8)
+            n_run(solver_direct) = n_run(solver_direct) + 1
+            if (.not. run_trial(trial, kind, solver_direct)) n_fail(solver_direct) = n_fail(solver_direct) + 1
+            if (kind <= 6) then
+                n_direct_convex = n_direct_convex + 1
+                if (direct_solved) n_direct_solved = n_direct_solved + 1
+            end if
+        end do
+    end if
+
+    do solver = solver_dense, solver_direct
+        if (n_run(solver) == 0) cycle
         print '(A,A,A,I0,A,I0)', 'solver ', trim(solver_name(solver)), ': failures = ', n_fail(solver), ' / ', n_run(solver)
     end do
+    if (sqpopt_has_mumps) print '(A,I0,A,I0,A)', 'the direct method solved ', n_direct_solved, ' of the ', n_direct_convex, &
+                                                 ' convex QPs'
     if (any(n_fail > 0)) error stop 'test_qp_fuzz FAILED'
+    if (sqpopt_has_mumps .and. 2*n_direct_solved < n_direct_convex) then
+        error stop 'test_qp_fuzz FAILED: the direct method solved fewer than half of the convex QPs'
+    end if
     print '(A)', 'test_qp_fuzz PASSED'
 
     contains
@@ -100,7 +134,8 @@ program test_qp_fuzz
     !! warm-started), and check the KKT conditions; `.false.` if a check failed
     integer, intent(in) :: trial  !! trial number
     integer, intent(in) :: kind   !! the kind of QP: 1-6 convex and feasible (various degeneracies), 7 nonconvex, 8 infeasible
-    integer, intent(in) :: solver !! which solver: `solver_dense`, `solver_rh` (LU), or `solver_rh_lsqr`
+    integer, intent(in) :: solver !! which solver: `solver_dense`, `solver_rh` (LU), `solver_rh_lsqr`, or
+                                  !! `solver_direct`
 
     integer :: n, m, i, j, k
     real(wp), dimension(:,:), allocatable :: jd, bd, a
@@ -109,6 +144,10 @@ program test_qp_fuzz
     type(sqpopt_sparse_matrix) :: jac
     type(sqpopt_dense_qp_type) :: dense_qp
     type(sqpopt_reduced_hessian_qp_type) :: rh_qp
+    type(sqpopt_kkt_type) :: kkt
+    integer, dimension(:), allocatable :: status
+    integer :: n_changes, outcome
+    logical :: started
     integer :: istat, pass
     real(wp) :: tol, scale
     logical :: nonconvex, infeasible
@@ -242,8 +281,26 @@ program test_qp_fuzz
     zero_m = 0.0_wp
     trial_ok  = .true.
     trial_why = ''
+    direct_solved = .false.
+    if (solver == solver_direct) then
+        ! (the starting working set: the equality rows and the fixed variables)
+        call kkt%initialize(n, m, jac%irow, jac%icol, started)
+        if (.not. started) error stop 'test_qp_fuzz FAILED: the KKT matrix could not be set up'
+        allocate(status(m+n))
+        status = 0
+        where (c_ub - c_lb <= 0.0_wp) status(1:m) = -1
+        where (x_ub - x_lb <= 0.0_wp) status(m+1:) = -1
+    end if
     do pass = 1, 2   ! (pass 2 is warm-started from pass 1's working set)
-    if (solver == solver_dense) then
+    if (solver == solver_direct) then
+        call direct_qp_step(kkt, hess, jac, zero_n, g, zero_m, x_lb, x_ub, c_lb, c_ub, 10, 1.0e-8_wp, &
+                            status, p, lambda, n_changes, outcome)
+        if (outcome /= sqpopt_direct_solved) exit   ! (it gave up: nothing to check)
+        if (pass == 2 .and. n_changes /= 0) call fail('the solution''s working set needed changes')
+        direct_solved = .true.
+        istat = sqpopt_success
+        tol = 1.0e-6_wp
+    else if (solver == solver_dense) then
         call dense_qp%solve(hess, jac, zero_n, g, zero_m, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
         tol = 1.0e-6_wp
     else
@@ -286,6 +343,8 @@ program test_qp_fuzz
         exit
     end if
     end do
+
+    if (solver == solver_direct) call kkt%destroy()
 
     ok = trial_ok
     if (.not. ok) print '(A,I0,A,I0,A,A,A,I0,A,I0,A,I0,2A)', 'trial ', trial, ' (kind ', kind, ', ', &

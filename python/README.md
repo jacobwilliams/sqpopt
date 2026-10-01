@@ -78,8 +78,9 @@ an `OptimizeResult`.
   * `z`: the variable-bound multipliers;
   * `constr_violation`, `kkt_error`, `stationarity_error`, and
     `execution_time`;
-  * `n_qp_iterations`, `derivative_switch_iteration`, and
-    `n_factorizations` (of the inertia control, see below).
+  * `n_qp_iterations`, `derivative_switch_iteration`, `n_factorizations`,
+    `n_qp_solves`, and `n_direct_qp` (the last three for the options that use
+    sparse factorizations, see below).
 
   The multipliers are those of the Lagrangian `f - vᵀc - zᵀx`.
 * **Exceptions.** An exception raised by a user function stops the solver
@@ -96,9 +97,10 @@ pixi run build-python     # builds python/sqpopt/_sqpopt*.so
 pixi run test-python      # all the Python tests
 ```
 
-The `inertia_control` option (for the exact Hessian) needs an extension
-built with MUMPS, which `mumps-seq` in the pixi environment provides.
-Without it, a solve with that option returns the invalid-input status.
+The options that use sparse factorizations (`inertia_control`, `direct_qp`,
+and `direct_least_squares`) need an extension built with MUMPS, which
+`mumps-seq` in the pixi environment provides. Without it, a solve with one
+of them returns the invalid-input status.
 
 ```sh
 pixi run build-python-mumps

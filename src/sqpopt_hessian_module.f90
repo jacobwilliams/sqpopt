@@ -37,10 +37,25 @@
 !  iteration needs is instead found from a factorization (see
 !  [[sqpopt_inertia_module]]), and only the increases after a failed step
 !  or a run of very short ones are carried over to the next iteration.
+!
+!  **For the sparse factorizations** (see [[sqpopt_kkt_module]]), the
+!  quasi-Newton matrix is available in its compact form, a multiple of the
+!  identity plus a matrix of low rank `r`:
+!
+!  $$ B = \theta I + \sigma\, U M^{-1} U^T $$
+!
+!  with \( U = [\theta S \; Y] \), \( \sigma = -1 \) (BFGS, `r = 2k`) or
+!  \( U = Y - \theta S \), \( \sigma = +1 \) (SR1, `r = k`), and the middle
+!  matrix \( M \) of [[factor_middle_matrix]]: see [[hessian_low_rank_size]],
+!  [[hessian_low_rank_multiply]], [[hessian_low_rank_column]], and
+!  [[hessian_low_rank_middle]]. The shift
+!  \( \delta I \) also applies to the quasi-Newton matrices (it is zero
+!  unless the inertia control sets it, for SR1).
 
     module sqpopt_hessian_module
 
     use sqpopt_kinds, only: wp => sqpopt_module_wp
+    use sqpopt_dense_linalg_module, only: lu_factor => dense_lu_factor, lu_solve => dense_lu_solve
 
     implicit none
 
@@ -81,7 +96,8 @@
         logical  :: exact = .false. !! if true, use the user's sparse Hessian (see [[hessian_set_exact]])
         real(wp) :: shift_min = 1.0e-4_wp !! smallest nonzero shift, relative to \( \max(1,\max|H_{ij}|) \)
         real(wp) :: shift_max = 1.0e10_wp !! largest shift, relative to the same
-        real(wp) :: shift = 0.0_wp  !! the current shift \( \delta \)
+        real(wp) :: shift = 0.0_wp  !! the current shift \( \delta \) (added to the diagonal in every mode; in the
+                                    !! quasi-Newton modes it is zero unless the inertia control sets it)
         integer, dimension(:), allocatable :: h_irow !! sparsity pattern: row indices
         integer, dimension(:), allocatable :: h_icol !! sparsity pattern: column indices
         real(wp), dimension(:), allocatable :: h_val !! current nonzero values
@@ -108,6 +124,11 @@
         procedure, public :: set_exact               => hessian_set_exact
         procedure, public :: set_values              => hessian_set_values
         procedure, public :: magnitude               => hessian_size
+        procedure, public :: low_rank_size           => hessian_low_rank_size
+        procedure, public :: low_rank_multiply       => hessian_low_rank_multiply
+        procedure, public :: low_rank_column         => hessian_low_rank_column
+        procedure, public :: low_rank_multiply_transpose => hessian_low_rank_multiply_transpose
+        procedure, public :: low_rank_middle         => hessian_low_rank_middle
 
     end type sqpopt_hessian_type
 
@@ -335,7 +356,7 @@
 
     k = me%n_history
     theta = 1.0_wp/me%gamma
-    hv = theta*v
+    hv = (theta + me%shift)*v
     if (k == 0) return
 
     if (.not. me%mid_valid) call factor_middle_matrix(me)
@@ -404,12 +425,12 @@
 
     k = me%n_history
     theta = 1.0_wp/me%gamma
-    d = theta
+    d = theta + me%shift
     if (k == 0) return
     if (.not. me%mid_valid) call factor_middle_matrix(me)
     if (.not. me%mid_ok) return
     if (me%diag_valid) then
-        d = me%diag
+        d = me%diag + me%shift
         return
     end if
 
@@ -430,9 +451,9 @@
         call lu_solve(me%mid_lu, me%mid_piv, minv(:,j))
     end do
     pm = matmul(psi, minv)
-    d = theta + merge(1.0_wp, -1.0_wp, me%use_sr1)*sum(psi*pm, dim=2)
-    me%diag = d
+    me%diag = theta + merge(1.0_wp, -1.0_wp, me%use_sr1)*sum(psi*pm, dim=2)
     me%diag_valid = .true.
+    d = me%diag + me%shift
 
     end subroutine hessian_diagonal
 !*******************************************************************************
@@ -504,9 +525,14 @@
     do j = 1, n
         h(j,j) = 1.0_wp/me%gamma
     end do
-    if (me%n_history == 0) return
-    if (.not. me%mid_valid) call factor_middle_matrix(me)
-    if (.not. me%mid_ok) return  ! (as [[hessian_vector_product]]: the initial scaling)
+    if (me%n_history > 0 .and. .not. me%mid_valid) call factor_middle_matrix(me)
+    if (me%n_history == 0 .or. .not. me%mid_ok) then
+        ! (as [[hessian_vector_product]]: the initial scaling, and the shift)
+        do j = 1, n
+            h(j,j) = h(j,j) + me%shift
+        end do
+        return
+    end if
     allocate(bs(n))
     do k = 1, me%n_history
         c = pair_col(me, k)
@@ -527,6 +553,9 @@
     do j = 2, n
         h(j,1:j-1) = h(1:j-1,j)
     end do
+    do j = 1, n
+        h(j,j) = h(j,j) + me%shift
+    end do
 
     end subroutine hessian_dense
 !*******************************************************************************
@@ -546,41 +575,13 @@
 
     class(sqpopt_hessian_type), intent(inout) :: me
 
-    integer :: k, p, q, cp, cq
-    real(wp) :: theta
+    integer :: nk
 
-    k = me%n_history
-    theta = 1.0_wp/me%gamma
+    nk = merge(me%n_history, 2*me%n_history, me%use_sr1)
     if (allocated(me%mid_lu))  deallocate(me%mid_lu)
     if (allocated(me%mid_piv)) deallocate(me%mid_piv)
-
-    if (me%use_sr1) then
-        allocate(me%mid_lu(k,k), me%mid_piv(k))
-        do p = 1, k
-            cp = pair_col(me, p)
-            do q = 1, k
-                cq = pair_col(me, q)
-                ! s_max(p,q)^T y_min(p,q) covers D (p==q) and L + L^T (p/=q):
-                me%mid_lu(p,q) = me%sy(pair_col(me, max(p,q)), pair_col(me, min(p,q))) - theta*me%ss(cp,cq)
-            end do
-        end do
-    else
-        allocate(me%mid_lu(2*k,2*k), me%mid_piv(2*k))
-        me%mid_lu = 0.0_wp
-        do p = 1, k
-            cp = pair_col(me, p)
-            do q = 1, k
-                cq = pair_col(me, q)
-                me%mid_lu(p,q) = theta*me%ss(cp,cq)                         ! theta*S^T S
-            end do
-            do q = 1, p-1
-                cq = pair_col(me, q)
-                me%mid_lu(p,k+q) = me%sy(cp,cq)                              ! L (upper-right block)
-                me%mid_lu(k+q,p) = me%mid_lu(p,k+q)                          ! L^T (lower-left block)
-            end do
-            me%mid_lu(k+p,k+p) = -me%sy(cp,cp)                               ! -D
-        end do
-    end if
+    allocate(me%mid_lu(nk,nk), me%mid_piv(nk))
+    call middle_matrix(me, me%mid_lu)
 
     call lu_factor(me%mid_lu, me%mid_piv, me%mid_ok)
     me%mid_valid  = .true.
@@ -591,65 +592,170 @@
 
 !*******************************************************************************
 !>
-!  in-place LU factorization with partial pivoting of a small dense
-!  matrix `a` (the order is `2*max_history` at most, independent of `n`).
-!  `ok` is false if a pivot is negligible relative to the matrix's largest
-!  element.
+!  form the middle matrix \( M \) of the compact representation (see
+!  [[factor_middle_matrix]]) for the current pairs and `gamma`, in `a`.
 
-    pure subroutine lu_factor(a, piv, ok)
+    pure subroutine middle_matrix(me, a)
 
-    real(wp), dimension(:,:), intent(inout) :: a   !! matrix, overwritten by its `L` (unit, below the diagonal) and `U` factors
-    integer,  dimension(:),   intent(out)   :: piv !! `piv(p)` is the row swapped with row `p` at step `p`
-    logical,                  intent(out)   :: ok  !! false if `a` is (numerically) singular
+    class(sqpopt_hessian_type), intent(in)  :: me
+    real(wp), dimension(:,:),   intent(out) :: a !! the matrix: `dimension(k,k)` (SR1) or `dimension(2k,2k)` (BFGS)
 
-    integer :: i, p, k2
-    real(wp) :: amax, tol
+    integer :: k, p, q, cp, cq
+    real(wp) :: theta
 
-    k2 = size(a,1)
-    ok = .true.
-    tol = 1.0e-14_wp*max(maxval(abs(a)), tiny(1.0_wp))
-    do p = 1, k2
-        piv(p) = p - 1 + maxloc(abs(a(p:k2,p)), dim=1)
-        amax = abs(a(piv(p),p))
-        if (amax <= tol) then
-            ok = .false.
-            return
-        end if
-        if (piv(p) /= p) a([p,piv(p)],:) = a([piv(p),p],:)
-        do i = p+1, k2
-            a(i,p) = a(i,p)/a(p,p)
-            a(i,p+1:k2) = a(i,p+1:k2) - a(i,p)*a(p,p+1:k2)
+    k = me%n_history
+    theta = 1.0_wp/me%gamma
+
+    if (me%use_sr1) then
+        do p = 1, k
+            cp = pair_col(me, p)
+            do q = 1, k
+                cq = pair_col(me, q)
+                ! s_max(p,q)^T y_min(p,q) covers D (p==q) and L + L^T (p/=q):
+                a(p,q) = me%sy(pair_col(me, max(p,q)), pair_col(me, min(p,q))) - theta*me%ss(cp,cq)
+            end do
         end do
-    end do
+    else
+        a = 0.0_wp
+        do p = 1, k
+            cp = pair_col(me, p)
+            do q = 1, k
+                cq = pair_col(me, q)
+                a(p,q) = theta*me%ss(cp,cq)                         ! theta*S^T S
+            end do
+            do q = 1, p-1
+                cq = pair_col(me, q)
+                a(p,k+q) = me%sy(cp,cq)                              ! L (upper-right block)
+                a(k+q,p) = a(p,k+q)                                  ! L^T (lower-left block)
+            end do
+            a(k+p,k+p) = -me%sy(cp,cp)                               ! -D
+        end do
+    end if
 
-    end subroutine lu_factor
+    end subroutine middle_matrix
 !*******************************************************************************
 
 !*******************************************************************************
 !>
-!  solve \( A x = b \) in place (`b` is overwritten by `x`), given the LU
-!  factors from [[lu_factor]].
+!  the rank `r` of the low-rank part of the compact representation (see the
+!  module documentation): `2k` (BFGS) or `k` (SR1) for `k` stored pairs. It
+!  is `0` when the matrix is just \( \theta I \) (no pairs yet, or a
+!  singular middle matrix, where [[hessian_vector_product]] falls back on
+!  that too), and in exact mode.
 
-    pure subroutine lu_solve(a, piv, b)
+    integer function hessian_low_rank_size(me) result(r)
 
-    real(wp), dimension(:,:), intent(in)    :: a   !! LU factors
-    integer,  dimension(:),   intent(in)    :: piv !! row pivots
-    real(wp), dimension(:),   intent(inout) :: b   !! right-hand side, overwritten by the solution
+    class(sqpopt_hessian_type), intent(inout) :: me
 
-    integer :: i, k2
+    r = 0
+    if (me%exact .or. me%n_history == 0) return
+    if (.not. me%mid_valid) call factor_middle_matrix(me)
+    if (.not. me%mid_ok) return
+    r = merge(me%n_history, 2*me%n_history, me%use_sr1)
 
-    k2 = size(a,1)
-    do i = 1, k2
-        if (piv(i) /= i) b([i,piv(i)]) = b([piv(i),i])
+    end function hessian_low_rank_size
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the product \( v = U w \) with the low-rank factor of the compact
+!  representation (see the module documentation).
+
+    pure subroutine hessian_low_rank_multiply(me, w, v)
+
+    class(sqpopt_hessian_type), intent(in)  :: me
+    real(wp), dimension(:),     intent(in)  :: w !! the coefficients `dimension(r)`
+    real(wp), dimension(:),     intent(out) :: v !! the product `dimension(n)`
+
+    integer :: i, k, c
+    real(wp) :: theta
+
+    k = me%n_history
+    theta = 1.0_wp/me%gamma
+    v = 0.0_wp
+    do i = 1, k
+        c = pair_col(me, i)
+        if (me%use_sr1) then
+            v = v + (me%y(:,c) - theta*me%s(:,c))*w(i)
+        else
+            v = v + theta*me%s(:,c)*w(i) + me%y(:,c)*w(k+i)
+        end if
     end do
-    do i = 2, k2
-        b(i) = b(i) - dot_product(a(i,1:i-1), b(1:i-1))
-    end do
-    do i = k2, 1, -1
-        b(i) = (b(i) - dot_product(a(i,i+1:k2), b(i+1:k2)))/a(i,i)
+
+    end subroutine hessian_low_rank_multiply
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  column `j` of the low-rank factor \( U \) of the compact representation
+!  (see the module documentation).
+
+    pure subroutine hessian_low_rank_column(me, j, u)
+
+    class(sqpopt_hessian_type), intent(in)  :: me
+    integer,                    intent(in)  :: j !! the column (`1..r`)
+    real(wp), dimension(:),     intent(out) :: u !! the column `dimension(n)`
+
+    integer :: k
+    real(wp) :: theta
+
+    k = me%n_history
+    theta = 1.0_wp/me%gamma
+    if (me%use_sr1) then
+        u = me%y(:,pair_col(me, j)) - theta*me%s(:,pair_col(me, j))
+    else if (j <= k) then
+        u = theta*me%s(:,pair_col(me, j))
+    else
+        u = me%y(:,pair_col(me, j-k))
+    end if
+
+    end subroutine hessian_low_rank_column
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the product \( w = U^T v \) with the low-rank factor of the compact
+!  representation (see the module documentation).
+
+    pure subroutine hessian_low_rank_multiply_transpose(me, v, w)
+
+    class(sqpopt_hessian_type), intent(in)  :: me
+    real(wp), dimension(:),     intent(in)  :: v !! the vector `dimension(n)`
+    real(wp), dimension(:),     intent(out) :: w !! the product `dimension(r)`
+
+    integer :: i, k, c
+    real(wp) :: theta
+
+    k = me%n_history
+    theta = 1.0_wp/me%gamma
+    do i = 1, k
+        c = pair_col(me, i)
+        if (me%use_sr1) then
+            w(i) = dot_product(me%y(:,c), v) - theta*dot_product(me%s(:,c), v)
+        else
+            w(i)   = theta*dot_product(me%s(:,c), v)
+            w(k+i) = dot_product(me%y(:,c), v)
+        end if
     end do
 
-    end subroutine lu_solve
+    end subroutine hessian_low_rank_multiply_transpose
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the middle matrix \( M \) of the compact representation, and the sign
+!  \( \sigma \) of its term (see the module documentation).
+
+    pure subroutine hessian_low_rank_middle(me, a, sigma)
+
+    class(sqpopt_hessian_type), intent(in)  :: me
+    real(wp), dimension(:,:),   intent(out) :: a     !! the matrix \( M \) `dimension(r,r)`
+    real(wp),                   intent(out) :: sigma !! `-1` (BFGS) or `+1` (SR1)
+
+    call middle_matrix(me, a)
+    sigma = merge(1.0_wp, -1.0_wp, me%use_sr1)
+
+    end subroutine hessian_low_rank_middle
 !*******************************************************************************
 
 !*******************************************************************************
@@ -737,7 +843,9 @@
 
 !*******************************************************************************
 !>
-!  reset the Hessian approximation, discarding all stored `(s,y)` pairs.
+!  reset the Hessian approximation, discarding all stored `(s,y)` pairs
+!  (and any shift). In exact mode, increase the shift instead (see the
+!  module documentation).
 
     subroutine hessian_reset(me)
 
@@ -753,6 +861,7 @@
     me%first     = 1
     me%gamma     = me%gamma0
     me%mid_valid = .false.
+    me%shift     = 0.0_wp
 
     end subroutine hessian_reset
 !*******************************************************************************
@@ -802,8 +911,9 @@
 
 !*******************************************************************************
 !>
-!  the size of the exact Hessian, \( \max(1, \max_{ij} |H_{ij}|) \), which
-!  the shift is relative to.
+!  the size of the Hessian, which the shift is relative to:
+!  \( \max(1, \max_{ij} |H_{ij}|) \) for the exact Hessian, and
+!  \( \max(1, \theta) \) for a quasi-Newton one.
 
     pure function hessian_size(me) result(h)
 
@@ -811,7 +921,11 @@
     real(wp) :: h
 
     h = 1.0_wp
-    if (size(me%h_val) > 0) h = max(1.0_wp, maxval(abs(me%h_val)))
+    if (me%exact) then
+        if (size(me%h_val) > 0) h = max(1.0_wp, maxval(abs(me%h_val)))
+    else
+        h = max(1.0_wp, 1.0_wp/me%gamma)
+    end if
 
     end function hessian_size
 !*******************************************************************************

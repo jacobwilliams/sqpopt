@@ -77,10 +77,18 @@
                                                  !! `options%dual_inf_tol`)
         real(wp) :: time       = 0.0_wp  !! wall-clock time of the solve (seconds)
         real(wp) :: time_functions = 0.0_wp !! of which, in the user's functions
-        real(wp) :: time_qp        = 0.0_wp !! of which, in the QP subproblem solver
-        integer  :: n_qp_iterations      = 0 !! total active-set iterations of the QP subproblem solves
-        integer  :: n_factorizations     = 0 !! factorizations of the KKT matrix by the inertia control (see
-                                             !! `options%inertia_control`; `0` without it)
+        real(wp) :: time_qp        = 0.0_wp !! of which, in the QP subproblem solver (without the factorizations)
+        real(wp) :: time_factorization = 0.0_wp !! of which, in the sparse factorizations and their solves (see
+                                                !! `n_factorizations`)
+        integer  :: n_qp_iterations      = 0 !! total active-set iterations of the QP subproblem solves (and, for
+                                             !! those solved directly, changes of the working set)
+        integer  :: n_qp_solves          = 0 !! QP subproblems solved (without those of restoration phases)
+        integer  :: n_direct_qp          = 0 !! of which, solved directly, without the active-set solver (see
+                                             !! `options%direct_qp`)
+        integer  :: n_factorizations     = 0 !! sparse factorizations, by the inertia control, the direct QP
+                                             !! method, and the direct least-squares solves (see
+                                             !! `options%inertia_control`, `direct_qp`, and
+                                             !! `direct_least_squares`; `0` without them)
         integer  :: n_soc                = 0 !! accepted second-order-corrected steps
         integer  :: n_hessian_resets     = 0 !! iterations in which the Hessian approximation was reset (or, with the
                                              !! exact Hessian, its shift increased)

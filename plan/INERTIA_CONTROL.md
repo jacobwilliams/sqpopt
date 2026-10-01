@@ -1,5 +1,7 @@
 # Inertia control and a sparse LDLᵀ solver (MUMPS)
 
+*Update 2026-10-01: step 3 of §8 is implemented too (a factorization-based QP step, and the low-rank extension for SR1 and L-BFGS): see [MUMPS_PLAN.md](MUMPS_PLAN.md) §8. The MUMPS interface moved from `sqpopt_inertia_module` to `sqpopt_symmetric_solver_module.F90` and `sqpopt_kkt_module`.*
+
 *Status: step 2 of §8 is implemented (2026-09-30): `options%inertia_control`, in a build with `HAS_MUMPS`. See §9 for what was built and measured. Steps 1 and 3 are not done. This was open decision §8.3 of [ROADMAP.md](ROADMAP.md). Written 2026-09-28.*
 
 This document is for future reference. It records what inertia control is, how sqpopt copes without it today, what an external sparse LDLᵀ solver such as MUMPS would add (for the exact Hessian and beyond), and what it would cost.

@@ -908,10 +908,39 @@ build with it. Without MUMPS the option is invalid input.
   solution), with a few ms more time.
 - New `results%n_factorizations`, test `test_inertia` (both builds), harness
   option `--inertia`, and `hs_performance_table.sh --mumps`.
-- Not done: the same control for SR1 (needs the low-rank handling of
-  INERTIA_CONTROL.md §5.3); a factorization-based QP (§5.2); a test after
+- Not done then: the same control for SR1, and a factorization-based QP
+  (both done 2026-10-01, see the next entry). Still not done: a test after
   the trust region's QPs; a thread-count option; CI coverage of the MUMPS
   build (CI runs its tests, but the coverage report is of the default build).
+
+**More uses of MUMPS (2026-10-01).** F16, the plan of
+[MUMPS_PLAN.md](MUMPS_PLAN.md) (its §8 has the full results and the
+differences from the plan). All optional, in a build with `HAS_MUMPS`,
+which is now double precision only.
+- **Layers.** `sqpopt_symmetric_solver_module.F90` (the only file that
+  refers to MUMPS), `sqpopt_kkt_module` (the KKT matrix of a QP working
+  set: inertia and solves, with a quasi-Newton Hessian's low-rank part by
+  the Sherman–Morrison–Woodbury formula), and on those
+  `sqpopt_inertia_module`, `sqpopt_qp_direct_module`, and
+  `sqpopt_least_squares_module`.
+- **`options%direct_qp`**: each QP is first tried by a primal-dual
+  active-set method on the KKT matrix, from the previous QP's working set;
+  the active-set QP runs only if that gives up. With the exact Hessian
+  and inertia control, every QP of the large benchmark was solved
+  directly: `control` n=100,001 in 1.5 s (23.8 s without), `rosenbrock`
+  n=50,000 in 0.5 s (107 s), and a million variables in 6 to 24 s.
+- **`options%inertia_control` for SR1**: HS suite 275/27/3 with 11,714
+  `fc`, against 244/31/30 with 47,454.
+- **L-BFGS with `direct_qp`** pays only with a short memory (about 10
+  pairs). HS suite: 279/26/0, 8,920 `fc`.
+- **`options%direct_least_squares`**: no benefit shown (HS defaults
+  279/25/1); off by default.
+- New results `time_factorization`, `n_qp_solves`, `n_direct_qp`; tests
+  `test_kkt`, `test_direct`, and the direct method in `test_qp_fuzz`;
+  `example/benchmark_large.f90`; harness options `--direct`, `--direct-ls`.
+- Not done: the thread and ordering study; a CG preconditioner (M4) and
+  direct restoration-phase QPs (M5), for lack of evidence that they are
+  needed.
 
 ## 2. Bugs: correctness (fix first)
 
@@ -1172,6 +1201,19 @@ build with it. Without MUMPS the option is invalid input.
   is also what breaks the `REAL32` build (Phase 0 finding): adopting it
   means fixing that upstream or dropping the `REAL32` option. If the
   benchmark gain is small, drop LSMR, which also resolves §8.4 for it.
+
+- **F16: more uses of MUMPS on large problems.** *(Done 2026-10-01, except
+  the thread and ordering study, M4, and M5: see "More uses of MUMPS" under
+  "Phase 4 status", and [MUMPS_PLAN.md](MUMPS_PLAN.md) §8. The proposal:)* The inertia control
+  factors the KKT matrix and discards the factors, while on large problems
+  97% or more of the time is in the QP. In order: (M1) solve the QP's face
+  directly with those factors, falling back on the current QP; (M2) direct
+  solves for the Gauss-Newton restoration step and the second-order
+  correction, in place of `LSQR`; (M3) the same for L-BFGS and SR1 through
+  a low-rank (Woodbury) correction, which also gives SR1 an inertia
+  correction. First the groundwork: a general solver type, solves with
+  refinement, a thread and ordering study, time accounting, and large
+  benchmarks.
 
 - **F15: a persistent SNOPT-style elastic phase.** *(Possible future
   update, not started.)* SQPOPT uses SNOPT's elastic idea in two places

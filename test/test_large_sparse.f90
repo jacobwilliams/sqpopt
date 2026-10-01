@@ -11,8 +11,9 @@ program test_large_sparse
     !! (sparse) Hessian of the Lagrangian (`sqpopt_hessian_exact`) instead of
     !! the quasi-Newton approximation, and, if the library was built with
     !! MUMPS, also with its inertia control (`options%inertia_control`, see
-    !! [[sqpopt_inertia_module]]). Every solve must converge to the known
-    !! optimum:
+    !! [[sqpopt_inertia_module]]), and with that and the direct QP method
+    !! (`options%direct_qp`, see [[sqpopt_qp_direct_module]]), which must
+    !! solve most of the QPs. Every solve must converge to the known optimum:
     !!
     !! * `control`: a discretized nonlinear optimal-control problem with
     !!   `N = 500` steps (`n = 2N+1 = 1001` variables, `m = N+1 = 501`
@@ -82,13 +83,16 @@ program test_large_sparse
     if (sqpopt_has_mumps) then
         call run_control(500, sqpopt_qp_auto, 3.30614092e-1_wp, exact=.true., inertia=.true.)
         call run_rosenbrock(2000, sqpopt_qp_auto, 1.97826254e3_wp, exact=.true., inertia=.true.)
+        ! and with the direct QP method too:
+        call run_control(500, sqpopt_qp_auto, 3.30614092e-1_wp, exact=.true., inertia=.true., direct=.true.)
+        call run_rosenbrock(2000, sqpopt_qp_auto, 1.97826254e3_wp, exact=.true., inertia=.true., direct=.true.)
     end if
 
     print '(A)', 'test_large_sparse PASSED'
 
     contains
 
-    subroutine check(name, qp_mode, n, solver, f_star, exact, inertia)
+    subroutine check(name, qp_mode, n, solver, f_star, exact, inertia, direct)
     !! check the solve: converged (or stopped at an acceptable/stalled point),
     !! to the known optimum, and feasible (and, in the `sqpopt_qp_auto` mode,
     !! with the sparse QP)
@@ -99,6 +103,7 @@ program test_large_sparse
     real(wp),          intent(in) :: f_star  !! the known optimal objective
     logical,           intent(in) :: exact   !! whether the exact Hessian was used
     logical,           intent(in) :: inertia !! whether its inertia control was used
+    logical,           intent(in) :: direct  !! whether the direct QP method was used
     type(sqpopt_results_type) :: r
     type(sqpopt_qp_solver_type) :: qp
     character(len=:), allocatable :: label
@@ -110,11 +115,15 @@ program test_large_sparse
     end select
     if (exact) label = name//' (exact Hessian)'
     if (inertia) label = name//' (exact, inertia)'
+    if (direct)  label = name//' (inertia, direct)'
     print '(A32,A,I6,A,I3,A,ES16.8,A,ES9.2,A,I5,A,I5,A,F7.3,A)', label, ': n=', n, ' istat=', r%istat, &
         ' f=', r%f, ' viol=', r%feasibility_error, ' fc=', r%n_eval_fc, ' gjac=', r%n_eval_gjac, &
         ' time=', r%time, ' s'
     if (exact .and. r%n_eval_hess == 0) error stop 'test_large_sparse FAILED: '//label//': the Hessian was not used'
     if (inertia .and. r%n_factorizations == 0) error stop 'test_large_sparse FAILED: '//label//': nothing was factored'
+    if (direct .and. 2*r%n_direct_qp < r%n_qp_solves) then
+        error stop 'test_large_sparse FAILED: '//label//': fewer than half of the QPs were solved directly'
+    end if
     ! (the default mode picks the sparse QP for problems this size)
     if (qp_mode == sqpopt_qp_auto .and. n <= qp%auto_dense_max_n) then
         error stop 'test_large_sparse FAILED: problem too small for the sparse QP'
@@ -134,13 +143,14 @@ program test_large_sparse
     ! control problem
     !------------------------------------------------------------------------
 
-    subroutine run_control(nn, qp_mode, f_star, exact, inertia)
+    subroutine run_control(nn, qp_mode, f_star, exact, inertia, direct)
     !! solve the discretized optimal-control problem, and check the solution
     integer,  intent(in)           :: nn      !! number of time steps `N` (`n = 2N+1` variables)
     integer,  intent(in)           :: qp_mode !! `options%qp_solver_mode`
     real(wp), intent(in)           :: f_star  !! the known optimal objective
     logical,  intent(in), optional :: exact   !! use the exact Hessian (default `.false.`)
     logical,  intent(in), optional :: inertia !! use its inertia control (default `.false.`)
+    logical,  intent(in), optional :: direct  !! use the direct QP method (default `.false.`)
     type(sqpopt_type)         :: solver
     type(sqpopt_problem_type) :: problem
     type(sqpopt_options_type) :: options
@@ -182,6 +192,7 @@ program test_large_sparse
         if (exact) options%hessian_mode = sqpopt_hessian_exact
     end if
     if (present(inertia)) options%inertia_control = inertia
+    if (present(direct))  options%direct_qp = direct
     allocate(x(n))
     x = 0.0_wp
     x(1:nsteps+1) = 1.0_wp
@@ -189,7 +200,7 @@ program test_large_sparse
     call solver%initialize(problem=problem, options=options)
     call solver%solve(x, istat)
     call check('control', qp_mode, n, solver, f_star, options%hessian_mode == sqpopt_hessian_exact, &
-               options%inertia_control)
+               options%inertia_control, options%direct_qp)
 
     end subroutine run_control
 
@@ -247,13 +258,14 @@ program test_large_sparse
     ! chained Rosenbrock with circle constraints
     !------------------------------------------------------------------------
 
-    subroutine run_rosenbrock(n, qp_mode, f_star, exact, inertia)
+    subroutine run_rosenbrock(n, qp_mode, f_star, exact, inertia, direct)
     !! solve the constrained chained-Rosenbrock problem, and check the solution
     integer,  intent(in)           :: n       !! number of variables
     integer,  intent(in)           :: qp_mode !! `options%qp_solver_mode`
     real(wp), intent(in)           :: f_star  !! the known optimal objective
     logical,  intent(in), optional :: exact   !! use the exact Hessian (default `.false.`)
     logical,  intent(in), optional :: inertia !! use its inertia control (default `.false.`)
+    logical,  intent(in), optional :: direct  !! use the direct QP method (default `.false.`)
     type(sqpopt_type)         :: solver
     type(sqpopt_problem_type) :: problem
     type(sqpopt_options_type) :: options
@@ -280,6 +292,7 @@ program test_large_sparse
         if (exact) options%hessian_mode = sqpopt_hessian_exact
     end if
     if (present(inertia)) options%inertia_control = inertia
+    if (present(direct))  options%direct_qp = direct
     allocate(x(n))
     do i = 1, n
         x(i) = merge(-1.2_wp, 1.0_wp, mod(i,2) == 1)
@@ -288,7 +301,7 @@ program test_large_sparse
     call solver%initialize(problem=problem, options=options)
     call solver%solve(x, istat)
     call check('rosenbrock', qp_mode, n, solver, f_star, options%hessian_mode == sqpopt_hessian_exact, &
-               options%inertia_control)
+               options%inertia_control, options%direct_qp)
 
     end subroutine run_rosenbrock
 

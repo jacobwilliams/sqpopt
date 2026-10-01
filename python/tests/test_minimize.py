@@ -136,17 +136,23 @@ class TestMinimize(unittest.TestCase):
         # (min -x1 x2 on the unit disc: the Hessian is indefinite)
         con = NonlinearConstraint(lambda x: x @ x, -np.inf, 1.0, jac=lambda x: 2 * x,
                                   hess=lambda x, v: 2 * v[0] * np.eye(2))
-        r = minimize(lambda x: -x[0] * x[1], [0.3, 0.6], jac=lambda x: -x[::-1],
-                     hess=lambda x: np.array([[0.0, -1.0], [-1.0, 0.0]]), bounds=[(0, 2), (0, 2)], constraints=con,
-                     options={'inertia_control': True})
-        if 'MUMPS' in r.message:
-            # (the extension was built without MUMPS: the option is invalid input)
-            self.assertFalse(r.success)
-            self.assertEqual(r.n_factorizations, 0)
-        else:
-            self.assertTrue(r.success, r.message)
-            self.assertAlmostEqual(r.fun, -0.5, places=6)
-            self.assertGreater(r.n_factorizations, 0)
+        for options in ({'inertia_control': True}, {'inertia_control': True, 'direct_qp': True},
+                        {'direct_least_squares': True}):
+            r = minimize(lambda x: -x[0] * x[1], [0.3, 0.6], jac=lambda x: -x[::-1],
+                         hess=lambda x: np.array([[0.0, -1.0], [-1.0, 0.0]]), bounds=[(0, 2), (0, 2)],
+                         constraints=con, options=options)
+            if 'MUMPS' in r.message:
+                # (the extension was built without MUMPS: the options are invalid input)
+                self.assertFalse(r.success)
+                self.assertEqual(r.n_factorizations, 0)
+            else:
+                self.assertTrue(r.success, r.message)
+                self.assertAlmostEqual(r.fun, -0.5, places=6)
+                if 'inertia_control' in options:
+                    self.assertGreater(r.n_factorizations, 0)
+                if 'direct_qp' in options:
+                    self.assertGreater(r.n_direct_qp, 0)
+                    self.assertLessEqual(r.n_direct_qp, r.n_qp_solves)
 
     def test_callback(self):
         seen = []

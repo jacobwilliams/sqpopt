@@ -64,6 +64,7 @@
     use sqpopt_linesearch_module, only: sqpopt_linesearch_type, l1_violation
     use sqpopt_linalg_module,     only: sparse_matvec
     use lsqr_module,           only: lsqr_solver_ez
+    use sqpopt_least_squares_module, only: sqpopt_least_squares_type
 
     implicit none
 
@@ -104,7 +105,9 @@
 !  the module-level documentation), with a backtracking Armijo search on
 !  \( \tfrac12 \lVert r_c \rVert_2^2 \). If no decrease is found, `x_new=x`
 !  and `istat=sqpopt_line_search_failed` (also if `LSQR` stops at its
-!  iteration limit before finding the Gauss-Newton step).
+!  iteration limit before finding the Gauss-Newton step). With
+!  `least_squares` (if it is enabled), the Gauss-Newton step is computed by
+!  a direct solve, and by `LSQR` only if that fails.
 !
 !  If `direction` is present, it is searched along instead of the
 !  Gauss-Newton direction (for when that can't make progress: at a point
@@ -113,7 +116,7 @@
 !  direction without first-order decrease, any decrease of the violation
 !  is accepted.
 
-    subroutine restoration_step(problem, jac, x, c, max_step, x_new, alpha, istat, direction)
+    subroutine restoration_step(problem, jac, x, c, max_step, x_new, alpha, istat, direction, least_squares)
 
     type(sqpopt_problem_type),  intent(inout) :: problem  !! problem definition
     type(sqpopt_sparse_matrix), intent(in)    :: jac      !! constraint Jacobian at `x`, `dimension(m,n)`
@@ -124,6 +127,8 @@
     real(wp),                   intent(out)   :: alpha    !! accepted step length (`0` if none)
     integer,                    intent(out)   :: istat    !! status code (see [[sqpopt_types_module]])
     real(wp), dimension(:), optional, intent(in) :: direction !! search direction to use instead of Gauss-Newton `dimension(n)`
+    type(sqpopt_least_squares_type), optional, intent(inout) :: least_squares !! the direct least-squares solver
+                                                                              !! (see [[sqpopt_least_squares_module]])
 
     real(wp), parameter :: sigma     = 1.0e-4_wp !! Armijo sufficient-decrease parameter
     real(wp), parameter :: backtrack = 0.5_wp    !! step-length reduction factor
@@ -135,6 +140,7 @@
     real(wp) :: h0, h_trial, dh0
     type(lsqr_solver_ez) :: lsqr
     integer :: istop, it
+    logical :: solved
 
     rc = violation(c, problem%c_lb, problem%c_ub)
     h0 = 0.5_wp*dot_product(rc, rc)
@@ -144,15 +150,25 @@
     if (present(direction)) then
         p = direction
     else
-        call lsqr%initialize(problem%m, problem%n, jac%val, jac%irow, jac%icol, &
-                             itnlim=2*(problem%m+problem%n)+10)
-        call lsqr%solve(-rc, 0.0_wp, p, istop)
-        if (istop == lsqr_itnlim_stop .or. .not. sqpopt_all_finite(p)) then
-            ! LSQR didn't converge: no usable Gauss-Newton step
-            alpha = 0.0_wp
-            x_new = x
-            istat = sqpopt_line_search_failed
-            return
+        solved = .false.
+        if (present(least_squares)) then
+            block
+                logical, dimension(size(c)) :: all_rows
+                all_rows = .true.
+                call least_squares%min_norm(jac, all_rows, -rc, p, solved)
+            end block
+        end if
+        if (.not. solved) then
+            call lsqr%initialize(problem%m, problem%n, jac%val, jac%irow, jac%icol, &
+                                 itnlim=2*(problem%m+problem%n)+10)
+            call lsqr%solve(-rc, 0.0_wp, p, istop)
+            if (istop == lsqr_itnlim_stop .or. .not. sqpopt_all_finite(p)) then
+                ! LSQR didn't converge: no usable Gauss-Newton step
+                alpha = 0.0_wp
+                x_new = x
+                istat = sqpopt_line_search_failed
+                return
+            end if
         end if
     end if
     p = min(max(x+p, problem%x_lb), problem%x_ub) - x
