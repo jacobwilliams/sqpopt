@@ -79,8 +79,9 @@ an `OptimizeResult`.
   * `constr_violation`, `kkt_error`, `stationarity_error`, and
     `execution_time`;
   * `n_qp_iterations`, `derivative_switch_iteration`, `n_factorizations`,
-    `n_qp_solves`, and `n_direct_qp` (the last three for the options that use
-    sparse factorizations, see below).
+    `n_qp_solves`, `n_direct_qp`, and `time_factorization` (the last four for
+    the options that use sparse factorizations, see below;
+    `time_factorization` is the part of `execution_time` spent in them).
 
   The multipliers are those of the Lagrangian `f - vᵀc - zᵀx`.
 * **Exceptions.** An exception raised by a user function stops the solver

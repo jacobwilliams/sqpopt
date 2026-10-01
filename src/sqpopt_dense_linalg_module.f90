@@ -290,9 +290,14 @@
 !  by Householder reflections (a congruence with an orthogonal matrix, so
 !  the eigenvalues are unchanged), and the signs are counted from the
 !  pivots of that form's \( LDL^T \) factorization (its Sturm sequence at
-!  zero; Golub & Van Loan, *Matrix Computations*, 8.3 and 8.4). An
-!  eigenvalue is counted as zero if its pivot is below `zero_tol` times the
-!  matrix's largest element. Costs \( O(n^3) \): meant for small matrices.
+!  zero; Golub & Van Loan, *Matrix Computations*, 8.3 and 8.4), which has
+!  the same inertia as the matrix (Sylvester's law). A pivot counts as zero
+!  if it is below `zero_tol` times the matrix's largest element. A zero
+!  pivot that is coupled to the next row is not a zero eigenvalue (the
+!  matrix \( [0, 1; 1, 0] \) has the eigenvalues \( \pm 1 \)): it is taken
+!  with that row as a 2 by 2 pivot, as in the Bunch-Kaufman factorization,
+!  and the block's two eigenvalues are counted. Costs \( O(n^3) \): meant
+!  for small matrices.
 
     pure subroutine dense_symmetric_inertia(a, n_positive, n_negative, n_zero)
 
@@ -304,7 +309,7 @@
     real(wp), parameter :: zero_tol = 1.0e-12_wp
     real(wp), dimension(size(a,1), size(a,1)) :: b
     real(wp), dimension(size(a,1)) :: v, p, w
-    real(wp) :: alpha, vnorm, q, small
+    real(wp) :: alpha, vnorm, q, small, e, d, det, mean, radius
     integer :: n, k, i
 
     n = size(a,1)
@@ -337,21 +342,64 @@
         b(k,k+2:n) = 0.0_wp
     end do
 
-    ! the signs of the pivots of the tridiagonal matrix:
+    ! the signs of the pivots of the tridiagonal matrix (`q` is the pivot of
+    ! row `i`: its diagonal element, less the effect of the rows above):
     q = b(1,1)
-    do i = 1, n
-        if (i > 1) then
-            if (abs(q) < small) q = small   ! (a zero pivot: perturb it)
-            q = b(i,i) - b(i,i-1)**2/q
-        end if
-        if (abs(q) < small) then
-            n_zero = n_zero + 1
-        else if (q > 0.0_wp) then
-            n_positive = n_positive + 1
+    i = 1
+    do while (i <= n)
+        if (i < n) then
+            e = b(i+1,i)
+            d = b(i+1,i+1)
         else
-            n_negative = n_negative + 1
+            e = 0.0_wp
+            d = 0.0_wp
+        end if
+        if (abs(q) >= small) then
+            ! a 1 by 1 pivot:
+            call count(q, n_positive, n_negative, n_zero)
+            q = d - e**2/q
+            i = i + 1
+        else if (abs(e) < small) then
+            ! a zero pivot that the next row doesn't depend on: a zero eigenvalue
+            call count(q, n_positive, n_negative, n_zero)
+            q = d
+            i = i + 1
+        else
+            ! a zero pivot, coupled to the next row: a 2 by 2 pivot [q, e; e, d],
+            ! with the eigenvalues mean +/- radius
+            mean   = 0.5_wp*(q + d)
+            radius = hypot(0.5_wp*(q - d), e)
+            call count(mean + radius, n_positive, n_negative, n_zero)
+            call count(mean - radius, n_positive, n_negative, n_zero)
+            if (i + 2 <= n) then
+                ! the next pivot: the block's inverse has q/det in its last element
+                det = q*d - e**2
+                if (det /= 0.0_wp) then
+                    q = b(i+2,i+2) - b(i+2,i+1)**2*q/det
+                else
+                    q = b(i+2,i+2)
+                end if
+            end if
+            i = i + 2
         end if
     end do
+
+    contains
+
+        pure subroutine count(eigenvalue, n_pos, n_neg, n_null)
+        !! add an eigenvalue (or a pivot) to the count of its sign
+        real(wp), intent(in)    :: eigenvalue !! the eigenvalue
+        integer,  intent(inout) :: n_pos      !! number of positive eigenvalues so far
+        integer,  intent(inout) :: n_neg      !! number of negative eigenvalues so far
+        integer,  intent(inout) :: n_null     !! number of zero eigenvalues so far
+        if (abs(eigenvalue) < small) then
+            n_null = n_null + 1
+        else if (eigenvalue > 0.0_wp) then
+            n_pos = n_pos + 1
+        else
+            n_neg = n_neg + 1
+        end if
+        end subroutine count
 
     end subroutine dense_symmetric_inertia
 !*******************************************************************************

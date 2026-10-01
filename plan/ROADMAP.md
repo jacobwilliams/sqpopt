@@ -929,7 +929,7 @@ which is now double precision only.
   and inertia control, every QP of the large benchmark was solved
   directly: `control` n=100,001 in 1.5 s (23.8 s without), `rosenbrock`
   n=50,000 in 0.5 s (107 s), and a million variables in 6 to 24 s.
-- **`options%inertia_control` for SR1**: HS suite 275/27/3 with 11,714
+- **`options%inertia_control` for SR1**: HS suite 274/27/4 with 10,454
   `fc`, against 244/31/30 with 47,454.
 - **L-BFGS with `direct_qp`** pays only with a short memory (about 10
   pairs). HS suite: 279/26/0, 8,920 `fc`.

@@ -97,8 +97,8 @@
         integer,  public :: n_factor = 0            !! number of factorizations so far
         integer,  public :: n_solve = 0             !! number of solves so far (including those of the refinement)
         real(wp), public :: time = 0.0_wp           !! wall-clock time spent in the solver so far (seconds)
-        logical,  public :: out_of_memory = .false. !! whether an analysis or factorization ran out of memory (it
-                                                    !! stays set)
+        logical,  public :: out_of_memory = .false. !! whether an analysis, factorization, or solve ran out of
+                                                    !! memory (it stays set)
         integer :: n = 0                            !! order of the matrix
         logical :: analysed = .false.               !! whether the sparsity pattern has been analysed
 #ifdef HAS_MUMPS
@@ -254,7 +254,10 @@
 !  refinement (up to `max_refine` steps, each one more solve, while the
 !  residual \( b - Ax \) is above roundoff and each step at least halves
 !  it), unless `refine` is false. `ok` is false if there is no
-!  factorization, or the solution isn't finite.
+!  factorization, MUMPS reports that the solve failed (`b` is then
+!  unchanged, and `out_of_memory` is set if an allocation failed), or the
+!  solution isn't finite. If a solve of the refinement fails, the
+!  refinement stops, and the solution found so far is returned.
 
     subroutine symmetric_solver_solve(me, b, ok, refine)
 
@@ -268,7 +271,7 @@
     real(wp), dimension(:), allocatable :: rhs, r, ax, x_new
     real(wp) :: rnorm, rnorm_new, tol
     integer :: step
-    logical :: do_refine
+    logical :: do_refine, solved
     integer(int64) :: t0, t1, rate
 #endif
 
@@ -281,8 +284,11 @@
     if (present(refine)) do_refine = refine
 
     rhs = b
-    call back_solve(b)
-    if (do_refine) then
+    call back_solve(b, solved)
+    ok = solved
+    if (.not. solved) then
+        b = rhs
+    else if (do_refine) then
         allocate(r(me%n), ax(me%n))
         tol = 10.0_wp*epsilon(1.0_wp)*max(maxval(abs(rhs)), tiny(1.0_wp))
         call me%multiply(b, ax)
@@ -290,7 +296,8 @@
         rnorm = maxval(abs(r))
         do step = 1, max_refine
             if (.not. rnorm > tol) exit
-            call back_solve(r)
+            call back_solve(r, solved)
+            if (.not. solved) exit
             x_new = b + r
             call me%multiply(x_new, ax)
             r = rhs - ax
@@ -300,20 +307,26 @@
             rnorm = rnorm_new
         end do
     end if
-    ok = all(abs(b) <= huge(1.0_wp))
+    if (ok) ok = all(abs(b) <= huge(1.0_wp))
     call system_clock(t1)
     me%time = me%time + real(t1 - t0, wp)/real(rate, wp)
 
     contains
 
-        subroutine back_solve(v)
+        subroutine back_solve(v, success)
         !! one solve with the factors: `v` is overwritten by \( A^{-1} v \)
-        real(wp), dimension(:), intent(inout) :: v !! the right-hand side, overwritten by the solution
+        real(wp), dimension(:), intent(inout) :: v       !! the right-hand side, overwritten by the solution
+        logical,                intent(out)   :: success !! whether MUMPS solved it (if not, `v` is unchanged)
         me%id%rhs = v
         me%id%job = 3
         call dmumps(me%id)
-        v = me%id%rhs
         me%n_solve = me%n_solve + 1
+        success = me%id%infog(1) >= 0
+        if (success) then
+            v = me%id%rhs
+        else if (me%id%infog(1) == -13) then
+            me%out_of_memory = .true.   ! (an allocation failed)
+        end if
         end subroutine back_solve
 #endif
 

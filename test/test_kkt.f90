@@ -60,8 +60,20 @@ program test_kkt
     call random_seed(put=seed)
     end subroutine seed_rng
 
+    subroutine check_inertia(label, a, expected)
+    !! check the inertia that `dense_symmetric_inertia` finds for a matrix
+    character(len=*),         intent(in) :: label    !! name of the matrix, for the messages
+    real(wp), dimension(:,:), intent(in) :: a        !! the symmetric matrix `dimension(n,n)`
+    integer, dimension(3),    intent(in) :: expected !! its numbers of positive, negative, and zero eigenvalues
+    integer :: n_pos, n_neg, n_zero
+    call dense_symmetric_inertia(a, n_pos, n_neg, n_zero)
+    print '(3A,3(I0,1X))', 'inertia of ', label, ' (positive, negative, zero): ', n_pos, n_neg, n_zero
+    if (any([n_pos, n_neg, n_zero] /= expected)) error stop 'test_kkt FAILED: dense_symmetric_inertia: '//label
+    end subroutine check_inertia
+
     subroutine test_dense()
-    !! the inertia of `Q D Q^T` for a known diagonal `D` and a reflection `Q`, and an LU solve
+    !! the inertia of `Q D Q^T` for a known diagonal `D` and a reflection `Q`, of matrices with
+    !! zeros on the diagonal, and an LU solve
     integer, parameter :: n = 7
     real(wp), parameter :: d(n) = [3.0_wp, -2.0_wp, 0.5_wp, 0.0_wp, -1.0_wp, 4.0_wp, -0.25_wp]
     real(wp) :: q(n,n), a(n,n), v(n), b(n), x(n), lu(n,n)
@@ -82,6 +94,26 @@ program test_kkt
     call dense_symmetric_inertia(a, n_pos, n_neg, n_zero)
     print '(A,3(I0,1X))', 'inertia of Q*D*Q^T (positive, negative, zero): ', n_pos, n_neg, n_zero
     if (n_pos /= 3 .or. n_neg /= 3 .or. n_zero /= 1) error stop 'test_kkt FAILED: dense_symmetric_inertia'
+
+    ! matrices with zeros on the diagonal, whose zero pivots are not zero eigenvalues:
+    call check_inertia('[0 1; 1 0]', reshape([0.0_wp, 1.0_wp, 1.0_wp, 0.0_wp], [2,2]), [1, 1, 0])
+    call check_inertia('zero 2 by 2', reshape([0.0_wp, 0.0_wp, 0.0_wp, 0.0_wp], [2,2]), [0, 0, 2])
+    call check_inertia('diag(0, 2, -1)', reshape([0.0_wp, 0.0_wp, 0.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, &
+                                                  0.0_wp, 0.0_wp, -1.0_wp], [3,3]), [1, 1, 1])
+    call check_inertia('[0 1 0; 1 0 0; 0 0 -3]', reshape([0.0_wp, 1.0_wp, 0.0_wp, 1.0_wp, 0.0_wp, 0.0_wp, &
+                                                          0.0_wp, 0.0_wp, -3.0_wp], [3,3]), [1, 2, 0])
+    call check_inertia('[0 2 0; 2 0 3; 0 3 5]', reshape([0.0_wp, 2.0_wp, 0.0_wp, 2.0_wp, 0.0_wp, 3.0_wp, &
+                                                         0.0_wp, 3.0_wp, 5.0_wp], [3,3]), [2, 1, 0])
+    ! (tridiagonal, with zeros on the diagonal and ones beside it: the eigenvalues are 2*cos(k*pi/6), k = 1..5)
+    a(1:5,1:5) = 0.0_wp
+    do i = 1, 4
+        a(i,i+1) = 1.0_wp
+        a(i+1,i) = 1.0_wp
+    end do
+    call check_inertia('tridiagonal (1, 0, 1)', a(1:5,1:5), [2, 2, 1])
+    ! (the same eigenvalues, in a full matrix)
+    a(1:5,1:5) = matmul(matmul(q(1:5,1:5), a(1:5,1:5)), transpose(q(1:5,1:5)))
+    call check_inertia('tridiagonal (1, 0, 1), rotated', a(1:5,1:5), [2, 2, 1])
 
     ! (a nonsingular matrix: shift the zero eigenvalue)
     do i = 1, n

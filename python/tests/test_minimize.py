@@ -145,11 +145,14 @@ class TestMinimize(unittest.TestCase):
                 # (the extension was built without MUMPS: the options are invalid input)
                 self.assertFalse(r.success)
                 self.assertEqual(r.n_factorizations, 0)
+                self.assertEqual(r.time_factorization, 0.0)
             else:
                 self.assertTrue(r.success, r.message)
                 self.assertAlmostEqual(r.fun, -0.5, places=6)
                 if 'inertia_control' in options:
                     self.assertGreater(r.n_factorizations, 0)
+                    self.assertGreater(r.time_factorization, 0.0)
+                    self.assertLessEqual(r.time_factorization, r.execution_time)
                 if 'direct_qp' in options:
                     self.assertGreater(r.n_direct_qp, 0)
                     self.assertLessEqual(r.n_direct_qp, r.n_qp_solves)
