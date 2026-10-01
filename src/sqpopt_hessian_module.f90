@@ -18,7 +18,8 @@
 !  the pairs or the scaling change, not on every product, so each
 !  [[hessian_vector_product]] costs only `O(nk)`. The diagonal (see
 !  [[hessian_diagonal]]) is likewise kept until the pairs or the scaling
-!  change.
+!  change. The dense QP solver, which needs the whole matrix, gets it from
+!  [[hessian_dense]].
 !
 !  **Exact mode** (see [[hessian_set_exact]]): instead of the quasi-Newton
 !  approximation, the user's sparse Hessian of the Lagrangian is used,
@@ -51,7 +52,8 @@
 
     type, public :: sqpopt_hessian_type
         !! stores and updates a limited-memory approximation to the
-        !! Hessian of the Lagrangian (never forms a dense `n x n` matrix).
+        !! Hessian of the Lagrangian (never stores a dense `n x n` matrix:
+        !! [[hessian_dense]] writes one into the dense QP solver's array).
 
         integer :: n           = 0  !! problem size
         integer :: max_history = 0  !! number of `(s,y)` pairs retained (independent of `n`)
@@ -97,6 +99,7 @@
         procedure, public :: update_sr1              => hessian_update_sr1
         procedure, public :: hv_product              => hessian_vector_product
         procedure, public :: diagonal                => hessian_diagonal
+        procedure, public :: dense                   => hessian_dense
         procedure, public :: inverse_vector_product  => hessian_inverse_vector_product
         procedure, public :: reset                   => hessian_reset
         procedure, public :: set_exact               => hessian_set_exact
@@ -428,6 +431,100 @@
     me%diag_valid = .true.
 
     end subroutine hessian_diagonal
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the Hessian approximation \( H \) as a dense matrix, in the caller's
+!  array (for the dense QP solver, the only place a dense \( n \times n \)
+!  matrix is used).
+!
+!  For BFGS, \( H \) is built by applying the stored updates, oldest
+!  first, to \( H_0 = \theta I \):
+!
+!  $$ H \leftarrow H - \frac{(Hs)(Hs)^T}{s^THs} + \frac{yy^T}{y^Ts} $$
+!
+!  which is the matrix of the compact representation that
+!  [[hessian_vector_product]] uses (Byrd, Nocedal & Schnabel, 1994), at
+!  \( 2n^2 \) multiplications per pair (only the upper triangle is
+!  updated). Forming it from `n` products instead costs about
+!  \( 4nk + 4k^2 \) each, i.e. \( 4n^2 + 4nk \) per pair, which is 4 times
+!  as much with `k = n` pairs. A pair is skipped if \( s^THs \) isn't
+!  positive, which can only happen through round-off: every stored pair has
+!  \( y^Ts > 0 \), so each update keeps \( H \) positive definite. Where
+!  [[hessian_vector_product]] falls back to \( \theta I \) (it takes the
+!  middle matrix to be singular), so does this, so that the QP's matrix is
+!  the one the products elsewhere in the iteration are made with.
+!
+!  For SR1 (whose updates needn't all be defined one at a time) \( H \) is
+!  formed from the products with the unit vectors (and symmetrized), and
+!  in exact mode from the nonzeros and the shift.
+
+    subroutine hessian_dense(me, h)
+
+    class(sqpopt_hessian_type), intent(inout) :: me
+    real(wp), dimension(:,:),   intent(out)   :: h   !! the matrix `dimension(n,n)` (symmetric, both triangles set)
+
+    integer :: i, j, k, c, n
+    real(wp) :: sbs, a, b
+    real(wp), dimension(:), allocatable :: bs, e
+
+    n = me%n
+
+    if (me%exact) then
+        h = 0.0_wp
+        do j = 1, n
+            h(j,j) = me%shift
+        end do
+        do k = 1, size(me%h_val)
+            i = me%h_irow(k)
+            c = me%h_icol(k)
+            h(i,c) = h(i,c) + me%h_val(k)
+            if (i /= c) h(c,i) = h(c,i) + me%h_val(k)
+        end do
+        return
+    end if
+
+    if (me%use_sr1) then
+        allocate(e(n))
+        do j = 1, n
+            e = 0.0_wp
+            e(j) = 1.0_wp
+            call hessian_vector_product(me, e, h(:,j))
+        end do
+        h = 0.5_wp*(h + transpose(h))   ! (symmetrize away the products' round-off asymmetry)
+        return
+    end if
+
+    h = 0.0_wp
+    do j = 1, n
+        h(j,j) = 1.0_wp/me%gamma
+    end do
+    if (me%n_history == 0) return
+    if (.not. me%mid_valid) call factor_middle_matrix(me)
+    if (.not. me%mid_ok) return  ! (as [[hessian_vector_product]]: the initial scaling)
+    allocate(bs(n))
+    do k = 1, me%n_history
+        c = pair_col(me, k)
+        ! bs = H*s, from the upper triangle of H:
+        bs = 0.0_wp
+        do j = 1, n
+            bs(1:j-1) = bs(1:j-1) + h(1:j-1,j)*me%s(j,c)
+            bs(j)     = bs(j) + dot_product(h(1:j,j), me%s(1:j,c))
+        end do
+        sbs = dot_product(me%s(:,c), bs)
+        if (.not. sbs > 0.0_wp) cycle
+        do j = 1, n
+            a = bs(j)/sbs
+            b = me%rho(c)*me%y(j,c)
+            h(1:j,j) = h(1:j,j) - a*bs(1:j) + b*me%y(1:j,c)
+        end do
+    end do
+    do j = 2, n
+        h(j,1:j-1) = h(1:j-1,j)
+    end do
+
+    end subroutine hessian_dense
 !*******************************************************************************
 
 !*******************************************************************************

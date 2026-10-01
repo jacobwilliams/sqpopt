@@ -114,7 +114,7 @@ program test_hs_suite
     real(dp), parameter :: feas_tol = 1.0e-6_dp  !! constraint/bound violation tolerance for "solved"/"local"
 
     !> problems not (yet) solved by `sqpopt` with the default options -- the
-    !! regression baseline (see the program documentation). As of 2026-09-27:
+    !! regression baseline (see the program documentation). As of 2026-09-30:
     !! 280 of the 305 problems solved, 25 local solutions, 0 failures.
     integer, dimension(*), parameter :: known_unsolved = [ &
           2,  16,  25,  33,  38,  54,  55,  57,  59,  87,  97,  98, 105, 109, 213, &

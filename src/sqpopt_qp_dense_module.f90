@@ -224,16 +224,7 @@
 
     ! ---- the dense Hessian (zero in the slack directions) and gradient ----
     allocate(h(n,n))
-    block
-        real(wp), dimension(n) :: e, he
-        do k = 1, n
-            e = 0.0_wp
-            e(k) = 1.0_wp
-            call hessian%hv_product(e, he)
-            h(:,k) = he
-        end do
-    end block
-    h = 0.5_wp*(h + transpose(h))  !! symmetrize away any tiny roundoff asymmetry
+    call hessian%dense(h)
 
     gscale  = 1.0_wp
     if (n > 0) gscale = max(1.0_wp, maxval(abs(g)))

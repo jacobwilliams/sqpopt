@@ -832,6 +832,36 @@ solution, so `test_hs_suite`'s regression check (a `real64` baseline)
 fails there. TP299 takes ~90 s (the dense QP in software quad
 arithmetic), which looks like a hang.
 
+**Dense Hessian for the dense QP (2026-09-30).** Found while looking at
+why TP299 (`n` = 100, so 100 pairs) takes ~90 s in `real128`: it is the
+slowest problem in `real64` too (2.1 of the suite's 3 s), with the time in
+forming the dense Hessian from `n` Hessian-vector products, each with a
+solve with the `2k x 2k` middle matrix. New `hessian%dense`: for BFGS it
+applies the stored updates to `θI` directly (`2n²` per pair instead of
+`4n² + 4nk`), for the exact Hessian it copies the nonzeros. TP299: 2.1 →
+0.8 s (`real64`), 86 → 40 s (`real128`); whole suite 2.95 → 1.22 s
+(`-O2`). The matrix is the same up to round-off, which is enough to move
+the evaluation counts: default 280/25/0 unchanged, `fc` 8,963 → 9,173
+(18 problems change, TP332 alone +163); the Performance table is
+regenerated (the Armijo and trust-region rows move by a problem or two
+either way). The automatic L-BFGS memory stays: with 10, 20, 50 pairs the
+suite needs 9,638, 9,521, 9,846 `fc` (and 50 solves one fewer), against
+9,024 with `min(n,100)` (same build), and only 0.5–0.9 s instead of 1.2 s.
+
+Not done:
+
+- What is left of TP299's time is mostly the LU of the `2k x 2k` middle
+  matrix (once per iteration, for the products in the damping and the
+  descent test). Eliminating its `-D` block leaves a `k x k` positive
+  definite matrix (`θSᵀS + L D⁻¹ Lᵀ`, as in L-BFGS-B), about 8 times
+  cheaper to factor.
+- `lu_factor` takes the middle matrix to be singular when a pivot is below
+  `1e-14` times its largest element, and the products then fall back to
+  `θI`, dropping all the curvature. This happens with pairs stored on
+  several HS problems (TP54, 87, 109, 220, 322, 333, 373, 376), and may be
+  bad scaling between the blocks rather than singularity (not checked): without the fallback in `hessian%dense`, TP87 is
+  solved (281/24/0). The block elimination above would avoid it.
+
 ## 2. Bugs: correctness (fix first)
 
 | # | Issue | Where | Evidence |
