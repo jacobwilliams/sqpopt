@@ -814,6 +814,64 @@ that TP294–299's NLPQLP counts are anomalous: 72 and 114 evaluations for
 SLSQP's grow linearly with `n`, as expected on the chained Rosenbrock
 function.)
 
+**Escape step in `real128` (2026-09-30).** With `-DREAL128`, TP88 stopped
+as infeasible next to its symmetry plane `x₂ = 0`: without `real64`'s
+round-off the iterates stay near the plane (`x₂` ≈ 1e-23, growing to 1e-8
+by the time the violation is stationary), and `escape_step` didn't probe
+`x₂`, because its Jacobian column (~1e-8) was far above the relative
+threshold `sqrt(epsilon)` (1e-17 in `real128`). A column is now also
+negligible below `ktol`, the tolerance of the stationarity test that
+triggers the escape (new test `test_escape`). `real64` HS suite unchanged
+(280/25/0, 8,963 `fc`; `--qp=sparse` and `--qp=sparse-lsqr` +6 `fc`, same
+outcomes). `real128` (debug): 278/26/1 → 279/26/0. Also fixed
+in the HS harness: the COMMON blocks shared with the `DOUBLE PRECISION`
+problem code are declared with that kind in every build, and
+finite-difference steps are based on the accuracy of the function values
+(`hs_epsilon`). Still open in `real128`: TP61 ends at another local
+solution, so `test_hs_suite`'s regression check (a `real64` baseline)
+fails there. TP299 takes ~90 s (the dense QP in software quad
+arithmetic), which looks like a hang.
+
+**Dense Hessian for the dense QP (2026-09-30).** Found while looking at
+why TP299 (`n` = 100, so 100 pairs) takes ~90 s in `real128`: it is the
+slowest problem in `real64` too (2.1 of the suite's 3 s), with the time in
+forming the dense Hessian from `n` Hessian-vector products, each with a
+solve with the `2k x 2k` middle matrix. New `hessian%dense`: for BFGS it
+applies the stored updates to `θI` directly (`2n²` per pair instead of
+`4n² + 4nk`), for the exact Hessian it copies the nonzeros. TP299: 2.1 →
+0.8 s (`real64`), 86 → 40 s (`real128`); whole suite 2.95 → 1.22 s
+(`-O2`). The matrix is the same up to round-off, which is enough to move
+the evaluation counts: default 280/25/0 unchanged, `fc` 8,963 → 9,173
+(18 problems change, TP332 alone +163); the Performance table is
+regenerated (the Armijo and trust-region rows move by a problem or two
+either way). The automatic L-BFGS memory stays: with 10, 20, 50 pairs the
+suite needs 9,638, 9,521, 9,846 `fc` (and 50 solves one fewer), against
+9,024 with `min(n,100)` (same build), and only 0.5–0.9 s instead of 1.2 s.
+
+Not done:
+
+- What is left of TP299's time is mostly the LU of the `2k x 2k` middle
+  matrix (once per iteration, for the products in the damping and the
+  descent test). Eliminating its `-D` block leaves a `k x k` positive
+  definite matrix (`θSᵀS + L D⁻¹ Lᵀ`, as in L-BFGS-B), about 8 times
+  cheaper to factor.
+- `lu_factor` takes the middle matrix to be singular when a pivot is below
+  `1e-14` times its largest element, and the products then fall back to
+  `θI`, dropping all the curvature. This happens with pairs stored on
+  several HS problems (TP54, 87, 109, 220, 322, 333, 373, 376), and may be
+  bad scaling between the blocks rather than singularity (not checked): without the fallback in `hessian%dense`, TP87 is
+  solved (281/24/0). The block elimination above would avoid it.
+
+**Out-of-memory status (2026-09-30).** New status code
+`sqpopt_out_of_memory` (27): the dense QP solver checks the allocation of
+its three large matrices (the dense Jacobian, the constraint rows, and the
+Hessian), and the solve stops with that code, at the current point,
+instead of aborting the program. The QP solver type keeps a flag so that a
+failure in any QP solve of an iteration (also the trust region's and the
+restoration phase's) ends the solve. New test `test_out_of_memory` (a
+dense QP with `n` = 6,000,000; it uses about 1 GB itself). The solver's
+other allocations are still unchecked (see "Allocation failures" in §4).
+
 ## 2. Bugs: correctness (fix first)
 
 | # | Issue | Where | Evidence |
@@ -881,6 +939,20 @@ function.)
   `solve_sparse_linear_system` wrapper and the `sqpopt_linsolve_*`
   constants are removed, and `lbfgsb` is dropped. `lusol` is now used
   (F13, F1), and `LSMR` was dropped (F14).
+- **Allocation failures.** Only the dense QP solver's three large
+  matrices are checked so far (`sqpopt_out_of_memory`, see "Out-of-memory
+  status" above). Go through every allocation whose size grows with the
+  problem (`n`, `m`, the Jacobian and Hessian nonzeros, the L-BFGS
+  memory) and make it end the solve with that status instead of aborting
+  the program. That includes explicit `allocate` statements, automatic
+  (re)allocation on assignment, and automatic arrays (which can't be
+  checked, so the large ones would have to become allocatable). The
+  candidates are the rest of the dense QP (its working-set and
+  null-space matrices), the sparse QP and its `LUSOL` factors, the
+  L-BFGS storage, the work vectors of `solve` and `sqpopt_iterate`, the
+  problem type's bound, scaling, and cache arrays, and the Python shim.
+  Each component needs a way to report the failure to its caller, as
+  the QP solver type's `out_of_memory` flag does.
 
 ## 5. Features toward state of the art
 

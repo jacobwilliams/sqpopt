@@ -208,7 +208,7 @@ end subroutine gjac</code></pre>
   <li>it would stop at this point (converged, acceptable, stalled, or infeasible): the gradient and Jacobian are re-evaluated accurately and the tests redone, so it never stops on the strength of fast derivatives;</li>
   <li>progress stalls, or a step fails: both can be caused by derivatives that are too rough.</li>
 </ul>
-<p>Because of the last two rules, <code>derivative_switch_tol</code> is only a shortcut, and a small one works best: on the Hock&ndash;Schittkowski problems with finite-difference derivatives for all of them, switching from forward to central differences took about 40% fewer function evaluations than central differences throughout, with the same problems solved, for any <code>derivative_switch_tol</code> from \( 10^{-5} \) (the default, \( 10 \times \) <code>ktol</code>) down; switching earlier (\( 10^{-3} \)) saved only 15%. Forward differences throughout were cheaper still, but failed on 2 problems. The iteration of the switch is in <code>results%derivative_switch_iteration</code>, and flagged <code>D</code> in the log.</p>
+<p>Because of the last two rules, <code>derivative_switch_tol</code> is only a shortcut, and a small one works best: on the Hock&ndash;Schittkowski problems with finite-difference derivatives for all of them, switching from forward to central differences took about 40% fewer function evaluations than central differences throughout, with one problem fewer solved (TP214, which stops just outside the tolerance on the objective), for any <code>derivative_switch_tol</code> from \( 10^{-5} \) (the default, \( 10 \times \) <code>ktol</code>) down; switching earlier (\( 10^{-3} \)) saved only 14%. Forward differences throughout were cheaper still, but failed on 2 problems. The iteration of the switch is in <code>results%derivative_switch_iteration</code>, and flagged <code>D</code> in the log.</p>
 
 <pre><code class="language-fortran">subroutine gjac(x, g, jac_val, accuracy, status, data)
     ...
@@ -379,6 +379,7 @@ end program hs71</code></pre>
 <tr class="bad"><td><code>sqpopt_invalid_input</code></td><td class="num">24</td><td>the problem definition or options are invalid (see <code>status_message()</code>)</td></tr>
 <tr class="bad"><td><code>sqpopt_function_error</code></td><td class="num">25</td><td>a problem function returned a non-finite value (NaN or Inf), or <code>status &gt; 0</code>, at the current point. At a <em>trial</em> point, that only makes the line search or trust region reject the point and back off.</td></tr>
 <tr class="bad"><td><code>sqpopt_unbounded</code></td><td class="num">26</td><td>the objective fell below <code>obj_lower_limit</code> at a feasible point</td></tr>
+<tr class="bad"><td><code>sqpopt_out_of_memory</code></td><td class="num">27</td><td>the dense QP solver could not allocate its matrices (of the order of \( n^2 \) and \( mn \) elements): use the sparse QP solver (<code>qp_solver_mode</code>) for a problem of this size. The point is the last iterate.</td></tr>
 </tbody>
 </table></div>
 <p class="legend"><span><span class="dot ok"></span>solution found</span> <span><span class="dot warn"></span>stopped by a limit or by you</span> <span><span class="dot bad"></span>failure</span></p>
@@ -666,7 +667,7 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <thead><tr><th>value</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>sqpopt_qp_auto</code> <span class="badge">default</span></td><td><code>sqpopt_qp_dense</code> if <code>n &lt;= auto_dense_max_n</code>, else <code>sqpopt_qp_reduced_hessian</code></td></tr>
-<tr><td><code>sqpopt_qp_dense</code></td><td>dense active-set QP (Householder QR null space, Cholesky factorization of the reduced Hessian). It forms <code>O(n²)</code>/<code>O(mn)</code> dense arrays on each call, so it is best for small-to-moderate problems.</td></tr>
+<tr><td><code>sqpopt_qp_dense</code></td><td>dense active-set QP (Householder QR null space, Cholesky factorization of the reduced Hessian). It forms <code>O(n²)</code>/<code>O(mn)</code> dense arrays on each call, so it is best for small-to-moderate problems. If they can't be allocated, the solve stops with <code>sqpopt_out_of_memory</code>.</td></tr>
 <tr><td><code>sqpopt_qp_reduced_hessian</code></td><td>sparse active-set QP (SQOPT-style basis partition of the working set with sparse <code>LUSOL</code> factors, conjugate gradients on the reduced Hessian, active bounds handled by fixing variables). It never forms a dense array, so it scales to larger problems.</td></tr>
 </tbody>
 </table></div>
@@ -883,26 +884,26 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <div class="table-wrap"><table class="bench">
 <thead><tr><th>globalization</th><th class="num">solved</th><th class="num">local</th><th class="num">failed</th><th class="num"><code>fc</code> calls (solved)</th></tr></thead>
 <tbody>
-<tr class="best"><td><strong>filter</strong> (default, with interpolation)</td><td class="num"><strong>280</strong></td><td class="num">25</td><td class="num"><strong>0</strong></td><td class="num"><strong>8,963</strong></td></tr>
-<tr><td>filter, without interpolation</td><td class="num">279</td><td class="num">26</td><td class="num">0</td><td class="num">9,362</td></tr>
-<tr><td>funnel (with interpolation)</td><td class="num">280</td><td class="num">25</td><td class="num">0</td><td class="num">9,365</td></tr>
-<tr><td>filter, exact Hessian (finite differences of the gradients)</td><td class="num">268</td><td class="num">34</td><td class="num">3</td><td class="num">12,666</td></tr>
-<tr><td>Armijo / \( \ell_1 \) / multipliers</td><td class="num">273</td><td class="num">27</td><td class="num">5</td><td class="num">22,292</td></tr>
-<tr><td>Armijo / \( \ell_1 \) / model (Byrd&ndash;Nocedal)</td><td class="num">275</td><td class="num">27</td><td class="num">3</td><td class="num">27,556</td></tr>
-<tr><td>Armijo / augmented Lagrangian / multipliers</td><td class="num">276</td><td class="num">28</td><td class="num">1</td><td class="num">10,010</td></tr>
-<tr><td>Armijo / augmented Lagrangian / multipliers, interpolation + non-monotone (10)</td><td class="num">277</td><td class="num">28</td><td class="num">0</td><td class="num">10,291</td></tr>
-<tr><td>Armijo / augmented Lagrangian / model (GMSW)</td><td class="num">276</td><td class="num">26</td><td class="num">3</td><td class="num">13,612</td></tr>
-<tr><td>watchdog / \( \ell_1 \) / model</td><td class="num">275</td><td class="num">29</td><td class="num">1</td><td class="num">31,793</td></tr>
-<tr><td>trust region / filter</td><td class="num">264</td><td class="num">38</td><td class="num">3</td><td class="num">9,210</td></tr>
-<tr><td>trust region / funnel</td><td class="num">264</td><td class="num">39</td><td class="num">2</td><td class="num">10,529</td></tr>
+<tr class="best"><td><strong>filter</strong> (default, with interpolation)</td><td class="num"><strong>280</strong></td><td class="num">25</td><td class="num"><strong>0</strong></td><td class="num"><strong>9,173</strong></td></tr>
+<tr><td>filter, without interpolation</td><td class="num">279</td><td class="num">26</td><td class="num">0</td><td class="num">9,501</td></tr>
+<tr><td>funnel (with interpolation)</td><td class="num">280</td><td class="num">25</td><td class="num">0</td><td class="num">9,389</td></tr>
+<tr><td>filter, exact Hessian (finite differences of the gradients)</td><td class="num">268</td><td class="num">34</td><td class="num">3</td><td class="num">12,833</td></tr>
+<tr><td>Armijo / \( \ell_1 \) / multipliers</td><td class="num">273</td><td class="num">26</td><td class="num">6</td><td class="num">22,356</td></tr>
+<tr><td>Armijo / \( \ell_1 \) / model (Byrd&ndash;Nocedal)</td><td class="num">276</td><td class="num">26</td><td class="num">3</td><td class="num">32,415</td></tr>
+<tr><td>Armijo / augmented Lagrangian / multipliers</td><td class="num">276</td><td class="num">28</td><td class="num">1</td><td class="num">10,155</td></tr>
+<tr><td>Armijo / augmented Lagrangian / multipliers, interpolation + non-monotone (10)</td><td class="num">277</td><td class="num">28</td><td class="num">0</td><td class="num">10,303</td></tr>
+<tr><td>Armijo / augmented Lagrangian / model (GMSW)</td><td class="num">275</td><td class="num">27</td><td class="num">3</td><td class="num">13,317</td></tr>
+<tr><td>watchdog / \( \ell_1 \) / model</td><td class="num">274</td><td class="num">29</td><td class="num">2</td><td class="num">28,849</td></tr>
+<tr><td>trust region / filter</td><td class="num">263</td><td class="num">39</td><td class="num">3</td><td class="num">8,949</td></tr>
+<tr><td>trust region / funnel</td><td class="num">263</td><td class="num">40</td><td class="num">2</td><td class="num">10,376</td></tr>
 </tbody>
 </table></div>
 
 <p><a href="hs_results.html"><strong>Explore the results of every problem &rarr;</strong></a> An interactive page with the default configuration's result on each of the 305 problems, compared with NLPQLP's published results and with <a href="https://github.com/jacobwilliams/slsqp">SLSQP</a> run on the same problems: charts of the function evaluations, and sortable, filterable tables.</p>
 
-<p class="small">The merit-function rows are without interpolation, except where noted. With interpolation, Armijo / \( \ell_1 \) / multipliers needs 20,878 <code>fc</code> calls instead of 22,292, and solves one more problem. Analytic derivatives are used throughout, except for the 16 problems for which the collection provides none (they are solved with finite-difference derivatives, as the collection intends); the analytic derivatives that were wrong in the original collection are fixed in <code>test/schittkowski_problems.f90</code>.</p>
+<p class="small">The merit-function rows are without interpolation, except where noted. With interpolation, Armijo / \( \ell_1 \) / multipliers needs 20,324 <code>fc</code> calls instead of 22,356, and solves two more problems. Analytic derivatives are used throughout, except for the 16 problems for which the collection provides none (they are solved with finite-difference derivatives, as the collection intends); the analytic derivatives that were wrong in the original collection are fixed in <code>test/schittkowski_problems.f90</code>.</p>
 
-<p class="small">The collection has no second derivatives, so the exact-Hessian row uses Hessians of the Lagrangian computed by the test harness by central differences of the analytic gradients (the 16 problems without analytic derivatives keep BFGS). On the problems that both it and the default solve, it needs 30% fewer iterations (median), and far fewer on some (TP116: 25 instead of 124); its larger <code>fc</code> total comes from a few problems where Newton steps crawl along a curved valley (TP210, 235, 281).</p>
+<p class="small">The collection has no second derivatives, so the exact-Hessian row uses Hessians of the Lagrangian computed by the test harness by central differences of the analytic gradients (the 16 problems without analytic derivatives keep BFGS). On the problems that both it and the default solve, it needs 30% fewer iterations (median), and far fewer on some (TP116: 25 instead of 127); its larger <code>fc</code> total comes from a few problems where Newton steps crawl along a curved valley (TP210, 235, 281).</p>
 
 <p class="small">This table is generated by <code>tools/hs_performance_table.sh</code> (run it with <code>pixi run tools/hs_performance_table.sh</code>; it prints the rows above, and the footnote's figures). Individual configurations can be run with the test suite's command-line options, e.g. <code>fpm test test_hs_suite --profile release -- results.md --linesearch=armijo --merit=al</code>.</p>
 

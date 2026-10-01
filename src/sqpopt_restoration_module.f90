@@ -215,19 +215,30 @@
 !  `x_new`, with `istat=sqpopt_success`; if there is none, `x_new=x` and
 !  `istat=sqpopt_line_search_failed`. This costs at most `6*max_probe`
 !  evaluations of the constraints.
+!
+!  A column is negligible if its largest element (in the violated rows) is
+!  below `tol`, the tolerance at which [[check_convergence]] takes the
+!  gradient of the violation to be zero, or below `sqrt(epsilon)` times the
+!  largest element of all the columns. The first test doesn't depend on the
+!  working precision: the iterates approach such a plane without landing on
+!  it exactly (in `real64`, round-off usually pushes them off it instead;
+!  in `real128` it doesn't, and e.g. TP88 stops next to the plane `x_2=0`
+!  with a column of `1e-8`, far above `sqrt(epsilon)`).
 
-    subroutine escape_step(problem, jac, x, c, x_new, istat)
+    subroutine escape_step(problem, jac, x, c, tol, x_new, istat)
 
     type(sqpopt_problem_type),  intent(inout) :: problem  !! problem definition
     type(sqpopt_sparse_matrix), intent(in)    :: jac      !! constraint Jacobian at `x`, `dimension(m,n)`
     real(wp), dimension(:),     intent(in)    :: x        !! current point `dimension(n)`
     real(wp), dimension(:),     intent(in)    :: c        !! constraint values at `x` `dimension(m)`
+    real(wp),                   intent(in)    :: tol      !! a Jacobian column is negligible below this (the convergence
+                                                          !! test's `ktol`)
     real(wp), dimension(:),     intent(out)   :: x_new    !! new point `dimension(n)`
     integer,                    intent(out)   :: istat    !! status code (see [[sqpopt_types_module]])
 
     integer,  parameter :: max_probe = 10 !! maximum number of variables probed
     real(wp), parameter :: steps(3) = [1.0e-3_wp, 1.0e-2_wp, 1.0e-1_wp] !! relative perturbations tried
-    real(wp), parameter :: col_tol = sqrt(epsilon(1.0_wp)) !! a column is negligible below this (relative)
+    real(wp), parameter :: col_tol = sqrt(epsilon(1.0_wp)) !! a column is also negligible below this (relative)
 
     real(wp), dimension(size(c)) :: rc, c_trial
     real(wp), dimension(size(x)) :: colmax, x_trial
@@ -250,7 +261,7 @@
 
     n_probe = 0
     do j = 1, size(x)
-        if (colmax(j) > col_tol*jmax) cycle
+        if (colmax(j) > max(tol, col_tol*jmax)) cycle
         n_probe = n_probe + 1
         if (n_probe > max_probe) exit
         do i = 1, size(steps)

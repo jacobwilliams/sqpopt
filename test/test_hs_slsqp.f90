@@ -38,11 +38,12 @@ program test_hs_slsqp
     !! prints SLSQP's iterations (see also `tools/hs_compare.sh`, which runs
     !! one problem with both SQPOPT and SLSQP).
 
-    use slsqp_module,          only: slsqp_solver
+    use slsqp_module, only: slsqp_solver
+    use slsqp_kinds,  only: dp => slsqp_rk
     use hs_problems_module
     use hs_derivatives_module, only: p => hs_current, check_derivatives, fd_gradient, fd_jacobian
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
-    use, intrinsic :: iso_fortran_env, only: dp => real64, compiler_version
+    use, intrinsic :: iso_fortran_env, only: compiler_version
 
     implicit none
 

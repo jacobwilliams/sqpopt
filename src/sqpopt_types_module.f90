@@ -38,6 +38,8 @@
                                                                     !! non-finite values are rejected instead)
     integer, parameter, public :: sqpopt_unbounded            = 26 !! stopped -- the objective fell below its lower limit at a
                                                                    !! feasible point (the problem appears to be unbounded)
+    integer, parameter, public :: sqpopt_out_of_memory        = 27 !! stopped -- an array could not be allocated (the dense
+                                                                   !! matrices of the dense QP solver)
 
     real(wp), parameter, public :: sqpopt_infinity = 1.0e20_wp !! any bound with magnitude `>= sqpopt_infinity` is treated
                                                                 !! as absent (bounds are clamped to `[-sqpopt_infinity,
@@ -147,6 +149,7 @@
     case (sqpopt_function_error);      msg = 'the problem functions returned a non-finite value (NaN or Inf), '// &
                                                'or could not be evaluated, at the current point'
     case (sqpopt_unbounded);           msg = 'the objective fell below its lower limit (the problem appears to be unbounded)'
+    case (sqpopt_out_of_memory);       msg = 'out of memory (an array could not be allocated)'
     case default;                      msg = 'unknown status code'
     end select
 

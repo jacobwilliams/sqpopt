@@ -75,8 +75,13 @@ Before calling a change done, go through the items that apply.
 
 ### New or renamed status code
 - Add the constant to `sqpopt_types_module.f90`, keeping the numeric grouping: `0–2` success, `1x` limits and user stop, `2x` failures. Add a case to `sqpopt_status_message`.
-- Update the guide's Status codes table and its grouping sentence.
-- Check every `select case` and comparison on status codes in `src/` and in the tests.
+- Make the code reach the caller. A code that ends the solve is returned by `sqpopt_iterate` with `done = .true.` (its docstring lists the codes it can return, and so does the comment at the `finish` call in `solve`'s loop). Any other non-success code from an iteration is only counted toward `max_consecutive_failures`.
+- If a component returns it (a QP solver, the line search, …), follow it through every caller. A QP status goes through `solve_qp_subproblem` to `sqpopt_iterate`, and also to the trust region and the restoration phase, which solve QPs themselves. Add the code to the docstring of each routine that can return it, and to `qp_status_text` in `sqpopt_log_module.f90` if a QP solve can return it.
+- Check every `select case` and comparison on status codes in `src/` and in the tests (`grep sqpopt_<an existing code>` finds them), including the flags in `print_iteration`.
+- Update the guide's Status codes table (the row's class is `ok`, `warn`, or `bad`) and its grouping sentence, and mention the code where the guide describes the feature that returns it.
+- Add a test that produces the code, and checks both `istat` and `results%istat`.
+- Python: `minimize` passes the code and its message through (`status`, `message`), and `success` is `status <= 2`, so nothing changes unless the code is a new kind of success. Rebuild the bindings and run `pixi run test-python`. If a component type gained a state field to carry the code, list it as internal state in `python/tests/test_schema.py` (the test fails on any field that is neither an option nor listed there).
+- The README doesn't list the codes. The HS results data (`web/js/hs_results_data.js`) stores status messages, so regenerate it if a message that appears there is reworded.
 
 ### New iteration-log flag or detail line
 - In `sqpopt_module.F90`, set the flag in `print_iteration` and describe it in `print_legend`. Add it to the guide's `print_level` description.
@@ -90,7 +95,7 @@ Before calling a change done, go through the items that apply.
 - Note in the summary to the user that the change breaks existing user code.
 
 ### Change that can affect convergence (algorithm, defaults, tolerances)
-Run the HS suite in release mode, and compare it with the baseline recorded in the `known_unsolved` comment of `test/test_hs_suite.f90`. That baseline is currently 280 solved, 25 local, 0 failed, and 8,963 `fc` calls.
+Run the HS suite in release mode, and compare it with the baseline recorded in the `known_unsolved` comment of `test/test_hs_suite.f90`. That baseline is currently 280 solved, 25 local, 0 failed, and 9,173 `fc` calls.
 - If problems newly fail, it is a regression. Investigate it, don't just update the baseline.
 - If results change, do all of the following:
   - Update the `known_unsolved` list and the counts and date in its comment.

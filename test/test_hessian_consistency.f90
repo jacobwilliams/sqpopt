@@ -14,6 +14,8 @@ program test_hessian_consistency
     !! * The diagonal (BFGS with a wrapped buffer, and SR1) must match
     !!   `e_i^T B e_i`, also when it comes from the cache, and after a
     !!   further update (which must invalidate the cache).
+    !! * The dense matrix (`dense`, which the dense QP solver uses) must
+    !!   match the products with the unit vectors, in the same cases.
     !! * Powell-damped BFGS: a negative-curvature pair (`s^T y < 0`) is still
     !!   used (after damping, `s^T B s = 0.2 s^T B_old s`) and `B` stays
     !!   positive definite; with damping off, the pair is skipped instead.
@@ -86,8 +88,10 @@ program test_hessian_consistency
 
     ! ---- the diagonal (BFGS, wrapped buffer), and its cache ----
     call check_diagonal('BFGS')
+    call check_dense('BFGS')
     call h%update_bfgs(ss(:,1), yy(:,1))  ! (wraps again: the cached diagonal must be recomputed)
     call check_diagonal('BFGS after an update')
+    call check_dense('BFGS after an update')
 
     ! ---- Powell damping: a negative-curvature pair ----
     block
@@ -99,6 +103,7 @@ program test_hessian_consistency
         call h%hv_product(s_neg, bs)
         sbs_old = dot_product(s_neg, bs)
         call h%update_bfgs(s_neg, -s_neg)
+        call check_dense('BFGS damped')
         if (h%n_history /= 3) error stop 'test_hessian_consistency FAILED: damped pair not stored'
         call h%hv_product(s_neg, bs)
         sbs_new = dot_product(s_neg, bs)
@@ -130,6 +135,7 @@ program test_hessian_consistency
         if (norm2(bs - yy(:,k)) > tol) error stop 'test_hessian_consistency FAILED: SR1 secant condition'
     end do
     call check_diagonal('SR1')
+    call check_dense('SR1')
 
     ! ---- SR1 inverse (the matrix-free CG solve) ----
     call h%inverse_vector_product(v, d)
@@ -179,6 +185,7 @@ program test_hessian_consistency
         if (norm2(bv - matmul(a, v) - shift*v) > tol) error stop 'test_hessian_consistency FAILED: shifted product'
         call h%diagonal(diag)
         if (norm2(diag - [(a(i,i), i=1,n)] - shift) > tol) error stop 'test_hessian_consistency FAILED: shifted diagonal'
+        call check_dense('exact shifted')
 
         ! ...and decays on set_values (unless decay=.false.), then drops to 0:
         call h%set_values(hval, decay=.false.)
@@ -217,5 +224,21 @@ contains
         if (norm2(diag - ref) > tol*norm2(ref)) error stop 'test_hessian_consistency FAILED: '//label//' diagonal'
     end do
     end subroutine check_diagonal
+
+    subroutine check_dense(label)
+    !! `h%dense` must be the matrix of `B`, from products with the unit
+    !! vectors (it is built differently, see [[hessian_dense]])
+    character(len=*), intent(in) :: label !! the case, for the message
+    real(wp) :: hd(n,n), ref(n,n), e(n)
+    integer :: j
+    do j = 1, n
+        e = 0.0_wp; e(j) = 1.0_wp
+        call h%hv_product(e, ref(:,j))
+    end do
+    call h%dense(hd)
+    print '(A,ES10.2)', label//' dense matrix error = ', norm2(hd - ref)
+    if (norm2(hd - ref) > tol*norm2(ref)) error stop 'test_hessian_consistency FAILED: '//label//' dense matrix'
+    if (any(hd /= transpose(hd))) error stop 'test_hessian_consistency FAILED: '//label//' dense matrix is not symmetric'
+    end subroutine check_dense
 
 end program test_hessian_consistency

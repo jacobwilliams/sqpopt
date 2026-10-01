@@ -85,8 +85,9 @@ program test_hs_suite
     !! regression test is a machine-readable summary:
     !! `summary: solved=... local=... failed=... nf=... ng=...`.
 
+    use sqpopt_kinds, only: dp => sqpopt_module_wp
     use, intrinsic :: ieee_arithmetic, only: ieee_set_halting_mode, ieee_all, ieee_is_finite
-    use, intrinsic :: iso_fortran_env, only: dp => real64, int64, compiler_version
+    use, intrinsic :: iso_fortran_env, only: int64, compiler_version
     use hs_problems_module
     use hs_derivatives_module, only: p => hs_current, check_derivatives, fd_gradient, fd_jacobian, fd_step
     use sqpopt_module,         only: sqpopt_type
@@ -113,7 +114,7 @@ program test_hs_suite
     real(dp), parameter :: feas_tol = 1.0e-6_dp  !! constraint/bound violation tolerance for "solved"/"local"
 
     !> problems not (yet) solved by `sqpopt` with the default options -- the
-    !! regression baseline (see the program documentation). As of 2026-09-27:
+    !! regression baseline (see the program documentation). As of 2026-09-30:
     !! 280 of the 305 problems solved, 25 local solutions, 0 failures.
     integer, dimension(*), parameter :: known_unsolved = [ &
           2,  16,  25,  33,  38,  54,  55,  57,  59,  87,  97,  98, 105, 109, 213, &
