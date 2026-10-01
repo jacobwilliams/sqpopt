@@ -139,7 +139,8 @@ pixi run fpm run --example benchmark --profile release
 ```
 
 `example/benchmark_large.f90` solves larger problems with analytic second
-derivatives (those two, and a nonconvex chain of double wells) with each
+derivatives (those two, a nonconvex chain of double wells, and a chain of
+circle constraints that needs second-order corrections) with each
 Hessian mode and, in a build with MUMPS, with the options that use sparse
 factorizations. It reports where the time goes (the QP solver, the
 factorizations) and how many QPs were solved directly. `--scale=S`

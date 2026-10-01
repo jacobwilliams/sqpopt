@@ -952,6 +952,16 @@ which is now double precision only.
   coverage (`coverage.sh --mumps`). MUMPS's automatic ordering is kept (it
   was best or within noise). New unit tests of the direct method's special
   paths. See MUMPS_PLAN.md §8, "Settled since".
+- **A problem for `direct_least_squares`, and two fixes (2026-10-02).**
+  `circles` (in `benchmark_large` and `test_direct`): a chain of coupled
+  circle constraints that needs second-order corrections; at n=100,000
+  the solve takes 88.7 s with `LSQR` and 1.1 s with direct least squares.
+  Found on the way: MUMPS's workspace retries gave up too early on a very
+  indefinite matrix (the solve ended as out of memory), and a face that
+  MUMPS wrongly found singular was regularized too coarsely for its step
+  to be accepted. Both fixed. The guide's large-problem timings were
+  re-measured on an idle machine. Open: the exact Hessian stalls at a
+  non-optimal point on a hanging-chain problem (L-BFGS solves it).
 
 ## 2. Bugs: correctness (fix first)
 

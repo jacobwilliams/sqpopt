@@ -199,7 +199,9 @@
 !  `n_null` are its numbers of negative and zero eigenvalues, and
 !  [[symmetric_solver_solve]] can be called. The pattern is analysed in the
 !  first call, with that call's values. If MUMPS runs out of its estimated
-!  workspace, the factorization is repeated with more.
+!  workspace, the factorization is repeated with twice the allowance, up to
+!  20 times (as IPOPT does), and the larger allowance is kept for the
+!  following factorizations.
 
     subroutine symmetric_solver_factor(me, val, ok)
 
@@ -209,7 +211,8 @@
 
 #ifdef HAS_MUMPS
     integer :: attempt
-    integer, parameter :: max_attempts = 6 !! (each doubles the workspace increase)
+    integer, parameter :: max_attempts = 20 !! (each doubles the workspace increase; a very indefinite matrix,
+                                            !! whose pivots are delayed, can need many times the estimate)
     integer(int64) :: t0, t1, rate
 #endif
 

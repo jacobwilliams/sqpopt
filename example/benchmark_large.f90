@@ -5,20 +5,24 @@ program benchmark_large
     !! (`options%inertia_control`, `direct_qp`, and `direct_least_squares`,
     !! in a build with MUMPS) do to the run time, and where the time goes:
     !!
-    !!    fpm run --example benchmark_large --profile release -- [--scale=S] [--problem=NAME] [--no-bfgs] [--no-active-set]
-    !!        [--no-least-squares] [--memory=K] [--threads=T] [--print=L]
+    !!    fpm run --example benchmark_large --profile release -- [--scale=S] [--problem=NAME] [--config=NAME]
+    !!        [--no-bfgs] [--no-active-set] [--least-squares] [--no-least-squares] [--memory=K] [--threads=T] [--print=L]
     !!
     !! With MUMPS (see the README):
     !!
     !!    pixi run run-mumps --example benchmark_large --profile release -- --scale=10
     !!
     !! `--scale=S` multiplies the problem sizes below by `S` (default 1).
-    !! `--problem=NAME` runs only that problem (`control`, `rosenbrock`, or `wells`).
+    !! `--problem=NAME` runs only that problem (`control`, `rosenbrock`, `wells`,
+    !! `circles`, or `hyperbolas`), and `--config=NAME` only that configuration
+    !! (`bfgs`, `exact`, `bfgs-direct`, `inertia`, or `direct`: see below).
     !! `--no-bfgs` leaves out the L-BFGS runs, and `--no-active-set` every run
     !! without `direct_qp` (at large sizes those take most of the time).
-    !! `--no-least-squares` leaves `direct_least_squares` off, `--memory=K`
-    !! sets `options%lbfgs_memory`, `--threads=T` sets
-    !! `options%factorization_threads`, and `--print=L` sets `options%print_level`.
+    !! `direct_least_squares` is on in the runs with `direct_qp`:
+    !! `--least-squares` turns it on in every run, and `--no-least-squares`
+    !! off in every run. `--memory=K` sets `options%lbfgs_memory`, `--threads=T`
+    !! sets `options%factorization_threads`, and `--print=L` sets
+    !! `options%print_level`.
     !!
     !! Problems (sizes for `S = 1`):
     !!
@@ -47,14 +51,40 @@ program benchmark_large
     !!       subject to x_a*x_b + x_c - x_d^2 = 0   for each block (a,b,c,d) of 4 variables
     !!                  -1.5 <= x <= 0.8
     !!
-    !! Each is solved with L-BFGS (the default), with the exact Hessian, and,
-    !! in a build with MUMPS, with L-BFGS and the direct QP method, with the
-    !! exact Hessian and inertia control, and with those and the direct QP
-    !! method (the direct runs also use direct least-squares solves). The
-    !! columns are the status, major iterations, calls of `fc`, the objective,
-    !! the total time and the parts of it in the QP solver and in the
-    !! factorizations, the number of QPs solved directly out of all QPs, and
-    !! the number of factorizations.
+    !! * `circles`: a chain of `n - 1` coupled circle constraints on
+    !!   `n = 10000` variables, with the objective of the Maratos example (see
+    !!   `test/test_maratos.f90`). It starts on the constraints, where full
+    !!   steps increase both the objective and the violation, so the line
+    !!   search needs second-order corrections; and each constraint shares a
+    !!   variable with the next, so the corrections are ill-conditioned
+    !!   least-squares problems (a test of `direct_least_squares`). The
+    !!   solution is `x = (1,0,1,0,...)`, with `f = -n/2`:
+    !!
+    !!       minimize   2*sum_i (x_i^2 + x_{i+1}^2 - 1) - sum_{i odd} x_i
+    !!       subject to x_i^2 + x_{i+1}^2 = 1,   i = 1..n-1
+    !!
+    !! * `hyperbolas` (only with `--problem=hyperbolas`): a chain of `n - 1`
+    !!   hyperbola constraints on `n = 10000` variables, from a start where
+    !!   the linearized constraints can't be satisfied within the bounds, so
+    !!   the first iterations are Gauss-Newton restoration steps (the other
+    !!   use of `direct_least_squares`). Most of its time goes to the QPs that
+    !!   find the linearization inconsistent, which is why it is not in the
+    !!   default set:
+    !!
+    !!       minimize   sum_i (x_i - a_i)^2/2,   a_i = 1 + sin(0.37 i)/2
+    !!       subject to x_i*x_{i+1} >= 1,   i = 1..n-1
+    !!                  0.1 <= x <= 2
+    !!
+    !! Each is solved with L-BFGS (the default; configuration `bfgs`), with the
+    !! exact Hessian (`exact`), and, in a build with MUMPS, with L-BFGS and the
+    !! direct QP method (`bfgs-direct`), with the exact Hessian and inertia
+    !! control (`inertia`), and with those and the direct QP method (`direct`;
+    !! the direct runs also use direct least-squares solves). The columns are
+    !! the status, major iterations, calls of `fc`, the objective, the total
+    !! time and the parts of it in the QP solver and in the factorizations,
+    !! the number of QPs solved directly out of all QPs, the number of
+    !! factorizations, and the numbers of second-order corrections and of
+    !! restoration steps.
 
     use sqpopt_module,         only: sqpopt_type
     use sqpopt_problem_module, only: sqpopt_problem_type
@@ -69,7 +99,9 @@ program benchmark_large
     integer  :: nsteps   !! `control`: number of steps `N`
     real(wp) :: h        !! `control`: step size
     real(wp) :: scale    !! `--scale`
-    logical  :: with_bfgs, with_active_set, with_least_squares
+    logical  :: with_bfgs, with_active_set
+    integer  :: least_squares !! `direct_least_squares`: `1` in every run, `-1` in none, `0` in the direct ones
+    character(len=:), allocatable :: only_config !! `--config` (empty: all of them)
     integer  :: print_level !! `--print`
     integer  :: memory      !! `--memory` (`0`: automatic)
     integer  :: threads     !! `--threads` (`0`: as the OpenMP environment says)
@@ -80,7 +112,8 @@ program benchmark_large
     scale = 1.0_wp
     with_bfgs = .true.
     with_active_set = .true.
-    with_least_squares = .true.
+    least_squares = 0
+    only_config = ''
     print_level = 0
     memory = 0
     threads = 1
@@ -92,7 +125,7 @@ program benchmark_large
             if (ios /= 0 .or. .not. scale > 0.0_wp) error stop 'benchmark_large: bad --scale value'
         else if (arg(1:10) == '--problem=') then
             only = trim(arg(11:))
-            if (all(only /= [character(len=10) :: 'control', 'rosenbrock', 'wells'])) then
+            if (all(only /= [character(len=10) :: 'control', 'rosenbrock', 'wells', 'circles', 'hyperbolas'])) then
                 error stop 'benchmark_large: bad --problem value'
             end if
         else if (arg == '--no-bfgs') then
@@ -100,7 +133,14 @@ program benchmark_large
         else if (arg == '--no-active-set') then
             with_active_set = .false.
         else if (arg == '--no-least-squares') then
-            with_least_squares = .false.
+            least_squares = -1
+        else if (arg == '--least-squares') then
+            least_squares = 1
+        else if (arg(1:9) == '--config=') then
+            only_config = trim(arg(10:))
+            if (all(only_config /= [character(len=11) :: 'bfgs', 'exact', 'bfgs-direct', 'inertia', 'direct'])) then
+                error stop 'benchmark_large: bad --config value'
+            end if
         else if (arg(1:9) == '--memory=') then
             read(arg(10:), *, iostat=ios) memory
             if (ios /= 0 .or. memory < 0) error stop 'benchmark_large: bad --memory value'
@@ -116,27 +156,36 @@ program benchmark_large
     end do
 
     write(*,'(A)') ''
-    write(*,'(A11,A8,A8,2X,A22,A6,A6,A6,A16,3A9,A10,A6)') 'problem', 'n', 'm', 'configuration          ', 'istat', 'iter', &
-        'fc', 'f', 'time', 'QP', 'factor', 'direct', 'fact'
+    write(*,'(A11,A8,A8,2X,A22,A6,A6,A6,A16,3A9,A10,3A6)') 'problem', 'n', 'm', 'configuration          ', 'istat', 'iter', &
+        'fc', 'f', 'time', 'QP', 'factor', 'direct', 'fact', 'soc', 'rest'
 
     if (only == '' .or. only == 'control')    call run_all('control')
     if (only == '' .or. only == 'rosenbrock') call run_all('rosenbrock')
     if (only == '' .or. only == 'wells')      call run_all('wells')
+    if (only == '' .or. only == 'circles')    call run_all('circles')
+    ! (not in the default set: its inconsistent QPs take most of the time)
+    if (only == 'hyperbolas') call run_all('hyperbolas')
 
     contains
 
     subroutine run_all(name)
     !! solve one problem with every configuration
     character(len=*), intent(in) :: name !! the problem
-    if (with_bfgs .and. with_active_set) call run(name, 'L-BFGS', .false., .false., .false.)
-    if (with_active_set) call run(name, 'exact Hessian', .true., .false., .false.)
+    if (with_bfgs .and. with_active_set .and. wanted('bfgs')) call run(name, 'L-BFGS', .false., .false., .false.)
+    if (with_active_set .and. wanted('exact')) call run(name, 'exact Hessian', .true., .false., .false.)
     if (sqpopt_has_mumps) then
-        if (with_bfgs) call run(name, 'L-BFGS, direct', .false., .false., .true.)
-        if (with_active_set) call run(name, 'exact, inertia', .true., .true., .false.)
-        call run(name, 'exact, inertia, direct', .true., .true., .true.)
+        if (with_bfgs .and. wanted('bfgs-direct')) call run(name, 'L-BFGS, direct', .false., .false., .true.)
+        if (with_active_set .and. wanted('inertia')) call run(name, 'exact, inertia', .true., .true., .false.)
+        if (wanted('direct')) call run(name, 'exact, inertia, direct', .true., .true., .true.)
     end if
     write(*,'(A)') ''
     end subroutine run_all
+
+    logical function wanted(config)
+    !! whether the configuration `config` is to be run (see `--config`)
+    character(len=*), intent(in) :: config !! the configuration's name
+    wanted = only_config == '' .or. only_config == config
+    end function wanted
 
     subroutine run(name, config, exact, inertia, direct)
     !! solve one problem with one configuration, and print a line of results
@@ -157,6 +206,8 @@ program benchmark_large
     select case (name)
     case ('control');    call setup_control(nint(5000*scale), problem, x0)
     case ('rosenbrock'); call setup_rosenbrock(2*nint(2500*scale), problem, x0)
+    case ('hyperbolas'); call setup_hyperbolas(nint(10000*scale), problem, x0)
+    case ('circles');    call setup_circles(nint(10000*scale), problem, x0)
     case default;        call setup_wells(4*nint(2500*scale), problem, x0)
     end select
 
@@ -167,15 +218,16 @@ program benchmark_large
     if (exact) options%hessian_mode = sqpopt_hessian_exact
     options%inertia_control      = inertia
     options%direct_qp            = direct
-    options%direct_least_squares = direct .and. with_least_squares
+    options%direct_least_squares = sqpopt_has_mumps .and. (least_squares == 1 .or. (direct .and. least_squares == 0))
 
     call solver%initialize(problem=problem, options=options)
     call solver%solve(x0, istat)
     call solver%get_results(r)
 
     write(share, '(I0,A,I0)') r%n_direct_qp, '/', r%n_qp_solves
-    write(*,'(A11,I8,I8,2X,A22,I6,I6,I6,ES16.8,3F9.3,A10,I6)') name, problem%n, problem%m, config, r%istat, r%iterations, &
-        r%n_eval_fc, r%f, r%time, r%time_qp, r%time_factorization, adjustr(share), r%n_factorizations
+    write(*,'(A11,I8,I8,2X,A22,I6,I6,I6,ES16.8,3F9.3,A10,3I6)') name, problem%n, problem%m, config, r%istat, r%iterations, &
+        r%n_eval_fc, r%f, r%time, r%time_qp, r%time_factorization, adjustr(share), r%n_factorizations, r%n_soc, &
+        r%n_restoration_steps
 
     end subroutine run
 
@@ -443,5 +495,161 @@ program benchmark_large
         hess_val(4*k)     = hess_val(4*k) + 2.0_wp*lambda(k)
     end do
     end subroutine hess_wells
+
+    !------------------------------------------------------------------------
+    ! chain of hyperbolas
+    !------------------------------------------------------------------------
+
+    subroutine setup_hyperbolas(n, problem, x0)
+    !! the chain of hyperbola constraints with `n` variables
+    integer,                             intent(in)  :: n       !! number of variables
+    type(sqpopt_problem_type),           intent(out) :: problem !! the problem definition
+    real(wp), dimension(:), allocatable, intent(out) :: x0      !! the starting point
+    integer, dimension(:), allocatable :: irow, icol
+    integer :: m, i
+    m = n - 1
+    allocate(irow(2*m), icol(2*m))
+    do i = 1, m
+        irow(2*i-1:2*i) = i
+        icol(2*i-1:2*i) = [i, i+1]
+    end do
+    call problem%set_problem_size(n=n, m=m)
+    call problem%set_bounds(spread(0.1_wp,1,n), spread(2.0_wp,1,n), spread(1.0_wp,1,m), spread(1.0e20_wp,1,m))
+    call problem%set_jacobian_sparsity(2*m, irow, icol)
+    call problem%set_functions(fc=fc_hyperbolas, gjac=gjac_hyperbolas, hess=hess_hyperbolas)
+    ! the Hessian of the Lagrangian is tridiagonal: the diagonal, then the subdiagonal
+    call problem%set_hessian_sparsity(2*n-1, [(i, i=1,n), (i+1, i=1,n-1)], [(i, i=1,n), (i, i=1,n-1)])
+    allocate(x0(n))
+    x0 = 0.1_wp
+    end subroutine setup_hyperbolas
+
+    pure function hyperbola_target(n) result(a)
+    !! the point the objective pulls toward
+    integer, intent(in) :: n !! number of variables
+    real(wp), dimension(n) :: a
+    integer :: i
+    do i = 1, n
+        a(i) = 1.0_wp + 0.5_wp*sin(0.37_wp*real(i, wp))
+    end do
+    end function hyperbola_target
+
+    subroutine fc_hyperbolas(x, f, c, status, data)
+    !! objective and constraints of the chain of hyperbolas
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp),               intent(out)   :: f      !! objective value at `x`
+    real(wp), dimension(:), intent(out)   :: c      !! constraint values at `x` `dimension(m)`
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
+    integer :: n
+    n = size(x)
+    f = 0.5_wp*sum((x - hyperbola_target(n))**2)
+    c = x(1:n-1)*x(2:n)
+    end subroutine fc_hyperbolas
+
+    subroutine gjac_hyperbolas(x, g, jac, accuracy, status, data)
+    !! objective gradient and constraint Jacobian values of the chain of hyperbolas
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: g      !! objective gradient at `x` `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: jac    !! nonzero values of the constraint Jacobian at `x` (in the sparsity pattern's order)
+    integer,                intent(in)    :: accuracy !! requested accuracy: `sqpopt_derivatives_fast` or `sqpopt_derivatives_accurate`
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
+    integer :: n, i
+    n = size(x)
+    g = x - hyperbola_target(n)
+    do i = 1, n-1
+        jac(2*i-1:2*i) = [x(i+1), x(i)]
+    end do
+    end subroutine gjac_hyperbolas
+
+    subroutine hess_hyperbolas(x, lambda, hess_val, status, data)
+    !! the (tridiagonal) Hessian of the Lagrangian of the chain of hyperbolas:
+    !! the identity, minus `lambda_i` between the two variables of constraint `i`
+    real(wp), dimension(:), intent(in)    :: x        !! point `dimension(n)`
+    real(wp), dimension(:), intent(in)    :: lambda   !! constraint multipliers `dimension(m)`
+    real(wp), dimension(:), intent(out)   :: hess_val !! nonzero values of the Hessian of the Lagrangian at `x` (in its sparsity pattern's order)
+    integer,                intent(inout) :: status   !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data     !! the user data passed to `set_functions` (if any)
+    integer :: n
+    n = size(x)
+    hess_val(1:n)  = 1.0_wp
+    hess_val(n+1:) = -lambda
+    end subroutine hess_hyperbolas
+
+    !------------------------------------------------------------------------
+    ! chain of circles
+    !------------------------------------------------------------------------
+
+    subroutine setup_circles(n, problem, x0)
+    !! the chain of circle constraints with `n` variables
+    integer,                             intent(in)  :: n       !! number of variables
+    type(sqpopt_problem_type),           intent(out) :: problem !! the problem definition
+    real(wp), dimension(:), allocatable, intent(out) :: x0      !! the starting point
+    integer, dimension(:), allocatable :: irow, icol
+    integer :: m, i
+    m = n - 1
+    allocate(irow(2*m), icol(2*m))
+    do i = 1, m
+        irow(2*i-1:2*i) = i
+        icol(2*i-1:2*i) = [i, i+1]
+    end do
+    call problem%set_problem_size(n=n, m=m)
+    call problem%set_bounds(spread(-1.0e20_wp,1,n), spread(1.0e20_wp,1,n), spread(1.0_wp,1,m), spread(1.0_wp,1,m))
+    call problem%set_jacobian_sparsity(2*m, irow, icol)
+    call problem%set_functions(fc=fc_circles, gjac=gjac_circles, hess=hess_circles)
+    call problem%set_hessian_sparsity(n, [(i, i=1,n)], [(i, i=1,n)])
+    allocate(x0(n))
+    do i = 1, n
+        x0(i) = merge(cos(0.3_wp), sin(0.3_wp), mod(i,2) == 1)
+    end do
+    end subroutine setup_circles
+
+    subroutine fc_circles(x, f, c, status, data)
+    !! objective and constraints of the chain of circles
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp),               intent(out)   :: f      !! objective value at `x`
+    real(wp), dimension(:), intent(out)   :: c      !! constraint values at `x` `dimension(m)`
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
+    integer :: n
+    n = size(x)
+    c = x(1:n-1)**2 + x(2:n)**2
+    f = 2.0_wp*sum(c - 1.0_wp) - sum(x(1:n:2))
+    end subroutine fc_circles
+
+    subroutine gjac_circles(x, g, jac, accuracy, status, data)
+    !! objective gradient and constraint Jacobian values of the chain of circles
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: g      !! objective gradient at `x` `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: jac    !! nonzero values of the constraint Jacobian at `x` (in the sparsity pattern's order)
+    integer,                intent(in)    :: accuracy !! requested accuracy: `sqpopt_derivatives_fast` or `sqpopt_derivatives_accurate`
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
+    integer :: n, i
+    n = size(x)
+    g = 8.0_wp*x
+    g(1) = 4.0_wp*x(1)
+    g(n) = 4.0_wp*x(n)
+    g(1:n:2) = g(1:n:2) - 1.0_wp
+    do i = 1, n-1
+        jac(2*i-1:2*i) = [2.0_wp*x(i), 2.0_wp*x(i+1)]
+    end do
+    end subroutine gjac_circles
+
+    subroutine hess_circles(x, lambda, hess_val, status, data)
+    !! the (diagonal) Hessian of the Lagrangian of the chain of circles
+    real(wp), dimension(:), intent(in)    :: x        !! point `dimension(n)`
+    real(wp), dimension(:), intent(in)    :: lambda   !! constraint multipliers `dimension(m)`
+    real(wp), dimension(:), intent(out)   :: hess_val !! nonzero values of the Hessian of the Lagrangian at `x` (in its sparsity pattern's order)
+    integer,                intent(inout) :: status   !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data     !! the user data passed to `set_functions` (if any)
+    integer :: n
+    n = size(x)
+    hess_val = 8.0_wp
+    hess_val(1) = 4.0_wp
+    hess_val(n) = 4.0_wp
+    hess_val(1:n-1) = hess_val(1:n-1) - 2.0_wp*lambda
+    hess_val(2:n)   = hess_val(2:n)   - 2.0_wp*lambda
+    end subroutine hess_circles
 
 end program benchmark_large

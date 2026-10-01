@@ -40,7 +40,13 @@
 !  heavily weighted least-squares sense. That gives them large multipliers,
 !  so the bounds that over-determine them are dropped at the next change.
 !  A step is only accepted if it satisfies the working set's rows, so a
-!  regularized face is accepted only if its rows were consistent. A face
+!  regularized face is accepted only if its rows were consistent. A
+!  regularized solve leaves each row short by \( \epsilon \) times its
+!  multiplier, so if that is all that is wrong with the step, the face is
+!  solved once more with a much smaller \( \epsilon \). (That matters
+!  when the solver finds a matrix singular that isn't: near the solution of
+!  a chain of 100,000 circle constraints, the first regularization left the
+!  rows `7e-8` short, and the method gave up on a QP it had solved.) A face
 !  that is still singular (a direction of zero curvature) ends the method.
 !
 !  A face with negative curvature has no minimizer. With inertia control
@@ -72,8 +78,12 @@
 
     real(wp), parameter :: stationarity_tol = 1.0e-8_wp !! relative tolerance on the stationarity residual of a
                                                         !! solve, in the free variables
-    real(wp), parameter :: reg_factor = 1.0e-8_wp !! the regularization of a singular face, relative to the square
-                                                  !! of the Jacobian's largest element
+    real(wp), parameter :: reg_factor = 1.0e-8_wp  !! the regularization of a singular face, relative to the square
+                                                   !! of the Jacobian's largest element
+    real(wp), parameter :: reg_factor_fine = 1.0e-11_wp !! the smaller one, tried if the step of a regularized face
+                                                   !! only fails to satisfy the working set's rows: a regularized
+                                                   !! solve leaves each row short by the regularization times its
+                                                   !! multiplier
 
     ! how [[direct_qp_step]] ended:
     integer, parameter, public :: sqpopt_direct_solved     = 0 !! it found the QP's solution
@@ -129,6 +139,8 @@
     real(wp), dimension(size(c)) :: jp
     real(wp) :: dual_tol, lin
     logical  :: ok, convex, shifted, consistent
+    logical  :: regularized !! whether the current face's KKT matrix is singular, and so regularized
+    logical  :: fine        !! whether the current face is being solved again with the smaller regularization
     real(wp) :: reg, target
 
     n = size(x)
@@ -138,24 +150,29 @@
     p      = 0.0_wp
     lambda = 0.0_wp
     st = status
+    fine = .false.
+    regularized = .false.
 
     do
 
-        call kkt%factor(hessian, jac, st, ok)
-        if (.not. ok) return
-        if (kkt%n_negative > 0) then
-            ! a nonconvex face: raise the shift until it is convex, if we may
-            convex = .false.
-            if (present(inertia)) call inertia%correct(kkt, hessian, jac, st, shifted, convex)
-            if (.not. convex) then
-                outcome = sqpopt_direct_nonconvex
-                return
+        if (.not. fine) then
+            call kkt%factor(hessian, jac, st, ok)
+            if (.not. ok) return
+            if (kkt%n_negative > 0) then
+                ! a nonconvex face: raise the shift until it is convex, if we may
+                convex = .false.
+                if (present(inertia)) call inertia%correct(kkt, hessian, jac, st, shifted, convex)
+                if (.not. convex) then
+                    outcome = sqpopt_direct_nonconvex
+                    return
+                end if
             end if
+            regularized = kkt%singular
         end if
-        if (kkt%singular) then
+        if (regularized) then
             ! dependent rows: regularize them (see the module documentation)
-            reg = reg_factor
-            if (jac%nnz > 0) reg = reg_factor*max(1.0_wp, maxval(abs(jac%val(1:jac%nnz))))**2
+            reg = merge(reg_factor_fine, reg_factor, fine)
+            if (jac%nnz > 0) reg = reg*max(1.0_wp, maxval(abs(jac%val(1:jac%nnz))))**2
             call kkt%factor(hessian, jac, st, ok, reg=reg)
             if (.not. ok) return
             ! (a face without a unique minimizer is left to the active-set solver)
@@ -245,7 +262,11 @@
         end do
 
         if (all(st_new == st)) then
-            if (.not. consistent) then
+            if (.not. consistent .and. regularized .and. .not. fine) then
+                ! (only the rows are not satisfied: perhaps because of the regularization)
+                fine = .true.
+                cycle
+            else if (.not. consistent) then
                 ! (the working set's rows are inconsistent, and nothing can be dropped)
                 outcome = sqpopt_direct_singular
             else if (sqpopt_all_finite(p) .and. sqpopt_all_finite(lambda)) then
@@ -261,6 +282,7 @@
         end if
         n_changes = n_changes + 1
         st = st_new
+        fine = .false.
 
     end do
 

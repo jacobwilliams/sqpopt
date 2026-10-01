@@ -16,7 +16,14 @@ program test_direct
     !!
     !! * Hock-Schittkowski problem 71;
     !! * the Maratos example (see `test_maratos`), whose second-order
-    !!   corrections use the direct least-squares solver.
+    !!   corrections use the direct least-squares solver;
+    !! * `circles`, a chain of 1999 coupled circle constraints with the
+    !!   Maratos example's objective (see `example/benchmark_large.f90`),
+    !!   whose corrections are ill-conditioned least-squares problems.
+    !!
+    !! A hanging chain of 200 links is solved with inertia control: its very
+    !! indefinite KKT matrices need many times the workspace MUMPS estimates,
+    !! which once ended the solve as out of memory.
     !!
     !! It also gives [[direct_qp_step]] small QPs that take each of its special
     !! paths: a nonconvex face (which ends it without inertia control, and
@@ -38,7 +45,7 @@ program test_direct
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
     use sqpopt_symmetric_solver_module, only: sqpopt_has_mumps
     use sqpopt_types_module,     only: sqpopt_success, sqpopt_acceptable, sqpopt_stalled, sqpopt_invalid_input, &
-                                       sqpopt_results_type, sqpopt_sparse_matrix
+                                       sqpopt_results_type, sqpopt_sparse_matrix, sqpopt_out_of_memory
     use sqpopt_kinds,            only: wp => sqpopt_module_wp
 
     implicit none
@@ -85,7 +92,9 @@ program test_direct
         do i = 1, size(configs)
             call run('hs71', configs(i))
             call run('maratos', configs(i))
+            call run('circles', configs(i))
         end do
+        call test_workspace()
     else
         call test_unavailable()
     end if
@@ -174,7 +183,7 @@ program test_direct
 
     subroutine setup(name, problem, x0, x_star)
     !! define one of the test problems
-    character(len=*),                    intent(in)  :: name    !! `hs71` or `maratos`
+    character(len=*),                    intent(in)  :: name    !! `hs71`, `maratos`, or `circles`
     type(sqpopt_problem_type),           intent(out) :: problem !! the problem definition
     real(wp), dimension(:), allocatable, intent(out) :: x0      !! the starting point
     real(wp), dimension(:), allocatable, intent(out) :: x_star  !! the solution
@@ -187,6 +196,19 @@ program test_direct
         call problem%set_functions(fc=fc_hs71, gjac=gjac_hs71, hess=hess_hs71)
         x0     = [1.0_wp, 5.0_wp, 5.0_wp, 1.0_wp]
         x_star = [1.0_wp, 4.7429994_wp, 3.8211500_wp, 1.3794083_wp]
+    else if (name == 'circles') then
+        block
+            integer, parameter :: n = 2000
+            integer :: i
+            call problem%set_problem_size(n=n, m=n-1)
+            call problem%set_bounds(x_lb=spread(-big, 1, n), x_ub=spread(big, 1, n), &
+                                    c_lb=spread(1.0_wp, 1, n-1), c_ub=spread(1.0_wp, 1, n-1))
+            call problem%set_jacobian_sparsity(nnz=2*(n-1), irow=[(i, i, i=1,n-1)], icol=[(i, i+1, i=1,n-1)])
+            call problem%set_hessian_sparsity(nnz=n, irow=[(i, i=1,n)], icol=[(i, i=1,n)])
+            call problem%set_functions(fc=fc_circles, gjac=gjac_circles, hess=hess_circles)
+            x0     = [(merge(cos(0.3_wp), sin(0.3_wp), mod(i,2) == 1), i=1,n)]
+            x_star = [(merge(1.0_wp, 0.0_wp, mod(i,2) == 1), i=1,n)]
+        end block
     else
         call problem%set_problem_size(n=2, m=1)
         call problem%set_bounds(x_lb=[-big, -big], x_ub=[big, big], c_lb=[1.0_wp], c_ub=[1.0_wp])
@@ -244,6 +266,12 @@ program test_direct
     ! (the Maratos problem needs second-order corrections, which factor)
     if (cfg%direct_ls .and. name == 'maratos' .and. .not. cfg%trust_region .and. r%n_soc > 0 .and. &
         r%n_factorizations == 0) error stop 'test_direct FAILED: '//label//': the corrections did not factor'
+    ! (and so does the chain of circles, with the line searches)
+    if (name == 'circles' .and. .not. cfg%trust_region .and. r%n_soc == 0) then
+        error stop 'test_direct FAILED: '//label//': no second-order correction was needed'
+    end if
+    if (name == 'circles' .and. cfg%direct_ls .and. .not. (cfg%direct .or. cfg%inertia) .and. &
+        r%n_factorizations == 0) error stop 'test_direct FAILED: '//label//': the corrections did not factor'
     if (r%n_factorizations > 0 .and. .not. r%time_factorization >= 0.0_wp) then
         error stop 'test_direct FAILED: '//label//': no factorization time'
     end if
@@ -257,6 +285,56 @@ program test_direct
     end if
 
     end subroutine run
+
+    subroutine test_workspace()
+    !! a hanging chain of 200 links of length 0.01 between (0,0) and (1,0)
+    !! (minimize the sum of the joints' heights, with the links' lengths as
+    !! equality constraints), with the exact Hessian and inertia control. Its
+    !! Hessian of the Lagrangian is very indefinite, and factoring its KKT
+    !! matrix needs many times MUMPS's estimated workspace: the solve must not
+    !! end as out of memory.
+    integer, parameter :: nn = 200
+    type(sqpopt_type)         :: solver
+    type(sqpopt_problem_type) :: problem
+    type(sqpopt_options_type) :: options
+    type(sqpopt_results_type) :: r
+    real(wp) :: x_lb(2*nn+2), x_ub(2*nn+2), x0(2*nn+2), t
+    integer :: istat, i
+
+    ! variables: x_0..x_N are 1..N+1, y_0..y_N are N+2..2N+2; the two ends are fixed
+    x_lb = -big
+    x_ub = big
+    x_lb([1, nn+2, 2*nn+2]) = 0.0_wp
+    x_ub([1, nn+2, 2*nn+2]) = 0.0_wp
+    x_lb(nn+1) = 1.0_wp
+    x_ub(nn+1) = 1.0_wp
+    call problem%set_problem_size(n=2*nn+2, m=nn)
+    call problem%set_bounds(x_lb, x_ub, spread((2.0_wp/nn)**2, 1, nn), spread((2.0_wp/nn)**2, 1, nn))
+    ! row i = link i, in (x_{i-1}, x_i, y_{i-1}, y_i)
+    call problem%set_jacobian_sparsity(4*nn, [(i, i, i, i, i=1,nn)], [(i, i+1, nn+1+i, nn+2+i, i=1,nn)])
+    ! the diagonal, then the subdiagonals of the x block and of the y block
+    call problem%set_hessian_sparsity(2*nn+2 + 2*nn, [(i, i=1,2*nn+2), (i+1, i=1,nn), (nn+2+i, i=1,nn)], &
+                                                     [(i, i=1,2*nn+2), (i, i=1,nn),   (nn+1+i, i=1,nn)])
+    call problem%set_functions(fc=fc_chain, gjac=gjac_chain, hess=hess_chain)
+    ! a shallow parabola between the ends
+    do i = 0, nn
+        t = real(i, wp)/real(nn, wp)
+        x0(i+1)    = t
+        x0(nn+2+i) = -0.4_wp*t*(1.0_wp - t)
+    end do
+
+    options%hessian_mode    = sqpopt_hessian_exact
+    options%inertia_control = .true.
+    call solver%initialize(problem=problem, options=options)
+    call solver%solve(x0, istat)
+    call solver%get_results(r)
+    print '(A,I0,A,I0,A,I0)', 'hanging chain: istat = ', istat, ', iterations = ', r%iterations, &
+        ', factorizations = ', r%n_factorizations
+    if (istat == sqpopt_out_of_memory) error stop 'test_direct FAILED: the factorization ran out of workspace'
+    if (r%iterations < 3 .or. r%n_factorizations < 3) error stop 'test_direct FAILED: the hanging chain was not factored'
+    print '(A)', 'test_direct [workspace of a very indefinite matrix] PASSED'
+
+    end subroutine test_workspace
 
     subroutine test_unavailable()
     !! without MUMPS, the options are invalid input
@@ -362,5 +440,113 @@ program test_direct
     class(*), optional,     intent(inout) :: data     !! the user data passed to `set_functions` (if any)
     hess_val = 4.0_wp - 2.0_wp*lambda(1)
     end subroutine hess_maratos
+
+    !------------------------------------------------------------------------
+    ! chain of circles
+    !------------------------------------------------------------------------
+
+    subroutine fc_circles(x, f, c, status, data)
+    !! the objective and the constraints
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp),               intent(out)   :: f      !! objective value at `x`
+    real(wp), dimension(:), intent(out)   :: c      !! constraint values at `x` `dimension(m)`
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
+    integer :: n
+    n = size(x)
+    c = x(1:n-1)**2 + x(2:n)**2
+    f = 2.0_wp*sum(c - 1.0_wp) - sum(x(1:n:2))
+    end subroutine fc_circles
+
+    subroutine gjac_circles(x, g, jac_val, accuracy, status, data)
+    !! the objective's gradient and the Jacobian's nonzeros
+    real(wp), dimension(:), intent(in)    :: x        !! point `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: g        !! objective gradient at `x` `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: jac_val  !! nonzero values of the Jacobian at `x` (in its sparsity pattern's order)
+    integer,                intent(in)    :: accuracy !! the accuracy asked for (the derivatives here are analytic)
+    integer,                intent(inout) :: status   !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data     !! the user data passed to `set_functions` (if any)
+    integer :: n, i
+    n = size(x)
+    g = 8.0_wp*x
+    g(1) = 4.0_wp*x(1)
+    g(n) = 4.0_wp*x(n)
+    g(1:n:2) = g(1:n:2) - 1.0_wp
+    do i = 1, n-1
+        jac_val(2*i-1:2*i) = [2.0_wp*x(i), 2.0_wp*x(i+1)]
+    end do
+    end subroutine gjac_circles
+
+    subroutine hess_circles(x, lambda, hess_val, status, data)
+    !! the (diagonal) Hessian of the Lagrangian
+    real(wp), dimension(:), intent(in)    :: x        !! point `dimension(n)`
+    real(wp), dimension(:), intent(in)    :: lambda   !! constraint multipliers `dimension(m)`
+    real(wp), dimension(:), intent(out)   :: hess_val !! nonzero values of the Hessian of the Lagrangian at `x` (in its sparsity pattern's order)
+    integer,                intent(inout) :: status   !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data     !! the user data passed to `set_functions` (if any)
+    integer :: n
+    n = size(x)
+    hess_val = 8.0_wp
+    hess_val(1) = 4.0_wp
+    hess_val(n) = 4.0_wp
+    hess_val(1:n-1) = hess_val(1:n-1) - 2.0_wp*lambda
+    hess_val(2:n)   = hess_val(2:n)   - 2.0_wp*lambda
+    end subroutine hess_circles
+
+    !------------------------------------------------------------------------
+    ! hanging chain
+    !------------------------------------------------------------------------
+
+    subroutine fc_chain(x, f, c, status, data)
+    !! the objective and the constraints
+    real(wp), dimension(:), intent(in)    :: x      !! point `dimension(n)`
+    real(wp),               intent(out)   :: f      !! objective value at `x`
+    real(wp), dimension(:), intent(out)   :: c      !! constraint values at `x` `dimension(m)`
+    integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
+    integer :: nn
+    nn = size(c)
+    f = sum(x(nn+2:))
+    c = (x(2:nn+1) - x(1:nn))**2 + (x(nn+3:2*nn+2) - x(nn+2:2*nn+1))**2
+    end subroutine fc_chain
+
+    subroutine gjac_chain(x, g, jac_val, accuracy, status, data)
+    !! the objective's gradient and the Jacobian's nonzeros
+    real(wp), dimension(:), intent(in)    :: x        !! point `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: g        !! objective gradient at `x` `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: jac_val  !! nonzero values of the Jacobian at `x` (in its sparsity pattern's order)
+    integer,                intent(in)    :: accuracy !! the accuracy asked for (the derivatives here are analytic)
+    integer,                intent(inout) :: status   !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data     !! the user data passed to `set_functions` (if any)
+    integer :: nn, i
+    real(wp) :: dx, dy
+    nn = size(jac_val)/4
+    g(1:nn+1) = 0.0_wp
+    g(nn+2:)  = 1.0_wp
+    do i = 1, nn
+        dx = x(i+1) - x(i)
+        dy = x(nn+2+i) - x(nn+1+i)
+        jac_val(4*i-3:4*i) = [-2.0_wp*dx, 2.0_wp*dx, -2.0_wp*dy, 2.0_wp*dy]
+    end do
+    end subroutine gjac_chain
+
+    subroutine hess_chain(x, lambda, hess_val, status, data)
+    !! the Hessian of the Lagrangian, `-sum_i lambda_i * hess(c_i)`: each link adds `-2*lambda_i` to
+    !! the diagonal elements of its two joints, and `+2*lambda_i` between them, in the x and y blocks
+    real(wp), dimension(:), intent(in)    :: x        !! point `dimension(n)`
+    real(wp), dimension(:), intent(in)    :: lambda   !! constraint multipliers `dimension(m)`
+    real(wp), dimension(:), intent(out)   :: hess_val !! nonzero values of the Hessian of the Lagrangian at `x` (in its sparsity pattern's order)
+    integer,                intent(inout) :: status   !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
+    class(*), optional,     intent(inout) :: data     !! the user data passed to `set_functions` (if any)
+    integer :: nn, n, i
+    nn = size(lambda)
+    n  = 2*nn + 2
+    hess_val = 0.0_wp
+    do i = 1, nn
+        hess_val([i, i+1, nn+1+i, nn+2+i]) = hess_val([i, i+1, nn+1+i, nn+2+i]) - 2.0_wp*lambda(i)
+        hess_val(n+i)    = 2.0_wp*lambda(i)
+        hess_val(n+nn+i) = 2.0_wp*lambda(i)
+    end do
+    end subroutine hess_chain
 
 end program test_direct

@@ -740,7 +740,7 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 
 <ul>
   <li><strong>A nonconvex face.</strong> With inertia control, the Hessian's shift is raised until the face is convex, and the method continues.</li>
-  <li><strong>A singular KKT matrix</strong> (adding every violated bound at once can leave a row with no free variable): the face is factored again with a small regularization, which gives the over-determined rows large multipliers, so the bounds responsible are dropped at the next change.</li>
+  <li><strong>A singular KKT matrix</strong> (adding every violated bound at once can leave a row with no free variable): the face is factored again with a small regularization, which gives the over-determined rows large multipliers, so the bounds responsible are dropped at the next change. (If the step of a regularized face fails only because its rows aren't quite satisfied, it is solved once more with a much smaller regularization.)</li>
 </ul>
 
 <p><strong>Which Hessian.</strong> It works with every Hessian mode:</p>
@@ -772,7 +772,16 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 
 <h3 id="direct-least-squares">Direct least squares (optional, with MUMPS) <span class="h-note"><code>options%direct_least_squares</code></span></h3>
 
-<p>The Gauss-Newton <a href="#restoration">restoration step</a> and the second-order correction both need the minimum-norm solution of \( J_S\,d = r \) for some rows of the Jacobian. They use the iterative solver <code>LSQR</code>, and take no step if it stops at its iteration limit. With <code>options%direct_least_squares = .true.</code>, the solution comes from one sparse factorization of \( \begin{bmatrix} I &amp; J_S^T \\ J_S &amp; -\epsilon I \end{bmatrix} \) instead (with a small \( \epsilon \), so that dependent rows are no problem), with any Hessian mode. This is for robustness more than speed, and so far it has shown no benefit: on the Hock&ndash;Schittkowski problems the default options solve 279 problems with it and fail on one (TP106, where a more accurate correction leads to a slow crawl), against 280 and none without it, and the large benchmark problems never take such a step.</p>
+<p>The Gauss-Newton <a href="#restoration">restoration step</a> and the second-order correction both need the minimum-norm solution of \( J_S\,d = r \) for some rows of the Jacobian. They use the iterative solver <code>LSQR</code>, and take no step if it stops at its iteration limit. With <code>options%direct_least_squares = .true.</code>, the solution comes from one sparse factorization of \( \begin{bmatrix} I &amp; J_S^T \\ J_S &amp; -\epsilon I \end{bmatrix} \) instead (with a small \( \epsilon \), so that dependent rows are no problem), with any Hessian mode.</p>
+
+<p>It pays when the problem is large and the rows are coupled, because <code>LSQR</code> then needs a number of iterations that grows with the problem:</p>
+
+<ul>
+  <li><strong>Second-order corrections:</strong> on a chain of coupled circle constraints (<code>circles</code> in the <a href="#large-problems">large-problem benchmark</a>), a solve with 3 corrections took 88.7 s with <code>LSQR</code> and 1.1 s with direct least squares at 100,000 variables (0.59 s and 0.07 s at 10,000).</li>
+  <li><strong>Restoration steps:</strong> on a chain of hyperbola constraints with 10,000 variables (<code>hyperbolas</code> there), the 9 Gauss-Newton restoration steps took 2.3 s with <code>LSQR</code> and 0.02 s directly (though that problem's total time is dominated by the QPs that find the linearization inconsistent).</li>
+</ul>
+
+<p>On small problems it changes little, and not always for the better: on the Hock&ndash;Schittkowski problems the default options solve 279 problems with it and fail on one (TP106, where a more accurate correction leads to a slow crawl), against 280 and none without it. So it is off by default: turn it on for large problems that take corrections or restoration steps (<code>results%n_soc</code>, <code>results%n_restoration_steps</code>) and spend their time outside the QP and the user functions.</p>
 
 <h3 id="dense-qp">Dense QP options <span class="h-note"><code>qp_solver%dense_qp%&lt;name&gt;</code></span></h3>
 <p class="set-on">Used when <code>mode == sqpopt_qp_dense</code>.</p>
@@ -981,7 +990,7 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <tr><td>funnel (with interpolation)</td><td class="num">280</td><td class="num">25</td><td class="num">0</td><td class="num">9,389</td></tr>
 <tr><td>filter, exact Hessian (finite differences of the gradients)</td><td class="num">268</td><td class="num">34</td><td class="num">3</td><td class="num">12,833</td></tr>
 <tr><td>filter, exact Hessian with inertia control (MUMPS)</td><td class="num">274</td><td class="num">29</td><td class="num">2</td><td class="num">9,581</td></tr>
-<tr><td>filter, exact Hessian with inertia control and direct QP (MUMPS)</td><td class="num">273</td><td class="num">30</td><td class="num">2</td><td class="num">9,500</td></tr>
+<tr><td>filter, exact Hessian with inertia control and direct QP (MUMPS)</td><td class="num">273</td><td class="num">30</td><td class="num">2</td><td class="num">9,515</td></tr>
 <tr><td>filter, L-SR1 with inertia control (MUMPS)</td><td class="num">275</td><td class="num">27</td><td class="num">3</td><td class="num">11,714</td></tr>
 <tr><td>filter, L-BFGS with direct QP (MUMPS)</td><td class="num">279</td><td class="num">26</td><td class="num">0</td><td class="num">9,555</td></tr>
 <tr><td>Armijo / \( \ell_1 \) / multipliers</td><td class="num">273</td><td class="num">26</td><td class="num">6</td><td class="num">22,356</td></tr>
@@ -1013,31 +1022,35 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 
 <h3 id="large-problems">Large problems</h3>
 
-<p>Three sparse problems with analytic second derivatives, from <code>example/benchmark_large.f90</code>: a discretized optimal-control problem (<code>control</code>), the chained Rosenbrock function with circle constraints (<code>rosenbrock</code>), and a nonconvex chain of double wells with nonlinear equality constraints (<code>wells</code>), which starts where its Hessian is indefinite. Total solve time in seconds (release build, one run each, an Apple M-series laptop), without and with the options of a build with MUMPS:</p>
+<p>Four sparse problems with analytic second derivatives, from <code>example/benchmark_large.f90</code>: a discretized optimal-control problem (<code>control</code>), the chained Rosenbrock function with circle constraints (<code>rosenbrock</code>), a nonconvex chain of double wells with nonlinear equality constraints (<code>wells</code>), which starts where its Hessian is indefinite, and a chain of coupled circle constraints (<code>circles</code>), whose steps need second-order corrections. Total solve time in seconds (release build, one run each with nothing else running, an Apple M-series laptop), without and with the options of a build with MUMPS:</p>
 
 <div class="table-wrap"><table class="bench">
-<thead><tr><th>problem</th><th class="num">variables</th><th class="num">L-BFGS (default)</th><th class="num">exact Hessian</th><th class="num">exact, inertia control</th><th class="num">exact, inertia control, direct QP</th></tr></thead>
+<thead><tr><th>problem</th><th class="num">variables</th><th class="num">L-BFGS (default)</th><th class="num">exact Hessian</th><th class="num">exact, inertia control</th><th class="num">exact, inertia control, direct QP and least squares</th></tr></thead>
 <tbody>
-<tr><td>control</td><td class="num">10,001</td><td class="num">25.7</td><td class="num">0.45</td><td class="num">0.55</td><td class="num"><strong>0.12</strong></td></tr>
-<tr><td>rosenbrock</td><td class="num">5,000</td><td class="num">1.9</td><td class="num">0.88</td><td class="num">0.91</td><td class="num"><strong>0.04</strong></td></tr>
-<tr><td>wells</td><td class="num">10,000</td><td class="num">1.8</td><td class="num">0.11</td><td class="num">0.28</td><td class="num">0.16</td></tr>
-<tr><td>control</td><td class="num">100,001</td><td class="num">&ndash;</td><td class="num">28</td><td class="num">24</td><td class="num"><strong>1.5</strong></td></tr>
-<tr><td>rosenbrock</td><td class="num">50,000</td><td class="num">&ndash;</td><td class="num">106</td><td class="num">107</td><td class="num"><strong>0.5</strong></td></tr>
-<tr><td>wells</td><td class="num">100,000</td><td class="num">&ndash;</td><td class="num">1.2</td><td class="num">&gt; 600</td><td class="num">2.0</td></tr>
-<tr><td>control</td><td class="num">1,000,001</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num"><strong>14.6</strong></td></tr>
-<tr><td>rosenbrock</td><td class="num">500,000</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num"><strong>6.4</strong></td></tr>
-<tr><td>wells</td><td class="num">1,000,000</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num"><strong>24</strong></td></tr>
+<tr><td>control</td><td class="num">10,001</td><td class="num">27.8</td><td class="num">0.53</td><td class="num">0.52</td><td class="num"><strong>0.13</strong></td></tr>
+<tr><td>rosenbrock</td><td class="num">5,000</td><td class="num">1.9</td><td class="num">0.91</td><td class="num">0.93</td><td class="num"><strong>0.04</strong></td></tr>
+<tr><td>wells</td><td class="num">10,000</td><td class="num">1.9</td><td class="num">0.12</td><td class="num">0.30</td><td class="num">0.17</td></tr>
+<tr><td>circles</td><td class="num">10,000</td><td class="num">0.95</td><td class="num">0.95</td><td class="num">0.98</td><td class="num"><strong>0.07</strong></td></tr>
+<tr><td>control</td><td class="num">100,001</td><td class="num">&ndash;</td><td class="num">26.8</td><td class="num">22.1</td><td class="num"><strong>1.3</strong></td></tr>
+<tr><td>rosenbrock</td><td class="num">50,000</td><td class="num">&ndash;</td><td class="num">92.6</td><td class="num">100.1</td><td class="num"><strong>0.48</strong></td></tr>
+<tr><td>wells</td><td class="num">100,000</td><td class="num">&ndash;</td><td class="num">1.1</td><td class="num">&gt; 600</td><td class="num">1.9</td></tr>
+<tr><td>circles</td><td class="num">100,000</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num"><strong>1.1</strong></td></tr>
+<tr><td>control</td><td class="num">1,000,001</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num"><strong>13.2</strong></td></tr>
+<tr><td>rosenbrock</td><td class="num">500,000</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num"><strong>5.8</strong></td></tr>
+<tr><td>wells</td><td class="num">1,000,000</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num"><strong>18.8</strong></td></tr>
+<tr><td>circles</td><td class="num">1,000,000</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num">&ndash;</td><td class="num"><strong>10.6</strong></td></tr>
 </tbody>
 </table></div>
 
 <ul>
-  <li><strong>Without the direct QP, nearly all the time is in the active-set QP solver</strong> (95% or more at these sizes), and it grows much faster than the problem. A dash means the run was not made (it would take too long).</li>
-  <li><strong>With the direct QP, every QP in these runs was solved directly</strong>, in the same number of major iterations (9 to 21). The time is then the factorizations (over 90% of it), and grows in proportion to the problem: 13 to 24 s per million variables.</li>
-  <li><strong>Inertia control alone doesn't make large problems faster</strong>, and on <code>wells</code> at 100,000 variables it was far slower than the plain exact Hessian (it didn't finish in 10 minutes: the shifted QPs took the active-set solver much longer). Use it together with <code>direct_qp</code> on large problems.</li>
-  <li><strong>L-BFGS with the direct QP</strong> uses a memory of 10 pairs unless you set another. It took 4.9 s, 0.9 s, and 0.6 s on the three problems at the smallest sizes (16.8 s, 1.4 s, and 1.7 s with the active-set QP and the same memory), and 132 s, 12 s, and 13 s at the middle sizes. With 100 pairs it took 18 s, 3.1 s, and 1.2 s at the smallest sizes, in about the same number of iterations: that is why the automatic memory is short here.</li>
+  <li><strong>Without the direct QP, nearly all the time is in the active-set QP solver</strong> (95% or more on the first three problems), and it grows much faster than the problem. A dash means the run was not made (it would take too long). The one run that was stopped, <code>wells</code> at 100,000 variables with inertia control only, had not finished after 10 minutes.</li>
+  <li><strong>With the direct QP, every QP in these runs was solved directly</strong>, in the same number of major iterations (7 to 21). The time is then the factorizations (over 90% of it), and grows in proportion to the problem: 11 to 19 s per million variables.</li>
+  <li><strong>Inertia control alone doesn't make large problems faster</strong>, and on <code>wells</code> it was far slower than the plain exact Hessian: with the smallest shift that makes the QP convex, the active-set solver needs many more iterations. Use it together with <code>direct_qp</code> on large problems.</li>
+  <li><strong>Direct least squares decides <code>circles</code>.</strong> Its second-order corrections are ill-conditioned least-squares problems. With the direct QP but without <code>direct_least_squares</code>, the solve takes 0.59 s at 10,000 variables and 88.7 s at 100,000, nearly all of it in <code>LSQR</code>; with it, 0.07 s and 1.1 s. (In the first three columns the corrections use <code>LSQR</code>, which is most of their time on this problem.)</li>
+  <li><strong>L-BFGS with the direct QP</strong> uses a memory of 10 pairs unless you set another. It took 5.2 s, 0.95 s, 0.64 s, and 0.12 s on the four problems at the smallest sizes (17.8 s, 1.5 s, 1.8 s, and 0.95 s with the active-set QP and the same memory), and 122 s, 11 s, 12 s, and 2.2 s at the middle sizes. With 100 pairs it took about 18 s, 3.1 s, and 1.2 s on the first three at the smallest sizes, in about the same number of iterations: that is why the automatic memory is short here.</li>
 </ul>
 
-<p class="small">Run it with <code>pixi run run-mumps --example benchmark_large --profile release -- --scale=10 --no-active-set</code> (see the header of the file for its options).</p>
+<p class="small">Run it with <code>pixi run run-mumps --example benchmark_large --profile release -- --scale=10 --no-active-set</code> (see the header of the file for its options, and for a fifth problem, <code>hyperbolas</code>, that takes Gauss-Newton restoration steps).</p>
 
 <!-- ============================================================ -->
 <h2 id="developing">Developing</h2>

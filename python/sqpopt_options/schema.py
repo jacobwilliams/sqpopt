@@ -455,8 +455,9 @@ TOPICS: tuple[Topic, ...] = (
                'directive), and is invalid without it.'),
             _o('options%direct_least_squares', 'bool', False,
                'Compute the Gauss-Newton restoration steps and the second-order corrections by a sparse '
-               'factorization instead of the iterative LSQR. It needs a library built with MUMPS, and is invalid '
-               'without it.'),
+               'factorization instead of the iterative LSQR. It pays on large problems that take such steps and '
+               'whose constraints are coupled (a chain of 100,000 circle constraints: 88.7 s with LSQR, 1.1 s '
+               'with this). It needs a library built with MUMPS, and is invalid without it.'),
         )),
         Section('Threads', (
             _o('options%factorization_threads', 'int', 1,

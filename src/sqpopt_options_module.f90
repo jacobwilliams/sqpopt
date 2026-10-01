@@ -63,6 +63,10 @@
                                                    !! second-order corrections by a sparse factorization instead
                                                    !! of the iterative `LSQR` (see
                                                    !! [[sqpopt_least_squares_module]]), with any Hessian mode. It
+                                                   !! pays on large problems that take such steps and whose
+                                                   !! constraints are coupled, where `LSQR` needs many iterations
+                                                   !! (a chain of 100,000 circle constraints: 88.7 s with `LSQR`,
+                                                   !! 1.1 s with this); on small problems it changes little. It
                                                    !! needs a library built with MUMPS, and is invalid without it
         integer  :: factorization_threads = 1     !! number of OpenMP threads the sparse factorizations use
                                                    !! (`inertia_control`, `direct_qp`, and `direct_least_squares`):

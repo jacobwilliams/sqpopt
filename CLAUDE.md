@@ -101,7 +101,7 @@ Before calling a change done, go through the items that apply.
 
 ### Change that can affect convergence (algorithm, defaults, tolerances)
 Run the HS suite in release mode, and compare it with the baseline recorded in the `known_unsolved` comment of `test/test_hs_suite.f90`. That baseline is currently 280 solved, 25 local, 0 failed, and 9,173 `fc` calls.
-- If the change affects the exact Hessian, also run `--hessian=exact` (268 solved, 34 local, 3 failed, 12,833 `fc`). If it affects the factorization-based options, run, in the build with MUMPS: `--hessian=exact --inertia` (274, 29, 2, and 9,581), `--hessian=exact --inertia --direct` (273, 30, 2, and 9,500), `--hessian=sr1 --inertia` (275, 27, 3, and 11,714), and `--direct` (279, 26, 0, and 9,555; its automatic L-BFGS memory is 10 pairs); and `benchmark_large` for the timings. None of these is regression-tested, so compare them by hand.
+- If the change affects the exact Hessian, also run `--hessian=exact` (268 solved, 34 local, 3 failed, 12,833 `fc`). If it affects the factorization-based options, run, in the build with MUMPS: `--hessian=exact --inertia` (274, 29, 2, and 9,581), `--hessian=exact --inertia --direct` (273, 30, 2, and 9,515), `--hessian=sr1 --inertia` (275, 27, 3, and 11,714), and `--direct` (279, 26, 0, and 9,555; its automatic L-BFGS memory is 10 pairs); and `benchmark_large` for the timings. None of these is regression-tested, so compare them by hand.
 - If problems newly fail, it is a regression. Investigate it, don't just update the baseline.
 - If results change, do all of the following:
   - Update the `known_unsolved` list and the counts and date in its comment.

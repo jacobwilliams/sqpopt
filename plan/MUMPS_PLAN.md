@@ -198,24 +198,27 @@ This is INERTIA_CONTROL.md §5.3 and the long-term item of ROADMAP.md F1. IPOPT 
 
 ### Results
 
-Large problems (release, one run each; total time in seconds). The reference runs at the middle sizes were made while another benchmark was running.
+Large problems (release, one run each with nothing else running, re-measured 2026-10-02; total time in seconds).
 
 | problem | n | exact Hessian | exact, inertia | exact, inertia, direct | QPs solved directly |
 |---|--:|--:|--:|--:|--:|
-| control | 10,001 | 0.45 | 0.55 | 0.12 | 8 of 8 |
-| rosenbrock | 5,000 | 0.88 | 0.91 | 0.04 | 15 of 15 |
-| wells | 10,000 | 0.11 | 0.28 | 0.16 | 19 of 19 |
-| control | 100,001 | 28.3 | 23.8 | 1.5 | 10 of 10 |
-| rosenbrock | 50,000 | 105.8 | 107.3 | 0.5 | 15 of 15 |
-| wells | 100,000 | 1.2 | not finished in 10 min | 2.0 | 14 of 14 |
-| control | 1,000,001 | – | – | 14.6 | 11 of 11 |
-| rosenbrock | 500,000 | – | – | 6.4 | 17 of 17 |
-| wells | 1,000,000 | – | – | 24.0 | 20 of 20 |
+| control | 10,001 | 0.53 | 0.52 | 0.13 | 8 of 8 |
+| rosenbrock | 5,000 | 0.91 | 0.93 | 0.04 | 15 of 15 |
+| wells | 10,000 | 0.12 | 0.30 | 0.17 | 19 of 19 |
+| circles | 10,000 | 0.95 | 0.98 | 0.07 | 6 of 6 |
+| control | 100,001 | 26.8 | 22.1 | 1.3 | 10 of 10 |
+| rosenbrock | 50,000 | 92.6 | 100.1 | 0.48 | 15 of 15 |
+| wells | 100,000 | 1.1 | not finished in 10 min | 1.9 | 14 of 14 |
+| circles | 100,000 | – | – | 1.1 | 8 of 8 |
+| control | 1,000,001 | – | – | 13.2 | 11 of 11 |
+| rosenbrock | 500,000 | – | – | 5.8 | 17 of 17 |
+| wells | 1,000,000 | – | – | 18.8 | 20 of 20 |
+| circles | 1,000,000 | – | – | 10.6 | 9 of 9 |
 
 - **M1's decision point is passed:** the QP was skipped in every major iteration, and the time dropped by a factor of 2 to 200.
-- **L-BFGS with the direct QP** (M3): with 10 pairs, 4.9 / 0.9 / 0.6 s at the smallest sizes (active-set QP, same memory: 16.8 / 1.4 / 1.7 s), and 132 / 12 / 13 s at the middle sizes. With the automatic 100 pairs: 18 / 3.1 / 1.2 s at the smallest sizes (active-set: 25.7 / 1.9 / 1.8 s), so it only pays with a short memory. The cost is two solves per pair for each factorization, plus work of order n × pairs². The active-set reference for L-BFGS on `control` at n = 40,001 was stopped after 30 minutes without finishing.
-- **HS suite** (solved / local / failed, `fc`): the defaults are unchanged (280/25/0, 9,173). Exact, inertia, direct: 273/30/2, 9,500 (without direct: 274/29/2, 9,581). L-BFGS, direct: 279/26/0, 8,920. SR1 with inertia control: 275/27/3, 11,714 (without: 244/31/30, 47,454); with the direct QP as well: 267/33/5. Trust region: SR1 with inertia 258/39/8 (without: 265/27/13); exact, inertia, direct 262/36/7.
-- **M2 shows no benefit.** HS defaults with `direct_least_squares`: 279/25/1, 9,498. The new failure is TP106, where the direct correction is more accurate than `LSQR`'s (violation 7e-2 instead of 141 after it) and the iterates then crawl to the iteration limit. The large benchmarks never take a restoration step or a correction. It stays off by default.
+- **L-BFGS with the direct QP** (M3): with 10 pairs, 5.2 / 0.95 / 0.64 / 0.12 s at the smallest sizes (active-set QP, same memory: 17.8 / 1.5 / 1.8 / 0.95 s), and 122 / 11 / 12 / 2.2 s at the middle sizes. With 100 pairs: about 18 / 3.1 / 1.2 s on the first three at the smallest sizes (active-set: 27.8 / 1.9 / 1.9 s), so it only pays with a short memory. The cost is two solves per pair for each factorization, plus work of order n × pairs². The active-set reference for L-BFGS on `control` at n = 40,001 was stopped after 30 minutes without finishing.
+- **HS suite** (solved / local / failed, `fc`): the defaults are unchanged (280/25/0, 9,173). Exact, inertia, direct: 273/30/2, 9,515 (without direct: 274/29/2, 9,581). L-BFGS, direct: 279/26/0, 8,920. SR1 with inertia control: 275/27/3, 11,714 (without: 244/31/30, 47,454); with the direct QP as well: 267/33/5. Trust region: SR1 with inertia 258/39/8 (without: 265/27/13); exact, inertia, direct 262/36/7.
+- **M2 showed no benefit at first** (see "Settled since" for the problem that does show one). HS defaults with `direct_least_squares`: 279/25/1, 9,498. The new failure is TP106, where the direct correction is more accurate than `LSQR`'s (violation 7e-2 instead of 141 after it) and the iterates then crawl to the iteration limit. The large benchmarks never take a restoration step or a correction. It stays off by default.
 - **Cost on small problems:** the 305 HS problems take 1.5 s with the exact Hessian and inertia control, 7.5 s with L-BFGS and the direct QP, and 13 s with SR1 and inertia control (1.0 s for the defaults).
 
 ### Settled since (2026-10-02)
@@ -228,8 +231,15 @@ Large problems (release, one run each; total time in seconds). The reference run
 - **The automatic L-BFGS memory with `direct_qp` is 10 pairs** (`lbfgs_memory = 0`; an explicit value is used as given). HS suite with `--direct`: 279/26/0 with 9,555 `fc` in 1.8 s (with 100 pairs: 8,920 `fc` in 7.5 s). SR1 with inertia control and the direct QP: 270/31/4 (267/33/5 with 100 pairs). SR1 with inertia control alone keeps the usual automatic memory (10 pairs gave 277/26/2 with 14,124 `fc`, 100 pairs 275/27/3 with 11,714: no clear winner).
 - **Coverage.** CI now runs the default build's tests, and then the MUMPS build's with coverage (`coverage.sh --mumps`), so the report covers the code that uses MUMPS: 90.5% of the lines overall, and 90% or more of each new module.
 
+- **A large problem for M2** (`circles` in `benchmark_large`, and in `test_direct` at n = 2000): a chain of `n-1` coupled circle constraints with the Maratos example's objective, whose steps need second-order corrections. Each constraint shares a variable with the next, so the corrections' least-squares problems are ill-conditioned and `LSQR` needs many iterations. With the direct QP, the solve takes 0.59 s with `LSQR` and 0.07 s with `direct_least_squares` at n = 10,000, and 88.7 s and 1.1 s at n = 100,000. A second problem, `hyperbolas` (only with `--problem=hyperbolas`), takes Gauss-Newton restoration steps: 9 of them cost 2.3 s with `LSQR` and 0.02 s directly at n = 10,000, but its total time (over 40 s) goes to the active-set QPs that find the linearization inconsistent, which the direct method can't replace.
+- **Two bugs found with these problems, and fixed:**
+  - *Workspace.* On a hanging-chain problem, whose Hessian of the Lagrangian is very indefinite, MUMPS needed many times its estimated workspace (delayed pivots). The factorization was retried with twice the allowance only 6 times, and the solve then ended as out of memory, on a matrix of order 602. It is now retried up to 20 times, as IPOPT does (`test_direct` has the regression test).
+  - *Regularization of a singular face.* Near the solution of `circles` at n = 100,000, MUMPS reported the KKT matrix as singular (it isn't: half of the Hessian's diagonal is zero there). The regularized solve left the rows 7e-8 short, so the direct method gave up on a QP it had solved, and the active-set solver took minutes. A face whose regularized step only fails to satisfy its rows is now solved again with a much smaller regularization (1e-11 instead of 1e-8, relative). Using the smaller one from the start broke `wells`, where the rows really are dependent and the multipliers then blow up. In `test_qp_fuzz` the direct method now solves 276 of the 300 convex QPs instead of 244. HS with exact, inertia, direct: 273/30/2 with 9,515 `fc` (was 9,500).
+- **The guide's reference timings** were re-measured with nothing else running (the table above).
+
 ### Still open
 
-- A large problem that needs restoration steps or corrections, to judge M2. The benchmark problems take at most 3 corrections and no restoration step, in any configuration.
+- The hanging chain itself: with the exact Hessian, with or without inertia control, the solver stops as "stalled" at a point that is not the solution (objective −65.2 for 200 links; L-BFGS finds −91.1). Not investigated. It is why that problem is only a regression test and not a benchmark.
+- An inconsistent linearization is only found by solving an elastic QP with the active-set solver, which dominates `hyperbolas`. A cheaper test (or a direct elastic QP) would be needed for large problems that start far from feasible.
 - The direct method isn't used for the feasibility QPs of a restoration phase (M5) or for an elastic re-solve, and the trust region makes no inertia test after its QPs.
 - The Windows build with MUMPS has never been tried (the pixi tasks assume the library is called `dmumps_seq`).
