@@ -324,9 +324,11 @@ program test_kkt
 
     subroutine test_least_squares()
     !! the minimum-norm solution of `J_S d = r`, for independent rows, for a duplicated row, and
-    !! for a Jacobian with small elements, and the least-squares multipliers of that Jacobian
+    !! for a Jacobian with small elements in the rows in use and large ones elsewhere, and the
+    !! least-squares multipliers of that Jacobian
     integer, parameter :: n = 5, m = 3
     real(wp), parameter :: small = 1.0e-6_wp              !! scale of the small Jacobian
+    real(wp), parameter :: large = 1.0e6_wp               !! scale, relative to it, of its row and column not in use
     real(wp), parameter :: lambda0(2) = [2.0_wp, -3.0_wp] !! the multipliers to recover
     type(sqpopt_least_squares_type) :: ls
     type(sqpopt_sparse_matrix) :: jac
@@ -363,17 +365,22 @@ program test_kkt
     print '(A,ES10.2)', 'least squares, a duplicated row: error ', maxval(abs(d - dref))
     if (.not. ok .or. maxval(abs(d - dref)) > 1.0e-6_wp) error stop 'test_kkt FAILED: dependent rows'
 
-    ! a Jacobian with small elements (and the right-hand side scaled with it): the
-    ! same solution, since the regularization is relative to the Jacobian
+    ! a Jacobian with small elements (and the right-hand side scaled with it), and a
+    ! large row that isn't used: the same solution, since the regularization is
+    ! relative to the rows in use
     jac%val = small*jac%val
+    jac%val(2*n+1:3*n) = large*jac%val(2*n+1:3*n)
     call ls%new_matrices()
     call ls%min_norm(jac, [.true., .true., .false.], small*r, d, ok)
     print '(A,ES10.2)', 'least squares, a small Jacobian: error ', maxval(abs(d - dref))
     if (.not. ok .or. maxval(abs(d - dref)) > 1.0e-6_wp) error stop 'test_kkt FAILED: minimum-norm solution, small Jacobian'
 
-    ! and its multipliers: for g = J^T lambda0, they are lambda0
+    ! and its multipliers: for g = J^T lambda0, they are lambda0 (the last variable
+    ! is not free, and its column is large too)
+    jac%val([n, 2*n]) = large*jac%val([n, 2*n])
+    call ls%new_matrices()
     lambda = 0.0_wp
-    call ls%multipliers(jac, [.true., .true., .false.], [(.true., i=1,n)], &
+    call ls%multipliers(jac, [.true., .true., .false.], [(i < n, i=1,n)], &
                         small*matmul(transpose(jd(1:2,:)), lambda0), lambda, ok)
     print '(A,ES10.2)', 'least-squares multipliers, a small Jacobian: error ', maxval(abs(lambda(1:2) - lambda0))
     if (.not. ok .or. maxval(abs(lambda(1:2) - lambda0)) > 1.0e-6_wp) &

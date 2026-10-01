@@ -234,8 +234,9 @@
     call system_clock(t1)
     me%time = me%time + real(t1 - t0, wp)/real(rate, wp)
     if (me%id%infog(1) < 0) then
-        ! (-13: an allocation failed; -8, -9: still not enough workspace)
-        if (any(me%id%infog(1) == [-13, -8, -9])) me%out_of_memory = .true.
+        ! (-13: an allocation failed; -5, -7: an allocation of the analysis failed;
+        ! -8, -9: still not enough workspace)
+        if (any(me%id%infog(1) == [-13, -5, -7, -8, -9])) me%out_of_memory = .true.
         return
     end if
     me%analysed   = .true.

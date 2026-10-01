@@ -79,7 +79,8 @@
     real(wp), parameter :: stationarity_tol = 1.0e-8_wp !! relative tolerance on the stationarity residual of a
                                                         !! solve, in the free variables
     real(wp), parameter :: reg_factor = 1.0e-8_wp  !! the regularization of a singular face, relative to the square
-                                                   !! of the Jacobian's largest element
+                                                   !! of the largest element of the face's part of the Jacobian (the
+                                                   !! working set's rows, in the variables that are not fixed)
     real(wp), parameter :: reg_factor_fine = 1.0e-11_wp !! the smaller one, tried if the step of a regularized face
                                                    !! only fails to satisfy the working set's rows: a regularized
                                                    !! solve leaves each row short by the regularization times its
@@ -132,7 +133,7 @@
     type(sqpopt_inertia_type), optional, intent(inout) :: inertia !! the inertia control, to raise the Hessian's shift
                                                                   !! at a nonconvex face (used if `inertia%enabled`)
 
-    integer :: n, m, i, j
+    integer :: n, m, i, j, k
     integer,  dimension(size(status)) :: st, st_new
     real(wp), dimension(size(x) + size(c)) :: v
     real(wp), dimension(size(x)) :: p_fixed, hp, z
@@ -170,10 +171,13 @@
             regularized = kkt%singular
         end if
         if (regularized) then
-            ! dependent rows: regularize them (see the module documentation)
+            ! dependent rows: regularize them (see the module documentation),
+            ! relative to the elements of the Jacobian that are in the face's matrix
             reg = merge(reg_factor_fine, reg_factor, fine)
             jmax = 0.0_wp
-            if (jac%nnz > 0) jmax = maxval(abs(jac%val(1:jac%nnz)))
+            do k = 1, jac%nnz
+                if (st(jac%irow(k)) /= 0 .and. st(m + jac%icol(k)) == 0) jmax = max(jmax, abs(jac%val(k)))
+            end do
             if (jmax > 0.0_wp) reg = max(reg*jmax**2, tiny(1.0_wp))   ! (not zero, if the square underflows)
             call kkt%factor(hessian, jac, st, ok, reg=reg)
             if (.not. ok) return

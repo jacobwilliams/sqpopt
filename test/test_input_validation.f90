@@ -126,6 +126,10 @@ program test_input_validation
         qp = sqpopt_qp_solver_type()
         qp%direct_tol = 0.0_wp
         call expect_invalid('qp_solver%direct_tol = 0', problem, sqpopt_options_type(), [0.0_wp, 0.0_wp], qp_solver=qp)
+        qp = sqpopt_qp_solver_type()
+        qp%direct_max_changes = -1
+        call expect_invalid('qp_solver%direct_max_changes = -1', problem, sqpopt_options_type(), [0.0_wp, 0.0_wp], &
+                            qp_solver=qp)
     end block
 
     ! wrong-size initial multipliers:

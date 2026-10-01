@@ -24,7 +24,7 @@
 !
 !  whose solution is \( d = J_S^T (J_S J_S^T + \epsilon I)^{-1} r \). The
 !  small regularization \( \epsilon \) (relative to the square of the
-!  Jacobian's largest element) keeps the matrix nonsingular when the rows
+!  largest element of \( J_S \)) keeps the matrix nonsingular when the rows
 !  are dependent; as \( \epsilon \to 0 \), `d` tends to the minimum-norm
 !  least-squares solution.
 !
@@ -48,7 +48,7 @@
     public :: multiplier_estimate
 
     real(wp), parameter :: reg = 1.0e-8_wp !! the regularization \( \epsilon \), relative to the square of the
-                                           !! Jacobian's largest element (it limits the relative accuracy of
+                                           !! largest element of the Jacobian's rows and columns in use (it limits the relative accuracy of
                                            !! the solution of a consistent system to about this)
 
     type, public :: sqpopt_least_squares_type
@@ -119,19 +119,33 @@
 
 !*******************************************************************************
 !>
-!  the regularization \( \epsilon \) for the Jacobian `jac`: `reg` times
-!  the square of its largest element (so a Jacobian with small elements is
-!  not swamped by it), or `reg` itself if the Jacobian is zero.
+!  the regularization \( \epsilon \) for the rows `S` of the Jacobian
+!  `jac` selected by `rows` (in the variables selected by `free`, if
+!  given): `reg` times the square of the largest element of that part of
+!  the Jacobian, or `reg` itself if the part is zero. Only the elements
+!  that the solve uses count, so that neither small elements are swamped
+!  by the regularization, nor a large element of another row (or of a
+!  variable at a bound) makes it too large for the rows of `S`.
 
-    pure function regularization(jac) result(eps)
+    pure function regularization(jac, rows, free) result(eps)
 
-    type(sqpopt_sparse_matrix), intent(in) :: jac !! the constraint Jacobian `dimension(m,n)`
-    real(wp) :: eps                               !! the regularization
+    type(sqpopt_sparse_matrix),      intent(in) :: jac  !! the constraint Jacobian `dimension(m,n)`
+    logical, dimension(:),           intent(in) :: rows !! whether each row is in `S` `dimension(m)`
+    logical, dimension(:), optional, intent(in) :: free !! whether each variable is used `dimension(n)` (default:
+                                                        !! all are)
+    real(wp) :: eps                                     !! the regularization
 
     real(wp) :: jmax
+    integer :: k
 
     jmax = 0.0_wp
-    if (jac%nnz > 0) jmax = maxval(abs(jac%val(1:jac%nnz)))
+    do k = 1, jac%nnz
+        if (.not. rows(jac%irow(k))) cycle
+        if (present(free)) then
+            if (.not. free(jac%icol(k))) cycle
+        end if
+        jmax = max(jmax, abs(jac%val(k)))
+    end do
     if (jmax > 0.0_wp) then
         eps = max(reg*jmax**2, tiny(1.0_wp))   ! (not zero, if the square underflows)
     else
@@ -169,7 +183,7 @@
     status = 0
     where (rows) status(1:me%m) = 1
 
-    call me%kkt%factor_identity(1.0_wp, jac, status, regularization(jac), ok)
+    call me%kkt%factor_identity(1.0_wp, jac, status, regularization(jac, rows), ok)
     if (ok) then
         v(1:me%n) = 0.0_wp
         v(me%n+1:) = merge(r, 0.0_wp, rows)
@@ -216,7 +230,7 @@
     where (rows) status(1:me%m) = 1
     where (.not. free) status(me%m+1:) = 1
 
-    call me%kkt%factor_identity(1.0_wp, jac, status, regularization(jac), ok)
+    call me%kkt%factor_identity(1.0_wp, jac, status, regularization(jac, rows, free), ok)
     if (ok) then
         v(1:me%n)  = merge(g, 0.0_wp, free)
         v(me%n+1:) = 0.0_wp

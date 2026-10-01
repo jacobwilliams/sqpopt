@@ -151,7 +151,9 @@ class TestMinimize(unittest.TestCase):
                 self.assertAlmostEqual(r.fun, -0.5, places=6)
                 if 'inertia_control' in options:
                     self.assertGreater(r.n_factorizations, 0)
-                    self.assertGreater(r.time_factorization, 0.0)
+                    # (the time can be zero: the factorizations of this small problem can take less than
+                    # a tick of the clock)
+                    self.assertGreaterEqual(r.time_factorization, 0.0)
                     self.assertLessEqual(r.time_factorization, r.execution_time)
                 if 'direct_qp' in options:
                     self.assertGreater(r.n_direct_qp, 0)
