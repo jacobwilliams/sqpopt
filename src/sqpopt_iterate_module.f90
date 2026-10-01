@@ -5,9 +5,15 @@
 !  The core SQP major iteration ([[sqpopt_iterate]]): evaluates the problem
 !  functions, tests for convergence, updates the Hessian approximation
 !  (limited-memory quasi-Newton, or the user's exact Hessian with an
-!  inertia-correcting shift), solves the QP subproblem for the search
-!  direction (re-solving it with diverging-multiplier constraints elastic,
-!  see `options%elastic_multiplier_limit`), and takes the step: by a line
+!  inertia-correcting shift, found from the QP solver's tests or, with
+!  `options%inertia_control`, from a factorization, which also corrects
+!  SR1: see [[sqpopt_inertia_module]]; before the exact Hessian is
+!  evaluated, multipliers that came from a QP with a large shift are
+!  re-estimated by least squares), solves the QP subproblem for the
+!  search direction (directly, if it can, with `options%direct_qp`: see
+!  [[sqpopt_qp_direct_module]]; and re-solving it with diverging-multiplier
+!  constraints elastic, see `options%elastic_multiplier_limit`), and takes
+!  the step: by a line
 !  search (with second-order corrections), or a trust-region step, or, when
 !  no acceptable step is found at an infeasible point or the QP is
 !  inconsistent, a feasibility restoration step or phase (see
@@ -37,6 +43,10 @@
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
     use sqpopt_restoration_module,  only: restoration_step, escape_step, sqpopt_restoration_type, &
                                           sqpopt_restoration_phase
+    use sqpopt_inertia_module,      only: sqpopt_inertia_type
+    use sqpopt_kkt_module,          only: sqpopt_kkt_type
+    use sqpopt_least_squares_module, only: sqpopt_least_squares_type, multiplier_estimate
+    use sqpopt_qp_direct_module,    only: direct_outcome_text
 
     implicit none
 
@@ -98,7 +108,8 @@
 !  `sqpopt_user_requested_stop` (from the `report` callback, or a user
 !  function returning `status<0`), `sqpopt_function_error` (a problem
 !  function returned a non-finite value, or failed, at `x`), or
-!  `sqpopt_out_of_memory` (a QP solve couldn't allocate its matrices).
+!  `sqpopt_out_of_memory` (a QP solve couldn't allocate its matrices, or a
+!  factorization ran out of memory).
 !  Otherwise `istat` reports
 !  how the step went: `sqpopt_success`, `sqpopt_qp_solve_failed` (the QP
 !  solver hit its iteration limit, and its last step was used anyway), or
@@ -111,7 +122,7 @@
 
     subroutine sqpopt_iterate(problem, options, hessian, qp_solver, linesearch, trust_region, &
                                x, lambda, x_prev, gl_prev, f_prev, viol_prev, jac, n_acceptable, n_stalled, n_escape, &
-                               restoration, iter, report, done, &
+                               restoration, inertia, kkt, least_squares, iter, report, done, &
                                istat, info)
 
     type(sqpopt_problem_type),    intent(inout)   :: problem      !! problem definition
@@ -138,6 +149,15 @@
                                                           !! the violation taken so far (`0` before the 1st call)
     type(sqpopt_restoration_type), intent(inout) :: restoration !! feasibility restoration phase state (see
                                                                 !! [[sqpopt_restoration_module]])
+    type(sqpopt_inertia_type), intent(inout) :: inertia !! inertia control of the exact or SR1 Hessian (used if
+                                                        !! `inertia%enabled`, see [[sqpopt_inertia_module]])
+    type(sqpopt_kkt_type),     intent(inout) :: kkt     !! the KKT matrix of the QP's working set, for the inertia
+                                                        !! control and the QP solver's direct method (used if
+                                                        !! `kkt%enabled`, see [[sqpopt_kkt_module]])
+    type(sqpopt_least_squares_type), intent(inout) :: least_squares !! direct least-squares solver, for the
+                                                        !! restoration steps and second-order corrections (used
+                                                        !! if `least_squares%enabled`, see
+                                                        !! [[sqpopt_least_squares_module]])
     integer,                intent(in)    :: iter      !! major iteration number (starts at 1), passed to `report`
     procedure(sqpopt_report_func), optional, pointer :: report !! optional user progress-reporting callback (see [[sqpopt_types_module]])
     logical,                 intent(out)   :: done      !! true if the solver should stop at `x` (see `istat` for why)
@@ -155,6 +175,10 @@
     type(sqpopt_log_type) :: lg !! the detailed log
     real(wp) :: stat_err
     integer :: n_stalled0 !! `n_stalled` on entry
+    real(wp) :: shift_floor !! with inertia control: the Hessian's shift at the start of the iteration (the part
+                            !! of it that is carried over from failed steps)
+    logical :: keep_shift   !! with inertia control: whether the step failed, so the shift it was computed with
+                            !! is carried over (increased) to the next iteration
 
     done = .false.
     lg = linesearch%log   ! (the detailed log, set up by `solve`)
@@ -174,6 +198,11 @@
     call problem%jac(x, jac%val)
     info%f = f
 
+    ! (the factorizations kept from the previous iteration no longer apply:
+    ! `estimate_multipliers`, below, may use the least-squares one)
+    call kkt%new_matrices()
+    call least_squares%new_matrices()
+
     ! a user function asked to stop:
     if (problem%stop_requested) then
         istat = sqpopt_user_requested_stop
@@ -190,6 +219,12 @@
         done  = .true.
         return
     end if
+
+    ! with the exact Hessian: if the last step's shift dominated it, the QP's
+    ! multipliers are mostly an artifact of the shift, and the Hessian that
+    ! is about to be evaluated with them would be too (see `estimate_multipliers`)
+    if (hessian%shift_dominant) call estimate_multipliers()
+    hessian%shift_dominant = .false.
 
     ! report progress on the current iterate, if the user has supplied a
     ! callback, before doing any further work this iteration -- this
@@ -243,6 +278,8 @@
                     ', feasibility error '//fmt_e(info%feas)//'): gradient and Jacobian re-evaluated')
         call problem%g(x, g)
         call problem%jac(x, jac%val)
+        call kkt%new_matrices()
+        call least_squares%new_matrices()
         if (problem%stop_requested) then
             istat = sqpopt_user_requested_stop
             done  = .true.
@@ -356,8 +393,13 @@
         end if
     end if
 
+    ! (the Hessian has changed, so a factorization with it no longer applies)
+    call kkt%new_matrices()
+
     qp_istat = sqpopt_success
     restore  = .false.
+    shift_floor = hessian%shift
+    keep_shift  = .false.
 
     if (restoration%active) then
 
@@ -371,11 +413,24 @@
 
     else if (trust_region%enabled) then
 
+        ! with inertia control, first shift the exact Hessian as the working
+        ! set that the QP starts from needs (the trust region's QPs are not
+        ! re-solved for the working set they end with: its bounds on the step
+        ! keep them bounded):
+        if (inertia%enabled) then
+            block
+                logical :: shifted, inertia_ok
+                call correct_inertia(.true., shifted, inertia_ok)
+            end block
+        end if
+
         ! trust-region globalization: re-solves the QP as needed with a
         ! shrinking radius and its own accept/reject test (merit-ratio,
         ! filter, or funnel, depending on `linesearch%mode`) instead of a line
         ! search along one fixed `p` -- see [[sqpopt_trust_region_module]]:
-        call trust_region%step(problem, hessian, qp_solver, linesearch, x, g, f, c, jac, x_new, new_lambda, alpha, step_istat)
+        call trust_region%step(problem, hessian, qp_solver, linesearch, x, g, f, c, jac, x_new, new_lambda, alpha, &
+                               step_istat, kkt=kkt, inertia=inertia, least_squares=least_squares)
+        if (hessian%shift > shift_floor) info%hess_reset = .true.
         info%soc = trust_region%used_soc
 
         ! if no step was acceptable at an infeasible point, start a
@@ -392,10 +447,18 @@
 
     else
 
+        ! with inertia control, first shift the Hessian as the working set
+        ! that the QP will most likely end with needs (the one it starts
+        ! from), so that the QP usually has to be solved only once:
+        if (inertia%enabled) then
+            block
+                logical :: shifted, inertia_ok
+                call correct_inertia(.true., shifted, inertia_ok)
+            end block
+        end if
+
         ! solve the linearized QP subproblem for the search direction and multipliers:
-        call qp_solver%solve(hessian, jac, x, g, c, problem%x_lb, problem%x_ub, &
-                              problem%c_lb, problem%c_ub, p, new_lambda, qp_istat)
-        call note_qp()
+        call solve_qp()
         if (qp_istat == sqpopt_out_of_memory) then
             ! (there is no step to search along: stop here, see below)
             istat = sqpopt_out_of_memory
@@ -416,34 +479,51 @@
             ! be indefinite, "reset" increases its shift instead (see
             ! [[sqpopt_hessian_module]]), and the QP is re-solved as often as
             ! needed, also when it failed or found negative curvature (a
-            ! nonconvex QP: this is the inertia correction):
+            ! nonconvex QP: this is the inertia correction). With inertia
+            ! control (for the exact or the SR1 Hessian), the test for a
+            ! nonconvex QP is instead the inertia of the KKT matrix of the QP's
+            ! final working set, which also gives the shift (see
+            ! [[sqpopt_inertia_module]]):
             block
                 real(wp) :: dphi0
                 integer :: n_shift
+                logical :: shifted, inertia_ok, unusable
                 integer, parameter :: max_shift = 15 !! (from the smallest shift to the largest, x10 each time)
                 n_shift = 0
                 do
                     call linesearch%merit%directional_derivative(jac, g, p, c, problem%c_lb, problem%c_ub, new_lambda, dphi0)
-                    if (options%hessian_mode == sqpopt_hessian_exact) then
-                        if (.not. (dphi0 >= 0.0_wp .or. qp_istat == sqpopt_qp_solve_failed .or. &
-                                   qp_solver%negative_curvature) .or. n_shift >= max_shift) exit
+                    shifted = .false.
+                    if (options%hessian_mode == sqpopt_hessian_exact .or. inertia%enabled) then
+                        inertia_ok = .false.
+                        if (inertia%enabled .and. n_shift < max_shift) call correct_inertia(.false., shifted, inertia_ok)
+                        unusable = shifted .or. dphi0 >= 0.0_wp .or. qp_istat == sqpopt_qp_solve_failed
+                        ! (negative curvature that the QP met before its final working
+                        ! set is not a reason to shift, if the inertia there is right)
+                        if (.not. inertia_ok) unusable = unusable .or. qp_solver%negative_curvature
+                        if (.not. unusable .or. n_shift >= max_shift) exit
                         n_shift = n_shift + 1
                     else
                         if (.not. (dphi0 >= 0.0_wp) .or. n_shift >= 1) exit
                         n_shift = 1
                     end if
-                    call hessian%reset()
                     info%hess_reset = .true.
-                    if (options%hessian_mode == sqpopt_hessian_exact) then
+                    if (shifted) then
+                        call lg%put(sqpopt_log_detail, 'QP re-solved with the shifted Hessian')
+                    else if (inertia%enabled) then
+                        call inertia%raise(hessian)
+                        call lg%put(sqpopt_log_detail, 'QP step not usable (failed, or not a descent '// &
+                                    'direction): Hessian shift increased to '//fmt_e(hessian%shift)//', QP re-solved')
+                    else if (options%hessian_mode == sqpopt_hessian_exact) then
+                        call hessian%reset()
                         call lg%put(sqpopt_log_detail, 'QP step not usable (nonconvex, failed, or not a descent '// &
                                     'direction): Hessian shift increased to '//fmt_e(hessian%shift)//', QP re-solved')
                     else
+                        call hessian%reset()
+                        call kkt%new_matrices()   ! (the factorization kept was for the pairs just discarded)
                         call lg%put(sqpopt_log_detail, 'QP step is not a descent direction: Hessian approximation '// &
                                     'reset, QP re-solved')
                     end if
-                    call qp_solver%solve(hessian, jac, x, g, c, problem%x_lb, problem%x_ub, &
-                                          problem%c_lb, problem%c_ub, p, new_lambda, qp_istat)
-                    call note_qp()
+                    call solve_qp()
                     restore = qp_istat == sqpopt_infeasible
                     if (restore) exit
                     call update_penalty()
@@ -461,7 +541,8 @@
             new_lambda = lambda
             linesearch%merit%joint_active = .false.
             call lg%put(sqpopt_log_detail, 'linearized constraints are inconsistent: restoration step')
-            call restoration_step(problem, jac, x, c, qp_solver%max_step*qp_solver%step_scale, x_new, alpha, step_istat)
+            call restoration_step(problem, jac, x, c, qp_solver%max_step*qp_solver%step_scale, x_new, alpha, step_istat, &
+                                  least_squares=least_squares)
             call note_restoration_step('Gauss-Newton')
             if (step_istat /= sqpopt_success .and. norm2(p) > 0.0_wp) then
                 ! no first-order decrease of the violation is possible from `x`
@@ -513,6 +594,7 @@
             end if
             if (qp_solver%n_short >= 3) then
                 call hessian%reset()
+                keep_shift = .true.
                 info%hess_reset = .true.
                 call lg%put(sqpopt_log_detail, '3 very short steps in a row: Hessian approximation reset')
                 qp_solver%n_short = 0
@@ -545,7 +627,7 @@
                             call start_restoration_phase(record=.false.)
                         else
                             call restoration_step(problem, jac, x, c, qp_solver%max_step*qp_solver%step_scale, &
-                                                  x_new, alpha, step_istat)
+                                                  x_new, alpha, step_istat, least_squares=least_squares)
                             call note_restoration_step('Gauss-Newton')
                         end if
                     end if
@@ -564,9 +646,9 @@
     end if
 
     ! a QP solve of the step (any of them: a re-solve, or one of the trust
-    ! region's or the restoration phase's) couldn't allocate its matrices
-    ! (the point is left unchanged):
-    if (qp_solver%out_of_memory) then
+    ! region's or the restoration phase's) couldn't allocate its matrices, or
+    ! a factorization ran out of memory (the point is left unchanged):
+    if (qp_solver%out_of_memory .or. kkt%solver%out_of_memory .or. least_squares%kkt%solver%out_of_memory) then
         istat = sqpopt_out_of_memory
         done  = .true.
         return
@@ -604,6 +686,11 @@
     info%glob         = glob_value()
     info%hess_measure = merge(hessian%shift, real(hessian%n_history, wp), options%hessian_mode == sqpopt_hessian_exact)
 
+    ! (see `estimate_multipliers`: the shift's term of the QP's stationarity
+    ! condition, against the gradient's)
+    hessian%shift_dominant = options%hessian_mode == sqpopt_hessian_exact .and. .not. restore .and. problem%m > 0 .and. &
+                             hessian%shift*maxval(abs(x_new - x)) >= max(1.0_wp, maxval(abs(g)))
+
     x      = x_new
     lambda = new_lambda
 
@@ -613,6 +700,7 @@
         ! a different direction, and don't let the stalled-progress test
         ! mistake "no step taken" for convergence:
         call hessian%reset()
+        keep_shift = .true.
         info%hess_reset = .true.
         call lg%put(sqpopt_log_detail, 'no acceptable step: Hessian approximation reset')
         if (allocated(f_prev)) deallocate(f_prev)
@@ -627,6 +715,14 @@
         end if
     end if
 
+    ! with inertia control, the shift that this step needed is found again at
+    ! the next iteration (starting from a third of it): only the increases
+    ! after a failed step, or a run of very short ones, are carried over
+    if (inertia%enabled) then
+        if (hessian%shift > 0.0_wp) inertia%shift_last = hessian%shift
+        if (.not. keep_shift) hessian%shift = shift_floor
+    end if
+
     ! report the first failure, if any (a QP that stopped at its iteration
     ! limit still produced a usable step, so it's reported below a line-search
     ! failure):
@@ -639,6 +735,39 @@
     end if
 
     contains
+
+        subroutine estimate_multipliers()
+        !! replace the constraint multipliers by their least-squares estimate at
+        !! the current point (see [[multiplier_estimate]]), over the equality
+        !! constraints and the inequalities whose multiplier is nonzero, in the
+        !! variables that are not at a bound. An inequality's multiplier is only
+        !! replaced if the estimate has the same sign.
+        !!
+        !! This is for the exact Hessian, after a step whose shift
+        !! \( \delta \) dominated it
+        !! (\( \delta \lVert p \rVert_\infty \ge \max(1, \lVert g \rVert_\infty) \)).
+        !! The QP's multipliers satisfy \( g + (H + \delta I)p = J^T\lambda \),
+        !! so they then mostly balance the shift's term \( \delta p \), and can
+        !! be orders of magnitude too large. The exact Hessian is evaluated with
+        !! the multipliers, so it would be too, and need a still larger shift:
+        !! on a hanging-chain problem this fed on itself until the multipliers
+        !! were `1e13`, the steps `1e-9`, and the solver stopped as stalled far
+        !! from the solution. The estimate doesn't depend on the shift.
+        logical,  dimension(problem%m) :: rows
+        real(wp), dimension(problem%m) :: estimate
+        logical :: ok
+        integer :: i
+        rows = (problem%c_ub - problem%c_lb <= 0.0_wp) .or. lambda /= 0.0_wp
+        estimate = lambda
+        call multiplier_estimate(jac, rows, x > problem%x_lb .and. x < problem%x_ub, g, estimate, ok, &
+                                 least_squares=least_squares)
+        if (.not. ok) return
+        do i = 1, problem%m
+            if (problem%c_ub(i) - problem%c_lb(i) <= 0.0_wp .or. estimate(i)*lambda(i) > 0.0_wp) lambda(i) = estimate(i)
+        end do
+        call lg%put(sqpopt_log_detail, 'multipliers re-estimated by least squares (the Hessian''s shift dominated '// &
+                    'the last step): largest '//fmt_e(maxval(abs(lambda))))
+        end subroutine estimate_multipliers
 
         subroutine convergence_tests()
         !! the convergence tests at the current point, setting `done` and `istat`
@@ -664,14 +793,76 @@
         end if
         end subroutine convergence_tests
 
+        subroutine solve_qp()
+        !! solve the linearized QP subproblem for the search direction `p` and
+        !! the multipliers `new_lambda` (see [[solve_qp_subproblem]]). Its
+        !! direct method, if in use, may raise the exact Hessian's shift.
+        real(wp) :: shift0
+        shift0 = hessian%shift
+        call qp_solver%solve(hessian, jac, x, g, c, problem%x_lb, problem%x_ub, &
+                              problem%c_lb, problem%c_ub, p, new_lambda, qp_istat, kkt=kkt, inertia=inertia)
+        if (hessian%shift > shift0) then
+            info%hess_reset = .true.
+            call lg%put(sqpopt_log_detail, 'direct QP: nonconvex face, Hessian shift '//fmt_e(shift0)//' -> '// &
+                        fmt_e(hessian%shift))
+        end if
+        call note_qp()
+        end subroutine solve_qp
+
         subroutine note_qp()
         !! the detailed log's line for the QP solve just done
         if (.not. lg%on(sqpopt_log_detail)) return
+        if (qp_solver%direct_used) then
+            call lg%put(sqpopt_log_detail, 'direct QP: '//plural(qp_solver%n_iter, 'change', 'changes')// &
+                        ' of the working set, working set '//fmt_i(qp_solver%n_working)//', ok')
+            return
+        end if
+        if (qp_solver%direct_outcome >= 0) then
+            call lg%put(sqpopt_log_detail, 'direct QP: gave up after '// &
+                        plural(qp_solver%direct_changes, 'change', 'changes')//' of the working set ('// &
+                        direct_outcome_text(qp_solver%direct_outcome)//')')
+        end if
         call lg%put(sqpopt_log_detail, qp_solver%mode_name(problem%n)//': '// &
                     plural(qp_solver%n_iter, 'iteration', 'iterations')//', working set '//fmt_i(qp_solver%n_working)// &
                     ', '//plural(qp_solver%n_slacks, 'elastic slack', 'elastic slacks')//', '//qp_status_text(qp_istat)// &
                     trim(merge(', negative curvature', '                    ', qp_solver%negative_curvature)))
         end subroutine note_qp
+
+        subroutine correct_inertia(predicted, shifted, ok)
+        !! inertia control: increase the Hessian's shift, if necessary,
+        !! until it has no negative curvature on the null space of the QP
+        !! solver's working set (see [[inertia_correct]]): before the
+        !! iteration's QP solve, the one that solve will start from (see
+        !! [[starting_working_set]]), and after it, the one it ended with.
+        logical, intent(in)  :: predicted !! whether this is before the iteration's QP solve (else after it)
+        logical, intent(out) :: shifted   !! whether the shift was increased
+        logical, intent(out) :: ok        !! whether no negative curvature is left
+        integer, dimension(:), allocatable :: status
+        real(wp) :: shift0
+        integer  :: n_negative, n_factor0
+        shifted = .false.
+        ok      = .false.
+        if (predicted) then
+            call qp_solver%starting_working_set(problem%x_lb, problem%x_ub, problem%c_lb, problem%c_ub, status)
+        else
+            call qp_solver%working_set(problem%n, problem%m, status)
+            if (.not. allocated(status)) return
+        end if
+        shift0    = hessian%shift
+        n_factor0 = kkt%solver%n_factor
+        call inertia%correct(kkt, hessian, jac, status, shifted, ok, n_negative)
+        if (shifted) info%hess_reset = .true.
+        if (.not. lg%on(sqpopt_log_detail)) return
+        if (.not. inertia%enabled) then
+            call lg%put(sqpopt_log_detail, 'inertia control: the factorization failed, continuing without it')
+        else if (shifted) then
+            call lg%put(sqpopt_log_detail, 'inertia control ('//trim(merge('starting', 'final   ', predicted))// &
+                        ' working set): '//plural(n_negative, 'direction', 'directions')// &
+                        ' of negative curvature, Hessian shift '//fmt_e(shift0)//' -> '//fmt_e(hessian%shift)//' ('// &
+                        plural(kkt%solver%n_factor - n_factor0, 'factorization', 'factorizations')//')')
+            if (.not. ok) call lg%put(sqpopt_log_detail, 'inertia control: negative curvature is left at the largest shift')
+        end if
+        end subroutine correct_inertia
 
         subroutine note_restoration_step(how)
         !! the detailed log's line for a single restoration step just taken (or not)
@@ -730,7 +921,8 @@
         real(wp), dimension(:), intent(in)  :: c_trial !! constraint values at `x+p_trial`
         real(wp), dimension(:), intent(out) :: p_soc   !! the corrected step
         logical,                intent(out) :: ok      !! true if `p_soc` is usable
-        call soc_step(jac, x, p_trial, c, c_trial, problem%c_lb, problem%c_ub, problem%x_lb, problem%x_ub, p_soc, ok)
+        call soc_step(jac, x, p_trial, c, c_trial, problem%c_lb, problem%c_ub, problem%x_lb, problem%x_ub, p_soc, ok, &
+                      least_squares=least_squares)
         end subroutine soc
 
         subroutine start_restoration_phase(record)
@@ -769,7 +961,8 @@
         call restoration%step(problem, jac, x, c, x_new, alpha, step_istat)
         if (step_istat /= sqpopt_success) then
             how = 'Gauss-Newton fallback'
-            call restoration_step(problem, jac, x, c, qp_solver%max_step*qp_solver%step_scale, x_new, alpha, step_istat)
+            call restoration_step(problem, jac, x, c, qp_solver%max_step*qp_solver%step_scale, x_new, alpha, step_istat, &
+                                  least_squares=least_squares)
         end if
         if (step_istat == sqpopt_success) then
             call problem%f(x_new, f_new)

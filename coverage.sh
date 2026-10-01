@@ -1,5 +1,7 @@
 #!/bin/bash
 # Script to run tests with coverage and generate reports
+#
+# usage:  ./coverage.sh [--mumps]
 
 set -e
 
@@ -17,8 +19,15 @@ echo "================================================"
 # Clear the execution counts of any previous run (so they don't accumulate)
 find build -name "*.gcda" -delete 2>/dev/null || true
 
-# Build and run tests with coverage flags
-fpm test --flag "--coverage"
+# Build and run tests with coverage flags. With --mumps, the library is built
+# with MUMPS (the HAS_MUMPS preprocessor directive, see the README), so that
+# the report covers the code that uses it (in a pixi environment, which has
+# the sequential MUMPS library).
+if [[ "${1:-}" == "--mumps" ]]; then
+    fpm test --flag "--coverage -DHAS_MUMPS -I${CONDA_PREFIX:?run this in the pixi environment}/include" --link-flag "-ldmumps_seq"
+else
+    fpm test --flag "--coverage"
+fi
 
 echo ""
 echo "================================================"

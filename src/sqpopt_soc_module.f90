@@ -15,7 +15,9 @@
 !
 !  $$ J_S\, d = -\left( c_S(x+p) - b_S \right) $$
 !
-!  solved in the minimum-norm sense with `LSQR`. Here `S` is the set of
+!  solved in the minimum-norm sense with `LSQR` (or directly, with
+!  `options%direct_least_squares`: see [[sqpopt_least_squares_module]]).
+!  Here `S` is the set of
 !  constraints that are active in the linearization (\( c+Jp \) at a bound
 !  `b`), or violated at `x+p` (with `b` the violated bound). The corrected
 !  step `p+d` is then projected onto the variable bounds. The correction is
@@ -37,6 +39,7 @@
     use sqpopt_types_module, only: sqpopt_sparse_matrix, sqpopt_all_finite
     use sqpopt_linalg_module, only: sparse_matvec
     use lsqr_module,          only: lsqr_solver_ez
+    use sqpopt_least_squares_module, only: sqpopt_least_squares_type
 
     implicit none
 
@@ -51,9 +54,11 @@
 !>
 !  compute the second-order-corrected step `p_soc` for the trial step `p`
 !  (see the module-level documentation). `ok` is false (and `p_soc=p`) if
-!  there is nothing to correct or the correction is not usable.
+!  there is nothing to correct or the correction is not usable. With
+!  `least_squares` (if it is enabled), the correction is computed by a
+!  direct solve, and by `LSQR` only if that fails.
 
-    subroutine soc_step(jac, x, p, c, c_trial, c_lb, c_ub, x_lb, x_ub, p_soc, ok)
+    subroutine soc_step(jac, x, p, c, c_trial, c_lb, c_ub, x_lb, x_ub, p_soc, ok, least_squares)
 
     type(sqpopt_sparse_matrix), intent(in)  :: jac     !! constraint Jacobian at `x`, `dimension(m,n)`
     real(wp), dimension(:),     intent(in)  :: x       !! current point `dimension(n)`
@@ -66,6 +71,8 @@
     real(wp), dimension(:),     intent(in)  :: x_ub    !! variable upper bounds `dimension(n)`
     real(wp), dimension(:),     intent(out) :: p_soc   !! corrected step `dimension(n)`
     logical,                    intent(out) :: ok      !! true if `p_soc` is a usable corrected step
+    type(sqpopt_least_squares_type), optional, intent(inout) :: least_squares !! the direct least-squares solver
+                                                                              !! (see [[sqpopt_least_squares_module]])
 
     real(wp), parameter :: act_tol = 1.0e-6_wp !! relative tolerance for "at a bound" in the linearization
     real(wp), parameter :: soc_max_ratio = 1.0_wp !! the correction is rejected if \( \lVert d \rVert > \)
@@ -80,6 +87,7 @@
     real(wp), dimension(:), allocatable :: val
     type(lsqr_solver_ez) :: lsqr
     integer :: i, k, m_s, nnz_s, istop
+    logical :: solved
 
     p_soc = p
     ok    = .false.
@@ -108,25 +116,31 @@
     end do
     if (m_s == 0) return
 
-    ! the sub-Jacobian of the selected rows, and the right-hand side:
-    nnz_s = count(row_map(jac%irow(1:jac%nnz)) > 0)
-    allocate(irow(nnz_s), icol(nnz_s), val(nnz_s), rhs(m_s))
-    k = 0
-    do i = 1, jac%nnz
-        if (row_map(jac%irow(i)) > 0) then
-            k = k + 1
-            irow(k) = row_map(jac%irow(i))
-            icol(k) = jac%icol(i)
-            val(k)  = jac%val(i)
-        end if
-    end do
-    do i = 1, size(c)
-        if (row_map(i) > 0) rhs(row_map(i)) = -resid(i)
-    end do
+    ! the minimum-norm correction, by a direct solve if there is one:
+    solved = .false.
+    if (present(least_squares)) call least_squares%min_norm(jac, row_map > 0, -resid, d, solved)
 
-    call lsqr%initialize(m_s, size(x), val, irow, icol, itnlim=2*(m_s+size(x))+10)
-    call lsqr%solve(rhs, 0.0_wp, d, istop)
-    if (istop == lsqr_itnlim_stop .or. .not. sqpopt_all_finite(d)) return
+    if (.not. solved) then
+        ! the sub-Jacobian of the selected rows, and the right-hand side:
+        nnz_s = count(row_map(jac%irow(1:jac%nnz)) > 0)
+        allocate(irow(nnz_s), icol(nnz_s), val(nnz_s), rhs(m_s))
+        k = 0
+        do i = 1, jac%nnz
+            if (row_map(jac%irow(i)) > 0) then
+                k = k + 1
+                irow(k) = row_map(jac%irow(i))
+                icol(k) = jac%icol(i)
+                val(k)  = jac%val(i)
+            end if
+        end do
+        do i = 1, size(c)
+            if (row_map(i) > 0) rhs(row_map(i)) = -resid(i)
+        end do
+
+        call lsqr%initialize(m_s, size(x), val, irow, icol, itnlim=2*(m_s+size(x))+10)
+        call lsqr%solve(rhs, 0.0_wp, d, istop)
+        if (istop == lsqr_itnlim_stop .or. .not. sqpopt_all_finite(d)) return
+    end if
     if (norm2(d) > soc_max_ratio*norm2(p)) return  ! (the correction is meant to be small relative to the step)
 
     p_soc = min(max(x + p + d, x_lb), x_ub) - x

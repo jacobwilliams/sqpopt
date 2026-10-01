@@ -70,6 +70,9 @@
                                          l1_violation
     use sqpopt_linalg_module,     only: sparse_matvec
     use sqpopt_soc_module,        only: soc_step
+    use sqpopt_kkt_module,           only: sqpopt_kkt_type
+    use sqpopt_inertia_module,       only: sqpopt_inertia_type
+    use sqpopt_least_squares_module, only: sqpopt_least_squares_type
     use sqpopt_log_module,        only: sqpopt_log_type, sqpopt_log_detail, fmt_e, fmt_g, qp_status_text
 
     implicit none
@@ -114,7 +117,7 @@
 !  documentation for the full algorithm). Updates `me%radius` in place.
 
     subroutine trust_region_step(me, problem, hessian, qp_solver, linesearch, &
-                                  x, g, f, c, jac, x_new, new_lambda, alpha, istat)
+                                  x, g, f, c, jac, x_new, new_lambda, alpha, istat, kkt, inertia, least_squares)
 
     class(sqpopt_trust_region_type), intent(inout) :: me
     type(sqpopt_problem_type),      intent(inout) :: problem    !! problem definition
@@ -133,6 +136,11 @@
     real(wp),                       intent(out) :: alpha      !! `1` if a step was accepted, `0` otherwise (informational only -- there
                                                                !! is no line-search step length under trust-region globalization)
     integer,                        intent(out) :: istat      !! status code (see [[sqpopt_types_module]])
+    type(sqpopt_kkt_type), optional, intent(inout) :: kkt     !! the KKT matrix, for the QP solver's direct method
+                                                              !! (see [[solve_qp_subproblem]])
+    type(sqpopt_inertia_type), optional, intent(inout) :: inertia !! the inertia control, for the same
+    type(sqpopt_least_squares_type), optional, intent(inout) :: least_squares !! the direct least-squares solver, for
+                                                              !! the second-order correction (see [[soc_step]])
 
     integer :: retry, qp_istat
     logical :: use_filter, use_funnel, accept, ok, soc_ok, f_type
@@ -167,7 +175,8 @@
         ! its solution, crawled 2 per iteration)
         qp_solver%step_scale = max(qp_solver%step_scale, 1.01_wp*sqrt(real(size(x), wp))*me%radius/qp_solver%max_step)
 
-        call qp_solver%solve(hessian, jac, x, g, c, x_lb2, x_ub2, problem%c_lb, problem%c_ub, p, new_lambda, qp_istat)
+        call qp_solver%solve(hessian, jac, x, g, c, x_lb2, x_ub2, problem%c_lb, problem%c_ub, p, new_lambda, qp_istat, &
+                             kkt=kkt, inertia=inertia)
 
         ! keep the merit function's penalty parameter dominating the current
         ! multiplier estimates, same rule as the line-search path (needed for
@@ -197,7 +206,8 @@
                 ! rejection may be due to constraint curvature (the Maratos
                 ! effect): try the second-order-corrected step (kept inside
                 ! the trust region) before shrinking the radius:
-                call soc_step(jac, x, p, c, c_trial, problem%c_lb, problem%c_ub, x_lb2, x_ub2, p_soc, soc_ok)
+                call soc_step(jac, x, p, c, c_trial, problem%c_lb, problem%c_ub, x_lb2, x_ub2, p_soc, soc_ok, &
+                              least_squares=least_squares)
                 if (soc_ok) then
                     call evaluate(x + p_soc, accept)
                     call log_trial('tr  second-order correction: ')

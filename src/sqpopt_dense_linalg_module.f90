@@ -2,10 +2,11 @@
 !> author: Jacob Williams
 !  license: MIT
 !
-!  Small, self-contained dense linear algebra helpers used only by
-!  [[sqpopt_qp_dense_module]] (the opt-in dense QP solver mode). No other
-!  part of `sqpopt` uses dense arrays -- these are only ever formed/used
-!  when the user explicitly selects the dense QP mode. Not linked to any
+!  Small, self-contained dense linear algebra helpers. Most are used only
+!  by [[sqpopt_qp_dense_module]] (the dense QP solver mode), the only place
+!  where dense `n x n` arrays are formed. The LU factorization and the
+!  inertia are for the small matrices (of the order of the quasi-Newton
+!  memory) of [[sqpopt_hessian_module]] and [[sqpopt_kkt_module]]. Not linked to any
 !  external dependency: classic, textbook Householder QR and modified
 !  Cholesky, small enough to validate directly against known small
 !  matrices.
@@ -22,6 +23,9 @@
     public :: dense_modified_cholesky
     public :: dense_solve_cholesky
     public :: dense_cholesky_curvature
+    public :: dense_lu_factor
+    public :: dense_lu_solve
+    public :: dense_symmetric_inertia
 
     contains
 !*******************************************************************************
@@ -213,6 +217,191 @@
     end do
 
     end subroutine dense_solve_cholesky
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  in-place LU factorization with partial pivoting of a small dense
+!  matrix `a` (e.g. the middle matrix of [[sqpopt_hessian_module]], whose order is
+!  `2*max_history` at most, independent of `n`).
+!  `ok` is false if a pivot is negligible relative to the matrix's largest
+!  element.
+
+    pure subroutine dense_lu_factor(a, piv, ok)
+
+    real(wp), dimension(:,:), intent(inout) :: a   !! matrix, overwritten by its `L` (unit, below the diagonal) and `U` factors
+    integer,  dimension(:),   intent(out)   :: piv !! `piv(p)` is the row swapped with row `p` at step `p`
+    logical,                  intent(out)   :: ok  !! false if `a` is (numerically) singular
+
+    integer :: i, p, k2
+    real(wp) :: amax, tol
+
+    k2 = size(a,1)
+    ok = .true.
+    tol = 1.0e-14_wp*max(maxval(abs(a)), tiny(1.0_wp))
+    do p = 1, k2
+        piv(p) = p - 1 + maxloc(abs(a(p:k2,p)), dim=1)
+        amax = abs(a(piv(p),p))
+        if (amax <= tol) then
+            ok = .false.
+            return
+        end if
+        if (piv(p) /= p) a([p,piv(p)],:) = a([piv(p),p],:)
+        do i = p+1, k2
+            a(i,p) = a(i,p)/a(p,p)
+            a(i,p+1:k2) = a(i,p+1:k2) - a(i,p)*a(p,p+1:k2)
+        end do
+    end do
+
+    end subroutine dense_lu_factor
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  solve \( A x = b \) in place (`b` is overwritten by `x`), given the LU
+!  factors from [[dense_lu_factor]].
+
+    pure subroutine dense_lu_solve(a, piv, b)
+
+    real(wp), dimension(:,:), intent(in)    :: a   !! LU factors
+    integer,  dimension(:),   intent(in)    :: piv !! row pivots
+    real(wp), dimension(:),   intent(inout) :: b   !! right-hand side, overwritten by the solution
+
+    integer :: i, k2
+
+    k2 = size(a,1)
+    do i = 1, k2
+        if (piv(i) /= i) b([i,piv(i)]) = b([piv(i),i])
+    end do
+    do i = 2, k2
+        b(i) = b(i) - dot_product(a(i,1:i-1), b(1:i-1))
+    end do
+    do i = k2, 1, -1
+        b(i) = (b(i) - dot_product(a(i,i+1:k2), b(i+1:k2)))/a(i,i)
+    end do
+
+    end subroutine dense_lu_solve
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the inertia of the symmetric matrix `a`: its numbers of positive,
+!  negative, and zero eigenvalues. The matrix is reduced to tridiagonal form
+!  by Householder reflections (a congruence with an orthogonal matrix, so
+!  the eigenvalues are unchanged), and the signs are counted from the
+!  pivots of that form's \( LDL^T \) factorization (its Sturm sequence at
+!  zero; Golub & Van Loan, *Matrix Computations*, 8.3 and 8.4), which has
+!  the same inertia as the matrix (Sylvester's law). A pivot counts as zero
+!  if it is below `zero_tol` times the matrix's largest element. A zero
+!  pivot that is coupled to the next row is not a zero eigenvalue (the
+!  matrix \( [0, 1; 1, 0] \) has the eigenvalues \( \pm 1 \)): it is taken
+!  with that row as a 2 by 2 pivot, as in the Bunch-Kaufman factorization,
+!  and the block's two eigenvalues are counted. Costs \( O(n^3) \): meant
+!  for small matrices.
+
+    pure subroutine dense_symmetric_inertia(a, n_positive, n_negative, n_zero)
+
+    real(wp), dimension(:,:), intent(in)  :: a          !! the symmetric matrix `dimension(n,n)`
+    integer,                  intent(out) :: n_positive !! number of positive eigenvalues
+    integer,                  intent(out) :: n_negative !! number of negative eigenvalues
+    integer,                  intent(out) :: n_zero     !! number of zero eigenvalues
+
+    real(wp), parameter :: zero_tol = 1.0e-12_wp
+    real(wp), dimension(size(a,1), size(a,1)) :: b
+    real(wp), dimension(size(a,1)) :: v, p, w
+    real(wp) :: alpha, vnorm, q, small, e, d, det, mean, radius
+    integer :: n, k, i
+
+    n = size(a,1)
+    n_positive = 0
+    n_negative = 0
+    n_zero     = 0
+    if (n == 0) return
+    b = 0.5_wp*(a + transpose(a))
+    small = zero_tol*max(maxval(abs(b)), tiny(1.0_wp))
+
+    ! Householder reduction to tridiagonal form:
+    do k = 1, n-2
+        alpha = norm2(b(k+1:n,k))
+        if (alpha <= 0.0_wp) cycle
+        if (b(k+1,k) > 0.0_wp) alpha = -alpha
+        v(k+1:n) = b(k+1:n,k)
+        v(k+1)   = v(k+1) - alpha
+        vnorm = norm2(v(k+1:n))
+        if (vnorm <= 0.0_wp) cycle
+        v(k+1:n) = v(k+1:n)/vnorm
+        ! B <- (I - 2vv^T) B (I - 2vv^T) on the trailing block:
+        p(k+1:n) = matmul(b(k+1:n,k+1:n), v(k+1:n))
+        w(k+1:n) = p(k+1:n) - dot_product(v(k+1:n), p(k+1:n))*v(k+1:n)
+        do i = k+1, n
+            b(k+1:n,i) = b(k+1:n,i) - 2.0_wp*(v(k+1:n)*w(i) + w(k+1:n)*v(i))
+        end do
+        b(k+1,k) = alpha
+        b(k,k+1) = alpha
+        b(k+2:n,k) = 0.0_wp
+        b(k,k+2:n) = 0.0_wp
+    end do
+
+    ! the signs of the pivots of the tridiagonal matrix (`q` is the pivot of
+    ! row `i`: its diagonal element, less the effect of the rows above):
+    q = b(1,1)
+    i = 1
+    do while (i <= n)
+        if (i < n) then
+            e = b(i+1,i)
+            d = b(i+1,i+1)
+        else
+            e = 0.0_wp
+            d = 0.0_wp
+        end if
+        if (abs(q) >= small) then
+            ! a 1 by 1 pivot:
+            call count(q, n_positive, n_negative, n_zero)
+            q = d - e**2/q
+            i = i + 1
+        else if (abs(e) < small) then
+            ! a zero pivot that the next row doesn't depend on: a zero eigenvalue
+            call count(q, n_positive, n_negative, n_zero)
+            q = d
+            i = i + 1
+        else
+            ! a zero pivot, coupled to the next row: a 2 by 2 pivot [q, e; e, d],
+            ! with the eigenvalues mean +/- radius
+            mean   = 0.5_wp*(q + d)
+            radius = hypot(0.5_wp*(q - d), e)
+            call count(mean + radius, n_positive, n_negative, n_zero)
+            call count(mean - radius, n_positive, n_negative, n_zero)
+            if (i + 2 <= n) then
+                ! the next pivot: the block's inverse has q/det in its last element
+                det = q*d - e**2
+                if (det /= 0.0_wp) then
+                    q = b(i+2,i+2) - b(i+2,i+1)**2*q/det
+                else
+                    q = b(i+2,i+2)
+                end if
+            end if
+            i = i + 2
+        end if
+    end do
+
+    contains
+
+        pure subroutine count(eigenvalue, n_pos, n_neg, n_null)
+        !! add an eigenvalue (or a pivot) to the count of its sign
+        real(wp), intent(in)    :: eigenvalue !! the eigenvalue
+        integer,  intent(inout) :: n_pos      !! number of positive eigenvalues so far
+        integer,  intent(inout) :: n_neg      !! number of negative eigenvalues so far
+        integer,  intent(inout) :: n_null     !! number of zero eigenvalues so far
+        if (abs(eigenvalue) < small) then
+            n_null = n_null + 1
+        else if (eigenvalue > 0.0_wp) then
+            n_pos = n_pos + 1
+        else
+            n_neg = n_neg + 1
+        end if
+        end subroutine count
+
+    end subroutine dense_symmetric_inertia
 !*******************************************************************************
 
     end module sqpopt_dense_linalg_module

@@ -1,6 +1,8 @@
 # Inertia control and a sparse LDLᵀ solver (MUMPS)
 
-*Status: not started. This is open decision §8.3 of [ROADMAP.md](ROADMAP.md). Written 2026-09-28.*
+*Update 2026-10-01: step 3 of §8 is implemented too (a factorization-based QP step, and the low-rank extension for SR1 and L-BFGS): see [MUMPS_PLAN.md](MUMPS_PLAN.md) §8. The MUMPS interface moved from `sqpopt_inertia_module` to `sqpopt_symmetric_solver_module.F90` and `sqpopt_kkt_module`.*
+
+*Status: steps 2 and 3 of §8 are implemented, in a build with `HAS_MUMPS`: step 2 (2026-09-30) is `options%inertia_control`, see §9 for what was built and measured; step 3 (2026-10-01) is `options%direct_qp`, see [MUMPS_PLAN.md](MUMPS_PLAN.md). Step 1 is not done. This was open decision §8.3 of [ROADMAP.md](ROADMAP.md). Written 2026-09-28.*
 
 This document is for future reference. It records what inertia control is, how sqpopt copes without it today, what an external sparse LDLᵀ solver such as MUMPS would add (for the exact Hessian and beyond), and what it would cost.
 
@@ -126,3 +128,16 @@ Success measures:
 - The HS suite with `--hessian=exact`: the solved/local/failed counts and `fc` against BFGS (currently 268/33/4 vs 276/29/0).
 - `test_large_sparse` with analytic Hessians: the time and `fc`.
 - The default (BFGS) results must be unchanged.
+
+## 9. What was implemented (2026-09-30)
+
+Step 2 of §8, in `src/sqpopt_inertia_module.F90` (the only code that uses MUMPS, inside `#ifdef HAS_MUMPS`), called from `sqpopt_iterate`.
+
+- **MUMPS from Fortran.** `include 'dmumps_struc.h'` and `call dmumps(id)`, linked with conda-forge's `mumps-seq` (`-ldmumps_seq`). The sequential library needs no MPI setup. `INFOG(12)` is the number of negative pivots; null-pivot detection (`ICNTL(24)=1`) keeps a singular matrix from being an error.
+- **The matrix.** Always of order `n+m`, so the pattern is analysed once per solve: a variable at a bound of the working set gets the identity's row and column, and a constraint outside it minus the identity's. Then no negative curvature is left when there are at most `m` negative pivots. A rank-deficient working set can hide negative curvature from this test (it is never reported where there is none); the QP's own tests remain as a fallback.
+- **The working set.** Before the QP: the one it starts from (the previous QP's final one, or the equalities and fixed variables). After the QP: its final one, and the QP is re-solved only if that test fails. With the trust region only the first test is made.
+- **The shift.** From 0 at every iteration; then `shift_min`·max|H| or a third of the last shift needed; then ×8 per attempt. Increases after a failed step or a run of short ones are still carried over.
+- **Results** (HS suite, exact Hessians by differences): 274 solved / 29 local / 2 failed with 9,581 `fc`, against 268/34/3 with 12,833 without inertia control, and 280/25/0 with 9,173 for BFGS. So most of the `fc` gap to BFGS is closed, and part of the robustness gap. `test_large_sparse` is unchanged. The default (BFGS) results are unchanged.
+- **Costs, as predicted in §6:** an optional build (`pixi run test-mumps`), and both builds to test. MUMPS's threads had to be turned off (24.5 s instead of 1.4 s on the HS suite).
+
+The variants that were tried, with their numbers, are in ROADMAP.md ("Inertia control with MUMPS").

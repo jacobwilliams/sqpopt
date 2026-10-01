@@ -78,7 +78,10 @@ an `OptimizeResult`.
   * `z`: the variable-bound multipliers;
   * `constr_violation`, `kkt_error`, `stationarity_error`, and
     `execution_time`;
-  * `n_qp_iterations` and `derivative_switch_iteration`.
+  * `n_qp_iterations`, `derivative_switch_iteration`, `n_factorizations`,
+    `n_qp_solves`, `n_direct_qp`, and `time_factorization` (the last four for
+    the options that use sparse factorizations, see below;
+    `time_factorization` is the part of `execution_time` spent in them).
 
   The multipliers are those of the Lagrangian `f - vᵀc - zᵀx`.
 * **Exceptions.** An exception raised by a user function stops the solver
@@ -93,6 +96,15 @@ The native extension is built with [f2py](https://numpy.org/doc/stable/f2py/)
 ```sh
 pixi run build-python     # builds python/sqpopt/_sqpopt*.so
 pixi run test-python      # all the Python tests
+```
+
+The options that use sparse factorizations (`inertia_control`, `direct_qp`,
+and `direct_least_squares`) need an extension built with MUMPS, which
+`mumps-seq` in the pixi environment provides. Without it, a solve with one
+of them returns the invalid-input status.
+
+```sh
+pixi run build-python-mumps
 ```
 
 The build (`sqpopt/_build.py`) does the following:

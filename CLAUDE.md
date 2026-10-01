@@ -8,9 +8,9 @@ How this library is developed, and what has to be kept in sync when anything cha
 
 | Path | What it holds |
 |---|---|
-| `src/` | The library. `sqpopt_module.F90` has the solver (`initialize`/`solve`), input validation, and all the printed output. `sqpopt_iterate_module.f90` has one major iteration. There is one module per component: problem, options, Hessian, QP solvers, line search, merit, filter, funnel, trust region, restoration, SOC, convergence, and log. `sqpopt_types_module.f90` has the status codes and the results type. |
+| `src/` | The library. `sqpopt_module.F90` has the solver (`initialize`/`solve`), input validation, and all the printed output. `sqpopt_iterate_module.f90` has one major iteration. There is one module per component: problem, options, Hessian, QP solvers, line search, merit, filter, funnel, trust region, restoration, SOC, convergence, and log. The optional sparse factorizations are layered: `sqpopt_symmetric_solver_module.F90` is the only code that uses MUMPS, and only inside `#ifdef HAS_MUMPS`; `sqpopt_kkt_module` is the KKT matrix of a QP working set on top of it; and `sqpopt_inertia_module` (the Hessian's shift), `sqpopt_qp_direct_module` (direct QP steps), and `sqpopt_least_squares_module` (direct least-squares solves) use that. `sqpopt_types_module.f90` has the status codes and the results type. |
 | `test/` | Unit and regression tests (fpm auto-tests: every `test/*.f90` program is a test). It also has the Hock–Schittkowski (HS) harnesses: `test_hs_suite.f90` (305 problems, the main regression and benchmark test), `test_hs_slsqp.f90` (the SLSQP comparison), and `test_hs_solutions.f90`. |
-| `example/` | `hs71.f90` (mirrored in the guide's worked example) and `benchmark.f90`. |
+| `example/` | `hs71.f90` (mirrored in the guide's worked example), `benchmark.f90`, and `benchmark_large.f90` (large problems, for the timing tables of the guide's Performance section and of `plan/MUMPS_PLAN.md`). |
 | `web/` | The user guide (`index.html`), the interactive HS results page (`hs_results.html`, with data in `web/js/*_data.js`), and CSS/JS. CI deploys it to GitHub Pages with the FORD API docs (`web/api`) and coverage (`web/coverage`). |
 | `python/` | The Python bindings (`sqpopt/`: a scipy-like `minimize`, whose extension f2py builds from the Fortran shim and signature file in `sqpopt/fortran/`), a Qt options dialog (`sqpopt_options/schema.py` describes every option), and their tests. |
 | `tools/` | `hs_performance_table.sh` regenerates the guide's Performance table and the results-page data. `hs_compare.sh` runs one HS problem with both SQPOPT and SLSQP. |
@@ -25,10 +25,13 @@ How this library is developed, and what has to be kept in sync when anything cha
   pixi run fpm test                                   # everything
   pixi run fpm test test_hs_suite --profile release   # the HS regression test
   pixi run fortitude check                            # lint (src/, example/, and the Python bindings' Fortran)
+  pixi run test-mumps                                 # everything, in the build with MUMPS (HAS_MUMPS)
+  pixi run test-mumps test_hs_suite --profile release -- /dev/null --hessian=exact --inertia --direct
+  pixi run run-mumps --example benchmark_large --profile release -- --scale=10 --no-active-set
   pixi run build-python                               # rebuild the Python bindings' extension
   pixi run test-python                                # the Python tests (bindings and options dialog)
   ```
-  fpm sometimes runs a stale build after edits (the old output appears). If results look unchanged when they shouldn't, delete `build/gfortran_*` and rebuild.
+  fpm sometimes runs a stale build after edits (the old output appears, or a test crashes with a segmentation fault after a derived type changed). If results look unchanged when they shouldn't, delete `build/gfortran_*` and rebuild. Always do that before a measurement that will be written down.
 - **Never initialize a local variable in its declaration** (`integer :: n = 0`). In Fortran that gives it the implicit `save` attribute, so it keeps its value between calls. Declare it, then assign it in the executable code. (Default values on derived-type *components* are fine.)
 - Every program unit has `implicit none`. Reals use `wp` (from `sqpopt_kinds`), and literals are written `1.0_wp`.
 - Style: 4-space indentation, lines up to 132 columns, single-quoted strings (see `fortitude.toml`). Match the density and tone of the surrounding comments.
@@ -36,6 +39,8 @@ How this library is developed, and what has to be kept in sync when anything cha
 - Every `solve` must start from the configuration given to `initialize`. No state may carry over between solves (`test_resolve` checks this). New component state must be reset at the start of `solve`.
 - Printed output must never stop the solver. Every `write` in the logging and printing code uses `iostat=`, and writes `****` if it fails.
 - Status codes are always referred to by their named constants (`sqpopt_success`, …), never by their numeric values.
+- **MUMPS is optional.** The default build must need nothing but fpm, so MUMPS is only referenced inside `#ifdef HAS_MUMPS` in `sqpopt_symmetric_solver_module.F90`. Other code tests `sqpopt_has_mumps` or an object's `enabled` flag (`kkt%enabled`, `inertia%enabled`, `least_squares%enabled`), and every test must pass in both builds. A change to the factorization-based options (`inertia_control`, `direct_qp`, `direct_least_squares`), or to code they share with the matrix-free paths (the QP front end `solve_qp_subproblem`, the QP re-solve loop in `sqpopt_iterate`, `hessian%shift`, the Hessian's compact form), is tested with `pixi run fpm test` and `pixi run test-mumps`. The MUMPS build is double precision only.
+- The objects that hold a sparse solver (`sqpopt_kkt_type`, `sqpopt_least_squares_type`) have pointers inside: they are never copied, live for one `solve` (as locals of `sqpopt_solve`), and are freed in `finish`.
 
 ## Documentation conventions (FORD)
 
@@ -96,10 +101,11 @@ Before calling a change done, go through the items that apply.
 
 ### Change that can affect convergence (algorithm, defaults, tolerances)
 Run the HS suite in release mode, and compare it with the baseline recorded in the `known_unsolved` comment of `test/test_hs_suite.f90`. That baseline is currently 280 solved, 25 local, 0 failed, and 9,173 `fc` calls.
+- If the change affects the exact Hessian, also run `--hessian=exact` (270 solved, 32 local, 3 failed, 11,267 `fc`). If it affects the factorization-based options, run, in the build with MUMPS: `--hessian=exact --inertia` (274, 29, 2, and 9,472), `--hessian=exact --inertia --direct` (274, 29, 2, and 9,402), `--hessian=sr1 --inertia` (274, 27, 4, and 10,454), and `--direct` (279, 26, 0, and 9,555; its automatic L-BFGS memory is 10 pairs); and `benchmark_large` for the timings. None of these is regression-tested, so compare them by hand.
 - If problems newly fail, it is a regression. Investigate it, don't just update the baseline.
 - If results change, do all of the following:
   - Update the `known_unsolved` list and the counts and date in its comment.
-  - Regenerate the Performance table with `pixi run tools/hs_performance_table.sh` and paste its rows into the guide's Performance section. The script also regenerates `web/js/hs_results_data.js` and `web/js/hs_slsqp_data.js`.
+  - Regenerate the Performance table with `pixi run tools/hs_performance_table.sh --mumps` and paste its rows into the guide's Performance section (`--mumps` adds the rows of the options that need MUMPS). The script also regenerates `web/js/hs_results_data.js` and `web/js/hs_slsqp_data.js`.
   - Update any numbers quoted elsewhere in the guide or README.
 - If results *don't* change, revert the regenerated files whose diffs are only timestamps: `test/hs_suite_results.md` and `web/js/*_data.js`. A debug-profile run also rewrites `test/hs_suite_results.md` with slightly different counts, so the committed report must come from `--profile release`.
 - When comparing alternatives (an option's value, a new rule), use the harness's command-line options (see `test_hs_suite.f90`'s header). Report the numbers, and give the reasons for the chosen default in its docstring or in the guide.

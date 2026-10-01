@@ -21,6 +21,13 @@
 !  * `sqpopt_qp_auto` (the default): `sqpopt_qp_dense` when
 !    `n <= auto_dense_max_n`, else `sqpopt_qp_reduced_hessian`.
 !
+!  With `direct` (`options%direct_qp`, in a build with MUMPS), the
+!  subproblem is first tried directly, by factoring the KKT matrix of the
+!  working set that the active-set solver would start from (see
+!  [[sqpopt_qp_direct_module]]); the active-set solver is only run if that
+!  doesn't give the solution within `direct_max_changes` changes of the
+!  working set.
+!
 !  Both enforce the variable bounds and the linearized constraints exactly
 !  as part of the QP solve. The step length is then capped at
 !  `max_step*step_scale` (a trust-region-style safeguard), where the major
@@ -36,10 +43,13 @@
 
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
     use, intrinsic :: iso_fortran_env, only: int64
-    use sqpopt_types_module,   only: sqpopt_sparse_matrix, sqpopt_out_of_memory
+    use sqpopt_types_module,   only: sqpopt_sparse_matrix, sqpopt_out_of_memory, sqpopt_success
     use sqpopt_hessian_module, only: sqpopt_hessian_type
     use sqpopt_qp_dense_module, only: sqpopt_dense_qp_type
     use sqpopt_qp_reduced_hessian_module, only: sqpopt_reduced_hessian_qp_type
+    use sqpopt_kkt_module,       only: sqpopt_kkt_type
+    use sqpopt_inertia_module,   only: sqpopt_inertia_type
+    use sqpopt_qp_direct_module, only: direct_qp_step, sqpopt_direct_solved
 
     implicit none
 
@@ -78,6 +88,20 @@
         logical :: out_of_memory = .false. !! whether a QP solve of this `solve` returned `sqpopt_out_of_memory`
                                            !! (output; it stays set, so the solver stops whichever step asked
                                            !! for that QP; reset on each `solve`)
+        logical :: direct = .false.        !! whether to try the direct method first (overwritten from
+                                           !! `options%direct_qp`; see [[sqpopt_qp_direct_module]])
+        integer :: direct_max_changes = 10 !! the direct method gives up, and the active-set solver is run,
+                                           !! after this many changes of the working set (each one is a
+                                           !! factorization) without reaching the solution
+        real(wp) :: direct_tol = 1.0e-8_wp !! the direct method's relative tolerance for a violated row or
+                                           !! bound, and for the sign of a multiplier
+        logical :: direct_used = .false.   !! whether the last QP was solved by the direct method (output)
+        integer :: direct_outcome = -1     !! how the direct method ended in the last QP solve: a `sqpopt_direct_*`
+                                           !! constant (see [[sqpopt_qp_direct_module]]), or `-1` if it wasn't
+                                           !! tried (output)
+        integer :: direct_changes = 0      !! the changes of the working set it made there (output)
+        integer :: n_solves = 0            !! number of QP solves in this `solve` (output)
+        integer :: n_direct = 0            !! of which, by the direct method (output)
         type(sqpopt_dense_qp_type)           :: dense_qp    !! the dense QP solver (used only when `mode==sqpopt_qp_dense`)
         type(sqpopt_reduced_hessian_qp_type) :: sparse_qp   !! the sparse QP solver (used only when `mode==sqpopt_qp_reduced_hessian`)
 
@@ -85,6 +109,8 @@
 
         procedure, public :: solve => solve_qp_subproblem
         procedure, public :: mode_name
+        procedure, public :: working_set
+        procedure, public :: starting_working_set
 
     end type sqpopt_qp_solver_type
 
@@ -99,9 +125,20 @@
 !  [[sqpopt_qp_reduced_hessian_module]]). If the solver returns
 !  `istat=sqpopt_out_of_memory`, `me%out_of_memory` is also set (and stays
 !  set), for [[sqpopt_iterate]] to stop the solve.
+!
+!  If `kkt` is given (and `me%direct` is set, and this is not a forced
+!  elastic solve), the direct method is tried
+!  first (see [[direct_qp_step]]), from the working set that the active-set
+!  solver would start from. If it finds the QP's solution, the active-set
+!  solver is not run (`me%direct_used`), and the working set it ended with
+!  is kept as that solver's warm start. With `inertia`, the direct method
+!  may increase the exact Hessian's shift (`hessian%shift`).
+!
+!  The time spent here is added to `me%time`, without the time that `kkt`
+!  spent factoring and solving (which its solver counts itself).
 
     subroutine solve_qp_subproblem(me, hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat, &
-                                   elastic_sign, elastic_weight)
+                                   elastic_sign, elastic_weight, kkt, inertia)
 
     class(sqpopt_qp_solver_type), intent(inout) :: me
     type(sqpopt_hessian_type),  intent(inout) :: hessian !! matrix-free Hessian approximation (never a dense `n x n` matrix)
@@ -122,43 +159,26 @@
                                                                   !! bound, `0` none) `dimension(m)`
     real(wp),               optional, intent(in) :: elastic_weight !! forced elastic mode: the fixed \( \ell_1 \)
                                                                   !! weight of every elastic slack
+    type(sqpopt_kkt_type),  optional, intent(inout) :: kkt         !! the KKT matrix, for the direct method (see
+                                                                  !! [[sqpopt_kkt_module]])
+    type(sqpopt_inertia_type), optional, intent(inout) :: inertia  !! the inertia control, for the direct method
+                                                                  !! at a nonconvex face (see
+                                                                  !! [[sqpopt_inertia_module]])
 
     logical :: forced
     integer(int64) :: t0, t1, rate
+    real(wp) :: t_kkt !! the time `kkt` spent in its solver during this call
 
     call system_clock(t0, rate)
     forced = present(elastic_sign) .and. present(elastic_weight)
+    me%n_solves    = me%n_solves + 1
+    me%direct_used    = .false.
+    me%direct_outcome = -1
+    me%direct_changes = 0
+    t_kkt = 0.0_wp
 
-    select case (resolved_mode(me, size(g)))
-    case (sqpopt_qp_dense)
-        if (forced) then
-            me%dense_qp%force_sign   = elastic_sign
-            me%dense_qp%force_weight = elastic_weight
-        end if
-        call me%dense_qp%solve(hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
-        if (forced) then
-            deallocate(me%dense_qp%force_sign)
-            me%dense_qp%force_weight = 0.0_wp
-        end if
-        me%n_iter = me%dense_qp%n_iter
-        me%n_working = me%dense_qp%n_working
-        me%n_slacks  = me%dense_qp%n_slacks
-        me%negative_curvature = me%dense_qp%negative_curvature
-    case default ! sqpopt_qp_reduced_hessian
-        if (forced) then
-            me%sparse_qp%force_sign   = elastic_sign
-            me%sparse_qp%force_weight = elastic_weight
-        end if
-        call me%sparse_qp%solve(hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
-        if (forced) then
-            deallocate(me%sparse_qp%force_sign)
-            me%sparse_qp%force_weight = 0.0_wp
-        end if
-        me%n_iter = me%sparse_qp%n_iter
-        me%n_working = me%sparse_qp%n_working
-        me%n_slacks  = me%sparse_qp%n_slacks
-        me%negative_curvature = me%sparse_qp%negative_curvature
-    end select
+    if (present(kkt) .and. me%direct .and. .not. forced) call solve_direct()
+    if (.not. me%direct_used) call solve_active_set()
 
     if (istat == sqpopt_out_of_memory) me%out_of_memory = .true.
 
@@ -166,14 +186,77 @@
     me%capped = norm2(p) > me%max_step*me%step_scale
     if (me%capped) p = p*(me%max_step*me%step_scale/norm2(p))
 
-    ! the active-set solvers only satisfy the bounds to within their own
+    ! the solvers only satisfy the bounds to within their own
     ! tolerances, so make sure `x+p` (and hence every `x+alpha*p`,
     ! `0<=alpha<=1`) is exactly within them -- the user functions must
     ! never be evaluated outside the variable bounds:
     p = min(max(x + p, x_lb), x_ub) - x
 
     call system_clock(t1)
-    me%time = me%time + real(t1 - t0, wp)/real(rate, wp)
+    me%time = me%time + max(real(t1 - t0, wp)/real(rate, wp) - t_kkt, 0.0_wp)
+
+    contains
+
+        subroutine solve_direct()
+        !! try the direct method (see [[sqpopt_qp_direct_module]]), from the
+        !! working set that the active-set solver would start from. Sets
+        !! `me%direct_used` if it solved the QP.
+        integer, dimension(:), allocatable :: status
+        if (.not. kkt%enabled) return
+        t_kkt = kkt%solver%time
+        call me%starting_working_set(x_lb, x_ub, c_lb, c_ub, status)
+        call direct_qp_step(kkt, hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, me%direct_max_changes, &
+                            me%direct_tol, status, p, lambda, me%direct_changes, me%direct_outcome, inertia=inertia)
+        t_kkt = kkt%solver%time - t_kkt
+        me%direct_used = me%direct_outcome == sqpopt_direct_solved
+        if (.not. me%direct_used) return
+        istat = sqpopt_success
+        me%n_direct  = me%n_direct + 1
+        me%n_iter    = me%direct_changes
+        me%n_working = count(status /= 0)
+        me%n_slacks  = 0
+        me%negative_curvature = .false.
+        ! (the next QP starts from this working set)
+        if (resolved_mode(me, size(g)) == sqpopt_qp_dense) then
+            me%dense_qp%warm_status = status
+        else
+            me%sparse_qp%warm_status = status
+        end if
+        end subroutine solve_direct
+
+        subroutine solve_active_set()
+        !! solve the QP with the active-set solver selected by `me%mode`
+        select case (resolved_mode(me, size(g)))
+        case (sqpopt_qp_dense)
+            if (forced) then
+                me%dense_qp%force_sign   = elastic_sign
+                me%dense_qp%force_weight = elastic_weight
+            end if
+            call me%dense_qp%solve(hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
+            if (forced) then
+                deallocate(me%dense_qp%force_sign)
+                me%dense_qp%force_weight = 0.0_wp
+            end if
+            me%n_iter = me%dense_qp%n_iter
+            me%n_working = me%dense_qp%n_working
+            me%n_slacks  = me%dense_qp%n_slacks
+            me%negative_curvature = me%dense_qp%negative_curvature
+        case default ! sqpopt_qp_reduced_hessian
+            if (forced) then
+                me%sparse_qp%force_sign   = elastic_sign
+                me%sparse_qp%force_weight = elastic_weight
+            end if
+            call me%sparse_qp%solve(hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
+            if (forced) then
+                deallocate(me%sparse_qp%force_sign)
+                me%sparse_qp%force_weight = 0.0_wp
+            end if
+            me%n_iter = me%sparse_qp%n_iter
+            me%n_working = me%sparse_qp%n_working
+            me%n_slacks  = me%sparse_qp%n_slacks
+            me%negative_curvature = me%sparse_qp%negative_curvature
+        end select
+        end subroutine solve_active_set
 
     end subroutine solve_qp_subproblem
 !*******************************************************************************
@@ -195,6 +278,64 @@
     end if
 
     end function resolved_mode
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the final working set of the last QP solve with `n` variables and `m`
+!  constraints: the side (`-1` lower, `+1` upper, `0` not in the working
+!  set) of each general row, then of each variable bound. `status` is
+!  returned unallocated if there is none (no QP of that size has been
+!  solved yet).
+
+    subroutine working_set(me, n, m, status)
+
+    class(sqpopt_qp_solver_type),       intent(in)  :: me
+    integer,                            intent(in)  :: n      !! number of variables
+    integer,                            intent(in)  :: m      !! number of constraints
+    integer, dimension(:), allocatable, intent(out) :: status !! the working set `dimension(m+n)` (see above)
+
+    select case (resolved_mode(me, n))
+    case (sqpopt_qp_dense)
+        if (allocated(me%dense_qp%warm_status)) status = me%dense_qp%warm_status
+    case default
+        if (allocated(me%sparse_qp%warm_status)) status = me%sparse_qp%warm_status
+    end select
+    if (allocated(status)) then
+        if (size(status) /= m + n) deallocate(status)
+    end if
+
+    end subroutine working_set
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the working set that the next QP solve will start from, for a problem
+!  with the given bounds: the final working set of the last one (see
+!  [[working_set]]), or, if there is none, the equality constraints and
+!  the fixed variables (the active-set solvers' crash start).
+
+    subroutine starting_working_set(me, x_lb, x_ub, c_lb, c_ub, status)
+
+    class(sqpopt_qp_solver_type),       intent(in)  :: me
+    real(wp), dimension(:),             intent(in)  :: x_lb   !! variable lower bounds `dimension(n)`
+    real(wp), dimension(:),             intent(in)  :: x_ub   !! variable upper bounds `dimension(n)`
+    real(wp), dimension(:),             intent(in)  :: c_lb   !! constraint lower bounds `dimension(m)`
+    real(wp), dimension(:),             intent(in)  :: c_ub   !! constraint upper bounds `dimension(m)`
+    integer, dimension(:), allocatable, intent(out) :: status !! the working set `dimension(m+n)` (see [[working_set]])
+
+    integer :: n, m
+
+    n = size(x_lb)
+    m = size(c_lb)
+    call me%working_set(n, m, status)
+    if (allocated(status)) return
+    allocate(status(m+n))
+    status = 0
+    where (c_ub - c_lb <= 0.0_wp) status(1:m) = -1
+    where (x_ub - x_lb <= 0.0_wp) status(m+1:m+n) = -1
+
+    end subroutine starting_working_set
 !*******************************************************************************
 
 !*******************************************************************************

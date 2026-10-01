@@ -132,6 +132,33 @@ class TestMinimize(unittest.TestCase):
             minimize(rosen, [-1.2, 1], jac=rosen_g, hess=rosen_h,
                      constraints=NonlinearConstraint(lambda x: x @ x, -np.inf, 1.5, jac=lambda x: 2 * x))
 
+    def test_inertia_control(self):
+        # (min -x1 x2 on the unit disc: the Hessian is indefinite)
+        con = NonlinearConstraint(lambda x: x @ x, -np.inf, 1.0, jac=lambda x: 2 * x,
+                                  hess=lambda x, v: 2 * v[0] * np.eye(2))
+        for options in ({'inertia_control': True}, {'inertia_control': True, 'direct_qp': True},
+                        {'direct_least_squares': True}):
+            r = minimize(lambda x: -x[0] * x[1], [0.3, 0.6], jac=lambda x: -x[::-1],
+                         hess=lambda x: np.array([[0.0, -1.0], [-1.0, 0.0]]), bounds=[(0, 2), (0, 2)],
+                         constraints=con, options=options)
+            if 'MUMPS' in r.message:
+                # (the extension was built without MUMPS: the options are invalid input)
+                self.assertFalse(r.success)
+                self.assertEqual(r.n_factorizations, 0)
+                self.assertEqual(r.time_factorization, 0.0)
+            else:
+                self.assertTrue(r.success, r.message)
+                self.assertAlmostEqual(r.fun, -0.5, places=6)
+                if 'inertia_control' in options:
+                    self.assertGreater(r.n_factorizations, 0)
+                    # (the time can be zero: the factorizations of this small problem can take less than
+                    # a tick of the clock)
+                    self.assertGreaterEqual(r.time_factorization, 0.0)
+                    self.assertLessEqual(r.time_factorization, r.execution_time)
+                if 'direct_qp' in options:
+                    self.assertGreater(r.n_direct_qp, 0)
+                    self.assertLessEqual(r.n_direct_qp, r.n_qp_solves)
+
     def test_callback(self):
         seen = []
         r = minimize(rosen, [-1.2, 1], jac=rosen_g, callback=lambda intermediate_result: seen.append(

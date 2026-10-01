@@ -264,6 +264,16 @@ def _exact_used(values: dict) -> str | None:
     return None
 
 
+def _inertia_used(values: dict) -> str | None:
+    if get_value(values, ('options', 'hessian_mode')) not in (2, 3):
+        return 'only used with hessian_mode = sqpopt_hessian_exact or sqpopt_hessian_sr1'
+    return None
+
+
+def _direct_qp_used(values: dict) -> str | None:
+    return None if get_value(values, ('options', 'direct_qp')) else 'not used unless options%direct_qp'
+
+
 def _phase_used(values: dict) -> str | None:
     if get_value(values, ('options', 'restoration_mode')) != 1:
         return 'only used with restoration_mode = sqpopt_restoration_phase'
@@ -408,7 +418,8 @@ TOPICS: tuple[Topic, ...] = (
         Section('Quasi-Newton', (
             _o('options%lbfgs_memory', 'int', 0,
                'Number of (s,y) vector pairs retained by the limited-memory Hessian. 0 (automatic) picks '
-               'max(10, min(n, 100)) from the number of variables n; any positive value is used as given.',
+               'max(10, min(n, 100)) from the number of variables n, or 10 with direct_qp (whose cost grows with '
+               'the square of the number of pairs); any positive value is used as given.',
                minimum=0, special={0: 'automatic'}),
             _positive('options%hessian_scale0', 1.0,
                       'The initial Hessian approximation is hessian_scale0 times the identity.'),
@@ -417,6 +428,14 @@ TOPICS: tuple[Topic, ...] = (
                "positive definite while still using the new curvature information. If off, such updates are "
                "skipped instead."),
         ), relevance=_quasi_newton_used),
+        Section('Inertia control (a build with MUMPS)', (
+            _o('options%inertia_control', 'bool', False,
+               'With the exact or the SR1 Hessian, which can be indefinite: find the shift δ of H + δI from the '
+               'inertia of the KKT matrix of the QP\'s working set, by a sparse LDLᵀ factorization (MUMPS): the '
+               'smallest shift tried that leaves no negative curvature. Without it, the exact Hessian is shifted '
+               'tenfold whenever a QP finds negative curvature, and SR1 is not corrected at all. It needs a '
+               'library built with MUMPS (the HAS_MUMPS preprocessor directive), and is invalid without it.'),
+        ), relevance=_inertia_used),
         Section('Exact Hessian', (
             _positive('hessian%shift_min', 1e-4,
                       'The smallest nonzero shift δ of the inertia correction H + δI, relative to '
@@ -426,6 +445,37 @@ TOPICS: tuple[Topic, ...] = (
     )),
 
     Topic('QP solver', 'The QP subproblem solvers (qp_solver_mode is on the Algorithms page).', (
+        Section('Direct method (a build with MUMPS)', (
+            _o('options%direct_qp', 'bool', False,
+               'First try to solve each QP subproblem directly, by sparse factorizations of the KKT matrix of '
+               'its working set, starting from the working set of the previous QP. The active-set QP solver is '
+               'only run if that fails. Meant for large problems, where it can be orders of magnitude faster; '
+               'with the exact Hessian, use it with inertia_control. With L-BFGS or SR1, the automatic memory '
+               '(lbfgs_memory = 0) is 10 pairs, which keeps it cheap. It needs a library built with MUMPS (the HAS_MUMPS preprocessor '
+               'directive), and is invalid without it.'),
+            _o('options%direct_least_squares', 'bool', False,
+               'Compute the Gauss-Newton restoration steps and the second-order corrections by a sparse '
+               'factorization instead of the iterative LSQR. It pays on large problems that take such steps and '
+               'whose constraints are coupled (a chain of 100,000 circle constraints: 88.7 s with LSQR, 1.1 s '
+               'with this). It needs a library built with MUMPS, and is invalid without it.'),
+        )),
+        Section('Threads', (
+            _o('options%factorization_threads', 'int', 1,
+               'Number of OpenMP threads the sparse factorizations use (inertia_control, direct_qp, and '
+               'direct_least_squares). 1 uses none; 0 leaves it to the OpenMP environment (OMP_NUM_THREADS, or '
+               'every core). It needs MUMPS and its BLAS built with OpenMP (conda-forge\'s are). Threads only pay '
+               'on large problems whose factors are dense enough (a 3-D grid: 2.3 times faster on 4 threads; '
+               'banded problems: no gain), and cost a lot on small ones.',
+               minimum=0, special={0: 'OpenMP environment'}),
+        )),
+        Section('Direct method settings', (
+            _o('qp_solver%direct_max_changes', 'int', 10,
+               'The direct method gives up, and the active-set QP solver is run, after this many changes of the '
+               'working set (each is a factorization) without reaching the QP\'s solution.', minimum=0),
+            _positive('qp_solver%direct_tol', 1e-8,
+                      'The direct method\'s relative tolerance for a violated row or bound, and for the sign of a '
+                      'multiplier.'),
+        ), relevance=_direct_qp_used),
         Section('General', (
             _o('qp_solver%auto_dense_max_n', 'int', 200,
                'With qp_solver_mode = automatic, the dense QP solver is used for problems with at most this many '

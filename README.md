@@ -44,6 +44,44 @@ The default precision is double. For single or quadruple precision, define
 pixi run fpm test --flag "-DREAL128"
 ```
 
+### Building with MUMPS (optional)
+
+Three options, meant for large problems, use the sparse LDLᵀ factorization
+of [MUMPS](https://mumps-solver.org):
+
+| option | what it does | module |
+|---|---|---|
+| `options%inertia_control` | finds the shift of an indefinite Hessian (exact or SR1) from the inertia of the KKT matrix | `sqpopt_inertia_module` |
+| `options%direct_qp` | solves the QP subproblems directly, by factoring the KKT matrix of the working set | `sqpopt_qp_direct_module` |
+| `options%direct_least_squares` | computes restoration steps and second-order corrections directly instead of with `LSQR` | `sqpopt_least_squares_module` |
+
+All three are built on `sqpopt_kkt_module` (the KKT matrix of a working
+set) and `sqpopt_symmetric_solver_module`, the only source file that refers
+to MUMPS, and only inside `#ifdef HAS_MUMPS`. So the default build still
+needs nothing but fpm. `options%factorization_threads` sets the number of
+OpenMP threads MUMPS uses (1 by default; conda-forge's `mumps-seq` is built
+with OpenMP). With `HAS_MUMPS`, the library must be compiled in
+double precision (the default: `REAL32` and `REAL128` are a compile error
+with it). The pixi environment has the sequential MUMPS library
+(conda-forge's `mumps-seq`), and tasks that build with it:
+
+```sh
+pixi run build-mumps                   # fpm build, with MUMPS
+pixi run test-mumps                    # fpm test, with MUMPS
+pixi run test-mumps test_kkt           # (other arguments go to fpm)
+pixi run test-mumps test_hs_suite --profile release -- results.md --hessian=exact --inertia --direct
+pixi run run-mumps --example benchmark_large --profile release -- --scale=10
+```
+
+They run fpm with
+`--flag "-DHAS_MUMPS -I$CONDA_PREFIX/include" --link-flag "-ldmumps_seq"`:
+the include path is for MUMPS's `dmumps_struc.h`. A program that uses a
+library built this way must link with `-ldmumps_seq` too. Without
+`HAS_MUMPS`, `sqpopt_has_mumps` is false and each of the three options is
+rejected as invalid input. Changes to this code must be tested in both
+builds: `test_kkt`, `test_inertia`, `test_direct`, and `test_qp_fuzz` check
+the features in one, and the rejection (or nothing) in the other.
+
 ### Tests
 
 The tests are in `test/`:
@@ -52,11 +90,17 @@ The tests are in `test/`:
   `test_qp_reduced_hessian`, and `test_qp_fuzz` (both QP solvers on thousands
   of random convex, nonconvex, degenerate, and infeasible QPs, checked against
   the KKT conditions), `test_hessian_consistency`, `test_acceptance` (merit
-  function, filter, funnel), `test_convergence`, and
-  `test_independent_columns`.
+  function, filter, funnel), `test_convergence`,
+  `test_independent_columns`, and, for the sparse factorizations of a build
+  with MUMPS, `test_kkt` (the sparse solver, the KKT matrix against a dense
+  reference, and the least-squares solver) and `test_inertia` (the shift's
+  search). `test_qp_fuzz` gives its QPs to the direct method too.
 - **Solver tests** on small problems with known solutions (`test_basic`,
-  `test_hs71`, `test_medium`, `test_maratos`, and `test_degenerate`, a
-  constraint tangent to a bound), larger sparse ones
+  `test_hs71`, `test_medium`, `test_maratos`, `test_degenerate` (a
+  constraint tangent to a bound), `test_direct` (the options of a build
+  with MUMPS, with every Hessian mode), and `test_multipliers` (the
+  least-squares multiplier estimate, and a hanging chain that the exact
+  Hessian only solves with it), larger sparse ones
   (`test_large_sparse`), and regression tests of the interface and edge cases
   (`test_callbacks`, `test_input_validation`, `test_infeasible`,
   `test_nonfinite`, `test_resolve`, `test_results`, `test_termination`, ...).
@@ -72,7 +116,8 @@ The tests are in `test/`:
   ```
 
   The options are `--linesearch=`, `--merit=`, `--penalty=`, `--hessian=`,
-  `--qp=`, `--restoration=`, `--trust-region`, `--no-interpolate`,
+  `--inertia`, `--direct`, `--direct-ls`, `--qp=`, `--restoration=`,
+  `--trust-region`, `--no-interpolate`,
   `--nonmonotone=N`, `--lbfgs-memory=N`, `--problem=N`, `--print=L`, and
   `--web-data=FILE` (see the header of `test/test_hs_suite.f90`).
 - **`test_hs_solutions`** checks the collection's reference solutions: at
@@ -95,13 +140,27 @@ problem, at sizes that use each QP solver:
 pixi run fpm run --example benchmark --profile release
 ```
 
+`example/benchmark_large.f90` solves larger problems with analytic second
+derivatives (those two, a nonconvex chain of double wells, and a chain of
+circle constraints that needs second-order corrections) with each
+Hessian mode and, in a build with MUMPS, with the options that use sparse
+factorizations. It reports where the time goes (the QP solver, the
+factorizations) and how many QPs were solved directly. `--scale=S`
+multiplies the sizes (`S = 100` gives a million variables; see the header of
+the file for the other options):
+
+```sh
+pixi run fpm run --example benchmark_large --profile release
+pixi run run-mumps --example benchmark_large --profile release -- --scale=10 --no-active-set
+```
+
 ## Tools
 
 | | |
 |---|---|
-| `coverage.sh` | runs the tests with `--coverage` and makes an lcov HTML report in `coverage/html` (dark-mode aware) |
+| `coverage.sh [--mumps]` | runs the tests with `--coverage` and makes an lcov HTML report in `coverage/html` (dark-mode aware). With `--mumps` (what CI uses), the build with MUMPS is tested, so the report covers the code that uses it |
 | `pixi run fortitude check` | lints the Fortran sources with [Fortitude](https://fortitude.readthedocs.io) (configured in `fortitude.toml`; also run by the VS Code extension) |
-| `tools/hs_performance_table.sh` | runs the HS suite in every configuration of the guide's Performance table and prints the table rows. It also regenerates the data of the results page (`web/js/hs_results_data.js`, `web/js/hs_slsqp_data.js`). Run it whenever a change affects the HS results. |
+| `tools/hs_performance_table.sh --mumps` | runs the HS suite in every configuration of the guide's Performance table and prints the table rows. It also regenerates the data of the results page (`web/js/hs_results_data.js`, `web/js/hs_slsqp_data.js`). Run it whenever a change affects the HS results. (`--mumps` builds with MUMPS, for the rows of the options that need it; without it those rows are left out.) |
 | `tools/hs_compare.sh N [options]` | runs HS problem `N` with SQPOPT and SLSQP, printing both solvers' iterations, for investigating a difference |
 | `python/` | Python bindings with a `scipy.optimize.minimize`-like interface, and a Qt options dialog for SQPOPT (see [python/README.md](python/README.md)) |
 
@@ -137,6 +196,11 @@ architecture ([PLAN.md](plan/PLAN.md)), the backlog
 | `sqpopt_options_module` | the solver options |
 | `sqpopt_types_module` | status codes, the sparse matrix and results types, and small utilities |
 | `sqpopt_hessian_module` | the limited-memory BFGS/SR1 approximations, and the exact Hessian |
+| `sqpopt_symmetric_solver_module` | the sparse symmetric indefinite solver: the interface to MUMPS (only in a build with `HAS_MUMPS`) |
+| `sqpopt_kkt_module` | the KKT matrix of a QP working set, factored with that solver (its inertia, and solves) |
+| `sqpopt_inertia_module` | inertia control of the exact and SR1 Hessians |
+| `sqpopt_qp_direct_module` | the direct QP method (a primal-dual active-set method on the KKT matrix) |
+| `sqpopt_least_squares_module` | direct minimum-norm solves, for the restoration steps and second-order corrections |
 | `sqpopt_qp_solver_module` | the QP subproblem front end, which chooses a solver |
 | `sqpopt_qp_dense_module` | the dense active-set QP |
 | `sqpopt_qp_reduced_hessian_module` | the sparse active-set QP (LUSOL basis, reduced-Hessian CG) |
@@ -152,8 +216,9 @@ architecture ([PLAN.md](plan/PLAN.md)), the backlog
 ## Continuous integration
 
 On every push, [CI](.github/workflows/CI.yml) builds the pixi environment
-from the locked `pixi.lock`, runs the tests with coverage, and builds the
-FORD documentation. On `master`, it deploys `web/` (with the coverage
+from the locked `pixi.lock`, runs the tests of the default build, then
+those of the build with MUMPS with coverage, and builds the FORD
+documentation. On `master`, it deploys `web/` (with the coverage
 report and API docs) to GitHub Pages.
 
 ## Dependencies
@@ -164,6 +229,10 @@ Fetched and built by fpm:
 - [lusol](https://github.com/jacobwilliams/lusol): sparse LU factorization (the sparse QP's basis factors and updates)
 - [fmin](https://github.com/jacobwilliams/fmin): derivative-free 1-D minimization (the exact line search)
 - [slsqp](https://github.com/jacobwilliams/slsqp) (tests only): the SLSQP comparison
+
+Optional, from the pixi environment (see "Building with MUMPS"):
+
+- [MUMPS](https://mumps-solver.org): sparse symmetric indefinite factorization (inertia control, the direct QP method, and direct least-squares solves)
 
 ## License
 

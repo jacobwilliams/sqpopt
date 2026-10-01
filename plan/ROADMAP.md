@@ -776,9 +776,10 @@ from the nonzeros, so both QPs and the trust region use it unchanged.
 - Side finding, not investigated: SR1 (`--hessian=sr1`) is much weaker than
   BFGS on the HS suite (239/35/31); the same negative-curvature shift could
   apply to it.
-- Not done: a factorization-based path with true inertia control (needs an
-  LDLᵀ solver, §8.3); a Hessian-vector-product callback (for problems
-  whose Hessian is dense or expensive).
+- *Done (2026-09-30, optional, with MUMPS):* inertia control from a
+  factorization (see "Inertia control with MUMPS" below). Not done: a
+  Hessian-vector-product callback (for problems whose Hessian is dense or
+  expensive).
 
 **Trust-region step cap bug (2026-09-27).** Found with the new
 `tools/hs_compare.sh` (one problem, SQPOPT and SLSQP side by side) on
@@ -871,6 +872,109 @@ failure in any QP solve of an iteration (also the trust region's and the
 restoration phase's) ends the solve. New test `test_out_of_memory` (a
 dense QP with `n` = 6,000,000; it uses about 1 GB itself). The solver's
 other allocations are still unchecked (see "Allocation failures" in §4).
+
+**Inertia control with MUMPS (2026-09-30).** Open decision §8.3, step 2 of
+[INERTIA_CONTROL.md](INERTIA_CONTROL.md) §8: `options%inertia_control`,
+for the exact Hessian, in a build with the `HAS_MUMPS` preprocessor
+directive (`sqpopt_inertia_module.F90`, the only code that uses MUMPS; the
+default build is unchanged and still needs only fpm). The pixi environment
+has `mumps-seq`, and the tasks `build-mumps`/`test-mumps`/`build-python-mumps`
+build with it. Without MUMPS the option is invalid input.
+- **Method.** The KKT matrix `[H+δI, Jₐᵀ; Jₐ, 0]` of a QP working set is
+  factored (LDLᵀ, `SYM=2`), and `δ` raised (from `shift_min`·max|H|, or a
+  third of the last shift needed, ×8 per attempt) until it has no more
+  negative pivots than constraints. The matrix always has order `n+m`
+  (rows of inactive constraints and of variables at a bound are replaced by
+  ∓identity), so the pattern is analysed once per solve. This is done
+  before the QP, for the working set it starts from, and after it for the
+  one it ended with (re-solving only if that one fails). The shift starts
+  from 0 at every iteration. The QP solvers are unchanged, apart from
+  exposing their final working set (`qp_solver%working_set`).
+- **HS suite**, `--hessian=exact --inertia`: 274/29/2 with 9,581 `fc`,
+  against 268/34/3 with 12,833 without it (BFGS: 280/25/0, 9,173). Funnel:
+  271/31/3 (269/31/5 without). Armijo: 272/29/4 (267/33/5). Sparse QP:
+  273/31/1 (268/33/4). Trust region (only the test before the QP):
+  261/37/7 with 4,765 `fc` (264/35/6 with 10,209).
+- **Variants tried:** without the test before the QP: 263/37/5, 10,474.
+  Also re-solving when the QP met negative curvature before its final
+  working set: 274/28/3, 12,676. IPOPT's ×100 until a shift has been needed
+  once: 273/29/3, 9,676. Growth ×2, ×4, ×16: 272, 271, 271 solved. No test
+  before the first QP of a solve: 270/32/3.
+- **Threads.** MUMPS's OpenMP threads made the HS suite take 24.5 s
+  instead of 1.4 s (10 cores), so it is run on one thread (`ICNTL(16)=1`).
+  Not measured: whether threads pay off on large problems.
+- **Large problems** (`test_large_sparse`, analytic Hessians): unchanged
+  results (control N=500: 8 `fc`; Rosenbrock n=2000: 14 `fc`, the same local
+  solution), with a few ms more time.
+- New `results%n_factorizations`, test `test_inertia` (both builds), harness
+  option `--inertia`, and `hs_performance_table.sh --mumps`.
+- Not done then: the same control for SR1, and a factorization-based QP
+  (both done 2026-10-01, see the next entry). Still not done: a test after
+  the trust region's QPs; a thread-count option; CI coverage of the MUMPS
+  build (CI runs its tests, but the coverage report is of the default build).
+
+**More uses of MUMPS (2026-10-01).** F16, the plan of
+[MUMPS_PLAN.md](MUMPS_PLAN.md) (its §8 has the full results and the
+differences from the plan). All optional, in a build with `HAS_MUMPS`,
+which is now double precision only.
+- **Layers.** `sqpopt_symmetric_solver_module.F90` (the only file that
+  refers to MUMPS), `sqpopt_kkt_module` (the KKT matrix of a QP working
+  set: inertia and solves, with a quasi-Newton Hessian's low-rank part by
+  the Sherman–Morrison–Woodbury formula), and on those
+  `sqpopt_inertia_module`, `sqpopt_qp_direct_module`, and
+  `sqpopt_least_squares_module`.
+- **`options%direct_qp`**: each QP is first tried by a primal-dual
+  active-set method on the KKT matrix, from the previous QP's working set;
+  the active-set QP runs only if that gives up. With the exact Hessian
+  and inertia control, every QP of the large benchmark was solved
+  directly: `control` n=100,001 in 1.5 s (23.8 s without), `rosenbrock`
+  n=50,000 in 0.5 s (107 s), and a million variables in 6 to 24 s.
+- **`options%inertia_control` for SR1**: HS suite 274/27/4 with 10,454
+  `fc`, against 244/31/30 with 47,454.
+- **L-BFGS with `direct_qp`** pays only with a short memory (about 10
+  pairs). HS suite: 279/26/0, 8,920 `fc`.
+- **`options%direct_least_squares`**: no benefit shown (HS defaults
+  279/25/1); off by default.
+- New results `time_factorization`, `n_qp_solves`, `n_direct_qp`; tests
+  `test_kkt`, `test_direct`, and the direct method in `test_qp_fuzz`;
+  `example/benchmark_large.f90`; harness options `--direct`, `--direct-ls`.
+- Not done: the ordering study; a CG preconditioner (M4) and direct
+  restoration-phase QPs (M5), for lack of evidence that they are needed.
+- **Threads (2026-10-02).** `options%factorization_threads` (default 1;
+  `0` leaves it to the OpenMP environment) sets MUMPS's `ICNTL(16)`.
+  conda-forge's `mumps-seq` is built with OpenMP. Solver alone, 1/2/4/8
+  threads: a 3-D grid of order 216,000 took 11.5/7.0/4.9/4.8 s; a 2-D grid
+  of order 490,000 took 2.0 s throughout; the banded benchmark problems
+  gained nothing (nor with MUMPS's tree-level threading, `ICNTL(48)`).
+- **Follow-ups (2026-10-02).** The automatic L-BFGS memory is 10 pairs
+  with `direct_qp` (HS `--direct`: 279/26/0, 9,555 `fc`, 1.8 s instead of
+  7.5 s). CI runs the default build's tests, then the MUMPS build's with
+  coverage (`coverage.sh --mumps`). MUMPS's automatic ordering is kept (it
+  was best or within noise). New unit tests of the direct method's special
+  paths. See MUMPS_PLAN.md §8, "Settled since".
+- **A problem for `direct_least_squares`, and two fixes (2026-10-02).**
+  `circles` (in `benchmark_large` and `test_direct`): a chain of coupled
+  circle constraints that needs second-order corrections; at n=100,000
+  the solve takes 88.7 s with `LSQR` and 1.1 s with direct least squares.
+  Found on the way: MUMPS's workspace retries gave up too early on a very
+  indefinite matrix (the solve ended as out of memory), and a face that
+  MUMPS wrongly found singular was regularized too coarsely for its step
+  to be accepted. Both fixed. The guide's large-problem timings were
+  re-measured on an idle machine.
+- **Multiplier estimate for the exact Hessian (2026-10-02).** On a
+  hanging-chain problem the exact Hessian stalled far from the solution:
+  the multipliers of a QP solved with a large shift mostly balance the
+  shift, the Hessian evaluated with them is more indefinite, and needs a
+  larger shift (multipliers reached 1e13). After a step with
+  δ‖p‖∞ ≥ max(1, ‖g‖∞), the multipliers are now re-estimated by least
+  squares (`multiplier_estimate`, by `LSQR` or the direct solver) before
+  the Hessian is evaluated. This is independent of MUMPS. HS suite, exact
+  Hessian: 270/32/3 with 11,267 `fc` (was 268/34/3, 12,833); with inertia
+  control 274/29/2, 9,472; with the direct QP too 273/29/3, 9,330 (TP374
+  now runs to the iteration limit). New test `test_multipliers`. Variants
+  tried: always re-estimating (270/33/2 but 13,883 `fc`), also after a
+  capped step (up to 16,497 `fc`: TP380 and TP335 crawl), thresholds 0.01
+  to 100 (little difference).
 
 ## 2. Bugs: correctness (fix first)
 
@@ -1132,6 +1236,19 @@ other allocations are still unchecked (see "Allocation failures" in §4).
   means fixing that upstream or dropping the `REAL32` option. If the
   benchmark gain is small, drop LSMR, which also resolves §8.4 for it.
 
+- **F16: more uses of MUMPS on large problems.** *(Done 2026-10-01, except
+  the thread and ordering study, M4, and M5: see "More uses of MUMPS" under
+  "Phase 4 status", and [MUMPS_PLAN.md](MUMPS_PLAN.md) §8. The proposal:)* The inertia control
+  factors the KKT matrix and discards the factors, while on large problems
+  97% or more of the time is in the QP. In order: (M1) solve the QP's face
+  directly with those factors, falling back on the current QP; (M2) direct
+  solves for the Gauss-Newton restoration step and the second-order
+  correction, in place of `LSQR`; (M3) the same for L-BFGS and SR1 through
+  a low-rank (Woodbury) correction, which also gives SR1 an inertia
+  correction. First the groundwork: a general solver type, solves with
+  refinement, a thread and ordering study, time accounting, and large
+  benchmarks.
+
 - **F15: a persistent SNOPT-style elastic phase.** *(Possible future
   update, not started.)* SQPOPT uses SNOPT's elastic idea in two places
   today, but only one QP solve at a time:
@@ -1295,6 +1412,12 @@ documentation.
 3. **External sparse LDLᵀ** (e.g. MUMPS, as an optional dependency)
    for exact-Hessian inertia control. Alternatively, stay matrix-free
    with PCG only. See [INERTIA_CONTROL.md](INERTIA_CONTROL.md).
+   *Decided (2026-09-30):* MUMPS, optional (`HAS_MUMPS`), for the shift
+   only; the QPs stay matrix-free. See "Inertia control with MUMPS" above.
+   *Extended (2026-10-01):* the QPs can also be solved by factorizations
+   (`options%direct_qp`, with the active-set solvers as the fallback), and
+   so can the least-squares solves (`options%direct_least_squares`). See
+   [MUMPS_PLAN.md](MUMPS_PLAN.md).
 4. **Dependency trim.** Keep `lusol` for F1's sparse KKT solve, or drop
    `lusol`/`LSMR`/`lbfgsb`. *Recommendation (2026-09-26):*
    - keep `lusol`, for F13 *(done: now used)* and then F1;
