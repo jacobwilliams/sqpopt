@@ -218,11 +218,18 @@ Large problems (release, one run each; total time in seconds). The reference run
 - **M2 shows no benefit.** HS defaults with `direct_least_squares`: 279/25/1, 9,498. The new failure is TP106, where the direct correction is more accurate than `LSQR`'s (violation 7e-2 instead of 141 after it) and the iterates then crawl to the iteration limit. The large benchmarks never take a restoration step or a correction. It stays off by default.
 - **Cost on small problems:** the 305 HS problems take 1.5 s with the exact Hessian and inertia control, 7.5 s with L-BFGS and the direct QP, and 13 s with SR1 and inertia control (1.0 s for the defaults).
 
+### Settled since (2026-10-02)
+
+- **CI.** The "Run tests with MUMPS" step passes on Linux (GitHub Actions, commit b7689a3), so the build flags and the library name work there too.
+- **The ordering (G3).** MUMPS's automatic choice (`ICNTL(7)=7`) is kept, with no option: it was the best or within noise everywhere. Solver alone on a 3-D grid of order 125,000: automatic 4.2 s, METIS 4.2, PORD 5.1, SCOTCH 5.4, AMF 5.9, AMD 9.5, QAMD 9.6. `control` at n = 100,001 (whole solve, direct QP): automatic 1.38 s, AMF 1.35, QAMD 1.36, AMD 1.42, METIS 1.66, SCOTCH 1.73, PORD 1.78. `wells` at n = 100,000: 1.82 to 2.07 s.
+- **Inertia control without the direct QP on `wells`.** It is the active-set QP, not the factorizations: with the smallest shift that makes the face convex, the QPs take more active-set iterations (160 instead of 32 at n = 20,000), and the solve takes 4.7 s instead of 2.6 s there, 69 s instead of 10.6 s at n = 40,000. The active-set solver's time on this problem is erratic anyway (the plain exact Hessian takes 10.6 s at n = 40,000 and 1.2 s at n = 100,000). With the direct QP it is 0.34 s and 0.55 s. So the advice stands: on large problems, use `inertia_control` with `direct_qp`.
+- **Tests of the direct method's special paths** (`test_direct`): a nonconvex face without and with inertia control, a singular face that is regularized, the limit on the changes, and an infeasible QP.
+
+- **The automatic L-BFGS memory with `direct_qp` is 10 pairs** (`lbfgs_memory = 0`; an explicit value is used as given). HS suite with `--direct`: 279/26/0 with 9,555 `fc` in 1.8 s (with 100 pairs: 8,920 `fc` in 7.5 s). SR1 with inertia control and the direct QP: 270/31/4 (267/33/5 with 100 pairs). SR1 with inertia control alone keeps the usual automatic memory (10 pairs gave 277/26/2 with 14,124 `fc`, 100 pairs 275/27/3 with 11,714: no clear winner).
+- **Coverage.** CI now runs the default build's tests, and then the MUMPS build's with coverage (`coverage.sh --mumps`), so the report covers the code that uses MUMPS: 90.5% of the lines overall, and 90% or more of each new module.
+
 ### Still open
 
-- G3: the ordering. (Threads are now an option, see the table above. MUMPS's tree-level threading, `ICNTL(48)`, made no difference on `control`.)
-- A large problem that needs restoration steps or corrections, to judge M2.
-- Why inertia control without the direct QP is so slow on `wells` at n = 100,000 (the plain exact Hessian takes 1.2 s there).
-- Whether `lbfgs_memory = 0` (automatic) should pick a short memory when `direct_qp` is on. It doesn't: the guide and the option's documentation recommend about 10 pairs.
-- CI coverage of the MUMPS build (CI runs its tests, but the coverage report is of the default build).
-
+- A large problem that needs restoration steps or corrections, to judge M2. The benchmark problems take at most 3 corrections and no restoration step, in any configuration.
+- The direct method isn't used for the feasibility QPs of a restoration phase (M5) or for an elastic re-solve, and the trust region makes no inertia test after its QPs.
+- The Windows build with MUMPS has never been tried (the pixi tasks assume the library is called `dmumps_seq`).

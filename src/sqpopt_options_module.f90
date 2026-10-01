@@ -56,9 +56,9 @@
                                                    !! Meant for large problems, where the active-set solvers take
                                                    !! most of the time. With the exact Hessian, use it with
                                                    !! `inertia_control`. With a quasi-Newton Hessian, each
-                                                   !! factorization costs two more solves per stored pair, so a
-                                                   !! short memory (`lbfgs_memory` about 10) is best. It needs a
-                                                   !! library built with MUMPS, and is invalid without it
+                                                   !! factorization costs two more solves per stored pair, so the
+                                                   !! automatic memory is short with it (see `lbfgs_memory`). It
+                                                   !! needs a library built with MUMPS, and is invalid without it
         logical  :: direct_least_squares = .false. !! compute the Gauss-Newton restoration steps and the
                                                    !! second-order corrections by a sparse factorization instead
                                                    !! of the iterative `LSQR` (see
@@ -80,7 +80,11 @@
                                                    !! size `n`: \( \max(10, \min(n, 100)) \) -- more pairs help the
                                                    !! larger problems (on a quadratic, BFGS with `n` pairs converges in
                                                    !! about `n` iterations), but more pairs than variables keep stale
-                                                   !! curvature and slow the small ones down
+                                                   !! curvature and slow the small ones down. With `direct_qp`, `0`
+                                                   !! picks 10 instead: each factorization then costs two solves per
+                                                   !! pair, and work that grows with the square of their number (on
+                                                   !! a control problem with 10,001 variables, 4.9 s with 10 pairs
+                                                   !! and 18 s with 100, in about the same number of iterations)
         integer  :: qp_solver_mode = sqpopt_qp_auto !! QP subproblem algorithm to use
                                                      !! (see [[sqpopt_qp_solver_module]])
         integer  :: linesearch_mode = sqpopt_linesearch_filter !! line search strategy to use

@@ -155,7 +155,7 @@ pixi run run-mumps --example benchmark_large --profile release -- --scale=10 --n
 
 | | |
 |---|---|
-| `coverage.sh` | runs the tests with `--coverage` and makes an lcov HTML report in `coverage/html` (dark-mode aware) |
+| `coverage.sh [--mumps]` | runs the tests with `--coverage` and makes an lcov HTML report in `coverage/html` (dark-mode aware). With `--mumps` (what CI uses), the build with MUMPS is tested, so the report covers the code that uses it |
 | `pixi run fortitude check` | lints the Fortran sources with [Fortitude](https://fortitude.readthedocs.io) (configured in `fortitude.toml`; also run by the VS Code extension) |
 | `tools/hs_performance_table.sh --mumps` | runs the HS suite in every configuration of the guide's Performance table and prints the table rows. It also regenerates the data of the results page (`web/js/hs_results_data.js`, `web/js/hs_slsqp_data.js`). Run it whenever a change affects the HS results. (`--mumps` builds with MUMPS, for the rows of the options that need it; without it those rows are left out.) |
 | `tools/hs_compare.sh N [options]` | runs HS problem `N` with SQPOPT and SLSQP, printing both solvers' iterations, for investigating a difference |
@@ -213,8 +213,9 @@ architecture ([PLAN.md](plan/PLAN.md)), the backlog
 ## Continuous integration
 
 On every push, [CI](.github/workflows/CI.yml) builds the pixi environment
-from the locked `pixi.lock`, runs the tests with MUMPS, then again without
-it and with coverage, and builds the FORD documentation. On `master`, it deploys `web/` (with the coverage
+from the locked `pixi.lock`, runs the tests of the default build, then
+those of the build with MUMPS with coverage, and builds the FORD
+documentation. On `master`, it deploys `web/` (with the coverage
 report and API docs) to GitHub Pages.
 
 ## Dependencies

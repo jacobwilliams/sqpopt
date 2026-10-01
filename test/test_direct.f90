@@ -18,17 +18,27 @@ program test_direct
     !! * the Maratos example (see `test_maratos`), whose second-order
     !!   corrections use the direct least-squares solver.
     !!
+    !! It also gives [[direct_qp_step]] small QPs that take each of its special
+    !! paths: a nonconvex face (which ends it without inertia control, and
+    !! raises the Hessian's shift with it), a face whose KKT matrix is
+    !! singular (which is regularized), an infeasible QP, and the limit on
+    !! the changes of the working set.
+    !!
     !! Without MUMPS, it checks that each option is rejected as invalid input.
 
     use sqpopt_module,           only: sqpopt_type
     use sqpopt_problem_module,   only: sqpopt_problem_type
     use sqpopt_options_module,   only: sqpopt_options_type
-    use sqpopt_hessian_module,   only: sqpopt_hessian_bfgs, sqpopt_hessian_sr1, sqpopt_hessian_exact
+    use sqpopt_hessian_module,   only: sqpopt_hessian_bfgs, sqpopt_hessian_sr1, sqpopt_hessian_exact, sqpopt_hessian_type
+    use sqpopt_kkt_module,       only: sqpopt_kkt_type
+    use sqpopt_inertia_module,   only: sqpopt_inertia_type
+    use sqpopt_qp_direct_module, only: direct_qp_step, sqpopt_direct_solved, sqpopt_direct_nonconvex, &
+                                       sqpopt_direct_singular, sqpopt_direct_max_changes
     use sqpopt_qp_solver_module, only: sqpopt_qp_auto, sqpopt_qp_reduced_hessian
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
     use sqpopt_symmetric_solver_module, only: sqpopt_has_mumps
     use sqpopt_types_module,     only: sqpopt_success, sqpopt_acceptable, sqpopt_stalled, sqpopt_invalid_input, &
-                                       sqpopt_results_type
+                                       sqpopt_results_type, sqpopt_sparse_matrix
     use sqpopt_kinds,            only: wp => sqpopt_module_wp
 
     implicit none
@@ -71,6 +81,7 @@ program test_direct
     write(*,*) '----------------------------'
 
     if (sqpopt_has_mumps) then
+        call test_direct_step()
         do i = 1, size(configs)
             call run('hs71', configs(i))
             call run('maratos', configs(i))
@@ -82,6 +93,84 @@ program test_direct
     print '(A)', 'test_direct PASSED'
 
     contains
+
+    subroutine test_direct_step()
+    !! the special paths of the direct QP method, on QPs with two variables
+    !! (`x = 0`, so the step's bounds are the variables')
+    type(sqpopt_kkt_type)      :: kkt
+    type(sqpopt_inertia_type)  :: inertia
+    type(sqpopt_hessian_type)  :: h
+    type(sqpopt_sparse_matrix) :: jac
+    real(wp) :: p(2), lambda(1)
+    integer  :: status(3), n_changes, outcome
+    logical  :: ok
+    real(wp), parameter :: x(2) = 0.0_wp, c(1) = 0.0_wp, tol = 1.0e-8_wp
+
+    call h%initialize(2, 1)
+    call h%set_exact([1, 2], [1, 2])
+    jac%nrows = 1
+    jac%ncols = 2
+    jac%nnz   = 2
+    jac%irow  = [1, 1]
+    jac%icol  = [1, 2]
+    jac%val   = [1.0_wp, -1.0_wp]
+    call kkt%initialize(2, 1, jac%irow, jac%icol, ok, hess_irow=h%h_irow, hess_icol=h%h_icol)
+    if (.not. ok) error stop 'test_direct FAILED: the KKT matrix could not be set up'
+
+    ! ---- a nonconvex face: H = diag(1,-1), no constraint in the working set ----
+    call h%set_values([1.0_wp, -1.0_wp], decay=.false.)
+    status = 0
+    call direct_qp_step(kkt, h, jac, x, [0.0_wp, 0.5_wp], c, [-1.0_wp, -1.0_wp], [1.0_wp, 1.0_wp], [-big], [big], &
+                        10, tol, status, p, lambda, n_changes, outcome)
+    if (outcome /= sqpopt_direct_nonconvex) error stop 'test_direct FAILED: nonconvex face not reported'
+    if (any(status /= 0) .or. h%shift /= 0.0_wp) error stop 'test_direct FAILED: a failed direct step changed its inputs'
+    ! with inertia control, the shift is raised (beyond 1) and the QP solved: p2 = -0.5/(-1 + shift)
+    inertia%enabled = .true.
+    call direct_qp_step(kkt, h, jac, x, [0.0_wp, 0.5_wp], c, [-1.0_wp, -1.0_wp], [1.0_wp, 1.0_wp], [-big], [big], &
+                        10, tol, status, p, lambda, n_changes, outcome, inertia=inertia)
+    print '(A,ES10.2,A,2F10.6)', 'nonconvex face: shift = ', h%shift, ', p = ', p
+    if (outcome /= sqpopt_direct_solved .or. .not. h%shift > 1.0_wp) error stop 'test_direct FAILED: shift not raised'
+    if (abs(p(1)) > 1.0e-10_wp .or. abs(p(2) + 0.5_wp/(h%shift - 1.0_wp)) > 1.0e-10_wp) then
+        error stop 'test_direct FAILED: wrong step on the shifted face'
+    end if
+
+    ! ---- a singular face: minimize |p|^2/2 - 10(p1+p2) with p1 - p2 = 0 and p <= 0.5. The step on
+    !      the row's face is (10,10), so both bounds are added, and the row has no free variable
+    !      left. The solution is (0.5,0.5), where the row holds. ----
+    call kkt%new_matrices()
+    h%shift = 0.0_wp
+    call h%set_values([1.0_wp, 1.0_wp], decay=.false.)
+    status = [-1, 0, 0]
+    call direct_qp_step(kkt, h, jac, x, [-10.0_wp, -10.0_wp], c, [-1.0_wp, -1.0_wp], [0.5_wp, 0.5_wp], &
+                        [0.0_wp], [0.0_wp], 10, tol, status, p, lambda, n_changes, outcome)
+    print '(A,I0,A,2F10.6,A,3I3)', 'singular face: ', n_changes, ' change(s), p = ', p, ', working set ', status
+    if (outcome /= sqpopt_direct_solved) error stop 'test_direct FAILED: singular face not solved'
+    if (maxval(abs(p - 0.5_wp)) > 1.0e-10_wp .or. any(status(2:3) /= 1)) error stop 'test_direct FAILED: singular face'
+
+    ! ---- the limit on the changes: the same QP needs one, and none is allowed ----
+    call kkt%new_matrices()
+    status = [-1, 0, 0]
+    call direct_qp_step(kkt, h, jac, x, [-10.0_wp, -10.0_wp], c, [-1.0_wp, -1.0_wp], [0.5_wp, 0.5_wp], &
+                        [0.0_wp], [0.0_wp], 0, tol, status, p, lambda, n_changes, outcome)
+    if (outcome /= sqpopt_direct_max_changes .or. any(status /= [-1, 0, 0])) then
+        error stop 'test_direct FAILED: the limit on the changes'
+    end if
+
+    ! ---- an infeasible QP: p1 - p2 = 2 can't hold with p1 <= 0.5 and p2 >= -1 ----
+    call kkt%new_matrices()
+    status = [-1, 0, 0]
+    call direct_qp_step(kkt, h, jac, x, [-10.0_wp, 10.0_wp], c, [-1.0_wp, -1.0_wp], [0.5_wp, 0.5_wp], &
+                        [2.0_wp], [2.0_wp], 10, tol, status, p, lambda, n_changes, outcome)
+    if (outcome == sqpopt_direct_solved) error stop 'test_direct FAILED: an infeasible QP was reported as solved'
+    print '(A,I0)', 'infeasible QP: outcome ', outcome
+    if (outcome /= sqpopt_direct_singular .and. outcome /= sqpopt_direct_max_changes) then
+        error stop 'test_direct FAILED: unexpected outcome for an infeasible QP'
+    end if
+
+    call kkt%destroy()
+    print '(A)', 'test_direct [the direct method''s special paths] PASSED'
+
+    end subroutine test_direct_step
 
     subroutine setup(name, problem, x0, x_star)
     !! define one of the test problems

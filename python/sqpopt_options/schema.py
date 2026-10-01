@@ -418,7 +418,8 @@ TOPICS: tuple[Topic, ...] = (
         Section('Quasi-Newton', (
             _o('options%lbfgs_memory', 'int', 0,
                'Number of (s,y) vector pairs retained by the limited-memory Hessian. 0 (automatic) picks '
-               'max(10, min(n, 100)) from the number of variables n; any positive value is used as given.',
+               'max(10, min(n, 100)) from the number of variables n, or 10 with direct_qp (whose cost grows with '
+               'the square of the number of pairs); any positive value is used as given.',
                minimum=0, special={0: 'automatic'}),
             _positive('options%hessian_scale0', 1.0,
                       'The initial Hessian approximation is hessian_scale0 times the identity.'),
@@ -449,8 +450,8 @@ TOPICS: tuple[Topic, ...] = (
                'First try to solve each QP subproblem directly, by sparse factorizations of the KKT matrix of '
                'its working set, starting from the working set of the previous QP. The active-set QP solver is '
                'only run if that fails. Meant for large problems, where it can be orders of magnitude faster; '
-               'with the exact Hessian, use it with inertia_control. With L-BFGS, a short memory (lbfgs_memory '
-               'about 10) keeps it cheap. It needs a library built with MUMPS (the HAS_MUMPS preprocessor '
+               'with the exact Hessian, use it with inertia_control. With L-BFGS or SR1, the automatic memory '
+               '(lbfgs_memory = 0) is 10 pairs, which keeps it cheap. It needs a library built with MUMPS (the HAS_MUMPS preprocessor '
                'directive), and is invalid without it.'),
             _o('options%direct_least_squares', 'bool', False,
                'Compute the Gauss-Newton restoration steps and the second-order corrections by a sparse '

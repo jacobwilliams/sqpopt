@@ -946,6 +946,12 @@ which is now double precision only.
   threads: a 3-D grid of order 216,000 took 11.5/7.0/4.9/4.8 s; a 2-D grid
   of order 490,000 took 2.0 s throughout; the banded benchmark problems
   gained nothing (nor with MUMPS's tree-level threading, `ICNTL(48)`).
+- **Follow-ups (2026-10-02).** The automatic L-BFGS memory is 10 pairs
+  with `direct_qp` (HS `--direct`: 279/26/0, 9,555 `fc`, 1.8 s instead of
+  7.5 s). CI runs the default build's tests, then the MUMPS build's with
+  coverage (`coverage.sh --mumps`). MUMPS's automatic ordering is kept (it
+  was best or within noise). New unit tests of the direct method's special
+  paths. See MUMPS_PLAN.md §8, "Settled since".
 
 ## 2. Bugs: correctness (fix first)
 

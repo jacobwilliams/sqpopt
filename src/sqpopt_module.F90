@@ -238,7 +238,8 @@
     if (me%options%scaling) call me%problem%compute_scaling(me%x, me%options%scaling_max_gradient)
     if (present(lambda0)) me%lambda = lambda0*me%problem%f_scale/me%problem%c_scale
 
-    call me%hessian%initialize(me%problem%n, lbfgs_memory(me%options%lbfgs_memory, me%problem%n), &
+    call me%hessian%initialize(me%problem%n, &
+                                lbfgs_memory(me%options%lbfgs_memory, me%problem%n, me%options%direct_qp), &
                                 use_sr1=(me%options%hessian_mode == sqpopt_hessian_sr1), &
                                 scale0=me%options%hessian_scale0)
     if (me%options%hessian_mode == sqpopt_hessian_exact) then
@@ -1174,15 +1175,21 @@
 !  the number of `(s,y)` pairs the limited-memory Hessian keeps, for the
 !  option value `memory` (see `sqpopt_options_type%lbfgs_memory`) and `n`
 !  variables: `memory` itself, or, if it is `0` (automatic),
-!  \( \max(10, \min(n, 100)) \).
+!  \( \max(10, \min(n, 100)) \), or 10 with the direct QP method (`direct`),
+!  whose cost grows with the square of the number of pairs.
 
-    pure integer function lbfgs_memory(memory, n)
+    pure integer function lbfgs_memory(memory, n, direct)
 
     integer, intent(in) :: memory !! the option value
     integer, intent(in) :: n      !! number of variables
+    logical, intent(in) :: direct !! whether the direct QP method is in use (`options%direct_qp`)
+
+    integer, parameter :: direct_memory = 10 !! the automatic memory with the direct QP method
 
     if (memory > 0) then
         lbfgs_memory = memory
+    else if (direct) then
+        lbfgs_memory = direct_memory
     else
         lbfgs_memory = max(10, min(n, 100))
     end if

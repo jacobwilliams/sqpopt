@@ -86,6 +86,8 @@ program test_large_sparse
         ! and with the direct QP method too:
         call run_control(500, sqpopt_qp_auto, 3.30614092e-1_wp, exact=.true., inertia=.true., direct=.true.)
         call run_rosenbrock(2000, sqpopt_qp_auto, 1.97826254e3_wp, exact=.true., inertia=.true., direct=.true.)
+        ! and the direct QP method with L-BFGS, whose automatic memory is then 10 pairs:
+        call run_control(500, sqpopt_qp_auto, 3.30614092e-1_wp, direct=.true.)
     end if
 
     print '(A)', 'test_large_sparse PASSED'
@@ -116,6 +118,7 @@ program test_large_sparse
     if (exact) label = name//' (exact Hessian)'
     if (inertia) label = name//' (exact, inertia)'
     if (direct)  label = name//' (inertia, direct)'
+    if (direct .and. .not. exact) label = name//' (L-BFGS, direct)'
     print '(A32,A,I6,A,I3,A,ES16.8,A,ES9.2,A,I5,A,I5,A,F7.3,A)', label, ': n=', n, ' istat=', r%istat, &
         ' f=', r%f, ' viol=', r%feasibility_error, ' fc=', r%n_eval_fc, ' gjac=', r%n_eval_gjac, &
         ' time=', r%time, ' s'
@@ -156,7 +159,9 @@ program test_large_sparse
     type(sqpopt_options_type) :: options
     real(wp), dimension(:), allocatable :: x, x_lb, x_ub
     integer, dimension(:), allocatable :: irow, icol
-    integer :: n, m, k, nnz, istat
+    integer :: n, m, k, nnz, istat, log_unit, ios
+    character(len=256) :: line
+    logical :: found
     nsteps = nn
     h = 5.0_wp/nsteps
     n = 2*nsteps + 1
@@ -197,10 +202,30 @@ program test_large_sparse
     x = 0.0_wp
     x(1:nsteps+1) = 1.0_wp
 
+    ! (L-BFGS with the direct QP: the log's header, in a scratch file, must show the short memory)
+    log_unit = -1
+    if (options%direct_qp .and. options%hessian_mode /= sqpopt_hessian_exact) then
+        open(newunit=log_unit, status='scratch', action='readwrite', form='formatted')
+        options%print_level = 1
+        options%output_unit = log_unit
+    end if
+
     call solver%initialize(problem=problem, options=options)
     call solver%solve(x, istat)
     call check('control', qp_mode, n, solver, f_star, options%hessian_mode == sqpopt_hessian_exact, &
                options%inertia_control, options%direct_qp)
+
+    if (log_unit /= -1) then
+        found = .false.
+        rewind(log_unit)
+        do
+            read(log_unit, '(A)', iostat=ios) line
+            if (ios /= 0) exit
+            if (index(line, 'L-BFGS Hessian (10 pairs, direct QP)') > 0) found = .true.
+        end do
+        close(log_unit)
+        if (.not. found) error stop 'test_large_sparse FAILED: the automatic memory with direct_qp is not 10 pairs'
+    end if
 
     end subroutine run_control
 
