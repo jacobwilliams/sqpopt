@@ -51,9 +51,10 @@ program test_hs_suite
     !!   Lagrangian computed by central differences of the analytic gradient
     !!   and Jacobian, see [[hess_fd]], except on the problems that use
     !!   finite-difference first derivatives, which keep BFGS)
-    !! * `--inertia` (`options%inertia_control = .true.`, with `--hessian=exact`:
-    !!   it needs a build with MUMPS, see [[sqpopt_inertia_module]])
-    !! * `--direct` (`options%direct_qp = .true.`, with `--hessian=exact`) and
+    !! * `--inertia` (`options%inertia_control = .true.`, for `--hessian=exact`
+    !!   or `--hessian=sr1`: it needs a build with MUMPS, see
+    !!   [[sqpopt_inertia_module]])
+    !! * `--direct` (`options%direct_qp = .true.`, with any Hessian) and
     !!   `--direct-ls` (`options%direct_least_squares = .true.`): both need a
     !!   build with MUMPS too
     !! * `--trust-region` (`trust_region%enabled = .true.`: the trust-region

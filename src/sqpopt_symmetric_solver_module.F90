@@ -52,6 +52,7 @@
 
     use, intrinsic :: iso_fortran_env, only: int64
     use sqpopt_kinds, only: wp => sqpopt_module_wp
+    use sqpopt_types_module, only: sqpopt_all_finite
 
     implicit none
 
@@ -307,7 +308,7 @@
             rnorm = rnorm_new
         end do
     end if
-    if (ok) ok = all(abs(b) <= huge(1.0_wp))
+    if (ok) ok = sqpopt_all_finite(b)
     call system_clock(t1)
     me%time = me%time + real(t1 - t0, wp)/real(rate, wp)
 

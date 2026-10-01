@@ -198,6 +198,11 @@
     call problem%jac(x, jac%val)
     info%f = f
 
+    ! (the factorizations kept from the previous iteration no longer apply:
+    ! `estimate_multipliers`, below, may use the least-squares one)
+    call kkt%new_matrices()
+    call least_squares%new_matrices()
+
     ! a user function asked to stop:
     if (problem%stop_requested) then
         istat = sqpopt_user_requested_stop
@@ -273,6 +278,8 @@
                     ', feasibility error '//fmt_e(info%feas)//'): gradient and Jacobian re-evaluated')
         call problem%g(x, g)
         call problem%jac(x, jac%val)
+        call kkt%new_matrices()
+        call least_squares%new_matrices()
         if (problem%stop_requested) then
             istat = sqpopt_user_requested_stop
             done  = .true.
@@ -386,9 +393,8 @@
         end if
     end if
 
-    ! (the factorizations kept from the previous iteration no longer apply)
+    ! (the Hessian has changed, so a factorization with it no longer applies)
     call kkt%new_matrices()
-    call least_squares%new_matrices()
 
     qp_istat = sqpopt_success
     restore  = .false.

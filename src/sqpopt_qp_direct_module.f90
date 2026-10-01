@@ -141,7 +141,7 @@
     logical  :: ok, convex, shifted, consistent
     logical  :: regularized !! whether the current face's KKT matrix is singular, and so regularized
     logical  :: fine        !! whether the current face is being solved again with the smaller regularization
-    real(wp) :: reg, target
+    real(wp) :: reg, target, jmax
 
     n = size(x)
     m = size(c)
@@ -172,7 +172,9 @@
         if (regularized) then
             ! dependent rows: regularize them (see the module documentation)
             reg = merge(reg_factor_fine, reg_factor, fine)
-            if (jac%nnz > 0) reg = reg*max(1.0_wp, maxval(abs(jac%val(1:jac%nnz))))**2
+            jmax = 0.0_wp
+            if (jac%nnz > 0) jmax = maxval(abs(jac%val(1:jac%nnz)))
+            if (jmax > 0.0_wp) reg = max(reg*jmax**2, tiny(1.0_wp))   ! (not zero, if the square underflows)
             call kkt%factor(hessian, jac, st, ok, reg=reg)
             if (.not. ok) return
             ! (a face without a unique minimizer is left to the active-set solver)

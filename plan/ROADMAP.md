@@ -1414,6 +1414,10 @@ documentation.
    with PCG only. See [INERTIA_CONTROL.md](INERTIA_CONTROL.md).
    *Decided (2026-09-30):* MUMPS, optional (`HAS_MUMPS`), for the shift
    only; the QPs stay matrix-free. See "Inertia control with MUMPS" above.
+   *Extended (2026-10-01):* the QPs can also be solved by factorizations
+   (`options%direct_qp`, with the active-set solvers as the fallback), and
+   so can the least-squares solves (`options%direct_least_squares`). See
+   [MUMPS_PLAN.md](MUMPS_PLAN.md).
 4. **Dependency trim.** Keep `lusol` for F1's sparse KKT solve, or drop
    `lusol`/`LSMR`/`lbfgsb`. *Recommendation (2026-09-26):*
    - keep `lusol`, for F13 *(done: now used)* and then F1;

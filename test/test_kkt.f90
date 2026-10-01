@@ -323,11 +323,14 @@ program test_kkt
     end subroutine test_kkt_matrix
 
     subroutine test_least_squares()
-    !! the minimum-norm solution of `J_S d = r`, for independent rows and for a duplicated row
+    !! the minimum-norm solution of `J_S d = r`, for independent rows, for a duplicated row, and
+    !! for a Jacobian with small elements, and the least-squares multipliers of that Jacobian
     integer, parameter :: n = 5, m = 3
+    real(wp), parameter :: small = 1.0e-6_wp              !! scale of the small Jacobian
+    real(wp), parameter :: lambda0(2) = [2.0_wp, -3.0_wp] !! the multipliers to recover
     type(sqpopt_least_squares_type) :: ls
     type(sqpopt_sparse_matrix) :: jac
-    real(wp) :: jd(m,n), r(m), d(n), jjt(2,2), y(2), dref(n)
+    real(wp) :: jd(m,n), r(m), d(n), jjt(2,2), y(2), dref(n), lambda(m)
     integer  :: piv(2), i, j
     logical  :: ok, nonsingular
 
@@ -359,6 +362,22 @@ program test_kkt
     call ls%min_norm(jac, [.true., .true., .true.], r, d, ok)
     print '(A,ES10.2)', 'least squares, a duplicated row: error ', maxval(abs(d - dref))
     if (.not. ok .or. maxval(abs(d - dref)) > 1.0e-6_wp) error stop 'test_kkt FAILED: dependent rows'
+
+    ! a Jacobian with small elements (and the right-hand side scaled with it): the
+    ! same solution, since the regularization is relative to the Jacobian
+    jac%val = small*jac%val
+    call ls%new_matrices()
+    call ls%min_norm(jac, [.true., .true., .false.], small*r, d, ok)
+    print '(A,ES10.2)', 'least squares, a small Jacobian: error ', maxval(abs(d - dref))
+    if (.not. ok .or. maxval(abs(d - dref)) > 1.0e-6_wp) error stop 'test_kkt FAILED: minimum-norm solution, small Jacobian'
+
+    ! and its multipliers: for g = J^T lambda0, they are lambda0
+    lambda = 0.0_wp
+    call ls%multipliers(jac, [.true., .true., .false.], [(.true., i=1,n)], &
+                        small*matmul(transpose(jd(1:2,:)), lambda0), lambda, ok)
+    print '(A,ES10.2)', 'least-squares multipliers, a small Jacobian: error ', maxval(abs(lambda(1:2) - lambda0))
+    if (.not. ok .or. maxval(abs(lambda(1:2) - lambda0)) > 1.0e-6_wp) &
+        error stop 'test_kkt FAILED: least-squares multipliers, small Jacobian'
 
     call ls%destroy()
     call ls%min_norm(jac, [.true., .true., .false.], r, d, ok)

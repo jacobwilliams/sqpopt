@@ -119,6 +119,30 @@
 
 !*******************************************************************************
 !>
+!  the regularization \( \epsilon \) for the Jacobian `jac`: `reg` times
+!  the square of its largest element (so a Jacobian with small elements is
+!  not swamped by it), or `reg` itself if the Jacobian is zero.
+
+    pure function regularization(jac) result(eps)
+
+    type(sqpopt_sparse_matrix), intent(in) :: jac !! the constraint Jacobian `dimension(m,n)`
+    real(wp) :: eps                               !! the regularization
+
+    real(wp) :: jmax
+
+    jmax = 0.0_wp
+    if (jac%nnz > 0) jmax = maxval(abs(jac%val(1:jac%nnz)))
+    if (jmax > 0.0_wp) then
+        eps = max(reg*jmax**2, tiny(1.0_wp))   ! (not zero, if the square underflows)
+    else
+        eps = reg
+    end if
+
+    end function regularization
+!*******************************************************************************
+
+!*******************************************************************************
+!>
 !  the (regularized) minimum-norm solution `d` of \( J_S d = r \) (see the
 !  module documentation), for the rows `S` of `jac` selected by `rows`.
 !  `ok` is false if the solver isn't enabled, or the factorization or the
@@ -136,7 +160,6 @@
 
     integer,  dimension(me%m + me%n) :: status
     real(wp), dimension(me%n + me%m) :: v
-    real(wp) :: jmax
 
     d  = 0.0_wp
     ok = .false.
@@ -145,10 +168,8 @@
     ! (the working set is the rows of `S`, and no variable is fixed)
     status = 0
     where (rows) status(1:me%m) = 1
-    jmax = 1.0_wp
-    if (jac%nnz > 0) jmax = max(1.0_wp, maxval(abs(jac%val(1:jac%nnz))))
 
-    call me%kkt%factor_identity(1.0_wp, jac, status, reg*jmax**2, ok)
+    call me%kkt%factor_identity(1.0_wp, jac, status, regularization(jac), ok)
     if (ok) then
         v(1:me%n) = 0.0_wp
         v(me%n+1:) = merge(r, 0.0_wp, rows)
@@ -186,7 +207,6 @@
 
     integer,  dimension(me%m + me%n) :: status
     real(wp), dimension(me%n + me%m) :: v
-    real(wp) :: jmax
 
     ok = .false.
     if (.not. me%enabled) return
@@ -195,10 +215,8 @@
     status = 0
     where (rows) status(1:me%m) = 1
     where (.not. free) status(me%m+1:) = 1
-    jmax = 1.0_wp
-    if (jac%nnz > 0) jmax = max(1.0_wp, maxval(abs(jac%val(1:jac%nnz))))
 
-    call me%kkt%factor_identity(1.0_wp, jac, status, reg*jmax**2, ok)
+    call me%kkt%factor_identity(1.0_wp, jac, status, regularization(jac), ok)
     if (ok) then
         v(1:me%n)  = merge(g, 0.0_wp, free)
         v(me%n+1:) = 0.0_wp
