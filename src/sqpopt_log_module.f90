@@ -12,7 +12,7 @@
     module sqpopt_log_module
 
     use sqpopt_kinds, only: wp => sqpopt_module_wp
-    use sqpopt_types_module, only: sqpopt_success, sqpopt_infeasible, sqpopt_qp_solve_failed
+    use sqpopt_types_module, only: sqpopt_success, sqpopt_infeasible, sqpopt_qp_solve_failed, sqpopt_out_of_memory
     use, intrinsic :: iso_fortran_env, only: output_unit
 
     implicit none
@@ -149,6 +149,7 @@
     case (sqpopt_success);         s = 'ok'
     case (sqpopt_infeasible);      s = 'inconsistent (elastic solution)'
     case (sqpopt_qp_solve_failed); s = 'failed'
+    case (sqpopt_out_of_memory);   s = 'out of memory'
     case default;                  s = 'status '//fmt_i(istat)
     end select
 

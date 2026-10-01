@@ -74,7 +74,7 @@
 
     use sqpopt_kinds,              only: wp => sqpopt_module_wp
     use sqpopt_types_module,       only: sqpopt_sparse_matrix, sqpopt_success, sqpopt_qp_solve_failed, &
-                                         sqpopt_infeasible, sqpopt_infinity
+                                         sqpopt_infeasible, sqpopt_infinity, sqpopt_out_of_memory
     use sqpopt_hessian_module,     only: sqpopt_hessian_type
     use sqpopt_dense_linalg_module, only: dense_null_space, dense_modified_cholesky, dense_solve_cholesky, &
                                           dense_cholesky_curvature
@@ -135,7 +135,10 @@
 !  documentation). `istat` is `sqpopt_success`, `sqpopt_infeasible` (the
 !  linearized constraints are inconsistent; `p` is the elastic solution),
 !  or `sqpopt_qp_solve_failed` (iteration limit, or unbounded along a
-!  direction of nonpositive curvature; `p` is the last iterate).
+!  direction of nonpositive curvature; `p` is the last iterate). It is
+!  `sqpopt_out_of_memory`, with `p = 0` and `lambda = 0`, if one of the
+!  dense matrices (the Jacobian, the constraint rows, or the Hessian) can't
+!  be allocated.
 
     subroutine solve_dense_qp(me, hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
 
@@ -152,6 +155,7 @@
     integer,                    intent(out)   :: istat      !! status code (see [[sqpopt_types_module]])
 
     integer :: n, m, nv, nt, mtot, k, i, it, n_z, n_active, maxit
+    integer :: alloc_stat !! status of the allocations of the dense matrices
     real(wp), dimension(:,:), allocatable :: h, arows, ja, z, jd
     real(wp), dimension(:),   allocatable :: row_lb, row_ub, u, gext, hu_g, rg, dvec, coeff, s_sign, rhs_active, s0
     real(wp), dimension(size(g)) :: p0
@@ -170,7 +174,12 @@
     me%n_slacks  = 0
 
     ! ---- the dense Jacobian ----
-    allocate(jd(m,n)); jd = 0.0_wp
+    allocate(jd(m,n), stat=alloc_stat)
+    if (alloc_stat /= 0) then
+        call out_of_memory()
+        return
+    end if
+    jd = 0.0_wp
     do k = 1, jac%nnz
         jd(jac%irow(k), jac%icol(k)) = jd(jac%irow(k), jac%icol(k)) + jac%val(k)
     end do
@@ -206,7 +215,12 @@
     mtot = m + nt       ! rows: general constraints, then bounds on every unknown
 
     ! ---- the combined constraint rows ----
-    allocate(arows(mtot,nt)); arows = 0.0_wp
+    allocate(arows(mtot,nt), stat=alloc_stat)
+    if (alloc_stat /= 0) then
+        call out_of_memory()
+        return
+    end if
+    arows = 0.0_wp
     arows(1:m,1:n) = jd
     do k = 1, nv
         arows(slack_row(k), n+k) = s_sign(slack_row(k))
@@ -223,7 +237,11 @@
     end do
 
     ! ---- the dense Hessian (zero in the slack directions) and gradient ----
-    allocate(h(n,n))
+    allocate(h(n,n), stat=alloc_stat)
+    if (alloc_stat /= 0) then
+        call out_of_memory()
+        return
+    end if
     call hessian%dense(h)
 
     gscale  = 1.0_wp
@@ -411,6 +429,15 @@
         forced = me%force_weight > 0.0_wp .and. allocated(me%force_sign)
         if (forced) forced = size(me%force_sign) == m
         end function forced
+
+        subroutine out_of_memory()
+        !! the outputs when one of the dense matrices can't be allocated: no
+        !! step, and `istat=sqpopt_out_of_memory`
+        p         = 0.0_wp
+        lambda    = 0.0_wp
+        me%n_iter = 0
+        istat     = sqpopt_out_of_memory
+        end subroutine out_of_memory
 
         subroutine starting_step(p0)
         !! the minimum-norm step satisfying the initial working-set guess (the

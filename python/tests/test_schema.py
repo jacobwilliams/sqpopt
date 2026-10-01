@@ -27,7 +27,7 @@ TYPES = {
                     'mid_valid', 'mid_ok', 'diag_valid'}),
     ('qp_solver',): ('sqpopt_qp_solver_module.f90', 'sqpopt_qp_solver_type',
                      {'mode', 'step_scale', 'capped', 'n_short', 'n_elastic', 'n_iter', 'negative_curvature', 'n_working',
-                      'n_slacks', 'time'}),
+                      'n_slacks', 'time', 'out_of_memory'}),
     ('qp_solver', 'dense_qp'): ('sqpopt_qp_dense_module.f90', 'sqpopt_dense_qp_type',
                                 {'n_iter', 'negative_curvature', 'force_weight', 'n_working', 'n_slacks'}),
     ('qp_solver', 'sparse_qp'): ('sqpopt_qp_reduced_hessian_module.f90', 'sqpopt_reduced_hessian_qp_type',

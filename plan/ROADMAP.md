@@ -862,6 +862,16 @@ Not done:
   bad scaling between the blocks rather than singularity (not checked): without the fallback in `hessian%dense`, TP87 is
   solved (281/24/0). The block elimination above would avoid it.
 
+**Out-of-memory status (2026-09-30).** New status code
+`sqpopt_out_of_memory` (27): the dense QP solver checks the allocation of
+its three large matrices (the dense Jacobian, the constraint rows, and the
+Hessian), and the solve stops with that code, at the current point,
+instead of aborting the program. The QP solver type keeps a flag so that a
+failure in any QP solve of an iteration (also the trust region's and the
+restoration phase's) ends the solve. New test `test_out_of_memory` (a
+dense QP with `n` = 6,000,000; it uses about 1 GB itself). The solver's
+other allocations are still unchecked (see "Allocation failures" in §4).
+
 ## 2. Bugs: correctness (fix first)
 
 | # | Issue | Where | Evidence |
@@ -929,6 +939,20 @@ Not done:
   `solve_sparse_linear_system` wrapper and the `sqpopt_linsolve_*`
   constants are removed, and `lbfgsb` is dropped. `lusol` is now used
   (F13, F1), and `LSMR` was dropped (F14).
+- **Allocation failures.** Only the dense QP solver's three large
+  matrices are checked so far (`sqpopt_out_of_memory`, see "Out-of-memory
+  status" above). Go through every allocation whose size grows with the
+  problem (`n`, `m`, the Jacobian and Hessian nonzeros, the L-BFGS
+  memory) and make it end the solve with that status instead of aborting
+  the program. That includes explicit `allocate` statements, automatic
+  (re)allocation on assignment, and automatic arrays (which can't be
+  checked, so the large ones would have to become allocatable). The
+  candidates are the rest of the dense QP (its working-set and
+  null-space matrices), the sparse QP and its `LUSOL` factors, the
+  L-BFGS storage, the work vectors of `solve` and `sqpopt_iterate`, the
+  problem type's bound, scaling, and cache arrays, and the Python shim.
+  Each component needs a way to report the failure to its caller, as
+  the QP solver type's `out_of_memory` flag does.
 
 ## 5. Features toward state of the art
 

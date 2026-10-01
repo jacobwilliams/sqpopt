@@ -268,7 +268,7 @@
         if (me%options%print_level >= 1) call print_iteration(iter, info, iter_istat)
         if (me%options%print_level >= sqpopt_log_detail) call print_details()
         if (done) then
-            ! converged, stalled, acceptable, infeasible, unbounded, function error, or user stop:
+            ! converged, stalled, acceptable, infeasible, unbounded, function error, out of memory, or user stop:
             call finish(iter_istat)
             return
         end if

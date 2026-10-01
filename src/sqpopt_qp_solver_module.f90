@@ -36,7 +36,7 @@
 
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
     use, intrinsic :: iso_fortran_env, only: int64
-    use sqpopt_types_module,   only: sqpopt_sparse_matrix
+    use sqpopt_types_module,   only: sqpopt_sparse_matrix, sqpopt_out_of_memory
     use sqpopt_hessian_module, only: sqpopt_hessian_type
     use sqpopt_qp_dense_module, only: sqpopt_dense_qp_type
     use sqpopt_qp_reduced_hessian_module, only: sqpopt_reduced_hessian_qp_type
@@ -75,6 +75,9 @@
         real(wp) :: time = 0.0_wp !! wall-clock time spent in QP solves (output, seconds; reset on each `solve`)
         logical :: negative_curvature = .false. !! whether the last QP solve found negative curvature of the Hessian
                                                 !! in the variables (output; see [[sqpopt_iterate_module]])
+        logical :: out_of_memory = .false. !! whether a QP solve of this `solve` returned `sqpopt_out_of_memory`
+                                           !! (output; it stays set, so the solver stops whichever step asked
+                                           !! for that QP; reset on each `solve`)
         type(sqpopt_dense_qp_type)           :: dense_qp    !! the dense QP solver (used only when `mode==sqpopt_qp_dense`)
         type(sqpopt_reduced_hessian_qp_type) :: sparse_qp   !! the sparse QP solver (used only when `mode==sqpopt_qp_reduced_hessian`)
 
@@ -93,7 +96,9 @@
 !  solve the linearized QP subproblem for the search direction `p` and
 !  the associated Lagrange multipliers `lambda`, dispatching to the
 !  active-set solver selected by `me%mode` (see [[sqpopt_qp_dense_module]],
-!  [[sqpopt_qp_reduced_hessian_module]]).
+!  [[sqpopt_qp_reduced_hessian_module]]). If the solver returns
+!  `istat=sqpopt_out_of_memory`, `me%out_of_memory` is also set (and stays
+!  set), for [[sqpopt_iterate]] to stop the solve.
 
     subroutine solve_qp_subproblem(me, hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat, &
                                    elastic_sign, elastic_weight)
@@ -154,6 +159,8 @@
         me%n_slacks  = me%sparse_qp%n_slacks
         me%negative_curvature = me%sparse_qp%negative_curvature
     end select
+
+    if (istat == sqpopt_out_of_memory) me%out_of_memory = .true.
 
     ! trust-region-style safeguard on the step length:
     me%capped = norm2(p) > me%max_step*me%step_scale

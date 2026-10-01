@@ -22,7 +22,8 @@
     use sqpopt_kinds,             only: wp => sqpopt_module_wp
     use sqpopt_types_module,      only: sqpopt_sparse_matrix, sqpopt_success, sqpopt_user_requested_stop, sqpopt_report_func, &
                                          sqpopt_infeasible, sqpopt_function_error, sqpopt_all_finite, sqpopt_unbounded, &
-                                         sqpopt_acceptable, sqpopt_infinity, sqpopt_stalled, sqpopt_qp_solve_failed
+                                         sqpopt_acceptable, sqpopt_infinity, sqpopt_stalled, sqpopt_qp_solve_failed, &
+                                         sqpopt_out_of_memory
     use sqpopt_problem_module,    only: sqpopt_problem_type, sqpopt_derivatives_fast, sqpopt_derivatives_accurate
     use sqpopt_options_module,    only: sqpopt_options_type
     use sqpopt_hessian_module,    only: sqpopt_hessian_type, sqpopt_hessian_sr1, sqpopt_hessian_exact
@@ -95,8 +96,10 @@
 !  `n_acceptable`), `sqpopt_unbounded` (the objective is below
 !  `options%obj_lower_limit` at a feasible point),
 !  `sqpopt_user_requested_stop` (from the `report` callback, or a user
-!  function returning `status<0`), or `sqpopt_function_error` (a problem
-!  function returned a non-finite value, or failed, at `x`). Otherwise `istat` reports
+!  function returning `status<0`), `sqpopt_function_error` (a problem
+!  function returned a non-finite value, or failed, at `x`), or
+!  `sqpopt_out_of_memory` (a QP solve couldn't allocate its matrices).
+!  Otherwise `istat` reports
 !  how the step went: `sqpopt_success`, `sqpopt_qp_solve_failed` (the QP
 !  solver hit its iteration limit, and its last step was used anyway), or
 !  `sqpopt_line_search_failed` (no acceptable step was found, so `x` is
@@ -393,6 +396,12 @@
         call qp_solver%solve(hessian, jac, x, g, c, problem%x_lb, problem%x_ub, &
                               problem%c_lb, problem%c_ub, p, new_lambda, qp_istat)
         call note_qp()
+        if (qp_istat == sqpopt_out_of_memory) then
+            ! (there is no step to search along: stop here, see below)
+            istat = sqpopt_out_of_memory
+            done  = .true.
+            return
+        end if
         restore = qp_istat == sqpopt_infeasible
         if (.not. restore) call elastic_resolve()
 
@@ -550,6 +559,15 @@
     ! a user function asked to stop during the step (the point is left unchanged):
     if (problem%stop_requested) then
         istat = sqpopt_user_requested_stop
+        done  = .true.
+        return
+    end if
+
+    ! a QP solve of the step (any of them: a re-solve, or one of the trust
+    ! region's or the restoration phase's) couldn't allocate its matrices
+    ! (the point is left unchanged):
+    if (qp_solver%out_of_memory) then
+        istat = sqpopt_out_of_memory
         done  = .true.
         return
     end if
