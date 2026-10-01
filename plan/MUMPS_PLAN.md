@@ -178,7 +178,7 @@ This is INERTIA_CONTROL.md §5.3 and the long-term item of ROADMAP.md F1. IPOPT 
 |---|---|---|
 | G1 solver type | done | `sqpopt_symmetric_solver_module.F90` (the only file that refers to MUMPS) and `sqpopt_kkt_module` (the KKT matrix of a working set); `sqpopt_inertia_module` is now a user of them |
 | G2 solves with refinement | done | `symmetric_solver_solve` (up to 2 refinement steps). `REAL128` was dropped instead: a build with MUMPS is double precision only (a compile error otherwise) |
-| G3 threads and ordering | **not done** | still one thread, MUMPS's default ordering |
+| G3 threads and ordering | threads done (2026-10-02); the ordering **not done** | `options%factorization_threads` (default 1). Threads gave nothing on the banded benchmarks and on a 2-D grid, and 2.3× on a 3-D grid of order 216,000 with 4 threads. MUMPS's default ordering |
 | G4 time and failure accounting | done | `results%time_factorization`, `n_qp_solves`, `n_direct_qp`; an out-of-memory factorization ends the solve with `sqpopt_out_of_memory` |
 | G5 benchmarks | done | `example/benchmark_large.f90`: `control`, `rosenbrock`, and the nonconvex `wells` |
 | M1 direct QP | done, both stages | `sqpopt_qp_direct_module`, called from `solve_qp_subproblem`; `options%direct_qp` |
@@ -220,7 +220,7 @@ Large problems (release, one run each; total time in seconds). The reference run
 
 ### Still open
 
-- G3: threads and the ordering, on the large benchmarks.
+- G3: the ordering. (Threads are now an option, see the table above. MUMPS's tree-level threading, `ICNTL(48)`, made no difference on `control`.)
 - A large problem that needs restoration steps or corrections, to judge M2.
 - Why inertia control without the direct QP is so slow on `wells` at n = 100,000 (the plain exact Hessian takes 1.2 s there).
 - Whether `lbfgs_memory = 0` (automatic) should pick a short memory when `direct_qp` is on. It doesn't: the guide and the option's documentation recommend about 10 pairs.

@@ -8,8 +8,9 @@ program test_direct
     !!    fpm test test_direct --flag "-DHAS_MUMPS -I$CONDA_PREFIX/include" --link-flag "-ldmumps_seq"
     !!
     !! With MUMPS, two small problems are solved with each Hessian mode and
-    !! several combinations of those options, with both QP solvers and with
-    !! the trust region. Each run must converge to the known solution, solve
+    !! several combinations of those options, with both QP solvers, with the
+    !! trust region, and on two OpenMP threads
+    !! (`options%factorization_threads`). Each run must converge to the known solution, solve
     !! QPs directly (if `direct_qp`), factor matrices, and give the same
     !! results when solved again (no state carries over):
     !!
@@ -41,11 +42,12 @@ program test_direct
         logical :: inertia   = .false.                !! `options%inertia_control`
         logical :: direct    = .false.                !! `options%direct_qp`
         logical :: direct_ls = .false.                !! `options%direct_least_squares`
+        integer :: threads = 1                        !! `options%factorization_threads`
         logical :: trust_region = .false.             !! `trust_region%enabled`
         integer :: qp_mode = sqpopt_qp_auto           !! `options%qp_solver_mode`
     end type config_type
 
-    type(config_type), parameter :: configs(10) = [ &
+    type(config_type), parameter :: configs(11) = [ &
         config_type(name='exact, direct', hessian_mode=sqpopt_hessian_exact, direct=.true.), &
         config_type(name='exact, inertia, direct', hessian_mode=sqpopt_hessian_exact, inertia=.true., direct=.true.), &
         config_type(name='exact, inertia, direct, sparse', hessian_mode=sqpopt_hessian_exact, inertia=.true., &
@@ -58,7 +60,9 @@ program test_direct
         config_type(name='SR1, inertia, direct', hessian_mode=sqpopt_hessian_sr1, inertia=.true., direct=.true.), &
         config_type(name='L-BFGS, least squares', direct_ls=.true.), &
         config_type(name='exact, all three', hessian_mode=sqpopt_hessian_exact, inertia=.true., direct=.true., &
-                    direct_ls=.true.) ]
+                    direct_ls=.true.), &
+        config_type(name='exact, all three, 2 threads', hessian_mode=sqpopt_hessian_exact, inertia=.true., &
+                    direct=.true., direct_ls=.true., threads=2) ]
 
     integer :: i
 
@@ -127,6 +131,7 @@ program test_direct
     options%inertia_control      = cfg%inertia
     options%direct_qp            = cfg%direct
     options%direct_least_squares = cfg%direct_ls
+    options%factorization_threads = cfg%threads
     options%qp_solver_mode       = cfg%qp_mode
     trust_region%enabled         = cfg%trust_region
 

@@ -64,6 +64,17 @@
                                                    !! of the iterative `LSQR` (see
                                                    !! [[sqpopt_least_squares_module]]), with any Hessian mode. It
                                                    !! needs a library built with MUMPS, and is invalid without it
+        integer  :: factorization_threads = 1     !! number of OpenMP threads the sparse factorizations use
+                                                   !! (`inertia_control`, `direct_qp`, and `direct_least_squares`):
+                                                   !! `1` (the default) for none, a larger number for that many,
+                                                   !! or `0` to leave it to the OpenMP environment
+                                                   !! (`OMP_NUM_THREADS`, or every core). It needs MUMPS and its
+                                                   !! BLAS to be built with OpenMP (conda-forge's are). It only
+                                                   !! pays on large problems whose factors are dense enough: a
+                                                   !! 3-D grid matrix of order 216,000 was factored 2.3 times
+                                                   !! faster on 4 threads, but banded problems and a 2-D grid
+                                                   !! gained nothing, and on small problems threads cost a lot
+                                                   !! (see [[sqpopt_symmetric_solver_module]])
         integer  :: lbfgs_memory      = 0         !! number of `(s,y)` vector pairs retained by the limited-memory
                                                    !! Hessian approximation. `0` (the default) picks it from the problem
                                                    !! size `n`: \( \max(10, \min(n, 100)) \) -- more pairs help the

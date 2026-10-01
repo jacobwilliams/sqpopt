@@ -86,6 +86,9 @@ program test_input_validation
     options%output_unit = 98765   ! (not an open unit)
     call expect_invalid('output_unit not open', problem, options, [0.0_wp, 0.0_wp])
     options = sqpopt_options_type()
+    options%factorization_threads = -1
+    call expect_invalid('factorization_threads = -1', problem, options, [0.0_wp, 0.0_wp])
+    options = sqpopt_options_type()
     options%hessian_mode = sqpopt_hessian_exact   ! (the problem has no hess function)
     call expect_invalid('exact Hessian without hess', problem, options, [0.0_wp, 0.0_wp])
     if (.not. sqpopt_has_mumps) then

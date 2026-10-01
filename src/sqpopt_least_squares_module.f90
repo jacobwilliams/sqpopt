@@ -75,7 +75,7 @@
 !  the solver is left disabled, if the library was built without MUMPS or
 !  the sparse solver couldn't be started.
 
-    subroutine least_squares_initialize(me, n, m, jac_irow, jac_icol, ok)
+    subroutine least_squares_initialize(me, n, m, jac_irow, jac_icol, ok, threads)
 
     class(sqpopt_least_squares_type), intent(inout) :: me
     integer,               intent(in)  :: n        !! number of variables
@@ -83,10 +83,12 @@
     integer, dimension(:), intent(in)  :: jac_irow !! row indices of the Jacobian's nonzeros
     integer, dimension(:), intent(in)  :: jac_icol !! column indices of the Jacobian's nonzeros
     logical,               intent(out) :: ok       !! whether the solver is now enabled
+    integer, optional,     intent(in)  :: threads  !! number of OpenMP threads of the sparse solver (see
+                                                   !! [[symmetric_solver_initialize]])
 
     me%n = n
     me%m = m
-    call me%kkt%initialize(n, m, jac_irow, jac_icol, ok)
+    call me%kkt%initialize(n, m, jac_irow, jac_icol, ok, threads=threads)
     me%enabled = ok
 
     end subroutine least_squares_initialize

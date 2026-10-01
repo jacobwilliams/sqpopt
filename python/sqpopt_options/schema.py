@@ -457,6 +457,15 @@ TOPICS: tuple[Topic, ...] = (
                'factorization instead of the iterative LSQR. It needs a library built with MUMPS, and is invalid '
                'without it.'),
         )),
+        Section('Threads', (
+            _o('options%factorization_threads', 'int', 1,
+               'Number of OpenMP threads the sparse factorizations use (inertia_control, direct_qp, and '
+               'direct_least_squares). 1 uses none; 0 leaves it to the OpenMP environment (OMP_NUM_THREADS, or '
+               'every core). It needs MUMPS and its BLAS built with OpenMP (conda-forge\'s are). Threads only pay '
+               'on large problems whose factors are dense enough (a 3-D grid: 2.3 times faster on 4 threads; '
+               'banded problems: no gain), and cost a lot on small ones.',
+               minimum=0, special={0: 'OpenMP environment'}),
+        )),
         Section('Direct method settings', (
             _o('qp_solver%direct_max_changes', 'int', 10,
                'The direct method gives up, and the active-set QP solver is run, after this many changes of the '

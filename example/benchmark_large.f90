@@ -6,7 +6,7 @@ program benchmark_large
     !! in a build with MUMPS) do to the run time, and where the time goes:
     !!
     !!    fpm run --example benchmark_large --profile release -- [--scale=S] [--problem=NAME] [--no-bfgs] [--no-active-set]
-    !!        [--no-least-squares] [--memory=K] [--print=L]
+    !!        [--no-least-squares] [--memory=K] [--threads=T] [--print=L]
     !!
     !! With MUMPS (see the README):
     !!
@@ -17,7 +17,8 @@ program benchmark_large
     !! `--no-bfgs` leaves out the L-BFGS runs, and `--no-active-set` every run
     !! without `direct_qp` (at large sizes those take most of the time).
     !! `--no-least-squares` leaves `direct_least_squares` off, `--memory=K`
-    !! sets `options%lbfgs_memory`, and `--print=L` sets `options%print_level`.
+    !! sets `options%lbfgs_memory`, `--threads=T` sets
+    !! `options%factorization_threads`, and `--print=L` sets `options%print_level`.
     !!
     !! Problems (sizes for `S = 1`):
     !!
@@ -71,6 +72,7 @@ program benchmark_large
     logical  :: with_bfgs, with_active_set, with_least_squares
     integer  :: print_level !! `--print`
     integer  :: memory      !! `--memory` (`0`: automatic)
+    integer  :: threads     !! `--threads` (`0`: as the OpenMP environment says)
     integer  :: i, ios
     character(len=64) :: arg
     character(len=:), allocatable :: only !! `--problem` (empty: all of them)
@@ -81,6 +83,7 @@ program benchmark_large
     with_least_squares = .true.
     print_level = 0
     memory = 0
+    threads = 1
     only = ''
     do i = 1, command_argument_count()
         call get_command_argument(i, arg)
@@ -101,6 +104,9 @@ program benchmark_large
         else if (arg(1:9) == '--memory=') then
             read(arg(10:), *, iostat=ios) memory
             if (ios /= 0 .or. memory < 0) error stop 'benchmark_large: bad --memory value'
+        else if (arg(1:10) == '--threads=') then
+            read(arg(11:), *, iostat=ios) threads
+            if (ios /= 0 .or. threads < 0) error stop 'benchmark_large: bad --threads value'
         else if (arg(1:8) == '--print=') then
             read(arg(9:), *, iostat=ios) print_level
             if (ios /= 0) error stop 'benchmark_large: bad --print value'
@@ -157,6 +163,7 @@ program benchmark_large
     options%max_iter = 2000
     options%print_level  = print_level
     options%lbfgs_memory = memory
+    options%factorization_threads = threads
     if (exact) options%hessian_mode = sqpopt_hessian_exact
     options%inertia_control      = inertia
     options%direct_qp            = direct

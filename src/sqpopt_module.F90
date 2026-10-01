@@ -249,17 +249,20 @@
     if (me%options%hessian_mode == sqpopt_hessian_exact) then
         if (me%options%inertia_control .or. me%options%direct_qp) then
             call kkt%initialize(me%problem%n, me%problem%m, me%problem%jac_irow, me%problem%jac_icol, started, &
-                                hess_irow=me%problem%hess_irow, hess_icol=me%problem%hess_icol)
+                                hess_irow=me%problem%hess_irow, hess_icol=me%problem%hess_icol, &
+                                threads=me%options%factorization_threads)
         end if
         inertia%enabled = me%options%inertia_control .and. kkt%enabled
     else if (me%options%direct_qp .or. (me%options%inertia_control .and. me%options%hessian_mode == sqpopt_hessian_sr1)) then
         ! (a quasi-Newton Hessian has no sparsity pattern: see [[sqpopt_kkt_module]])
-        call kkt%initialize(me%problem%n, me%problem%m, me%problem%jac_irow, me%problem%jac_icol, started)
+        call kkt%initialize(me%problem%n, me%problem%m, me%problem%jac_irow, me%problem%jac_icol, started, &
+                            threads=me%options%factorization_threads)
         ! (the BFGS matrix is positive definite: only SR1 needs the inertia control)
         inertia%enabled = me%options%inertia_control .and. me%options%hessian_mode == sqpopt_hessian_sr1 .and. kkt%enabled
     end if
     if (me%options%direct_least_squares .and. me%problem%m > 0) then
-        call least_squares%initialize(me%problem%n, me%problem%m, me%problem%jac_irow, me%problem%jac_icol, started)
+        call least_squares%initialize(me%problem%n, me%problem%m, me%problem%jac_irow, me%problem%jac_icol, started, &
+                                      threads=me%options%factorization_threads)
     end if
     me%qp_solver%mode        = me%options%qp_solver_mode
     me%qp_solver%direct      = me%options%direct_qp .and. kkt%enabled
@@ -567,6 +570,13 @@
                 str = str//', Gauss-Newton restoration steps'
             end if
             if (least_squares%enabled) str = str//', direct least squares'
+        end if
+        if (kkt%enabled .or. least_squares%enabled) then
+            if (me%options%factorization_threads == 0) then
+                str = str//', factorizations on the OpenMP threads'
+            else if (me%options%factorization_threads > 1) then
+                str = str//', factorizations on '//fmt_i(me%options%factorization_threads)//' threads'
+            end if
         end if
         end function method_text
 
@@ -941,6 +951,10 @@
     if ((o%inertia_control .or. o%direct_qp .or. o%direct_least_squares) .and. .not. sqpopt_has_mumps) then
         msg = 'options%inertia_control, direct_qp, and direct_least_squares require a library built with MUMPS '// &
               '(the HAS_MUMPS preprocessor directive)'
+        return
+    end if
+    if (o%factorization_threads < 0) then
+        msg = 'options%factorization_threads must be >= 0 (0: as the OpenMP environment says)'
         return
     end if
     if (all(o%qp_solver_mode /= [sqpopt_qp_auto, sqpopt_qp_dense, sqpopt_qp_reduced_hessian])) then

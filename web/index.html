@@ -609,6 +609,7 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <tr><td><code>inertia_control</code></td><td><code>.false.</code></td><td>with the exact or the SR1 Hessian: find the shift of an indefinite Hessian from a sparse factorization (see <a href="#inertia-control">Inertia control</a>). It needs a build with MUMPS, and is invalid input without it</td></tr>
 <tr><td><code>direct_qp</code></td><td><code>.false.</code></td><td>first try to solve each QP subproblem directly, by sparse factorizations; the active-set QP solver is only run if that fails (see <a href="#direct-qp">Direct method</a>). For large problems. It needs a build with MUMPS, and is invalid input without it</td></tr>
 <tr><td><code>direct_least_squares</code></td><td><code>.false.</code></td><td>compute the Gauss-Newton restoration steps and the second-order corrections by a sparse factorization instead of <code>LSQR</code> (see <a href="#direct-least-squares">Direct least squares</a>). It needs a build with MUMPS, and is invalid input without it</td></tr>
+<tr><td><code>factorization_threads</code></td><td><code>1</code></td><td>number of OpenMP threads the sparse factorizations use (the three options above): <code>1</code> for none, a larger number for that many, or <code>0</code> to leave it to the OpenMP environment (<code>OMP_NUM_THREADS</code>, or every core). See <a href="#factorization-threads">Threads</a></td></tr>
 <tr><td><code>lbfgs_memory</code></td><td><code>0</code></td><td>number of <code>(s,y)</code> vector pairs retained by the limited-memory Hessian; <code>0</code> (automatic) picks \( \max(10, \min(n, 100)) \) (see <a href="#hessian">Hessian approximation</a>)</td></tr>
 <tr><td><code>qp_solver_mode</code></td><td><code>sqpopt_qp_auto</code></td><td>QP subproblem algorithm (see <a href="#qp-solver">QP subproblem solver</a>)</td></tr>
 <tr><td><code>linesearch_mode</code></td><td><code>sqpopt_linesearch_filter</code></td><td>line search strategy (see <a href="#linesearch">Line search &amp; merit function</a>)</td></tr>
@@ -670,7 +671,7 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 
 <p><strong>SR1.</strong> The limited-memory SR1 matrix can be indefinite too, and without inertia control nothing corrects it. It is a multiple of the identity plus a matrix of low rank, so the same test applies: the sparse part of \( K \) is factored, and the low-rank part is accounted for with a small dense matrix (one solve per stored pair). On the Hock&ndash;Schittkowski problems, SR1 then solves 275 problems and fails on 3, instead of 244 and 30, with a quarter of the function evaluations (11,714 instead of 47,454). The shift isn't carried over between iterations with SR1.</p>
 
-<p>This needs a library built with MUMPS (see <a href="#installation">Installation</a>): without it, <code>inertia_control = .true.</code> is reported as invalid input. It is used with <code>sqpopt_hessian_exact</code> and <code>sqpopt_hessian_sr1</code> (the BFGS matrix is positive definite, and needs no correction). MUMPS runs on one thread. <code>results%n_factorizations</code> counts the factorizations. On the Hock&ndash;Schittkowski problems, the exact Hessian with it solves 6 more problems than without it, with 25% fewer function evaluations (see <a href="#performance">Performance</a>). With <code>options%direct_qp</code>, the factorizations are also used to solve the QP (see <a href="#direct-qp">Direct method</a>).</p>
+<p>This needs a library built with MUMPS (see <a href="#installation">Installation</a>): without it, <code>inertia_control = .true.</code> is reported as invalid input. It is used with <code>sqpopt_hessian_exact</code> and <code>sqpopt_hessian_sr1</code> (the BFGS matrix is positive definite, and needs no correction). MUMPS runs on one thread unless <code>options%factorization_threads</code> says otherwise (see <a href="#factorization-threads">Threads</a>). <code>results%n_factorizations</code> counts the factorizations. On the Hock&ndash;Schittkowski problems, the exact Hessian with it solves 6 more problems than without it, with 25% fewer function evaluations (see <a href="#performance">Performance</a>). With <code>options%direct_qp</code>, the factorizations are also used to solve the QP (see <a href="#direct-qp">Direct method</a>).</p>
 
 <div class="table-wrap"><table class="opt-table">
 <thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
@@ -750,6 +751,24 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 </ul>
 
 <p>It is used by the line searches and by the trust region, but not for the feasibility QPs of a restoration phase, nor for an elastic re-solve. <code>results%n_direct_qp</code> and <code>results%n_qp_solves</code> tell how many QPs it solved, and <code>results%time_factorization</code> what the factorizations cost. At <code>print_level = 3</code>, each QP's line says whether it was solved directly, and if not, why the direct method gave up. This needs a library built with MUMPS (see <a href="#installation">Installation</a>).</p>
+
+<h3 id="factorization-threads">Threads <span class="h-note"><code>options%factorization_threads</code></span></h3>
+
+<p>MUMPS, and the BLAS library under it, can use OpenMP threads if they were built with OpenMP. conda-forge's <code>mumps-seq</code> package is (its "seq" means without MPI), with an OpenMP build of OpenBLAS. <code>options%factorization_threads</code> sets how many threads the factorizations and their solves use: <code>1</code> (the default) for none, a larger number for that many, or <code>0</code> to use whatever the OpenMP environment gives (<code>OMP_NUM_THREADS</code>, or every core). The setting only applies inside MUMPS: the rest of your program keeps its own number of threads.</p>
+
+<p>The default is one thread, because threads only pay when the factorization has large dense blocks to work on, and they cost a lot otherwise:</p>
+
+<div class="table-wrap"><table class="bench">
+<thead><tr><th>matrix</th><th class="num">order</th><th class="num">1 thread</th><th class="num">2</th><th class="num">4</th><th class="num">8</th></tr></thead>
+<tbody>
+<tr><td>3-D grid (7-point stencil)</td><td class="num">216,000</td><td class="num">11.5 s</td><td class="num">7.0 s</td><td class="num"><strong>4.9 s</strong></td><td class="num">4.8 s</td></tr>
+<tr><td>2-D grid (5-point stencil)</td><td class="num">490,000</td><td class="num">2.0 s</td><td class="num">2.0 s</td><td class="num">1.9 s</td><td class="num">2.1 s</td></tr>
+<tr><td><code>control</code> of the <a href="#large-problems">large benchmark</a> (banded), whole solve</td><td class="num">150,002</td><td class="num">1.4 s</td><td class="num">1.4 s</td><td class="num">1.4 s</td><td class="num">1.4 s</td></tr>
+<tr><td>the 305 Hock&ndash;Schittkowski problems, exact Hessian with inertia control</td><td class="num">up to 200</td><td class="num">1.4 s</td><td class="num"></td><td class="num"></td><td class="num">24.5 s (10 threads)</td></tr>
+</tbody>
+</table></div>
+
+<p class="small">The grid rows time the sparse solver alone (the analysis, two factorizations, and a solve). So: leave it at 1 for small problems and for problems with a banded or otherwise very sparse structure (discretized time, chains), and try 4 or so when the constraints or the Hessian couple the variables in two or three dimensions and the factorization time (<code>results%time_factorization</code>) dominates.</p>
 
 <h3 id="direct-least-squares">Direct least squares (optional, with MUMPS) <span class="h-note"><code>options%direct_least_squares</code></span></h3>
 

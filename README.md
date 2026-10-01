@@ -58,7 +58,9 @@ of [MUMPS](https://mumps-solver.org):
 All three are built on `sqpopt_kkt_module` (the KKT matrix of a working
 set) and `sqpopt_symmetric_solver_module`, the only source file that refers
 to MUMPS, and only inside `#ifdef HAS_MUMPS`. So the default build still
-needs nothing but fpm. With `HAS_MUMPS`, the library must be compiled in
+needs nothing but fpm. `options%factorization_threads` sets the number of
+OpenMP threads MUMPS uses (1 by default; conda-forge's `mumps-seq` is built
+with OpenMP). With `HAS_MUMPS`, the library must be compiled in
 double precision (the default: `REAL32` and `REAL128` are a compile error
 with it). The pixi environment has the sequential MUMPS library
 (conda-forge's `mumps-seq`), and tasks that build with it:

@@ -106,6 +106,7 @@ program test_kkt
     type(sqpopt_symmetric_solver_type) :: solver
     real(wp) :: b(3), x(3), y(3)
     logical :: ok
+    integer :: i
 
     ! (the element (1,1) is given twice: 1.5 + 0.5)
     call solver%initialize(3, [1, 2, 3, 3, 1], [1, 2, 1, 3, 1], ok)
@@ -130,6 +131,16 @@ program test_kkt
     x = b
     call solver%solve(x, ok)
     if (ok) error stop 'test_kkt FAILED: solve after destroy'
+
+    ! the same system on two OpenMP threads, and with the number left to the environment
+    do i = 0, 2, 2
+        call solver%initialize(3, [1, 2, 3, 3, 1], [1, 2, 1, 3, 1], ok, threads=i)
+        if (ok) call solver%factor([1.5_wp, -1.0_wp, 1.0_wp, 0.0_wp, 0.5_wp], ok)
+        x = b
+        if (ok) call solver%solve(x, ok)
+        if (.not. ok .or. maxval(abs(x - [3.0_wp, -2.0_wp, -5.0_wp])) > tol) error stop 'test_kkt FAILED: threads'
+        call solver%destroy()
+    end do
 
     print '(A)', 'test_kkt [sparse solver] PASSED'
     end subroutine test_solver

@@ -133,7 +133,7 @@
 !  then the Jacobian's. `ok` is false, and the matrix is left disabled, if
 !  the library was built without MUMPS or the solver couldn't be started.
 
-    subroutine kkt_initialize(me, n, m, jac_irow, jac_icol, ok, hess_irow, hess_icol)
+    subroutine kkt_initialize(me, n, m, jac_irow, jac_icol, ok, hess_irow, hess_icol, threads)
 
     class(sqpopt_kkt_type), intent(inout) :: me
     integer,               intent(in)  :: n         !! number of variables
@@ -143,6 +143,8 @@
     logical,               intent(out) :: ok        !! whether the matrix can now be factored
     integer, dimension(:), intent(in), optional :: hess_irow !! row indices of the Hessian's nonzeros
     integer, dimension(:), intent(in), optional :: hess_icol !! column indices of the Hessian's nonzeros
+    integer,               intent(in), optional :: threads   !! number of OpenMP threads of the sparse solver (see
+                                                             !! [[symmetric_solver_initialize]])
 
     integer :: k
     logical :: oom
@@ -159,7 +161,7 @@
 
     call me%solver%initialize(n + m, &
                               [(k, k=1, n+m), max(me%h_irow, me%h_icol), n + jac_irow], &
-                              [(k, k=1, n+m), min(me%h_irow, me%h_icol), jac_icol], ok)
+                              [(k, k=1, n+m), min(me%h_irow, me%h_icol), jac_icol], ok, threads=threads)
     if (.not. ok) then
         ! (keep the reason, for the caller)
         oom = me%solver%out_of_memory

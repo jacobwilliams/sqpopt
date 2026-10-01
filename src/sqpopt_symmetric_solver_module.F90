@@ -27,10 +27,24 @@
 !  4. [[symmetric_solver_destroy]] to free it. The type holds pointers, so
 !     it must not be copied.
 !
-!  MUMPS is run on one OpenMP thread, whatever `OMP_NUM_THREADS` is: on
-!  small matrices its threads cost far more time than they save (the 305
-!  Hock-Schittkowski problems took 24.5 s with 10 threads, and 1.4 s with
-!  one). A singular matrix is not an error: its null pivots are counted
+!  **Threads.** MUMPS and the BLAS under it can use OpenMP threads, if they
+!  were built with OpenMP (conda-forge's `mumps-seq` is). The number of
+!  threads is the `threads` argument of [[symmetric_solver_initialize]]:
+!  `1` by default, a larger number for that many threads, or `0` to leave it
+!  to the OpenMP environment (`OMP_NUM_THREADS`, or every core). The default
+!  is one thread because on small matrices the threads cost far more time
+!  than they save (the 305 Hock-Schittkowski problems took 24.5 s with 10
+!  threads, and 1.4 s with one). Whether more threads help a large matrix
+!  depends on its factors: the threads work inside the dense blocks of the
+!  factorization (its frontal matrices), so they need those to be large.
+!  Measured (analysis, two factorizations, and a solve; 1, 2, 4, and 8
+!  threads): a 3-D grid matrix of order 216,000 took 11.5, 7.0, 4.9, and
+!  4.8 s; a 2-D grid matrix of order 490,000 took 2.0 s with any number;
+!  and the banded KKT matrices of `example/benchmark_large.f90` gained
+!  nothing either. MUMPS sets the number of threads when it is called and
+!  restores it when it returns, so the rest of the program is not affected.
+!
+!  A singular matrix is not an error: its null pivots are counted
 !  (`n_null`), and a solve then returns one of the solutions of a consistent
 !  system.
 
@@ -109,17 +123,20 @@
 !  start the solver for symmetric matrices of order `n` with the sparsity
 !  pattern `irow`/`icol`: each entry stands for itself and (off the
 !  diagonal) its mirror image, so give each off-diagonal element in one
-!  triangle only; entries given more than once are added together. `ok`
-!  is false if the library was built without MUMPS, or MUMPS couldn't be
-!  started.
+!  triangle only; entries given more than once are added together.
+!  `threads` is the number of OpenMP threads to factor and solve with (see
+!  the module documentation; default 1). `ok` is false if the library was
+!  built without MUMPS, or MUMPS couldn't be started.
 
-    subroutine symmetric_solver_initialize(me, n, irow, icol, ok)
+    subroutine symmetric_solver_initialize(me, n, irow, icol, ok, threads)
 
     class(sqpopt_symmetric_solver_type), intent(inout) :: me
     integer,               intent(in)  :: n    !! order of the matrix
     integer, dimension(:), intent(in)  :: irow !! row indices of the entries `dimension(nnz)`
     integer, dimension(:), intent(in)  :: icol !! column indices of the entries `dimension(nnz)`
     logical,               intent(out) :: ok   !! whether the solver is ready
+    integer, optional,     intent(in)  :: threads !! number of OpenMP threads (default `1`; `0`: as the OpenMP
+                                                  !! environment says)
 
 #ifdef HAS_MUMPS
     integer :: nnz, alloc_stat
@@ -149,7 +166,8 @@
     me%id%icntl(1:3) = -1   ! no printed output
     me%id%icntl(4)   = 0
     me%id%icntl(13)  = 1    ! (needed for the number of negative pivots to be exact)
-    me%id%icntl(16)  = 1    ! one OpenMP thread (see the module documentation)
+    me%id%icntl(16)  = 1    ! the number of OpenMP threads (see the module documentation)
+    if (present(threads)) me%id%icntl(16) = max(threads, 0)
     me%id%icntl(24)  = 1    ! detect null pivots, rather than fail on a singular matrix
 
     me%id%n   = n

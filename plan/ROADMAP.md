@@ -938,9 +938,14 @@ which is now double precision only.
 - New results `time_factorization`, `n_qp_solves`, `n_direct_qp`; tests
   `test_kkt`, `test_direct`, and the direct method in `test_qp_fuzz`;
   `example/benchmark_large.f90`; harness options `--direct`, `--direct-ls`.
-- Not done: the thread and ordering study; a CG preconditioner (M4) and
-  direct restoration-phase QPs (M5), for lack of evidence that they are
-  needed.
+- Not done: the ordering study; a CG preconditioner (M4) and direct
+  restoration-phase QPs (M5), for lack of evidence that they are needed.
+- **Threads (2026-10-02).** `options%factorization_threads` (default 1;
+  `0` leaves it to the OpenMP environment) sets MUMPS's `ICNTL(16)`.
+  conda-forge's `mumps-seq` is built with OpenMP. Solver alone, 1/2/4/8
+  threads: a 3-D grid of order 216,000 took 11.5/7.0/4.9/4.8 s; a 2-D grid
+  of order 490,000 took 2.0 s throughout; the banded benchmark problems
+  gained nothing (nor with MUMPS's tree-level threading, `ICNTL(48)`).
 
 ## 2. Bugs: correctness (fix first)
 
