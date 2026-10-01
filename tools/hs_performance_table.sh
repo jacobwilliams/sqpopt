@@ -12,7 +12,12 @@
 #
 # usage (from the repository root):
 #
-#    pixi run tools/hs_performance_table.sh [--markdown]
+#    pixi run tools/hs_performance_table.sh [--markdown] [--mumps]
+#
+# With --mumps, the library is built with MUMPS (the HAS_MUMPS preprocessor
+# directive, which needs the sequential MUMPS library of the pixi
+# environment), and the table gets a row for the exact Hessian with inertia
+# control (options%inertia_control). The other rows don't depend on MUMPS.
 #
 # Each run takes about a second (release build). The per-run Markdown
 # reports are left in a temporary directory, printed at the end.
@@ -21,8 +26,19 @@ set -euo pipefail
 
 FPM=${FPM:-fpm}
 format=html
-if [[ "${1:-}" == "--markdown" ]]; then
-    format=markdown
+mumps=0
+for arg in "$@"; do
+    case "$arg" in
+        --markdown) format=markdown ;;
+        --mumps)    mumps=1 ;;
+        *) echo "usage: $0 [--markdown] [--mumps]" >&2; exit 2 ;;
+    esac
+done
+
+# extra fpm options, for the build with MUMPS
+fpm_flags=()
+if [[ $mumps == 1 ]]; then
+    fpm_flags=(--flag "-DHAS_MUMPS -I${CONDA_PREFIX:?run this in the pixi environment}/include" --link-flag "-ldmumps_seq")
 fi
 
 # label (HTML) | label (Markdown) | harness options  (the first row is the default)
@@ -40,6 +56,17 @@ rows=(
   "trust region / filter|trust region / filter|--trust-region"
   "trust region / funnel|trust region / funnel|--trust-region --linesearch=funnel"
 )
+if [[ $mumps == 1 ]]; then
+    # (after the exact-Hessian row)
+    with_inertia=()
+    for row in "${rows[@]}"; do
+        with_inertia+=("$row")
+        if [[ "$row" == *"|--hessian=exact" ]]; then
+            with_inertia+=("filter, exact Hessian with inertia control (MUMPS)|filter, exact Hessian with inertia control (MUMPS)|--hessian=exact --inertia")
+        fi
+    done
+    rows=("${with_inertia[@]}")
+fi
 # (and the footnote's "Armijo / l1 / multipliers, with interpolation" figures)
 extra="--linesearch=armijo"
 
@@ -52,7 +79,8 @@ commas() { awk -v n="$1" 'BEGIN { s = ""; while (length(n) > 3) { s = "," substr
 run() {
     local report=$1; shift
     local line
-    line=$($FPM test test_hs_suite --profile release -- "$report" "$@" 2>&1 | grep -a '^summary:' || true)
+    line=$($FPM test test_hs_suite --profile release ${fpm_flags[@]+"${fpm_flags[@]}"} -- "$report" "$@" 2>&1 \
+           | grep -a '^summary:' || true)
     if [[ -z "$line" ]]; then
         echo "error: no summary from test_hs_suite $*" >&2
         exit 1
@@ -61,7 +89,7 @@ run() {
 }
 
 # build first, so that the build output doesn't mix with the table
-if ! build_log=$($FPM build --profile release --tests 2>&1); then
+if ! build_log=$($FPM build --profile release --tests ${fpm_flags[@]+"${fpm_flags[@]}"} 2>&1); then
     echo "$build_log" >&2
     exit 1
 fi
@@ -99,7 +127,8 @@ echo
 echo "footnote: Armijo / l1 / multipliers with interpolation: solved=$solved local=$local failed=$failed nf=$(commas "$nf")"
 
 # the SLSQP comparison of the results page
-slsqp=$($FPM test test_hs_slsqp --profile release -- --web-data=web/js/hs_slsqp_data.js 2>&1 | grep -a '^summary:' || true)
+slsqp=$($FPM test test_hs_slsqp --profile release ${fpm_flags[@]+"${fpm_flags[@]}"} -- --web-data=web/js/hs_slsqp_data.js 2>&1 \
+        | grep -a '^summary:' || true)
 if [[ -z "$slsqp" ]]; then
     echo "error: no summary from test_hs_slsqp" >&2
     exit 1

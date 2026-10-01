@@ -132,6 +132,22 @@ class TestMinimize(unittest.TestCase):
             minimize(rosen, [-1.2, 1], jac=rosen_g, hess=rosen_h,
                      constraints=NonlinearConstraint(lambda x: x @ x, -np.inf, 1.5, jac=lambda x: 2 * x))
 
+    def test_inertia_control(self):
+        # (min -x1 x2 on the unit disc: the Hessian is indefinite)
+        con = NonlinearConstraint(lambda x: x @ x, -np.inf, 1.0, jac=lambda x: 2 * x,
+                                  hess=lambda x, v: 2 * v[0] * np.eye(2))
+        r = minimize(lambda x: -x[0] * x[1], [0.3, 0.6], jac=lambda x: -x[::-1],
+                     hess=lambda x: np.array([[0.0, -1.0], [-1.0, 0.0]]), bounds=[(0, 2), (0, 2)], constraints=con,
+                     options={'inertia_control': True})
+        if 'MUMPS' in r.message:
+            # (the extension was built without MUMPS: the option is invalid input)
+            self.assertFalse(r.success)
+            self.assertEqual(r.n_factorizations, 0)
+        else:
+            self.assertTrue(r.success, r.message)
+            self.assertAlmostEqual(r.fun, -0.5, places=6)
+            self.assertGreater(r.n_factorizations, 0)
+
     def test_callback(self):
         seen = []
         r = minimize(rosen, [-1.2, 1], jac=rosen_g, callback=lambda intermediate_result: seen.append(

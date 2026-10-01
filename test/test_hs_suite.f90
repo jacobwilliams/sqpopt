@@ -51,6 +51,8 @@ program test_hs_suite
     !!   Lagrangian computed by central differences of the analytic gradient
     !!   and Jacobian, see [[hess_fd]], except on the problems that use
     !!   finite-difference first derivatives, which keep BFGS)
+    !! * `--inertia` (`options%inertia_control = .true.`, with `--hessian=exact`:
+    !!   it needs a build with MUMPS, see [[sqpopt_inertia_module]])
     !! * `--trust-region` (`trust_region%enabled = .true.`: the trust-region
     !!   globalization, with the filter or funnel test in those modes, else
     !!   the merit-function ratio test)
@@ -162,6 +164,7 @@ program test_hs_suite
     logical :: cfg_interpolate = .true.
     integer :: cfg_nonmonotone = 0
     logical :: cfg_trust_region = .false. !! `--trust-region`
+    logical :: cfg_inertia      = .false. !! `--inertia`
     integer :: cfg_restoration  = sqpopt_restoration_phase !! `--restoration=`
     integer :: cfg_hessian      = sqpopt_hessian_bfgs      !! `--hessian=`
     integer :: cfg_memory       = 0                        !! `--lbfgs-memory=N` (`0`: the default)
@@ -273,6 +276,7 @@ program test_hs_suite
         case ('--penalty=model');       cfg_penalty = sqpopt_penalty_model
         case ('--no-interpolate');      cfg_interpolate = .false.
         case ('--trust-region');        cfg_trust_region = .true.
+        case ('--inertia');             cfg_inertia = .true.
         case ('--restoration=phase');   cfg_restoration = sqpopt_restoration_phase
         case ('--restoration=gauss-newton'); cfg_restoration = sqpopt_restoration_gauss_newton
         case ('--hessian=bfgs');        cfg_hessian = sqpopt_hessian_bfgs
@@ -379,6 +383,7 @@ program test_hs_suite
     if (cfg_derivatives == 3) options%derivative_accuracy = sqpopt_derivatives_fast
     if (cfg_switch_tol >= 0.0_dp) options%derivative_switch_tol = cfg_switch_tol
     if (cfg_hessian == sqpopt_hessian_exact .and. (ctx%fd_g .or. ctx%fd_jac)) options%hessian_mode = sqpopt_hessian_bfgs
+    options%inertia_control = cfg_inertia
     qp_solver%sparse_qp%null_space = cfg_null_space
     linesearch%interpolate     = cfg_interpolate
     linesearch%nonmonotone_len = cfg_nonmonotone

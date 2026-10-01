@@ -78,7 +78,8 @@ an `OptimizeResult`.
   * `z`: the variable-bound multipliers;
   * `constr_violation`, `kkt_error`, `stationarity_error`, and
     `execution_time`;
-  * `n_qp_iterations` and `derivative_switch_iteration`.
+  * `n_qp_iterations`, `derivative_switch_iteration`, and
+    `n_factorizations` (of the inertia control, see below).
 
   The multipliers are those of the Lagrangian `f - vᵀc - zᵀx`.
 * **Exceptions.** An exception raised by a user function stops the solver
@@ -93,6 +94,14 @@ The native extension is built with [f2py](https://numpy.org/doc/stable/f2py/)
 ```sh
 pixi run build-python     # builds python/sqpopt/_sqpopt*.so
 pixi run test-python      # all the Python tests
+```
+
+The `inertia_control` option (for the exact Hessian) needs an extension
+built with MUMPS, which `mumps-seq` in the pixi environment provides.
+Without it, a solve with that option returns the invalid-input status.
+
+```sh
+pixi run build-python-mumps
 ```
 
 The build (`sqpopt/_build.py`) does the following:

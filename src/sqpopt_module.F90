@@ -8,7 +8,8 @@
 !  The other components of the algorithm (problem definition, options,
 !  Hessian approximation, QP subproblem solvers, line search, merit
 !  function, filter and funnel, trust region, feasibility restoration,
-!  second-order correction, convergence checking, and the detailed log)
+!  second-order correction, convergence checking, inertia control, and the
+!  detailed log)
 !  are each implemented in their own module so that they may be
 !  developed, tested, and swapped out independently. Internally, sparse
 !  (COO) storage is used for the constraint Jacobian, and the Hessian of
@@ -41,6 +42,7 @@
                                           sqpopt_restoration_gauss_newton
     use sqpopt_iterate_module,    only: sqpopt_iterate, sqpopt_evaluate_point, sqpopt_iter_info
     use sqpopt_log_module,        only: sqpopt_log_type, sqpopt_log_detail, fmt_e, fmt_i, plural
+    use sqpopt_inertia_module,    only: sqpopt_inertia_type, sqpopt_has_mumps
 
     implicit none
 
@@ -164,6 +166,9 @@
     integer(int64) :: t_start, t_now, t_rate
     character(len=:), allocatable :: msg
     type(sqpopt_restoration_type) :: fresh_restoration !! (default-initialized)
+    type(sqpopt_inertia_type) :: inertia !! inertia control of the exact Hessian (see `options%inertia_control`;
+                                         !! freed by `finish`)
+    logical :: inertia_ok
 
     call system_clock(t_start, t_rate)
     valid = .false.
@@ -230,6 +235,9 @@
                                 scale0=me%options%hessian_scale0)
     if (me%options%hessian_mode == sqpopt_hessian_exact) then
         call me%hessian%set_exact(me%problem%hess_irow, me%problem%hess_icol)
+        ! (if MUMPS can't be started, the solve continues without inertia control)
+        if (me%options%inertia_control) call inertia%initialize(me%hessian, me%problem%m, me%problem%jac_irow, &
+                                                                 me%problem%jac_icol, inertia_ok)
     end if
     me%qp_solver%mode        = me%options%qp_solver_mode
     me%linesearch%mode       = me%options%linesearch_mode
@@ -261,7 +269,7 @@
         n_fc0 = me%problem%n_eval_fc
         call sqpopt_iterate(me%problem, me%options, me%hessian, me%qp_solver, me%linesearch, me%trust_region, &
                              me%x, me%lambda, x_prev, gl_prev, f_prev, viol_prev, jac, n_acceptable, n_stalled, n_escape, &
-                             me%restoration, iter, me%report, &
+                             me%restoration, inertia, iter, me%report, &
                              done, iter_istat, info)
         info%n_fc = me%problem%n_eval_fc - n_fc0
         call count_events()
@@ -347,6 +355,8 @@
         me%results%time = real(t_now-t_start, wp)/real(t_rate, wp)
         me%results%time_functions = me%problem%time_user
         me%results%time_qp        = me%qp_solver%time
+        me%results%n_factorizations = inertia%n_factor
+        call inertia%destroy()
 
         ! (not for invalid inputs, which may include `output_unit` itself)
         if (valid .and. me%options%print_level >= 1) call print_summary()
@@ -503,7 +513,9 @@
             glob = glob//' line search'
         end if
         select case (me%options%hessian_mode)
-        case (sqpopt_hessian_exact); hess = 'exact Hessian'
+        case (sqpopt_hessian_exact)
+            hess = 'exact Hessian'
+            if (inertia%enabled) hess = hess//' (inertia control)'
         case (sqpopt_hessian_sr1);   hess = 'L-SR1 Hessian ('//fmt_i(me%hessian%max_history)//' pairs)'
         case default;                hess = 'L-BFGS Hessian ('//fmt_i(me%hessian%max_history)//' pairs)'
         end select
@@ -663,6 +675,9 @@
                   me%results%n_eval_fc, ' fc, ', me%results%n_eval_gjac, ' gjac'
         end if
         write(u, '(A,I0)', iostat=ios)      '   QP iterations       = ', me%results%n_qp_iterations
+        if (me%results%n_factorizations > 0) then
+            write(u, '(A,I0)', iostat=ios)  '   factorizations      = ', me%results%n_factorizations
+        end if
         events = ''
         call add_event(events, me%results%n_soc, 'second-order correction', 'second-order corrections')
         call add_event(events, me%results%n_restoration_phases, 'restoration phase', 'restoration phases')
@@ -867,6 +882,10 @@
     if (o%hessian_mode == sqpopt_hessian_exact .and. .not. associated(me%problem%eval_hess)) then
         msg = 'options%hessian_mode = sqpopt_hessian_exact requires the hess function (set_functions) '// &
               'and its sparsity pattern (set_hessian_sparsity)'
+        return
+    end if
+    if (o%inertia_control .and. .not. sqpopt_has_mumps) then
+        msg = 'options%inertia_control requires a library built with MUMPS (the HAS_MUMPS preprocessor directive)'
         return
     end if
     if (all(o%qp_solver_mode /= [sqpopt_qp_auto, sqpopt_qp_dense, sqpopt_qp_reduced_hessian])) then

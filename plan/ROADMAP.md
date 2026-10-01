@@ -776,9 +776,10 @@ from the nonzeros, so both QPs and the trust region use it unchanged.
 - Side finding, not investigated: SR1 (`--hessian=sr1`) is much weaker than
   BFGS on the HS suite (239/35/31); the same negative-curvature shift could
   apply to it.
-- Not done: a factorization-based path with true inertia control (needs an
-  LDLᵀ solver, §8.3); a Hessian-vector-product callback (for problems
-  whose Hessian is dense or expensive).
+- *Done (2026-09-30, optional, with MUMPS):* inertia control from a
+  factorization (see "Inertia control with MUMPS" below). Not done: a
+  Hessian-vector-product callback (for problems whose Hessian is dense or
+  expensive).
 
 **Trust-region step cap bug (2026-09-27).** Found with the new
 `tools/hs_compare.sh` (one problem, SQPOPT and SLSQP side by side) on
@@ -871,6 +872,46 @@ failure in any QP solve of an iteration (also the trust region's and the
 restoration phase's) ends the solve. New test `test_out_of_memory` (a
 dense QP with `n` = 6,000,000; it uses about 1 GB itself). The solver's
 other allocations are still unchecked (see "Allocation failures" in §4).
+
+**Inertia control with MUMPS (2026-09-30).** Open decision §8.3, step 2 of
+[INERTIA_CONTROL.md](INERTIA_CONTROL.md) §8: `options%inertia_control`,
+for the exact Hessian, in a build with the `HAS_MUMPS` preprocessor
+directive (`sqpopt_inertia_module.F90`, the only code that uses MUMPS; the
+default build is unchanged and still needs only fpm). The pixi environment
+has `mumps-seq`, and the tasks `build-mumps`/`test-mumps`/`build-python-mumps`
+build with it. Without MUMPS the option is invalid input.
+- **Method.** The KKT matrix `[H+δI, Jₐᵀ; Jₐ, 0]` of a QP working set is
+  factored (LDLᵀ, `SYM=2`), and `δ` raised (from `shift_min`·max|H|, or a
+  third of the last shift needed, ×8 per attempt) until it has no more
+  negative pivots than constraints. The matrix always has order `n+m`
+  (rows of inactive constraints and of variables at a bound are replaced by
+  ∓identity), so the pattern is analysed once per solve. This is done
+  before the QP, for the working set it starts from, and after it for the
+  one it ended with (re-solving only if that one fails). The shift starts
+  from 0 at every iteration. The QP solvers are unchanged, apart from
+  exposing their final working set (`qp_solver%working_set`).
+- **HS suite**, `--hessian=exact --inertia`: 274/29/2 with 9,581 `fc`,
+  against 268/34/3 with 12,833 without it (BFGS: 280/25/0, 9,173). Funnel:
+  271/31/3 (269/31/5 without). Armijo: 272/29/4 (267/33/5). Sparse QP:
+  273/31/1 (268/33/4). Trust region (only the test before the QP):
+  261/37/7 with 4,765 `fc` (264/35/6 with 10,209).
+- **Variants tried:** without the test before the QP: 263/37/5, 10,474.
+  Also re-solving when the QP met negative curvature before its final
+  working set: 274/28/3, 12,676. IPOPT's ×100 until a shift has been needed
+  once: 273/29/3, 9,676. Growth ×2, ×4, ×16: 272, 271, 271 solved. No test
+  before the first QP of a solve: 270/32/3.
+- **Threads.** MUMPS's OpenMP threads made the HS suite take 24.5 s
+  instead of 1.4 s (10 cores), so it is run on one thread (`ICNTL(16)=1`).
+  Not measured: whether threads pay off on large problems.
+- **Large problems** (`test_large_sparse`, analytic Hessians): unchanged
+  results (control N=500: 8 `fc`; Rosenbrock n=2000: 14 `fc`, the same local
+  solution), with a few ms more time.
+- New `results%n_factorizations`, test `test_inertia` (both builds), harness
+  option `--inertia`, and `hs_performance_table.sh --mumps`.
+- Not done: the same control for SR1 (needs the low-rank handling of
+  INERTIA_CONTROL.md §5.3); a factorization-based QP (§5.2); a test after
+  the trust region's QPs; a thread-count option; CI coverage of the MUMPS
+  build (CI runs its tests, but the coverage report is of the default build).
 
 ## 2. Bugs: correctness (fix first)
 
@@ -1295,6 +1336,8 @@ documentation.
 3. **External sparse LDLᵀ** (e.g. MUMPS, as an optional dependency)
    for exact-Hessian inertia control. Alternatively, stay matrix-free
    with PCG only. See [INERTIA_CONTROL.md](INERTIA_CONTROL.md).
+   *Decided (2026-09-30):* MUMPS, optional (`HAS_MUMPS`), for the shift
+   only; the QPs stay matrix-free. See "Inertia control with MUMPS" above.
 4. **Dependency trim.** Keep `lusol` for F1's sparse KKT solve, or drop
    `lusol`/`LSMR`/`lbfgsb`. *Recommendation (2026-09-26):*
    - keep `lusol`, for F13 *(done: now used)* and then F1;

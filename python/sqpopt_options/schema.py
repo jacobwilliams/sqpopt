@@ -418,6 +418,12 @@ TOPICS: tuple[Topic, ...] = (
                "skipped instead."),
         ), relevance=_quasi_newton_used),
         Section('Exact Hessian', (
+            _o('options%inertia_control', 'bool', False,
+               'Find the shift δ from the inertia of the KKT matrix of the QP\'s working set, by a sparse LDLᵀ '
+               'factorization (MUMPS): the smallest shift tried that leaves no negative curvature, instead of '
+               'the one found by re-solving the QP with a shift 10 times larger whenever it finds negative '
+               'curvature. It needs a library built with MUMPS (the HAS_MUMPS preprocessor directive), and is '
+               'invalid without it.'),
             _positive('hessian%shift_min', 1e-4,
                       'The smallest nonzero shift δ of the inertia correction H + δI, relative to '
                       'max(1, max|Hᵢⱼ|).'),

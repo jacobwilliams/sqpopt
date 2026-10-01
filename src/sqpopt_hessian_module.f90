@@ -33,7 +33,10 @@
 !  is increased tenfold, from `shift_min` times the size of the Hessian's
 !  largest element; at each new major iteration that follows a good step,
 !  it is divided by 3 (and set to 0 once below that minimum). The quasi-Newton updates do nothing
-!  in this mode.
+!  in this mode. With `options%inertia_control`, the shift that an
+!  iteration needs is instead found from a factorization (see
+!  [[sqpopt_inertia_module]]), and only the increases after a failed step
+!  or a run of very short ones are carried over to the next iteration.
 
     module sqpopt_hessian_module
 
@@ -104,6 +107,7 @@
         procedure, public :: reset                   => hessian_reset
         procedure, public :: set_exact               => hessian_set_exact
         procedure, public :: set_values              => hessian_set_values
+        procedure, public :: magnitude               => hessian_size
 
     end type sqpopt_hessian_type
 

@@ -60,6 +60,7 @@
     <a href="#problem-definition">Problem definition</a>
     <a href="#solver-options">Solver options</a>
     <a href="#hessian">Hessian approximation</a>
+    <a href="#inertia-control" class="toc-sub">Inertia control</a>
     <a href="#qp-solver">QP subproblem solver</a>
     <a href="#dense-qp" class="toc-sub">Dense QP options</a>
     <a href="#sparse-qp" class="toc-sub">Sparse QP options</a>
@@ -133,6 +134,12 @@ sqpopt = { git = "https://github.com/jacobwilliams/sqpopt" }</code></pre>
 fpm build --profile release --flag "-DREAL128"   # quadruple precision</code></pre>
 
 <p>The working kind is exported as <code>sqpopt_module_wp</code> from <code>sqpopt_kinds</code>. The examples below import it as <code>wp</code>.</p>
+
+<p>One feature is optional, because it needs a library that FPM can't fetch: <a href="#inertia-control">inertia control</a> of the exact Hessian uses the <a href="https://mumps-solver.org">MUMPS</a> sparse direct solver. To enable it, define <code>HAS_MUMPS</code>, put MUMPS's <code>dmumps_struc.h</code> on the include path, and link with its sequential, double precision library. With conda-forge's <code>mumps-seq</code> package:</p>
+
+<pre><code class="language-bash">fpm build --profile release --flag "-DHAS_MUMPS -I$CONDA_PREFIX/include" --link-flag "-ldmumps_seq"</code></pre>
+
+<p>The constant <code>sqpopt_has_mumps</code> (from <code>sqpopt_inertia_module</code>) says whether the library was built this way. Without it, everything else works as usual.</p>
 
 <!-- ============================================================ -->
 <h2 id="quick-start">Quick start</h2>
@@ -237,7 +244,7 @@ call problem%set_hessian_sparsity(hess_nnz, hrow, hcol)
 call problem%set_functions(fc, gjac, hess=hess)
 options%hessian_mode = sqpopt_hessian_exact</code></pre>
 
-<p>Give each off-diagonal element only once, in either triangle (for example, the lower triangle): an entry \( (i,j) \), \( i\ne j \), stands for both \( (i,j) \) and \( (j,i) \). The values must be in the order of the pattern. <code>hess</code> is called once per major iteration, with the current multipliers (for the original, unscaled problem). The Hessian may be indefinite: when the QP subproblem finds negative curvature, fails, or doesn't give a descent direction, the solver re-solves it with the Hessian shifted by a multiple of the identity, increasing the shift as needed (see <a href="#hessian">Hessian</a>).</p>
+<p>Give each off-diagonal element only once, in either triangle (for example, the lower triangle): an entry \( (i,j) \), \( i\ne j \), stands for both \( (i,j) \) and \( (j,i) \). The values must be in the order of the pattern. <code>hess</code> is called once per major iteration, with the current multipliers (for the original, unscaled problem). The Hessian may be indefinite: when the QP subproblem finds negative curvature, fails, or doesn't give a descent direction, the solver re-solves it with the Hessian shifted by a multiple of the identity, increasing the shift as needed (see <a href="#hessian">Hessian</a>). In a build with MUMPS, <code>options%inertia_control</code> finds the shift from a factorization instead (see <a href="#inertia-control">Inertia control</a>).</p>
 
 <h3 id="report-callback">Progress callback</h3>
 
@@ -349,6 +356,7 @@ end program hs71</code></pre>
 <tr><td><code>kkt_error</code></td><td>KKT (stationarity/complementarity) error, of the scaled problem used by the convergence test</td></tr>
 <tr><td><code>stationarity_error</code></td><td>stationarity error of the original (unscaled) problem (see <code>dual_inf_tol</code>)</td></tr>
 <tr><td><code>n_qp_iterations</code></td><td>total active-set iterations of the QP subproblem solves</td></tr>
+<tr><td><code>n_factorizations</code></td><td>factorizations of the KKT matrix by the <a href="#inertia-control">inertia control</a> (<code>0</code> without it)</td></tr>
 <tr><td><code>n_soc</code>, <code>n_hessian_resets</code>, <code>n_restoration_steps</code>, <code>n_restoration_phases</code>, <code>n_elastic</code>, <code>n_escape</code></td><td>counts of the solve's events: accepted second-order corrections, Hessian resets (or shift increases), iterations with a restoration step, restoration phases entered, elastic QP re-solves, and escape steps</td></tr>
 <tr><td><code>feasibility_error</code></td><td>largest violation of a constraint or variable bound</td></tr>
 <tr><td><code>derivative_switch_iteration</code></td><td>the iteration at which the solver switched from fast to accurate derivatives (<code>0</code> if it didn't; see <a href="#fast-derivatives">Fast derivatives</a>)</td></tr>
@@ -479,7 +487,7 @@ print(res.x, res.fun, res.message)</code></pre>
   <li><strong>Arguments:</strong> <code>fun</code>, <code>x0</code>, <code>args</code>, <code>jac</code>, <code>hess</code>, <code>bounds</code>, <code>constraints</code>, <code>tol</code>, <code>callback</code>, and <code>options</code>, as in scipy.</li>
   <li><strong>Constraints:</strong> SLSQP-style dicts, <code>NonlinearConstraint</code>, and <code>LinearConstraint</code>. The package's own classes and scipy's are both accepted. Jacobians may be dense or sparse.</li>
   <li><strong>Derivatives are required:</strong> the gradient (<code>jac</code>) and each nonlinear constraint's Jacobian. Unlike scipy, there are no finite differences.</li>
-  <li><strong>Exact Hessian:</strong> <code>hess</code> selects the exact Hessian of the Lagrangian.</li>
+  <li><strong>Exact Hessian:</strong> <code>hess</code> selects the exact Hessian of the Lagrangian. The <code>inertia_control</code> option needs an extension built with MUMPS (<code>pixi run build-python-mumps</code>).</li>
   <li><strong>Options:</strong> <code>options</code> takes any setting in this guide, by name (<code>{'ktol': 1e-8, 'hessian_mode': 'sr1'}</code>), by Fortran reference (<code>'linesearch%filter%delta'</code>), or as the dict returned by the options dialog.</li>
   <li><strong>Warm start:</strong> <code>lambda0</code> gives the starting multipliers, so <code>minimize(..., x0=res.x, lambda0=res.v)</code> restarts from a previous result.</li>
   <li><strong>Printed output:</strong> <code>output_file</code> writes the solver's printed output to a file instead of the process's standard output, which a Jupyter notebook doesn't show.</li>
@@ -595,6 +603,7 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>hessian_mode</code></td><td><code>sqpopt_hessian_bfgs</code></td><td>Hessian approximation strategy (see <a href="#hessian">Hessian approximation</a>)</td></tr>
+<tr><td><code>inertia_control</code></td><td><code>.false.</code></td><td>with the exact Hessian: find the shift of an indefinite Hessian from a sparse factorization (see <a href="#inertia-control">Inertia control</a>). It needs a build with MUMPS, and is invalid input without it</td></tr>
 <tr><td><code>lbfgs_memory</code></td><td><code>0</code></td><td>number of <code>(s,y)</code> vector pairs retained by the limited-memory Hessian; <code>0</code> (automatic) picks \( \max(10, \min(n, 100)) \) (see <a href="#hessian">Hessian approximation</a>)</td></tr>
 <tr><td><code>qp_solver_mode</code></td><td><code>sqpopt_qp_auto</code></td><td>QP subproblem algorithm (see <a href="#qp-solver">QP subproblem solver</a>)</td></tr>
 <tr><td><code>linesearch_mode</code></td><td><code>sqpopt_linesearch_filter</code></td><td>line search strategy (see <a href="#linesearch">Line search &amp; merit function</a>)</td></tr>
@@ -624,9 +633,9 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <tbody>
 <tr><td><code>print_level</code></td><td><code>0</code></td><td>
   <code>0</code>: no output.
-  <code>1</code>: the problem (sizes), the method (globalization, QP solver, Hessian, restoration), the scaling and the tolerances; one line per major iteration (objective, infeasibility and KKT error of the scaled problem, step length, <code>fc</code> calls so far, and flags for the iteration's events: <code>R</code> restoration step, <code>P</code> restoration phase, <code>S</code> second-order correction, <code>H</code> Hessian reset, <code>E</code> elastic QP re-solve, <code>X</code> escape step, <code>N</code> non-monotone step, <code>W</code> watchdog relaxed step, <code>D</code> switched to accurate derivatives, <code>Q</code> QP failed, <code>F</code> no acceptable step); and a summary (status, objective, feasibility, KKT and unscaled stationarity errors, largest multiplier, active constraints and bounds, evaluations, QP iterations, counts of the events, and the time split between the user functions, the QP, and the rest).
+  <code>1</code>: the problem (sizes), the method (globalization, QP solver, Hessian and whether it has inertia control, restoration), the scaling and the tolerances; one line per major iteration (objective, infeasibility and KKT error of the scaled problem, step length, <code>fc</code> calls so far, and flags for the iteration's events: <code>R</code> restoration step, <code>P</code> restoration phase, <code>S</code> second-order correction, <code>H</code> Hessian reset, <code>E</code> elastic QP re-solve, <code>X</code> escape step, <code>N</code> non-monotone step, <code>W</code> watchdog relaxed step, <code>D</code> switched to accurate derivatives, <code>Q</code> QP failed, <code>F</code> no acceptable step); and a summary (status, objective, feasibility, KKT and unscaled stationarity errors, largest multiplier, active constraints and bounds, evaluations, QP iterations, factorizations of the inertia control, counts of the events, and the time split between the user functions, the QP, and the rest).
   <code>2</code>: also, per iteration, the step norm, QP iterations, <code>fc</code> calls, largest multiplier, unscaled stationarity error, the globalization's state (merit penalty, filter entries, funnel width, or trust-region radius), and the Hessian's (stored quasi-Newton pairs, or the exact Hessian's shift).
-  <code>3</code>: also indented detail lines under each iteration: every QP solve (solver, iterations, working-set size, elastic slacks, status, negative curvature), every line-search or trust-region trial (step length or radius, violation and objective or merit value, and why it was accepted or rejected), second-order corrections, restoration phases (start, iterations, end and why), elastic re-solves, escape steps, and Hessian resets (and why); the smallest constraint scale factors; and the solution: the variables and constraints with their bounds, multipliers, and which are active (up to 100 of each).
+  <code>3</code>: also indented detail lines under each iteration: every QP solve (solver, iterations, working-set size, elastic slacks, status, negative curvature), every line-search or trust-region trial (step length or radius, violation and objective or merit value, and why it was accepted or rejected), second-order corrections, restoration phases (start, iterations, end and why), elastic re-solves, escape steps, Hessian resets (and why), and the shifts of the inertia control (for which working set, the number of directions of negative curvature, and the factorizations it took); the smallest constraint scale factors; and the solution: the variables and constraints with their bounds, multipliers, and which are active (up to 100 of each).
 </td></tr>
 <tr><td><code>output_unit</code></td><td>standard output</td><td>Fortran unit the output is written to</td></tr>
 </tbody>
@@ -635,15 +644,33 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <!-- ============================================================ -->
 <h2 id="hessian">Hessian approximation <code class="h-type">sqpopt_hessian_type</code></h2>
 
-<p>A limited-memory quasi-Newton approximation (never a dense <code>n&times;n</code> matrix), or the user's exact sparse Hessian (<code>sqpopt_hessian_exact</code>, see <a href="#exact-hessian">Exact Hessian</a>). <code>solve()</code> always re-initializes it from <code>options%lbfgs_memory</code> and <code>options%hessian_mode</code>. Apart from those two <code>options</code> fields, only <code>damping</code>, <code>shift_min</code>, and <code>shift_max</code> are configurable, on a <code>sqpopt_hessian_type</code> you construct yourself.</p>
+<p>A limited-memory quasi-Newton approximation (never a dense <code>n&times;n</code> matrix), or the user's exact sparse Hessian (<code>sqpopt_hessian_exact</code>, see <a href="#exact-hessian">Exact Hessian</a>). <code>solve()</code> always re-initializes it from <code>options%lbfgs_memory</code> and <code>options%hessian_mode</code>. Apart from those two <code>options</code> fields and <code>options%inertia_control</code>, only <code>damping</code>, <code>shift_min</code>, and <code>shift_max</code> are configurable, on a <code>sqpopt_hessian_type</code> you construct yourself.</p>
 
 <p>With the exact Hessian, the QP subproblems use \( H + \delta I \). The shift \( \delta \) starts at 0. Whenever a QP subproblem finds negative curvature (it was nonconvex), fails, or doesn't give a descent direction, \( \delta \) is increased tenfold (starting from <code>shift_min</code> times the Hessian's largest element) and the QP is re-solved; it also increases after a failed step or a run of very short ones. After each good step it is divided by 3, down to 0. This is a simple form of the <em>inertia correction</em> used by IPOPT and Uno, without a factorization.</p>
+
+<h3 id="inertia-control">Inertia control (optional, with MUMPS)</h3>
+
+<p>The tests above only see negative curvature along the directions that the QP solver happens to explore, each correction costs a whole QP solve, and tenfold steps overshoot the shift that is needed. With <code>options%inertia_control = .true.</code>, the shift is instead found from a sparse \( LDL^T \) factorization of the KKT matrix</p>
+
+\[ K = \begin{bmatrix} H + \delta I &amp; J_a^T \\ J_a &amp; 0 \end{bmatrix} \]
+
+<p>where \( J_a \) holds the Jacobian rows of the QP's working set, in the variables that are not at a bound. The numbers of positive and negative pivots of the factorization (the <em>inertia</em> of \( K \)) tell exactly whether \( H + \delta I \) has negative curvature on the null space of the working set, which is what makes the QP nonconvex there. Each major iteration:</p>
+
+<ol>
+  <li>Before the QP is solved, \( K \) is factored for the working set that the QP starts from (the one the previous QP ended with). If it has negative curvature, \( \delta \) is raised and \( K \) refactored until none is left: first to <code>shift_min</code> times the Hessian's largest element (or a third of the last shift that was needed, if that is larger), then 8 times as much at each attempt, much as IPOPT does. Each attempt costs a factorization, not a QP solve.</li>
+  <li>After the QP is solved, the same test is made for the working set it ended with, if that is a different one. Only if it fails is \( \delta \) raised further and the QP re-solved. (With the trust region, this second test is not made.)</li>
+</ol>
+
+<p>The shift starts from 0 again at every iteration, so it disappears as soon as it isn't needed, and the Newton steps near a solution are not damped. A QP that fails or doesn't give a descent direction still raises the shift, as does a failed step or a run of very short ones (those increases are carried over, and decay as above). The QP subproblems themselves are solved by the same solvers as before.</p>
+
+<p>This needs a library built with MUMPS (see <a href="#installation">Installation</a>): without it, <code>inertia_control = .true.</code> is reported as invalid input. It is only used with <code>sqpopt_hessian_exact</code>. MUMPS runs on one thread. <code>results%n_factorizations</code> counts the factorizations. On the Hock&ndash;Schittkowski problems it solves 6 more problems than the exact Hessian without it, with 25% fewer function evaluations (see <a href="#performance">Performance</a>).</p>
 
 <div class="table-wrap"><table class="opt-table">
 <thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>options%hessian_mode</code></td><td><code>sqpopt_hessian_bfgs</code></td><td><code>sqpopt_hessian_bfgs</code> (limited-memory Powell-damped BFGS), <code>sqpopt_hessian_sr1</code> (limited-memory symmetric rank-1), or <code>sqpopt_hessian_exact</code> (the user's sparse Hessian of the Lagrangian, see <a href="#exact-hessian">Exact Hessian</a>)</td></tr>
 <tr><td><code>options%lbfgs_memory</code></td><td><code>0</code></td><td>number of <code>(s,y)</code> vector pairs retained. <code>0</code> (automatic) picks \( \max(10, \min(n, 100)) \) from the number of variables <code>n</code>: larger problems benefit from more pairs (on a quadratic, BFGS with <code>n</code> pairs converges in about <code>n</code> iterations; with 10, TP302, <code>n</code>&nbsp;=&nbsp;100, needs 491 instead of 143), while keeping more pairs than variables retains stale curvature and slows small problems down. Any positive value is used as given.</td></tr>
+<tr><td><code>options%inertia_control</code></td><td><code>.false.</code></td><td>exact Hessian: find the shift from the inertia of the KKT matrix, by a sparse factorization (see <a href="#inertia-control">Inertia control</a>; needs a build with MUMPS)</td></tr>
 <tr><td><code>damping</code></td><td><code>.true.</code></td><td>Powell's damped BFGS update: when \( s^Ty &lt; 0.2\,s^TBs \), <code>y</code> is blended with <code>Bs</code> so the update keeps <code>B</code> positive definite while still using the new curvature information. If <code>.false.</code>, such updates are skipped instead.</td></tr>
 <tr><td><code>shift_min</code>, <code>shift_max</code></td><td><code>1e-4</code>, <code>1e10</code></td><td>exact Hessian: the smallest nonzero and the largest shift \( \delta \), relative to \( \max(1, \max_{ij}|H_{ij}|) \)</td></tr>
 </tbody>
@@ -891,6 +918,7 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <tr><td>filter, without interpolation</td><td class="num">279</td><td class="num">26</td><td class="num">0</td><td class="num">9,501</td></tr>
 <tr><td>funnel (with interpolation)</td><td class="num">280</td><td class="num">25</td><td class="num">0</td><td class="num">9,389</td></tr>
 <tr><td>filter, exact Hessian (finite differences of the gradients)</td><td class="num">268</td><td class="num">34</td><td class="num">3</td><td class="num">12,833</td></tr>
+<tr><td>filter, exact Hessian with inertia control (MUMPS)</td><td class="num">274</td><td class="num">29</td><td class="num">2</td><td class="num">9,581</td></tr>
 <tr><td>Armijo / \( \ell_1 \) / multipliers</td><td class="num">273</td><td class="num">26</td><td class="num">6</td><td class="num">22,356</td></tr>
 <tr><td>Armijo / \( \ell_1 \) / model (Byrd&ndash;Nocedal)</td><td class="num">276</td><td class="num">26</td><td class="num">3</td><td class="num">32,415</td></tr>
 <tr><td>Armijo / augmented Lagrangian / multipliers</td><td class="num">276</td><td class="num">28</td><td class="num">1</td><td class="num">10,155</td></tr>
@@ -906,9 +934,9 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 
 <p class="small">The merit-function rows are without interpolation, except where noted. With interpolation, Armijo / \( \ell_1 \) / multipliers needs 20,324 <code>fc</code> calls instead of 22,356, and solves two more problems. Analytic derivatives are used throughout, except for the 16 problems for which the collection provides none (they are solved with finite-difference derivatives, as the collection intends); the analytic derivatives that were wrong in the original collection are fixed in <code>test/schittkowski_problems.f90</code>.</p>
 
-<p class="small">The collection has no second derivatives, so the exact-Hessian row uses Hessians of the Lagrangian computed by the test harness by central differences of the analytic gradients (the 16 problems without analytic derivatives keep BFGS). On the problems that both it and the default solve, it needs 30% fewer iterations (median), and far fewer on some (TP116: 25 instead of 127); its larger <code>fc</code> total comes from a few problems where Newton steps crawl along a curved valley (TP210, 235, 281).</p>
+<p class="small">The collection has no second derivatives, so the exact-Hessian row uses Hessians of the Lagrangian computed by the test harness by central differences of the analytic gradients (the 16 problems without analytic derivatives keep BFGS). On the problems that both it and the default solve, it needs 30% fewer iterations (median), and far fewer on some (TP116: 25 instead of 127); its larger <code>fc</code> total comes from a few problems where Newton steps crawl along a curved valley (TP210, 235, 281). <a href="#inertia-control">Inertia control</a> (a build with MUMPS) removes most of that difference. It helps the other globalizations with the exact Hessian too: funnel 271 solved and 3 failed instead of 269 and 5, Armijo 272 and 4 instead of 267 and 5, and the sparse QP 273 and 1 instead of 268 and 4. With the trust region it halves the <code>fc</code> calls (4,765 instead of 10,209), but solves 261 problems instead of 264.</p>
 
-<p class="small">This table is generated by <code>tools/hs_performance_table.sh</code> (run it with <code>pixi run tools/hs_performance_table.sh</code>; it prints the rows above, and the footnote's figures). Individual configurations can be run with the test suite's command-line options, e.g. <code>fpm test test_hs_suite --profile release -- results.md --linesearch=armijo --merit=al</code>.</p>
+<p class="small">This table is generated by <code>tools/hs_performance_table.sh</code> (run it with <code>pixi run tools/hs_performance_table.sh --mumps</code>; it prints the rows above, and the footnote's figures; without <code>--mumps</code> it leaves out the inertia-control row). Individual configurations can be run with the test suite's command-line options, e.g. <code>fpm test test_hs_suite --profile release -- results.md --linesearch=armijo --merit=al</code>.</p>
 
 <p>A scalable benchmark (function evaluations and run time on a nonlinear optimal-control problem and a constrained chained-Rosenbrock problem, at sizes that exercise both QP solvers) is in <code>example/benchmark.f90</code>:</p>
 
@@ -925,6 +953,8 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 fpm build --profile release
 fpm test --profile release</code></pre>
 
+<p>The pixi environment includes MUMPS. <code>pixi run build-mumps</code> and <code>pixi run test-mumps</code> build and test the library with it (the <a href="#inertia-control">inertia control</a>).</p>
+
 <p>The API documentation is generated with <a href="https://github.com/Fortran-FOSS-Programmers/ford">FORD</a>. To build it into this site's <code>api/</code> folder:</p>
 
 <pre><code class="language-bash">ford ford.md --output_dir web/api</code></pre>
@@ -939,6 +969,11 @@ fpm test --profile release</code></pre>
   <li><a href="https://github.com/jacobwilliams/LSQR">LSQR</a>: iterative solver for sparse linear systems and least-squares problems</li>
   <li><a href="https://github.com/jacobwilliams/lusol">lusol</a>: sparse LU factorization (the sparse QP's basis factors and updates, and its rank-revealing basis choice)</li>
   <li><a href="https://github.com/jacobwilliams/fmin">fmin</a>: derivative-free minimization routine used by the exact line search</li>
+</ul>
+
+<p>Optional, and not fetched by FPM (see <a href="#installation">Installation</a>):</p>
+<ul>
+  <li><a href="https://mumps-solver.org">MUMPS</a>: sparse symmetric indefinite factorization, for the <a href="#inertia-control">inertia control</a> of the exact Hessian</li>
 </ul>
 
 <h2 id="related">Other Fortran SQP solvers</h2>

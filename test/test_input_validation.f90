@@ -10,6 +10,7 @@ program test_input_validation
     use sqpopt_problem_module, only: sqpopt_problem_type
     use sqpopt_options_module, only: sqpopt_options_type
     use sqpopt_hessian_module, only: sqpopt_hessian_exact
+    use sqpopt_inertia_module, only: sqpopt_has_mumps
     use sqpopt_types_module,   only: sqpopt_invalid_input, sqpopt_success
     use sqpopt_linesearch_module,   only: sqpopt_linesearch_type
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
@@ -87,6 +88,12 @@ program test_input_validation
     options = sqpopt_options_type()
     options%hessian_mode = sqpopt_hessian_exact   ! (the problem has no hess function)
     call expect_invalid('exact Hessian without hess', problem, options, [0.0_wp, 0.0_wp])
+    if (.not. sqpopt_has_mumps) then
+        ! (inertia control needs a library built with MUMPS: see `test_inertia`)
+        options = sqpopt_options_type()
+        options%inertia_control = .true.
+        call expect_invalid('inertia_control without MUMPS', problem, options, [0.0_wp, 0.0_wp])
+    end if
     block
         type(sqpopt_problem_type) :: p2
         call valid_problem(p2)

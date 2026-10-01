@@ -32,7 +32,7 @@
 
     private
 
-    integer(int32), parameter, public :: sqpopt_python_n_iinfo = 13 !! size of `iinfo` (see [[sqpopt_python_solve]])
+    integer(int32), parameter, public :: sqpopt_python_n_iinfo = 14 !! size of `iinfo` (see [[sqpopt_python_solve]])
     integer(int32), parameter, public :: sqpopt_python_n_rinfo = 7  !! size of `rinfo`
 
     abstract interface
@@ -133,7 +133,7 @@
 !  `iinfo`: `istat`, `iterations`, `n_eval_fc`, `n_eval_gjac`,
 !  `n_eval_hess`, `n_qp_iterations`, `derivative_switch_iteration`,
 !  `n_soc`, `n_hessian_resets`, `n_restoration_steps`,
-!  `n_restoration_phases`, `n_elastic`, `n_escape`.
+!  `n_restoration_phases`, `n_elastic`, `n_escape`, `n_factorizations`.
 !
 !  `rinfo`: `f`, `kkt_error`, `feasibility_error`, `stationarity_error`,
 !  `time`, `time_functions`, `time_qp`.
@@ -271,7 +271,7 @@
     if (allocated(r%c) .and. size(c) == m) c = r%c
     iinfo(1:sqpopt_python_n_iinfo) = [r%istat, r%iterations, r%n_eval_fc, r%n_eval_gjac, r%n_eval_hess, r%n_qp_iterations, &
                    r%derivative_switch_iteration, r%n_soc, r%n_hessian_resets, r%n_restoration_steps, &
-                   r%n_restoration_phases, r%n_elastic, r%n_escape]
+                   r%n_restoration_phases, r%n_elastic, r%n_escape, r%n_factorizations]
     rinfo(1:sqpopt_python_n_rinfo) = [r%f, r%kkt_error, r%feasibility_error, r%stationarity_error, r%time, &
                                       r%time_functions, r%time_qp]
     message = ''

@@ -19,11 +19,15 @@ Steps:
    (``fortran/sqpopt_python_f2py.f90``), linked with both libraries, and copy
    it into the package as ``sqpopt/_sqpopt<suffix>``.
 
-Run with ``-v`` to see f2py's output.
+Run with ``-v`` to see f2py's output, and with ``--mumps`` to build the
+library with MUMPS (the ``HAS_MUMPS`` preprocessor directive, for the
+``inertia_control`` option): the sequential MUMPS library (conda-forge's
+``mumps-seq``) must be in the environment (``CONDA_PREFIX``).
 """
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
@@ -108,10 +112,20 @@ def generate_option_setter(path: Path) -> None:
     path.write_text(text)
 
 
-def build_library(prefix: Path) -> None:
-    """build and install the Fortran library with fpm"""
-    subprocess.run(['fpm', 'install', '--profile', 'release', '--flag', '-fPIC', '--prefix', str(prefix)],
-                   cwd=ROOT, check=True)
+#: the sequential, double precision MUMPS library (linked with ``--mumps``)
+MUMPS_LIBRARY = 'dmumps_seq'
+
+
+def build_library(prefix: Path, mumps: bool = False) -> None:
+    """build and install the Fortran library with fpm (with MUMPS, if `mumps`)"""
+    command = ['fpm', 'install', '--profile', 'release', '--prefix', str(prefix)]
+    if mumps:
+        # (the link flag is for the example programs, which fpm builds too)
+        command += ['--flag', f'-fPIC -DHAS_MUMPS -I{Path(os.environ["CONDA_PREFIX"]) / "include"}',
+                    '--link-flag', f'-l{MUMPS_LIBRARY}']
+    else:
+        command += ['--flag', '-fPIC']
+    subprocess.run(command, cwd=ROOT, check=True)
 
 
 def compile_core(prefix: Path, sources: list[Path]) -> tuple[Path, Path]:
@@ -134,10 +148,10 @@ def compile_core(prefix: Path, sources: list[Path]) -> tuple[Path, Path]:
     return library, obj
 
 
-def build(verbose: bool = False) -> Path:
-    """build the extension, and return its path in the package"""
+def build(verbose: bool = False, mumps: bool = False) -> Path:
+    """build the extension (with MUMPS, if `mumps`), and return its path in the package"""
     prefix = BUILD / 'fortran'
-    build_library(prefix)
+    build_library(prefix, mumps)
     options_source = BUILD / 'generated' / 'sqpopt_python_options.f90'
     generate_option_setter(options_source)
 
@@ -153,6 +167,8 @@ def build(verbose: bool = False) -> Path:
                f'-I{core_modules}', f'-I{prefix / "include"}',
                f'-L{core_modules}', '-lsqpopt_python', f'-L{prefix / "lib"}', '-lsqpopt',
                '--build-dir', str(work / 'meson')]
+    if mumps:
+        command += [f'-L{Path(os.environ["CONDA_PREFIX"]) / "lib"}', f'-l{MUMPS_LIBRARY}']
     completed = subprocess.run(command, cwd=work, capture_output=not verbose, text=True)
     if completed.returncode != 0:
         if not verbose:
@@ -168,4 +184,4 @@ def build(verbose: bool = False) -> Path:
 
 
 if __name__ == '__main__':
-    build(verbose='-v' in sys.argv[1:])
+    build(verbose='-v' in sys.argv[1:], mumps='--mumps' in sys.argv[1:])

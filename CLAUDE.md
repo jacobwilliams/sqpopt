@@ -8,7 +8,7 @@ How this library is developed, and what has to be kept in sync when anything cha
 
 | Path | What it holds |
 |---|---|
-| `src/` | The library. `sqpopt_module.F90` has the solver (`initialize`/`solve`), input validation, and all the printed output. `sqpopt_iterate_module.f90` has one major iteration. There is one module per component: problem, options, Hessian, QP solvers, line search, merit, filter, funnel, trust region, restoration, SOC, convergence, and log. `sqpopt_types_module.f90` has the status codes and the results type. |
+| `src/` | The library. `sqpopt_module.F90` has the solver (`initialize`/`solve`), input validation, and all the printed output. `sqpopt_iterate_module.f90` has one major iteration. There is one module per component: problem, options, Hessian, QP solvers, line search, merit, filter, funnel, trust region, restoration, SOC, convergence, inertia control, and log. `sqpopt_inertia_module.F90` is the only code that uses MUMPS, and only inside `#ifdef HAS_MUMPS`. `sqpopt_types_module.f90` has the status codes and the results type. |
 | `test/` | Unit and regression tests (fpm auto-tests: every `test/*.f90` program is a test). It also has the Hock–Schittkowski (HS) harnesses: `test_hs_suite.f90` (305 problems, the main regression and benchmark test), `test_hs_slsqp.f90` (the SLSQP comparison), and `test_hs_solutions.f90`. |
 | `example/` | `hs71.f90` (mirrored in the guide's worked example) and `benchmark.f90`. |
 | `web/` | The user guide (`index.html`), the interactive HS results page (`hs_results.html`, with data in `web/js/*_data.js`), and CSS/JS. CI deploys it to GitHub Pages with the FORD API docs (`web/api`) and coverage (`web/coverage`). |
@@ -25,6 +25,8 @@ How this library is developed, and what has to be kept in sync when anything cha
   pixi run fpm test                                   # everything
   pixi run fpm test test_hs_suite --profile release   # the HS regression test
   pixi run fortitude check                            # lint (src/, example/, and the Python bindings' Fortran)
+  pixi run test-mumps                                 # everything, in the build with MUMPS (HAS_MUMPS)
+  pixi run test-mumps test_hs_suite --profile release -- /dev/null --hessian=exact --inertia
   pixi run build-python                               # rebuild the Python bindings' extension
   pixi run test-python                                # the Python tests (bindings and options dialog)
   ```
@@ -36,6 +38,7 @@ How this library is developed, and what has to be kept in sync when anything cha
 - Every `solve` must start from the configuration given to `initialize`. No state may carry over between solves (`test_resolve` checks this). New component state must be reset at the start of `solve`.
 - Printed output must never stop the solver. Every `write` in the logging and printing code uses `iostat=`, and writes `****` if it fails.
 - Status codes are always referred to by their named constants (`sqpopt_success`, …), never by their numeric values.
+- **MUMPS is optional.** The default build must need nothing but fpm, so MUMPS is only referenced inside `#ifdef HAS_MUMPS` in `sqpopt_inertia_module.F90`. Other code tests `sqpopt_has_mumps` or `inertia%enabled`, and every test must pass in both builds. A change to the inertia control, or to code it shares with the matrix-free shift (the QP re-solve loop in `sqpopt_iterate`, `hessian%shift`), is tested with `pixi run fpm test` and `pixi run test-mumps`.
 
 ## Documentation conventions (FORD)
 
@@ -96,10 +99,11 @@ Before calling a change done, go through the items that apply.
 
 ### Change that can affect convergence (algorithm, defaults, tolerances)
 Run the HS suite in release mode, and compare it with the baseline recorded in the `known_unsolved` comment of `test/test_hs_suite.f90`. That baseline is currently 280 solved, 25 local, 0 failed, and 9,173 `fc` calls.
+- If the change affects the exact Hessian, also run `--hessian=exact` (268 solved, 34 local, 3 failed, 12,833 `fc`) and, in the build with MUMPS, `--hessian=exact --inertia` (274, 29, 2, and 9,581). These two are not regression-tested, so compare them by hand.
 - If problems newly fail, it is a regression. Investigate it, don't just update the baseline.
 - If results change, do all of the following:
   - Update the `known_unsolved` list and the counts and date in its comment.
-  - Regenerate the Performance table with `pixi run tools/hs_performance_table.sh` and paste its rows into the guide's Performance section. The script also regenerates `web/js/hs_results_data.js` and `web/js/hs_slsqp_data.js`.
+  - Regenerate the Performance table with `pixi run tools/hs_performance_table.sh --mumps` and paste its rows into the guide's Performance section (`--mumps` adds the inertia-control row). The script also regenerates `web/js/hs_results_data.js` and `web/js/hs_slsqp_data.js`.
   - Update any numbers quoted elsewhere in the guide or README.
 - If results *don't* change, revert the regenerated files whose diffs are only timestamps: `test/hs_suite_results.md` and `web/js/*_data.js`. A debug-profile run also rewrites `test/hs_suite_results.md` with slightly different counts, so the committed report must come from `--profile release`.
 - When comparing alternatives (an option's value, a new rule), use the harness's command-line options (see `test_hs_suite.f90`'s header). Report the numbers, and give the reasons for the chosen default in its docstring or in the guide.

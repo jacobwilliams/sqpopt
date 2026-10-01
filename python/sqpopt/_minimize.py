@@ -431,7 +431,7 @@ class _Solve:
             constr=self.split(c), v=self.split(lam), z=z,
             constr_violation=float(rinfo[2]), kkt_error=float(rinfo[1]), stationarity_error=float(rinfo[3]),
             execution_time=float(rinfo[4]), n_qp_iterations=int(iinfo[5]),
-            derivative_switch_iteration=int(iinfo[6]))
+            derivative_switch_iteration=int(iinfo[6]), n_factorizations=int(iinfo[13]))
 
 
 def minimize(fun: Callable, x0, args=(), jac=None, hess=None, bounds=None, constraints: Sequence | Any = (),
@@ -487,7 +487,8 @@ def minimize(fun: Callable, x0, args=(), jac=None, hess=None, bounds=None, const
         ``njev`` and ``nhev`` (gradient/Jacobian and Hessian evaluations requested by the solver),
         ``constr`` and ``v`` (the values and multipliers of each constraint object), ``z`` (the
         variable-bound multipliers), ``constr_violation``, ``kkt_error``, ``stationarity_error``,
-        ``execution_time``, ``n_qp_iterations``, and ``derivative_switch_iteration``. The multipliers are
+        ``execution_time``, ``n_qp_iterations``, ``derivative_switch_iteration``, and ``n_factorizations``
+        (of the inertia control: see the ``inertia_control`` option). The multipliers are
         those of the Lagrangian ``f - v^T c - z^T x``: positive at a lower bound, negative at an upper one.
     """
     solve = _Solve(fun, x0, args, jac, hess, bounds, constraints, callback)

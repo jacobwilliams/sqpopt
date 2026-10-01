@@ -44,6 +44,31 @@ The default precision is double. For single or quadruple precision, define
 pixi run fpm test --flag "-DREAL128"
 ```
 
+### Building with MUMPS (optional)
+
+The inertia control of the exact Hessian (`options%inertia_control`, in
+`src/sqpopt_inertia_module.F90`) uses the sparse LDLᵀ factorization of
+[MUMPS](https://mumps-solver.org). It is compiled in only with the
+`HAS_MUMPS` preprocessor directive, so the default build still needs
+nothing but fpm. The pixi environment has the sequential MUMPS library
+(conda-forge's `mumps-seq`), and tasks that build with it:
+
+```sh
+pixi run build-mumps                   # fpm build, with MUMPS
+pixi run test-mumps                    # fpm test, with MUMPS
+pixi run test-mumps test_inertia       # (other arguments go to fpm)
+pixi run test-mumps test_hs_suite --profile release -- results.md --hessian=exact --inertia
+```
+
+They run fpm with
+`--flag "-DHAS_MUMPS -I$CONDA_PREFIX/include" --link-flag "-ldmumps_seq"`:
+the include path is for MUMPS's `dmumps_struc.h`. A program that uses a
+library built this way must link with `-ldmumps_seq` too. Without
+`HAS_MUMPS`, `sqpopt_has_mumps` is false and `inertia_control = .true.` is
+rejected as invalid input. Changes to the inertia control must be tested in
+both builds (`test_inertia` checks the rejection in one, and the feature in
+the other).
+
 ### Tests
 
 The tests are in `test/`:
@@ -52,8 +77,9 @@ The tests are in `test/`:
   `test_qp_reduced_hessian`, and `test_qp_fuzz` (both QP solvers on thousands
   of random convex, nonconvex, degenerate, and infeasible QPs, checked against
   the KKT conditions), `test_hessian_consistency`, `test_acceptance` (merit
-  function, filter, funnel), `test_convergence`, and
-  `test_independent_columns`.
+  function, filter, funnel), `test_convergence`,
+  `test_independent_columns`, and `test_inertia` (the inertia control, in a
+  build with MUMPS).
 - **Solver tests** on small problems with known solutions (`test_basic`,
   `test_hs71`, `test_medium`, `test_maratos`, and `test_degenerate`, a
   constraint tangent to a bound), larger sparse ones
@@ -72,7 +98,7 @@ The tests are in `test/`:
   ```
 
   The options are `--linesearch=`, `--merit=`, `--penalty=`, `--hessian=`,
-  `--qp=`, `--restoration=`, `--trust-region`, `--no-interpolate`,
+  `--inertia`, `--qp=`, `--restoration=`, `--trust-region`, `--no-interpolate`,
   `--nonmonotone=N`, `--lbfgs-memory=N`, `--problem=N`, `--print=L`, and
   `--web-data=FILE` (see the header of `test/test_hs_suite.f90`).
 - **`test_hs_solutions`** checks the collection's reference solutions: at
@@ -101,7 +127,7 @@ pixi run fpm run --example benchmark --profile release
 |---|---|
 | `coverage.sh` | runs the tests with `--coverage` and makes an lcov HTML report in `coverage/html` (dark-mode aware) |
 | `pixi run fortitude check` | lints the Fortran sources with [Fortitude](https://fortitude.readthedocs.io) (configured in `fortitude.toml`; also run by the VS Code extension) |
-| `tools/hs_performance_table.sh` | runs the HS suite in every configuration of the guide's Performance table and prints the table rows. It also regenerates the data of the results page (`web/js/hs_results_data.js`, `web/js/hs_slsqp_data.js`). Run it whenever a change affects the HS results. |
+| `tools/hs_performance_table.sh --mumps` | runs the HS suite in every configuration of the guide's Performance table and prints the table rows. It also regenerates the data of the results page (`web/js/hs_results_data.js`, `web/js/hs_slsqp_data.js`). Run it whenever a change affects the HS results. (`--mumps` builds with MUMPS, for the inertia-control row; without it that row is left out.) |
 | `tools/hs_compare.sh N [options]` | runs HS problem `N` with SQPOPT and SLSQP, printing both solvers' iterations, for investigating a difference |
 | `python/` | Python bindings with a `scipy.optimize.minimize`-like interface, and a Qt options dialog for SQPOPT (see [python/README.md](python/README.md)) |
 
@@ -137,6 +163,7 @@ architecture ([PLAN.md](plan/PLAN.md)), the backlog
 | `sqpopt_options_module` | the solver options |
 | `sqpopt_types_module` | status codes, the sparse matrix and results types, and small utilities |
 | `sqpopt_hessian_module` | the limited-memory BFGS/SR1 approximations, and the exact Hessian |
+| `sqpopt_inertia_module` | inertia control of the exact Hessian, with MUMPS (only in a build with `HAS_MUMPS`) |
 | `sqpopt_qp_solver_module` | the QP subproblem front end, which chooses a solver |
 | `sqpopt_qp_dense_module` | the dense active-set QP |
 | `sqpopt_qp_reduced_hessian_module` | the sparse active-set QP (LUSOL basis, reduced-Hessian CG) |
@@ -152,8 +179,8 @@ architecture ([PLAN.md](plan/PLAN.md)), the backlog
 ## Continuous integration
 
 On every push, [CI](.github/workflows/CI.yml) builds the pixi environment
-from the locked `pixi.lock`, runs the tests with coverage, and builds the
-FORD documentation. On `master`, it deploys `web/` (with the coverage
+from the locked `pixi.lock`, runs the tests with MUMPS, then again without
+it and with coverage, and builds the FORD documentation. On `master`, it deploys `web/` (with the coverage
 report and API docs) to GitHub Pages.
 
 ## Dependencies
@@ -164,6 +191,10 @@ Fetched and built by fpm:
 - [lusol](https://github.com/jacobwilliams/lusol): sparse LU factorization (the sparse QP's basis factors and updates)
 - [fmin](https://github.com/jacobwilliams/fmin): derivative-free 1-D minimization (the exact line search)
 - [slsqp](https://github.com/jacobwilliams/slsqp) (tests only): the SLSQP comparison
+
+Optional, from the pixi environment (see "Building with MUMPS"):
+
+- [MUMPS](https://mumps-solver.org): sparse symmetric indefinite factorization (the inertia control of the exact Hessian)
 
 ## License
 

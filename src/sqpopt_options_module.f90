@@ -36,6 +36,13 @@
                                                    !! their bounds, multipliers, and which are active)
         integer  :: output_unit       = output_unit !! Fortran unit for the printed output (default: standard output)
         integer  :: hessian_mode      = sqpopt_hessian_bfgs !! Hessian approximation strategy to use
+        logical  :: inertia_control   = .false.   !! with `hessian_mode = sqpopt_hessian_exact`: find the shift of an
+                                                   !! indefinite Hessian from the inertia of the KKT matrix, by a
+                                                   !! sparse factorization (see [[sqpopt_inertia_module]]), instead
+                                                   !! of from the QP solver's tests alone. It needs a library built
+                                                   !! with MUMPS (the `HAS_MUMPS` preprocessor directive, see
+                                                   !! `sqpopt_has_mumps`), and is invalid without it. It is not used
+                                                   !! with the other Hessian modes
         integer  :: lbfgs_memory      = 0         !! number of `(s,y)` vector pairs retained by the limited-memory
                                                    !! Hessian approximation. `0` (the default) picks it from the problem
                                                    !! size `n`: \( \max(10, \min(n, 100)) \) -- more pairs help the

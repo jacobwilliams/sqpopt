@@ -85,6 +85,7 @@
 
         procedure, public :: solve => solve_qp_subproblem
         procedure, public :: mode_name
+        procedure, public :: working_set
 
     end type sqpopt_qp_solver_type
 
@@ -195,6 +196,34 @@
     end if
 
     end function resolved_mode
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the final working set of the last QP solve with `n` variables and `m`
+!  constraints: the side (`-1` lower, `+1` upper, `0` not in the working
+!  set) of each general row, then of each variable bound. `status` is
+!  returned unallocated if there is none (no QP of that size has been
+!  solved yet).
+
+    subroutine working_set(me, n, m, status)
+
+    class(sqpopt_qp_solver_type),       intent(in)  :: me
+    integer,                            intent(in)  :: n      !! number of variables
+    integer,                            intent(in)  :: m      !! number of constraints
+    integer, dimension(:), allocatable, intent(out) :: status !! the working set `dimension(m+n)` (see above)
+
+    select case (resolved_mode(me, n))
+    case (sqpopt_qp_dense)
+        if (allocated(me%dense_qp%warm_status)) status = me%dense_qp%warm_status
+    case default
+        if (allocated(me%sparse_qp%warm_status)) status = me%sparse_qp%warm_status
+    end select
+    if (allocated(status)) then
+        if (size(status) /= m + n) deallocate(status)
+    end if
+
+    end subroutine working_set
 !*******************************************************************************
 
 !*******************************************************************************

@@ -79,6 +79,8 @@
         real(wp) :: time_functions = 0.0_wp !! of which, in the user's functions
         real(wp) :: time_qp        = 0.0_wp !! of which, in the QP subproblem solver
         integer  :: n_qp_iterations      = 0 !! total active-set iterations of the QP subproblem solves
+        integer  :: n_factorizations     = 0 !! factorizations of the KKT matrix by the inertia control (see
+                                             !! `options%inertia_control`; `0` without it)
         integer  :: n_soc                = 0 !! accepted second-order-corrected steps
         integer  :: n_hessian_resets     = 0 !! iterations in which the Hessian approximation was reset (or, with the
                                              !! exact Hessian, its shift increased)
