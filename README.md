@@ -101,7 +101,8 @@ The tests are in `test/`:
   with MUMPS, with every Hessian mode), and `test_multipliers` (the
   least-squares multiplier estimate, and a hanging chain that the exact
   Hessian only solves with it), larger sparse ones
-  (`test_large_sparse`), and regression tests of the interface and edge cases
+  (`test_large_sparse`), 17 bound-constrained functions of any size
+  (`test_scalable`), and regression tests of the interface and edge cases
   (`test_callbacks`, `test_input_validation`, `test_infeasible`,
   `test_nonfinite`, `test_resolve`, `test_results`, `test_termination`, ...).
 - **`test_hs_suite`**: the 305 Hock-Schittkowski problems

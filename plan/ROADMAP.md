@@ -1295,6 +1295,38 @@ which is now double precision only.
 
 ## 6. Testing and infrastructure
 
+- **Scalable bound-constrained functions** *(done 2026-10-02)*:
+  `test_scalable`, with 17 functions converted from the Julia package
+  NonlinearOptimizationTestFunctions.jl (`test/scalable_functions.f90`:
+  values, gradients, and, for the 12 with a sparse Hessian, Hessians, all
+  checked by finite differences). The package has only bounds, no other
+  constraints, so this tests the bound-constrained path. The default run
+  (20 and 1000 variables) passes in both builds. What the larger runs
+  showed, none of it fixed (release build):
+  - *L-BFGS on ill-conditioned functions at 1000 variables is slow, and
+    fails on two.* `trid` ends with "line search failed" after 1106
+    iterations (28 s), and `rosenbrock` reaches 2000 iterations (31 s);
+    `ellipsoid`, `dixon_price`, and `qing` converge in 150 to 240
+    iterations and 2 to 4 s. With the exact Hessian all five take less
+    than 0.5 s. (These are skipped in the default run.)
+  - *`trid` at 100,000 variables with the direct QP never finishes its
+    first QP* (stopped after 30 s; at 10,000 it takes 0.1 s). Not
+    investigated. A guess: the condition number of its Hessian grows with
+    `n^2`, so the direct solve may fail its accuracy test, and the
+    active-set fallback has 100,000 free variables.
+  - *The dense QP is slow at its upper size.* With 200 variables (the
+    largest that `sqpopt_qp_auto` gives to the dense QP) and no
+    constraints, `brown` took 1.9 s for 9 iterations, against 0.002 s with
+    1000 variables and the sparse QP. `auto_dense_max_n = 200` may be too
+    large for problems with many free variables.
+  - *A starting point with a very large gradient gives a loose solution.*
+    The objective is scaled by its gradient at the start, and convergence
+    is tested on the scaled problem: `zakharov` at 1000 variables stops
+    with status "acceptable" at `f = 5.3e6` (minimum 0, start about
+    `4e21`), and `schwefel12` at `f = 593` (start `8e11`).
+  - *The chained Rosenbrock function takes about 1.7 iterations per
+    variable with the exact Hessian* (1704 at 1000 variables, 0.4 s).
+
 - **CUTEst test problems, as a pure-Fortran harness** *(planned,
   deferred 2026-09-27)*. A test like `test_hs_suite` on problems from the
   CUTEst collection ([ralna/CUTEst](https://github.com/ralna/CUTEst): the
