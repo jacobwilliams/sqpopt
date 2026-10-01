@@ -97,8 +97,10 @@ The tests are in `test/`:
   search). `test_qp_fuzz` gives its QPs to the direct method too.
 - **Solver tests** on small problems with known solutions (`test_basic`,
   `test_hs71`, `test_medium`, `test_maratos`, `test_degenerate` (a
-  constraint tangent to a bound), and `test_direct` (the options of a build
-  with MUMPS, with every Hessian mode), larger sparse ones
+  constraint tangent to a bound), `test_direct` (the options of a build
+  with MUMPS, with every Hessian mode), and `test_multipliers` (the
+  least-squares multiplier estimate, and a hanging chain that the exact
+  Hessian only solves with it), larger sparse ones
   (`test_large_sparse`), and regression tests of the interface and edge cases
   (`test_callbacks`, `test_input_validation`, `test_infeasible`,
   `test_nonfinite`, `test_resolve`, `test_results`, `test_termination`, ...).

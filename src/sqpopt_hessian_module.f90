@@ -38,6 +38,12 @@
 !  [[sqpopt_inertia_module]]), and only the increases after a failed step
 !  or a run of very short ones are carried over to the next iteration.
 !
+!  The exact Hessian depends on the multipliers it is evaluated with. After
+!  a step whose shift was large (`shift_dominant`), the QP's multipliers
+!  mostly balance the shift, so [[sqpopt_iterate]] replaces them by a
+!  least-squares estimate before evaluating the next Hessian (see
+!  [[multiplier_estimate]]).
+!
 !  **For the sparse factorizations** (see [[sqpopt_kkt_module]]), the
 !  quasi-Newton matrix is available in its compact form, a multiple of the
 !  identity plus a matrix of low rank `r`:
@@ -98,6 +104,10 @@
         real(wp) :: shift_max = 1.0e10_wp !! largest shift, relative to the same
         real(wp) :: shift = 0.0_wp  !! the current shift \( \delta \) (added to the diagonal in every mode; in the
                                     !! quasi-Newton modes it is zero unless the inertia control sets it)
+        logical  :: shift_dominant = .false. !! whether the shift's term \( \delta p \) of the last step was at least
+                                    !! as large as the gradient: the QP's multipliers are then mostly an
+                                    !! artifact of the shift (internal state, set and used by
+                                    !! [[sqpopt_iterate]], which then re-estimates them)
         integer, dimension(:), allocatable :: h_irow !! sparsity pattern: row indices
         integer, dimension(:), allocatable :: h_icol !! sparsity pattern: column indices
         real(wp), dimension(:), allocatable :: h_val !! current nonzero values
@@ -160,6 +170,7 @@
     if (present(use_sr1)) me%use_sr1 = use_sr1
     me%exact       = .false.
     me%shift       = 0.0_wp
+    me%shift_dominant = .false.
 
     if (allocated(me%s))     deallocate(me%s)
     if (allocated(me%y))     deallocate(me%y)

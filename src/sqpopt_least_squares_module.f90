@@ -27,16 +27,25 @@
 !  Jacobian's largest element) keeps the matrix nonsingular when the rows
 !  are dependent; as \( \epsilon \to 0 \), `d` tends to the minimum-norm
 !  least-squares solution.
+!
+!  The same matrix, with another right-hand side, gives the least-squares
+!  *multiplier estimate* \( \lambda = \arg\min \lVert g - J_S^T \lambda
+!  \rVert \) of [[multiplier_estimate]], which [[sqpopt_iterate]] uses
+!  when the QP's multipliers can't be trusted. That routine works in every
+!  build: it uses `LSQR` unless this module's direct solver is enabled.
 
     module sqpopt_least_squares_module
 
     use sqpopt_kinds,        only: wp => sqpopt_module_wp
     use sqpopt_types_module, only: sqpopt_sparse_matrix, sqpopt_all_finite
     use sqpopt_kkt_module,   only: sqpopt_kkt_type
+    use lsqr_module,         only: lsqr_solver_ez
 
     implicit none
 
     private
+
+    public :: multiplier_estimate
 
     real(wp), parameter :: reg = 1.0e-8_wp !! the regularization \( \epsilon \), relative to the square of the
                                            !! Jacobian's largest element (it limits the relative accuracy of
@@ -61,6 +70,7 @@
         procedure, public :: initialize   => least_squares_initialize
         procedure, public :: new_matrices => least_squares_new_matrices
         procedure, public :: min_norm     => least_squares_min_norm
+        procedure, public :: multipliers  => least_squares_multipliers
         procedure, public :: destroy      => least_squares_destroy
 
     end type sqpopt_least_squares_type
@@ -152,6 +162,132 @@
     d = v(1:me%n)
 
     end subroutine least_squares_min_norm
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the (regularized) least-squares multipliers of the rows `S` of `jac`
+!  selected by `rows`, in the variables selected by `free`:
+!  \( \lambda = (J_S J_S^T + \epsilon I)^{-1} J_S\, g \), from the system
+!  of the module documentation with the right-hand side \( (g, 0) \).
+!  `lambda` is only set for the rows in `S`. `ok` is false if the solver
+!  isn't enabled, or the factorization or the solve failed (the solver is
+!  then disabled for the rest of the solve).
+
+    subroutine least_squares_multipliers(me, jac, rows, free, g, lambda, ok)
+
+    class(sqpopt_least_squares_type), intent(inout) :: me
+    type(sqpopt_sparse_matrix), intent(in)    :: jac    !! the constraint Jacobian `dimension(m,n)`
+    logical,  dimension(:),     intent(in)    :: rows   !! whether each row is in `S` `dimension(m)`
+    logical,  dimension(:),     intent(in)    :: free   !! whether each variable is free (not at a bound) `dimension(n)`
+    real(wp), dimension(:),     intent(in)    :: g      !! the objective gradient `dimension(n)`
+    real(wp), dimension(:),     intent(inout) :: lambda !! the multipliers `dimension(m)` (set for the rows in `S`)
+    logical,                    intent(out)   :: ok     !! whether they were computed
+
+    integer,  dimension(me%m + me%n) :: status
+    real(wp), dimension(me%n + me%m) :: v
+    real(wp) :: jmax
+
+    ok = .false.
+    if (.not. me%enabled) return
+
+    ! (the working set is the rows of `S`, and the variables that are not free)
+    status = 0
+    where (rows) status(1:me%m) = 1
+    where (.not. free) status(me%m+1:) = 1
+    jmax = 1.0_wp
+    if (jac%nnz > 0) jmax = max(1.0_wp, maxval(abs(jac%val(1:jac%nnz))))
+
+    call me%kkt%factor_identity(1.0_wp, jac, status, reg*jmax**2, ok)
+    if (ok) then
+        v(1:me%n)  = merge(g, 0.0_wp, free)
+        v(me%n+1:) = 0.0_wp
+        call me%kkt%solve(v, ok)
+        if (ok) ok = sqpopt_all_finite(v(me%n+1:))
+    end if
+    if (.not. ok) then
+        me%enabled = .false.
+        return
+    end if
+    where (rows) lambda = v(me%n+1:)
+
+    end subroutine least_squares_multipliers
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  a first-order estimate of the constraint multipliers at a point: the
+!  least-squares solution of the stationarity condition
+!
+!  $$ \lambda = \arg\min \lVert (g - J_S^T \lambda)_{\text{free}} \rVert_2 $$
+!
+!  over the rows `S` of `jac` selected by `rows`, in the variables selected
+!  by `free` (those not at a bound, whose bound multipliers are not zero).
+!  Unlike the multipliers of a QP subproblem, it doesn't depend on the QP's
+!  Hessian. `lambda` is only set for the rows in `S`, and only if `ok`.
+!
+!  It is computed by the direct solver `least_squares`, if that is given
+!  and enabled (see `options%direct_least_squares`), and otherwise by the
+!  iterative solver `LSQR`; `ok` is false if that stops at its iteration
+!  limit.
+
+    subroutine multiplier_estimate(jac, rows, free, g, lambda, ok, least_squares)
+
+    type(sqpopt_sparse_matrix), intent(in)    :: jac    !! the constraint Jacobian `dimension(m,n)`
+    logical,  dimension(:),     intent(in)    :: rows   !! whether each row is in `S` `dimension(m)`
+    logical,  dimension(:),     intent(in)    :: free   !! whether each variable is free (not at a bound) `dimension(n)`
+    real(wp), dimension(:),     intent(in)    :: g      !! the objective gradient `dimension(n)`
+    real(wp), dimension(:),     intent(inout) :: lambda !! the multipliers `dimension(m)` (set for the rows in `S`)
+    logical,                    intent(out)   :: ok     !! whether they were computed
+    type(sqpopt_least_squares_type), optional, intent(inout) :: least_squares !! the direct least-squares solver
+
+    integer, parameter :: lsqr_itnlim_stop = 5 !! `LSQR`'s `istop` for "iteration limit reached"
+    type(lsqr_solver_ez) :: lsqr
+    integer,  dimension(:), allocatable :: irow, icol, col_of_row
+    real(wp), dimension(:), allocatable :: val, lam
+    integer :: m, n, m_s, nnz_s, i, k, istop
+
+    m = size(rows)
+    n = size(free)
+    ok = .false.
+    m_s = count(rows)
+    if (m_s == 0) return
+
+    if (present(least_squares)) then
+        call least_squares%multipliers(jac, rows, free, g, lambda, ok)
+        if (ok) return
+    end if
+
+    ! the transposed sub-Jacobian (free variables x rows of S), for LSQR:
+    allocate(col_of_row(m))
+    col_of_row = 0
+    k = 0
+    do i = 1, m
+        if (rows(i)) then
+            k = k + 1
+            col_of_row(i) = k
+        end if
+    end do
+    allocate(irow(jac%nnz), icol(jac%nnz), val(jac%nnz), lam(m_s))
+    nnz_s = 0
+    do k = 1, jac%nnz
+        if (rows(jac%irow(k)) .and. free(jac%icol(k))) then
+            nnz_s = nnz_s + 1
+            irow(nnz_s) = jac%icol(k)
+            icol(nnz_s) = col_of_row(jac%irow(k))
+            val(nnz_s)  = jac%val(k)
+        end if
+    end do
+
+    call lsqr%initialize(n, m_s, val(1:nnz_s), irow(1:nnz_s), icol(1:nnz_s), itnlim=4*(m_s+n)+10)
+    call lsqr%solve(merge(g, 0.0_wp, free), 0.0_wp, lam, istop)
+    if (istop == lsqr_itnlim_stop .or. .not. sqpopt_all_finite(lam)) return
+    do i = 1, m
+        if (rows(i)) lambda(i) = lam(col_of_row(i))
+    end do
+    ok = .true.
+
+    end subroutine multiplier_estimate
 !*******************************************************************************
 
 !*******************************************************************************

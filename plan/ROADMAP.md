@@ -960,8 +960,21 @@ which is now double precision only.
   indefinite matrix (the solve ended as out of memory), and a face that
   MUMPS wrongly found singular was regularized too coarsely for its step
   to be accepted. Both fixed. The guide's large-problem timings were
-  re-measured on an idle machine. Open: the exact Hessian stalls at a
-  non-optimal point on a hanging-chain problem (L-BFGS solves it).
+  re-measured on an idle machine.
+- **Multiplier estimate for the exact Hessian (2026-10-02).** On a
+  hanging-chain problem the exact Hessian stalled far from the solution:
+  the multipliers of a QP solved with a large shift mostly balance the
+  shift, the Hessian evaluated with them is more indefinite, and needs a
+  larger shift (multipliers reached 1e13). After a step with
+  δ‖p‖∞ ≥ max(1, ‖g‖∞), the multipliers are now re-estimated by least
+  squares (`multiplier_estimate`, by `LSQR` or the direct solver) before
+  the Hessian is evaluated. This is independent of MUMPS. HS suite, exact
+  Hessian: 270/32/3 with 11,267 `fc` (was 268/34/3, 12,833); with inertia
+  control 274/29/2, 9,472; with the direct QP too 273/29/3, 9,330 (TP374
+  now runs to the iteration limit). New test `test_multipliers`. Variants
+  tried: always re-estimating (270/33/2 but 13,883 `fc`), also after a
+  capped step (up to 16,497 `fc`: TP380 and TP335 crawl), thresholds 0.01
+  to 100 (little difference).
 
 ## 2. Bugs: correctness (fix first)
 

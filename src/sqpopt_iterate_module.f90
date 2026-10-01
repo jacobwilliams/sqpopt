@@ -7,7 +7,9 @@
 !  (limited-memory quasi-Newton, or the user's exact Hessian with an
 !  inertia-correcting shift, found from the QP solver's tests or, with
 !  `options%inertia_control`, from a factorization, which also corrects
-!  SR1: see [[sqpopt_inertia_module]]), solves the QP subproblem for the
+!  SR1: see [[sqpopt_inertia_module]]; before the exact Hessian is
+!  evaluated, multipliers that came from a QP with a large shift are
+!  re-estimated by least squares), solves the QP subproblem for the
 !  search direction (directly, if it can, with `options%direct_qp`: see
 !  [[sqpopt_qp_direct_module]]; and re-solving it with diverging-multiplier
 !  constraints elastic, see `options%elastic_multiplier_limit`), and takes
@@ -43,7 +45,7 @@
                                           sqpopt_restoration_phase
     use sqpopt_inertia_module,      only: sqpopt_inertia_type
     use sqpopt_kkt_module,          only: sqpopt_kkt_type
-    use sqpopt_least_squares_module, only: sqpopt_least_squares_type
+    use sqpopt_least_squares_module, only: sqpopt_least_squares_type, multiplier_estimate
     use sqpopt_qp_direct_module,    only: direct_outcome_text
 
     implicit none
@@ -212,6 +214,12 @@
         done  = .true.
         return
     end if
+
+    ! with the exact Hessian: if the last step's shift dominated it, the QP's
+    ! multipliers are mostly an artifact of the shift, and the Hessian that
+    ! is about to be evaluated with them would be too (see `estimate_multipliers`)
+    if (hessian%shift_dominant) call estimate_multipliers()
+    hessian%shift_dominant = .false.
 
     ! report progress on the current iterate, if the user has supplied a
     ! callback, before doing any further work this iteration -- this
@@ -672,6 +680,11 @@
     info%glob         = glob_value()
     info%hess_measure = merge(hessian%shift, real(hessian%n_history, wp), options%hessian_mode == sqpopt_hessian_exact)
 
+    ! (see `estimate_multipliers`: the shift's term of the QP's stationarity
+    ! condition, against the gradient's)
+    hessian%shift_dominant = options%hessian_mode == sqpopt_hessian_exact .and. .not. restore .and. problem%m > 0 .and. &
+                             hessian%shift*maxval(abs(x_new - x)) >= max(1.0_wp, maxval(abs(g)))
+
     x      = x_new
     lambda = new_lambda
 
@@ -716,6 +729,39 @@
     end if
 
     contains
+
+        subroutine estimate_multipliers()
+        !! replace the constraint multipliers by their least-squares estimate at
+        !! the current point (see [[multiplier_estimate]]), over the equality
+        !! constraints and the inequalities whose multiplier is nonzero, in the
+        !! variables that are not at a bound. An inequality's multiplier is only
+        !! replaced if the estimate has the same sign.
+        !!
+        !! This is for the exact Hessian, after a step whose shift
+        !! \( \delta \) dominated it
+        !! (\( \delta \lVert p \rVert_\infty \ge \max(1, \lVert g \rVert_\infty) \)).
+        !! The QP's multipliers satisfy \( g + (H + \delta I)p = J^T\lambda \),
+        !! so they then mostly balance the shift's term \( \delta p \), and can
+        !! be orders of magnitude too large. The exact Hessian is evaluated with
+        !! the multipliers, so it would be too, and need a still larger shift:
+        !! on a hanging-chain problem this fed on itself until the multipliers
+        !! were `1e13`, the steps `1e-9`, and the solver stopped as stalled far
+        !! from the solution. The estimate doesn't depend on the shift.
+        logical,  dimension(problem%m) :: rows
+        real(wp), dimension(problem%m) :: estimate
+        logical :: ok
+        integer :: i
+        rows = (problem%c_ub - problem%c_lb <= 0.0_wp) .or. lambda /= 0.0_wp
+        estimate = lambda
+        call multiplier_estimate(jac, rows, x > problem%x_lb .and. x < problem%x_ub, g, estimate, ok, &
+                                 least_squares=least_squares)
+        if (.not. ok) return
+        do i = 1, problem%m
+            if (problem%c_ub(i) - problem%c_lb(i) <= 0.0_wp .or. estimate(i)*lambda(i) > 0.0_wp) lambda(i) = estimate(i)
+        end do
+        call lg%put(sqpopt_log_detail, 'multipliers re-estimated by least squares (the Hessian''s shift dominated '// &
+                    'the last step): largest '//fmt_e(maxval(abs(lambda))))
+        end subroutine estimate_multipliers
 
         subroutine convergence_tests()
         !! the convergence tests at the current point, setting `done` and `istat`

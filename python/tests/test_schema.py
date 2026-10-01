@@ -23,7 +23,7 @@ SRC = pathlib.Path(__file__).resolve().parents[2] / 'src'
 TYPES = {
     ('options',): ('sqpopt_options_module.f90', 'sqpopt_options_type', set()),
     ('hessian',): ('sqpopt_hessian_module.f90', 'sqpopt_hessian_type',
-                   {'n', 'max_history', 'n_history', 'use_sr1', 'first', 'gamma', 'gamma0', 'exact', 'shift',
+                   {'n', 'max_history', 'n_history', 'use_sr1', 'first', 'gamma', 'gamma0', 'exact', 'shift', 'shift_dominant',
                     'mid_valid', 'mid_ok', 'diag_valid'}),
     ('qp_solver',): ('sqpopt_qp_solver_module.f90', 'sqpopt_qp_solver_type',
                      {'mode', 'step_scale', 'capped', 'n_short', 'n_elastic', 'n_iter', 'negative_curvature', 'n_working',
