@@ -260,7 +260,7 @@
     ! second-order decrease of the violation (see [[escape_step]]), and if
     ! one is found, continue from there (a limited number of times):
     if (done .and. istat == sqpopt_infeasible .and. n_escape < max_escape) then
-        call escape_step(problem, jac, x, c, x_new, step_istat)
+        call escape_step(problem, jac, x, c, options%ktol, x_new, step_istat)
         if (step_istat == sqpopt_success) then
             call lg%put(sqpopt_log_detail, 'escape step from a stationary point of the violation '// &
                         '(the Hessian approximation is reset)')

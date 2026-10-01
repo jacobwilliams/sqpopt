@@ -814,6 +814,24 @@ that TP294–299's NLPQLP counts are anomalous: 72 and 114 evaluations for
 SLSQP's grow linearly with `n`, as expected on the chained Rosenbrock
 function.)
 
+**Escape step in `real128` (2026-09-30).** With `-DREAL128`, TP88 stopped
+as infeasible next to its symmetry plane `x₂ = 0`: without `real64`'s
+round-off the iterates stay near the plane (`x₂` ≈ 1e-23, growing to 1e-8
+by the time the violation is stationary), and `escape_step` didn't probe
+`x₂`, because its Jacobian column (~1e-8) was far above the relative
+threshold `sqrt(epsilon)` (1e-17 in `real128`). A column is now also
+negligible below `ktol`, the tolerance of the stationarity test that
+triggers the escape (new test `test_escape`). `real64` HS suite unchanged
+(280/25/0, 8,963 `fc`; `--qp=sparse` and `--qp=sparse-lsqr` +6 `fc`, same
+outcomes). `real128` (debug): 278/26/1 → 279/26/0. Also fixed
+in the HS harness: the COMMON blocks shared with the `DOUBLE PRECISION`
+problem code are declared with that kind in every build, and
+finite-difference steps are based on the accuracy of the function values
+(`hs_epsilon`). Still open in `real128`: TP61 ends at another local
+solution, so `test_hs_suite`'s regression check (a `real64` baseline)
+fails there. TP299 takes ~90 s (the dense QP in software quad
+arithmetic), which looks like a hang.
+
 ## 2. Bugs: correctness (fix first)
 
 | # | Issue | Where | Evidence |

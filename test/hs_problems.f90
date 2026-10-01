@@ -31,8 +31,15 @@
     private
 
     integer, parameter :: nmax = 101, mmax = 50  !! sizes of the original COMMON blocks
+    integer, parameter :: pk = kind(1.0d0)       !! real kind of the original code (`DOUBLE PRECISION`, whatever `dp` is):
+                                                 !! the COMMON blocks must be declared with it, and the values are
+                                                 !! converted to and from `dp` by the routines here
 
     real(dp), parameter, public :: hs_infinity = 1.0e20_dp  !! value used for absent bounds
+    real(dp), parameter, public :: hs_epsilon = max(epsilon(1.0_dp), real(epsilon(1.0_pk), dp))
+        !! relative accuracy of the function values returned here: the original code computes them in
+        !! `DOUBLE PRECISION`, so they are no more accurate than that when `dp` is `real128` (finite-difference
+        !! steps must be based on this, not on `epsilon(1.0_dp)`)
 
     integer, parameter, public :: hs_n_problems = 305  !! number of problems in the collection
     integer, dimension(hs_n_problems), parameter, public :: hs_problem_ids = [ &
@@ -125,9 +132,9 @@
 
     ! the original COMMON blocks (see `PROB.FOR`):
     integer  :: n_, nili, ninl, neli, nenl
-    real(dp) :: x_(nmax), g_(mmax), gf_(nmax), gg_(mmax,nmax), fx_
+    real(pk) :: x_(nmax), g_(mmax), gf_(nmax), gg_(mmax,nmax), fx_
     logical  :: index1(mmax), index2(mmax), lxl(nmax), lxu(nmax), lex
-    real(dp) :: xl(nmax), xu(nmax), fex, xex(nmax)
+    real(pk) :: xl(nmax), xu(nmax), fex, xex(nmax)
     integer  :: nex
     common /l1/  n_, nili, ninl, neli, nenl
     common /l2/  x_
@@ -505,35 +512,35 @@
 
     if (hs_index(id) == 0) error stop 'hs_setup: no such problem'
     lxl = .false.; lxu = .false.; lex = .false.
-    xl = 0.0_dp; xu = 0.0_dp; fex = 0.0_dp; xex = 0.0_dp
+    xl = 0.0_pk; xu = 0.0_pk; fex = 0.0_pk; xex = 0.0_pk
     ! (many problems set the constant elements of their derivatives here, in
     ! mode 1, and never again, so these must be cleared now -- and only now:)
-    gf_ = 0.0_dp; gg_ = 0.0_dp
+    gf_ = 0.0_pk; gg_ = 0.0_pk
     call call_problem(id, 1)
 
     prob%id = id
     prob%n  = n_
     prob%me = neli + nenl
     prob%m  = nili + ninl + prob%me
-    prob%x0 = x_(1:n_)
+    prob%x0 = real(x_(1:n_), dp)
     allocate(prob%x_lb(n_), prob%x_ub(n_))
     do i = 1, n_
-        prob%x_lb(i) = merge(xl(i), -hs_infinity, lxl(i))
-        prob%x_ub(i) = merge(xu(i),  hs_infinity, lxu(i))
+        prob%x_lb(i) = merge(real(xl(i), dp), -hs_infinity, lxl(i))
+        prob%x_ub(i) = merge(real(xu(i), dp),  hs_infinity, lxu(i))
     end do
     ! (a few problems -- TP358, 369, 376, 379, 383 -- clip x to XL/XU inside
     ! their function evaluations, also on a side declared unbounded, where
     ! XL/XU were never set: make that side really unbounded, or e.g. TP379's
     ! objective would be constant, with every x clipped to 0)
-    where (.not. lxl(1:n_)) xl(1:n_) = -hs_infinity
-    where (.not. lxu(1:n_)) xu(1:n_) =  hs_infinity
+    where (.not. lxl(1:n_)) xl(1:n_) = -real(hs_infinity, pk)
+    where (.not. lxu(1:n_)) xu(1:n_) =  real(hs_infinity, pk)
     allocate(prob%c_lb(prob%m), prob%c_ub(prob%m))
     prob%c_lb = 0.0_dp
     prob%c_ub = hs_infinity
     prob%c_ub(prob%m-prob%me+1:prob%m) = 0.0_dp
     prob%exact  = lex
-    prob%f_star = fex
-    prob%x_star = xex(1:n_)
+    prob%f_star = real(fex, dp)
+    prob%x_star = real(xex(1:n_), dp)
 
     end subroutine hs_setup
 !*******************************************************************************
@@ -549,9 +556,9 @@
     real(dp), dimension(:), intent(in)  :: x
     real(dp),               intent(out) :: f
 
-    x_(1:size(x)) = x
+    x_(1:size(x)) = real(x, pk)
     call call_problem(id, 2)
-    f = fx_
+    f = real(fx_, dp)
 
     end subroutine hs_f
 !*******************************************************************************
@@ -567,10 +574,10 @@
     real(dp), dimension(:), intent(in)  :: x
     real(dp), dimension(:), intent(out) :: g
 
-    x_(1:size(x)) = x
+    x_(1:size(x)) = real(x, pk)
     call call_problem(id, 2)   ! (some problems compute shared terms in mode 2)
     call call_problem(id, 3)
-    g = gf_(1:size(x))
+    g = real(gf_(1:size(x)), dp)
 
     end subroutine hs_g
 !*******************************************************************************
@@ -587,10 +594,10 @@
     real(dp), dimension(:), intent(out) :: c
 
     if (size(c) == 0) return
-    x_(1:size(x)) = x
+    x_(1:size(x)) = real(x, pk)
     index1 = .true.
     call call_problem(id, 4)
-    c = g_(1:size(c))
+    c = real(g_(1:size(c)), dp)
 
     end subroutine hs_c
 !*******************************************************************************
@@ -608,12 +615,12 @@
     real(dp), dimension(:,:), intent(out) :: jac
 
     if (size(jac,1) == 0) return
-    x_(1:size(x)) = x
+    x_(1:size(x)) = real(x, pk)
     index1 = .true.
     index2 = .true.
     call call_problem(id, 4)   ! (some problems compute shared terms in mode 4)
     call call_problem(id, 5)
-    jac = gg_(1:size(jac,1), 1:size(jac,2))
+    jac = real(gg_(1:size(jac,1), 1:size(jac,2)), dp)
 
     end subroutine hs_jac
 !*******************************************************************************

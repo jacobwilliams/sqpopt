@@ -13,7 +13,7 @@
     module hs_derivatives_module
 
     use sqpopt_kinds, only: dp => sqpopt_module_wp
-    use hs_problems_module, only: hs_problem, hs_f, hs_g, hs_c, hs_jac
+    use hs_problems_module, only: hs_problem, hs_f, hs_g, hs_c, hs_jac, hs_epsilon
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
 
     implicit none
@@ -166,12 +166,14 @@
     !! upper bound). Some problems' functions have a kink at a bound (e.g.
     !! TP358 clips `x` to its bounds), where a central difference would
     !! average across it (TP331, 358, 376, 383 start on such a bound).
+    !! The step is based on the accuracy of the function values
+    !! (`hs_epsilon`), which isn't that of `dp` in a `real128` build.
     real(dp), dimension(:), intent(in)  :: x    !! point `dimension(n)`
     integer,                intent(in)  :: j    !! the variable to difference along
     real(dp),               intent(out) :: h    !! the step
     integer,                intent(out) :: side !! `0` central, `+1`/`-1` one-sided forward/backward
     real(dp), optional,     intent(in)  :: hfac !! factor on the default step (default 1)
-    h = epsilon(1.0_dp)**(1.0_dp/3.0_dp)*max(1.0_dp, abs(x(j)))
+    h = hs_epsilon**(1.0_dp/3.0_dp)*max(1.0_dp, abs(x(j)))
     if (present(hfac)) h = hfac*h
     side = 0
     if (x(j) - h < hs_current%x_lb(j)) then
@@ -187,7 +189,7 @@
     !! backward instead if a forward step would cross the upper bound
     real(dp), dimension(:), intent(in) :: x !! point `dimension(n)`
     integer,                intent(in) :: j !! the variable to difference along
-    h = sqrt(epsilon(1.0_dp))*max(1.0_dp, abs(x(j)))
+    h = sqrt(hs_epsilon)*max(1.0_dp, abs(x(j)))
     if (x(j) + h > hs_current%x_ub(j)) h = -h
     end function forward_step
 
