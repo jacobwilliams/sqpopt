@@ -904,6 +904,7 @@ other allocations are still unchecked (see "Allocation failures" in §4).
 | E4 | Both active-set QPs cold-start from an empty working set every major iteration. | Warm-start from the previous major iteration's working set. This is the single biggest QP speedup near convergence (SNOPT/SLSQP do it). |
 | E5 | The Jacobian `irow`/`icol` are copied and reallocated every iteration, and `push_pair` shifts every column (`O(nk)`). | Keep the structure in solver state. Use a circular buffer index. |
 | E6 | The dense QP recomputes a full QR for each working-set change (`O(n³)`). | Acceptable for small `n`. Use QR updates later if dense-mode sizes grow. |
+| E7 | `sqpopt_qp_auto`'s switch-over (`auto_dense_max_n = 200`) dates from when the sparse QP used `LSQR`. With the LU null space, the sparse QP is faster from about 50–100 variables: 2–11× at `n ≈ 100` and 6–100× at `n ≈ 200`, even with a fully dense Jacobian (`example/settings_study.f90`, 2026-09-30). The dense QP still needs ~10% fewer `fc` calls on the HS suite (9,173 vs 10,235). | Lower the default (e.g. to 50), or base the choice on the Jacobian's density too. Changes HS results for `n > 50`, so rerun the suite. |
 
 ## 4. Architecture and API gaps (production-readiness)
 

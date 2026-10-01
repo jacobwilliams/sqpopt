@@ -100,6 +100,7 @@
 
   // ---------- option filter ----------
   var input = document.getElementById('opt-filter');
+  if (!input) return;  // (pages without the option tables)
   var count = document.getElementById('opt-filter-count');
   var wraps = Array.prototype.slice.call(document.querySelectorAll('.opt-table')).map(function (t) {
     return t.closest('.table-wrap');
