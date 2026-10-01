@@ -12,9 +12,9 @@
 
     module hs_derivatives_module
 
+    use sqpopt_kinds, only: dp => sqpopt_module_wp
     use hs_problems_module, only: hs_problem, hs_f, hs_g, hs_c, hs_jac
     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite
-    use, intrinsic :: iso_fortran_env, only: dp => real64
 
     implicit none
 

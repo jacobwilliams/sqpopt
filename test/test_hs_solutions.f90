@@ -28,7 +28,7 @@ program test_hs_solutions
     !! the list).
 
     use hs_problems_module, only: hs_problem, hs_setup, hs_f, hs_c, hs_problem_ids, hs_n_problems
-    use, intrinsic :: iso_fortran_env, only: dp => real64
+    use sqpopt_kinds, only: dp => sqpopt_module_wp
 
     implicit none
 

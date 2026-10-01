@@ -85,8 +85,9 @@ program test_hs_suite
     !! regression test is a machine-readable summary:
     !! `summary: solved=... local=... failed=... nf=... ng=...`.
 
+    use sqpopt_kinds, only: dp => sqpopt_module_wp
     use, intrinsic :: ieee_arithmetic, only: ieee_set_halting_mode, ieee_all, ieee_is_finite
-    use, intrinsic :: iso_fortran_env, only: dp => real64, int64, compiler_version
+    use, intrinsic :: iso_fortran_env, only: int64, compiler_version
     use hs_problems_module
     use hs_derivatives_module, only: p => hs_current, check_derivatives, fd_gradient, fd_jacobian, fd_step
     use sqpopt_module,         only: sqpopt_type

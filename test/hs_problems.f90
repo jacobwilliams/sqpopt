@@ -23,14 +23,13 @@
 
     module hs_problems_module
 
-    use, intrinsic :: iso_fortran_env, only: real64
+    use sqpopt_kinds, only: dp => sqpopt_module_wp
     use schittkowski_problems_module
 
     implicit none
 
     private
 
-    integer, parameter :: dp = real64
     integer, parameter :: nmax = 101, mmax = 50  !! sizes of the original COMMON blocks
 
     real(dp), parameter, public :: hs_infinity = 1.0e20_dp  !! value used for absent bounds
