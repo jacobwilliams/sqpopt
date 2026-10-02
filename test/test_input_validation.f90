@@ -79,6 +79,15 @@ program test_input_validation
     options%ktol = 0.0_wp
     call expect_invalid('ktol = 0', problem, options, [0.0_wp, 0.0_wp])
     options = sqpopt_options_type()
+    options%scaling_min_value = 2.0_wp
+    call expect_invalid('scaling_min_value = 2', problem, options, [0.0_wp, 0.0_wp])
+    options = sqpopt_options_type()
+    options%scaling_min_value = -1.0_wp
+    call expect_invalid('scaling_min_value = -1', problem, options, [0.0_wp, 0.0_wp])
+    options = sqpopt_options_type()
+    options%acceptable_obj_change_tol = -1.0_wp
+    call expect_invalid('acceptable_obj_change_tol = -1', problem, options, [0.0_wp, 0.0_wp])
+    options = sqpopt_options_type()
     options%acceptable_iter = -1
     call expect_invalid('acceptable_iter = -1', problem, options, [0.0_wp, 0.0_wp])
     options = sqpopt_options_type()

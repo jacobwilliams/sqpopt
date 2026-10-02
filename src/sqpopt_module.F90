@@ -235,7 +235,8 @@
     ! empty evaluation caches, and (optionally) gradient-based scaling:
     call me%problem%reset_evaluations()
     call me%problem%set_derivative_accuracy(me%options%derivative_accuracy)
-    if (me%options%scaling) call me%problem%compute_scaling(me%x, me%options%scaling_max_gradient)
+    if (me%options%scaling) call me%problem%compute_scaling(me%x, me%options%scaling_max_gradient, &
+                                                            me%options%scaling_min_value)
     if (present(lambda0)) me%lambda = lambda0*me%problem%f_scale/me%problem%c_scale
 
     call me%hessian%initialize(me%problem%n, &
@@ -1014,6 +1015,14 @@
     end if
     if (.not. (o%scaling_max_gradient > 0.0_wp .and. o%hessian_scale0 > 0.0_wp)) then
         msg = 'options%scaling_max_gradient and options%hessian_scale0 must be > 0'
+        return
+    end if
+    if (.not. o%acceptable_obj_change_tol >= 0.0_wp) then
+        msg = 'options%acceptable_obj_change_tol must be >= 0'
+        return
+    end if
+    if (.not. (o%scaling_min_value >= 0.0_wp .and. o%scaling_min_value <= 1.0_wp)) then
+        msg = 'options%scaling_min_value must be in [0, 1]'
         return
     end if
     if (o%print_level > 0) then

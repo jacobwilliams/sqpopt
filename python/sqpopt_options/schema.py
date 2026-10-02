@@ -305,6 +305,10 @@ TOPICS: tuple[Topic, ...] = (
             _o('options%acceptable_iter', 'int', 15,
                'Consecutive acceptable iterations needed to stop with sqpopt_acceptable (0 disables the test).',
                minimum=0, special={0: 'disabled'}),
+            _o('options%acceptable_obj_change_tol', 'float', 1e-3,
+               'An iteration only counts as acceptable if the objective changed by at most this from the previous '
+               'one, relative to max(1, |f|): the solver does not stop at the acceptable level while the objective '
+               'is still changing fast (as IPOPT\'s acceptable_obj_change_tol).', minimum=0.0),
         )),
         Section('Stalled progress', (
             _o('options%ftol', 'float', 1e-8,
@@ -398,6 +402,11 @@ TOPICS: tuple[Topic, ...] = (
                'largest element equals it. ktol/ctol then apply to the scaled problem; all results are for the '
                'original one.'),
             _positive('options%scaling_max_gradient', 100.0, 'See scaling.'),
+            _o('options%scaling_min_value', 'float', 1e-8,
+               'The smallest scale factor of scaling (as IPOPT\'s nlp_scaling_min_value). A starting point with '
+               'an extremely large gradient says little about the rest of the problem; without this limit it '
+               'would scale the function down to nothing, and the solver would stop far from a solution.',
+               minimum=0.0, maximum=1.0, special={0.0: 'no limit'}),
         )),
         Section('Output', (
             _o('options%print_level', 'choice', 0,

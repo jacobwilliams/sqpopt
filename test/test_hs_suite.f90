@@ -61,6 +61,7 @@ program test_hs_suite
     !!   globalization, with the filter or funnel test in those modes, else
     !!   the merit-function ratio test)
     !! * `--merit=l1|al` (`options%merit_mode`)
+    !! * `--acceptable-obj-change=X` (`options%acceptable_obj_change_tol`)
     !! * `--penalty=multipliers|model` (`options%penalty_update`)
     !! * `--no-interpolate` (`linesearch%interpolate = .false.`)
     !! * `--nonmonotone=N` (`linesearch%nonmonotone_len = N`)
@@ -181,6 +182,7 @@ program test_hs_suite
     integer :: cfg_null_space  = sqpopt_null_space_lu
     integer :: cfg_derivatives = 0  !! `--derivatives=`: `0` the problems' own, `1` central, `2` forward, `3` fast
     real(dp) :: cfg_switch_tol = -1.0_dp !! `--derivative-switch-tol=X` (`< 0`: the default)
+    real(dp) :: cfg_obj_change = -1.0_dp !! `--acceptable-obj-change=X` (`< 0`: the default)
     logical :: cfg_default     = .true.   !! whether every setting is the default (then the regression test runs)
 
     call ieee_set_halting_mode(ieee_all, .false.)  ! (trial points may produce NaN/Inf, which the solver handles)
@@ -314,6 +316,9 @@ program test_hs_suite
             else if (arg(1:24) == '--derivative-switch-tol=') then
                 read(arg(25:), *, iostat=ios) cfg_switch_tol
                 if (ios /= 0 .or. cfg_switch_tol < 0.0_dp) error stop 'test_hs_suite: bad --derivative-switch-tol value'
+            else if (arg(1:24) == '--acceptable-obj-change=') then
+                read(arg(25:), *, iostat=ios) cfg_obj_change
+                if (ios /= 0 .or. cfg_obj_change < 0.0_dp) error stop 'test_hs_suite: bad --acceptable-obj-change value'
             else if (arg(1:8) == '--print=') then
                 read(arg(9:), *, iostat=ios) n
                 if (ios /= 0) error stop 'test_hs_suite: bad --print value'
@@ -391,6 +396,7 @@ program test_hs_suite
     if (cfg_memory > 0) options%lbfgs_memory = cfg_memory
     if (cfg_derivatives == 3) options%derivative_accuracy = sqpopt_derivatives_fast
     if (cfg_switch_tol >= 0.0_dp) options%derivative_switch_tol = cfg_switch_tol
+    if (cfg_obj_change >= 0.0_dp) options%acceptable_obj_change_tol = cfg_obj_change
     if (cfg_hessian == sqpopt_hessian_exact .and. (ctx%fd_g .or. ctx%fd_jac)) options%hessian_mode = sqpopt_hessian_bfgs
     options%inertia_control = cfg_inertia
     options%direct_qp       = cfg_direct

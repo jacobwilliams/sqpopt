@@ -152,6 +152,15 @@
                                                 !! `istat=sqpopt_acceptable`
         real(wp) :: acceptable_ctol = 1.0e-6_wp !! looser "acceptable" feasibility tolerance (see `acceptable_ktol`)
         integer  :: acceptable_iter = 15        !! consecutive acceptable iterations needed (`0` disables the test)
+        real(wp) :: acceptable_obj_change_tol = 1.0e-3_wp !! an iteration only counts as acceptable if the objective
+                                                !! changed by at most this from the previous one, relative to
+                                                !! `max(1, |f|)` (of the original problem; as IPOPT's
+                                                !! `acceptable_obj_change_tol`, which is off by default there): the
+                                                !! solver doesn't stop at the acceptable level while the objective
+                                                !! is still changing fast, which happens when the problem's scaling
+                                                !! makes `acceptable_ktol` loose. The Hock-Schittkowski results are
+                                                !! the same for any value from `1e-4` to `0.1`; a large value
+                                                !! (`1e20`) turns the test off
         integer  :: stall_iter = 3              !! the stalled-progress test (`ftol`/`xtol`) must hold for this many
                                                 !! consecutive iterations before the solver stops with
                                                 !! `sqpopt_stalled` (a single negligible step isn't a stall)
@@ -170,6 +179,11 @@
                                                 !! `ktol`/`ctol` apply to the scaled problem; all results are
                                                 !! reported for the original one
         real(wp) :: scaling_max_gradient = 100.0_wp !! see `scaling`
+        real(wp) :: scaling_min_value = 1.0e-8_wp   !! the smallest scale factor of `scaling` (as IPOPT's
+                                                    !! `nlp_scaling_min_value`): a function whose gradient at the
+                                                    !! starting point is larger than `scaling_max_gradient` divided
+                                                    !! by this is scaled by this factor, and no further (`0` = no
+                                                    !! limit)
 
         real(wp) :: hessian_scale0 = 1.0_wp     !! initial Hessian approximation \( B_0 = \) `hessian_scale0` \( \times I \)
                                                 !! (replaced by the usual quasi-Newton scaling after the first update)

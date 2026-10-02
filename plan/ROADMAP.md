@@ -1328,7 +1328,20 @@ which is now double precision only.
     constraints, `brown` took 1.9 s for 9 iterations, against 0.002 s with
     1000 variables and the sparse QP. `auto_dense_max_n = 200` may be too
     large for problems with many free variables.
-  - *A starting point with a very large gradient gives a loose solution.*
+  - *A starting point with a very large gradient gives a loose solution*
+    *(partly fixed 2026-10-02: `options%scaling_min_value = 1e-8`, as
+    IPOPT's `nlp_scaling_min_value`, limits the scale factor. `zakharov`
+    at 1000 variables, with a starting gradient of 3e19, then reaches
+    `f = 8e-7`; `schwefel12`, whose starting gradient of 5e7 is within the
+    limit, still stops at 593, and reaches 1e-17 in 7 iterations with the
+    scaling off. Limits of 1e-4 and 1e-2 were tried on these two: 1e-2
+    fixes `schwefel12` too, but it is not IPOPT's value and was not
+    compared on the HS suite. Then `options%acceptable_obj_change_tol =
+    1e-3` was added: an iteration doesn't count toward the acceptable-level
+    stop while the objective is still changing by more than that. With it
+    `schwefel12` goes on to 0.56 (status 0, 261 iterations). The HS suite
+    is identical for any value from 1e-4 to 0.1, in four configurations,
+    and loses 3 problems at 1e-12. Test: `test_scaling`.)*
     The objective is scaled by its gradient at the start, and convergence
     is tested on the scaled problem: `zakharov` at 1000 variables stops
     with status "acceptable" at `f = 5.3e6` (minimum 0, start about

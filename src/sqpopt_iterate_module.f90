@@ -175,6 +175,8 @@
     type(sqpopt_log_type) :: lg !! the detailed log
     real(wp) :: stat_err
     integer :: n_stalled0 !! `n_stalled` on entry
+    logical :: slow       !! whether the objective changed little from the previous iterate (see
+                          !! `options%acceptable_obj_change_tol`)
     real(wp) :: shift_floor !! with inertia control: the Hessian's shift at the start of the iteration (the part
                             !! of it that is carried over from failed steps)
     logical :: keep_shift   !! with inertia control: whether the step failed, so the shift it was computed with
@@ -339,9 +341,13 @@
     end if
 
     ! acceptable-level convergence (as in IPOPT): the looser tolerances have
-    ! held for `acceptable_iter` consecutive iterations:
+    ! held for `acceptable_iter` consecutive iterations, during which the
+    ! objective (of the original problem) no longer changed much:
     if (options%acceptable_iter > 0) then
-        if (info%kkt <= options%acceptable_ktol .and. info%feas <= options%acceptable_ctol) then
+        slow = .true.
+        if (allocated(f_prev)) slow = abs(f - f_prev) <= &
+                                      options%acceptable_obj_change_tol*max(problem%f_scale, abs(f))
+        if (info%kkt <= options%acceptable_ktol .and. info%feas <= options%acceptable_ctol .and. slow) then
             n_acceptable = n_acceptable + 1
         else
             n_acceptable = 0

@@ -68,7 +68,7 @@
 <ul>
   <li><strong>With second derivatives, the solver handles these functions at every size tried.</strong> With the exact Hessian and the <a href="index.html#direct-qp">direct QP method</a>, most functions with 100,000 variables are solved in about 2 seconds or less.</li>
   <li><strong>Without them, the default L-BFGS Hessian needs many more iterations on ill-conditioned functions</strong>: thousands with 1,000 variables, in up to 8 seconds.</li>
-  <li><strong>The runs led to two changes in the solver</strong>: a bug fix (the direct QP method rejected very long steps) and a much cheaper iteration for problems without active constraints. One weakness remains (the dense QP at its largest size). They are described under <a href="#findings">What the runs show</a>.</li>
+  <li><strong>The runs led to three changes in the solver</strong>: a bug fix (the direct QP method rejected very long steps), a much cheaper iteration for problems without active constraints, and two safeguards for badly scaled starting points. Two weaknesses remain (the dense QP at its largest size, and the accuracy reached from a starting point with a large gradient). They are described under <a href="#findings">What the runs show</a>.</li>
 </ul>
 
 <p>Each solve starts from the function's standard starting point, and its result is one of:</p>
@@ -124,10 +124,10 @@
 <thead><tr><th>function</th><th class="num">L-BFGS</th><th class="num">exact Hessian</th><th class="num">exact, inertia control,<br>direct QP</th></tr></thead>
 <tbody>
 <tr><td><code>sphere</code></td><td class="num">7 / &lt; 0.01 s</td><td class="num">7 / &lt; 0.01 s</td><td class="num">7 / &lt; 0.01 s</td></tr>
-<tr><td><code>ellipsoid</code></td><td class="num">152 / 0.15 s</td><td class="num">6 / &lt; 0.01 s</td><td class="num">6 / &lt; 0.01 s</td></tr>
+<tr><td><code>ellipsoid</code></td><td class="num">152 / 0.16 s</td><td class="num">6 / &lt; 0.01 s</td><td class="num">6 / &lt; 0.01 s</td></tr>
 <tr><td><code>schumer_steiglitz</code></td><td class="num">25 / &lt; 0.01 s</td><td class="num">19 / &lt; 0.01 s</td><td class="num">19 / 0.01 s</td></tr>
-<tr><td><code>trid</code></td><td class="num">1,715 / 2.58 s</td><td class="num">23 / 0.07 s</td><td class="num">23 / &lt; 0.01 s</td></tr>
-<tr><td><code>rosenbrock</code></td><td class="num">4,946 / 7.78 s</td><td class="num">1,704 / 0.40 s</td><td class="num">1,704 / 0.53 s</td></tr>
+<tr><td><code>trid</code></td><td class="num">1,715 / 2.65 s</td><td class="num">23 / 0.07 s</td><td class="num">23 / &lt; 0.01 s</td></tr>
+<tr><td><code>rosenbrock</code></td><td class="num">4,946 / 8.05 s</td><td class="num">1,704 / 0.40 s</td><td class="num">1,704 / 0.53 s</td></tr>
 <tr><td><code>dixon_price</code></td><td class="num">238 / 0.27 s</td><td class="num">9 / &lt; 0.01 s</td><td class="num">9 / &lt; 0.01 s</td></tr>
 <tr><td><code>powell_singular</code></td><td class="num">29 / &lt; 0.01 s</td><td class="num">19 / &lt; 0.01 s</td><td class="num">19 / &lt; 0.01 s</td></tr>
 <tr><td><code>brown</code></td><td class="num">11 / &lt; 0.01 s</td><td class="num">9 / &lt; 0.01 s</td><td class="num">9 / &lt; 0.01 s</td></tr>
@@ -136,14 +136,14 @@
 <tr><td><code>rastrigin</code></td><td class="num">4 / &lt; 0.01 s (local)</td><td class="num">3 / &lt; 0.01 s (local)</td><td class="num">3 / &lt; 0.01 s (local)</td></tr>
 <tr><td><code>levy</code></td><td class="num">13 / &lt; 0.01 s (local)</td><td class="num">6 / &lt; 0.01 s (local)</td><td class="num">6 / &lt; 0.01 s (local)</td></tr>
 <tr><td><code>chung_reynolds</code></td><td class="num">24 / &lt; 0.01 s (loose)</td><td class="num">&ndash;</td><td class="num">&ndash;</td></tr>
-<tr><td><code>schwefel12</code></td><td class="num">89 / 0.04 s (loose)</td><td class="num">&ndash;</td><td class="num">&ndash;</td></tr>
-<tr><td><code>zakharov</code></td><td class="num">33 / &lt; 0.01 s (loose)</td><td class="num">&ndash;</td><td class="num">&ndash;</td></tr>
+<tr><td><code>schwefel12</code></td><td class="num">261 / 0.31 s (loose)</td><td class="num">&ndash;</td><td class="num">&ndash;</td></tr>
+<tr><td><code>zakharov</code></td><td class="num">52 / &lt; 0.01 s</td><td class="num">&ndash;</td><td class="num">&ndash;</td></tr>
 <tr><td><code>griewank</code></td><td class="num">50 / &lt; 0.01 s</td><td class="num">&ndash;</td><td class="num">&ndash;</td></tr>
 <tr><td><code>ackley</code></td><td class="num">4 / &lt; 0.01 s (local)</td><td class="num">&ndash;</td><td class="num">&ndash;</td></tr>
 </tbody>
 </table></div>
 
-<p class="small">A dash means the function has no sparse Hessian. The iteration limit was 20,000 for L-BFGS and 2,000 for the others. With 20 variables, all 41 solves converge: 33 to the global minimum, 7 to a local one, and 1 (<code>zakharov</code>) loosely.</p>
+<p class="small">A dash means the function has no sparse Hessian. The iteration limit was 20,000 for L-BFGS and 2,000 for the others. With 20 variables, all 41 solves converge: 33 to the global minimum, 7 to a local one, and 1 (<code>zakharov</code>, whose starting gradient is below the scaling limit) loosely.</p>
 
 <!-- ============================================================ -->
 <h2 id="n10000">10,000 variables</h2>
@@ -202,7 +202,7 @@
   <li><strong>Roundoff in the objective can stop the line search.</strong> <code>trid</code> was first evaluated as its definition reads, the difference of two sums. Near the minimizer with 1,000 variables each sum is about \( 3 \times 10^{13} \) and their difference \( -1.7 \times 10^{8} \), so the value had an error of about 0.1. That is more than a quasi-Newton step gains near the solution, so no step length was acceptable, and the solve ended with "line search failed" at a relative distance of \( 4 \times 10^{-8} \) from the minimum. Evaluated term by term, without the cancellation, the function is solved. If a solve of yours ends that way close to a solution, look at how accurately the objective is computed.</li>
   <li><strong>A bug in the direct QP method was found and fixed.</strong> <code>trid</code> with 100,000 variables did not finish: its first QP was handed to the active-set solver, which can't cope with 100,000 free variables. The direct method had computed the right step, but rejected it as inaccurate. The first Newton step of this function is about \( 10^{9} \) times its gradient, so the stationarity residual \( g + Hp \) is a difference of very large terms, and its roundoff was compared with the size of the gradient instead of the size of those terms. With the test corrected, the solve takes 2.2 seconds.</li>
   <li><strong>The dense QP solver is slow at the largest size it is given.</strong> The automatic choice uses the dense QP for up to 200 variables. With 200 variables, <code>brown</code> takes 0.8 seconds for 9 iterations, nearly all of it in the few QPs whose unconstrained step leaves the bounds, against 0.001 seconds with 1,000 variables and the sparse QP. For problems of 100 to 200 variables with few active constraints, set <code>options%qp_solver_mode = sqpopt_qp_reduced_hessian</code> (see <a href="choosing_settings.html#qp-solver">Which QP solver</a>).</li>
-  <li><strong>A starting point with a very large gradient gives a loose solution.</strong> The objective is scaled by its gradient at the starting point (see <a href="index.html#scaling">Scaling</a>), and convergence is tested on the scaled problem. <code>zakharov</code> with 1,000 variables starts at \( f \approx 4 \times 10^{21} \) and stops, with the status <code>sqpopt_acceptable</code>, at \( f = 5.3 \times 10^{6} \) (the minimum is 0); <code>schwefel12</code> goes from \( 8 \times 10^{11} \) to 593. A tighter <code>options%ktol</code>, or a starting point with a smaller gradient, gets closer.</li>
+  <li><strong>A starting point with a very large gradient can give a loose solution.</strong> The objective is scaled by its gradient at the starting point (see <a href="index.html#scaling">Scaling</a>), and convergence is tested on the scaled problem. Two functions stopped far from their minimum of 0, with the status <code>sqpopt_acceptable</code>, while their objectives were still falling fast: <code>zakharov</code> (starting gradient \( 3 \times 10^{19} \)) at \( f = 5 \times 10^{6} \), and <code>schwefel12</code> (\( 5 \times 10^{7} \)) at 593. That led to two safeguards: a limit on the scale factor (<code>options%scaling_min_value</code>, as in IPOPT), with which <code>zakharov</code> reaches \( 8 \times 10^{-7} \), and a test on the objective's change in the acceptable-level stop (<code>options%acceptable_obj_change_tol</code>), with which <code>schwefel12</code> reaches 0.56. Those are still marked loose where they miss the test's tolerance; with <code>options%scaling = .false.</code> both functions are solved to roundoff, <code>schwefel12</code> in 7 iterations.</li>
   <li><strong>The chained Rosenbrock function needs a number of iterations in proportion to its size</strong> from this starting point: about 1.7 per variable with the exact Hessian (98 with 20 variables, 1,704 with 1,000, 16,887 with 10,000) and about 5 per variable with L-BFGS (491 with 100, 1,973 with 400, 4,946 with 1,000). That is a property of the function, whose variables have to follow a curved valley one after the other, and not of this solver: scipy's <code>L-BFGS-B</code> needs about 5 per variable too. So raise <code>options%max_iter</code> for a problem like this (the default is 100).</li>
 </ul>
 

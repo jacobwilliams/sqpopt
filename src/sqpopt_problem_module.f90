@@ -465,24 +465,32 @@
 !  and each constraint by \( s_{c,i} = \min(1, g_{max}/\lVert \nabla c_i
 !  \rVert_\infty) \), so that no scaled gradient is larger than `max_gradient`
 !  (problems whose gradients are all at most `max_gradient` are not
-!  scaled). The (finite) constraint bounds are scaled to match. Call
+!  scaled). No scale factor is made smaller than `min_value` (if given), so
+!  that a starting point with an extremely large gradient, which says
+!  little about the rest of the problem, doesn't scale a function down to
+!  nothing. The (finite) constraint bounds are scaled to match. Call
 !  [[reset_evaluations]] first; the evaluations used here are cached, so
 !  they are not repeated by the first major iteration.
 
-    subroutine compute_scaling(me, x, max_gradient)
+    subroutine compute_scaling(me, x, max_gradient, min_value)
 
     class(sqpopt_problem_type), intent(inout) :: me
     real(wp), dimension(:), intent(in) :: x            !! point at which to measure the gradients `dimension(n)`
     real(wp),               intent(in) :: max_gradient !! \( g_{max} \)
+    real(wp), optional,     intent(in) :: min_value    !! smallest scale factor (default `0`: no limit)
 
     real(wp), dimension(me%n) :: g
     real(wp), dimension(max(me%jac_nnz,0)) :: jval
     real(wp), dimension(me%m) :: row_max
+    real(wp) :: smin
     integer :: k
+
+    smin = 0.0_wp
+    if (present(min_value)) smin = min(max(min_value, 0.0_wp), 1.0_wp)
 
     call raw_gjac(me, x, g, jval)
     if (sqpopt_all_finite(g) .and. me%n > 0) then
-        if (maxval(abs(g)) > max_gradient) me%f_scale = max_gradient/maxval(abs(g))
+        if (maxval(abs(g)) > max_gradient) me%f_scale = max(max_gradient/maxval(abs(g)), smin)
     end if
 
     if (me%m > 0) then
@@ -491,7 +499,7 @@
             do k = 1, me%jac_nnz
                 row_max(me%jac_irow(k)) = max(row_max(me%jac_irow(k)), abs(jval(k)))
             end do
-            where (row_max > max_gradient) me%c_scale = max_gradient/row_max
+            where (row_max > max_gradient) me%c_scale = max(max_gradient/row_max, smin)
         end if
         where (abs(me%c_lb) < sqpopt_infinity) me%c_lb = me%c_scale*me%c_lb
         where (abs(me%c_ub) < sqpopt_infinity) me%c_ub = me%c_scale*me%c_ub
