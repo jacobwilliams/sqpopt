@@ -1201,6 +1201,25 @@ which is now double precision only.
   memory of the SNOPT paper, that SNOPT keeps its matrix in a product
   form; the user's guide doesn't describe that, so it is not relied on
   here.)
+- **F18: a dense BFGS matrix for small problems** *(idea, not started;
+  discussed 2026-10-02)*. sqpopt has no stored dense BFGS matrix. For the
+  dense QP, `hessian_dense` rebuilds the matrix at every iteration from
+  the L-BFGS pairs. That differs from a true dense BFGS in two ways: pairs
+  beyond the memory (`max(10, min(n, 100))`) are dropped, and the initial
+  matrix is rescaled from the newest pair at every update. SNOPT, SLSQP,
+  NLPQLP, and VF13 all use a dense matrix on small problems. It would be a
+  third quasi-Newton mode (an `n x n` array updated in `O(n^2)` per
+  iteration, with Powell's damping), only for problems in the dense QP's
+  range, as an exception to the rule against dense arrays outside the
+  dense QP. Measured first, on the HS suite: keeping every pair
+  (`--lbfgs-memory=1000`, the nearest thing available) gives 279/26/0 with
+  9,083 `fc`, against 280/25/0 with 9,067 for the default and 280/25/0
+  with 9,602 for 10 pairs. So the full history doesn't solve more or use
+  fewer evaluations here. What a dense matrix would save is the rebuild
+  (about `2 n^2` multiplications per pair per iteration; the unlimited
+  memory run takes 14 s, the default 0.7 s), which matters only on a
+  problem of 50 to 200 variables that takes hundreds of iterations. Low
+  priority.
 - **F12: interoperability.** A `bind(c)` C API, then a thin Python
   wrapper. This is how SLSQP-style solvers get adopted.
   *(Python part done 2026-09-28, without a C API: `python/sqpopt`, a
