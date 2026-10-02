@@ -13,10 +13,18 @@ problem files). Run from the repository root, in the pixi environment:
 
 `run` solves each problem in a process of its own, with a time limit (a crash, or a solver that doesn't
 return, then loses only that problem), and adds a line per problem and solver to the results file
-(JSON lines), so that it can be interrupted and continued. Options (after the command):
+(JSON lines), so that it can be interrupted and continued. Several problems are solved at once (`--jobs`),
+which doesn't change the results, but makes the times recorded depend on the machine's load: use
+`--jobs=1` for times that will be written down. Options (after the command):
 
     --max-n=N, --max-m=M     select the problems with at most N variables and M constraints (default 100, 100)
     --problems=A,B,...       only these problems
+    --no-overdetermined      leave out the problems with more constraints than variables (144 of the default
+                             664; most are fits that can't be feasible). For quick runs: the numbers of the
+                             Performance page are of the whole set. `list` and `run` go by the sizes in
+                             CUTEst's classification, which differ from the decoded problem's for a few
+                             problems; `report`, which leaves them out of the table, by the sizes recorded.
+    --jobs=J                 (run) the number of problems solved at once (default: the number of processors)
     --solvers=a,b,...        of sqpopt, slsqp, trust-constr (default: all three)
     --maxiter=K              iteration limit of every solver (default 250, as in the paper)
     --timeout=S              seconds allowed for a problem, all solvers together (default 120)
@@ -33,6 +41,7 @@ stand-in `brew` is put on the path that points it at the pixi environment's libr
 
 from __future__ import annotations
 
+import concurrent.futures
 import json
 import os
 import pathlib
@@ -100,10 +109,15 @@ def setup_environment() -> list[str]:
             link.unlink()
         if not link.exists():
             link.symlink_to(prefix / 'lib')
+        # (written only if it isn't there as it should be, and put in place whole: `run`'s child processes
+        # come through here too, while others of them are running it)
         brew = shim / 'brew'
-        brew.write_text('#!/bin/sh\n# stands in for Homebrew: see tools/cutest_benchmark.py\n'
-                        f'echo "{shim / "prefix"}"\n')
-        brew.chmod(0o755)
+        text = f'#!/bin/sh\n# stands in for Homebrew: see tools/cutest_benchmark.py\necho "{shim / "prefix"}"\n'
+        if not (brew.is_file() and brew.read_text() == text and os.access(brew, os.X_OK)):
+            new = shim / f'brew.{os.getpid()}'
+            new.write_text(text)
+            new.chmod(0o755)
+            new.replace(brew)
         os.environ['PATH'] = str(shim) + os.pathsep + os.environ['PATH']
     return missing
 
@@ -139,7 +153,8 @@ def setup():
 def select(args: dict) -> list[str]:
     """the names of the problems to solve, sorted: those given, or those with fixed sizes within the limits
     (a problem whose size is a parameter of its SIF file is not selected: its default size isn't in
-    CUTEst's classification)"""
+    CUTEst's classification), without those with more constraints than variables if asked to leave them
+    out"""
     if args['problems']:
         return sorted(args['problems'].split(','))
     import pycutest
@@ -148,7 +163,8 @@ def select(args: dict) -> list[str]:
         properties = pycutest.problem_properties(name)
         n, m = properties['n'], properties['m']
         if isinstance(n, int) and isinstance(m, int) and 1 <= n <= int(args['max-n']) and m <= int(args['max-m']):
-            names.append(name)
+            if not (args['no-overdetermined'] and m > n):
+                names.append(name)
     return sorted(names)
 
 
@@ -228,44 +244,61 @@ def solve_one(name: str, solvers: list[str], maxiter: int, sqpopt_options: dict,
         print(json.dumps(record), flush=True)
 
 
+def solve_in_child(name: str, todo: list[str], args: dict) -> tuple[list[dict], str]:
+    """solve one problem in a child process: the records its solvers printed, and a note if it crashed or
+    reached the time limit"""
+    command = [sys.executable, __file__, 'solve', f'--problems={name}', f'--solvers={",".join(todo)}',
+               f'--maxiter={args["maxiter"]}', f'--sqpopt={args["sqpopt"]}']
+    lines, note = [], ''
+    try:
+        out = subprocess.run(command, capture_output=True, text=True, timeout=float(args['timeout']))
+        lines = out.stdout.splitlines()
+        if out.returncode != 0:
+            note = f'exit code {out.returncode}: ' + out.stderr.strip().splitlines()[-1][:80] if out.stderr.strip() \
+                else f'exit code {out.returncode}'
+    except subprocess.TimeoutExpired as e:
+        lines = (e.stdout.decode() if isinstance(e.stdout, bytes) else e.stdout or '').splitlines()
+        note = 'time limit'
+    return [json.loads(line) for line in lines if line.startswith('{')], note
+
+
 def run(args: dict):
-    """solve the selected problems, each in a child process, adding to the results file"""
+    """solve the selected problems, each in a child process and `--jobs` of them at once, adding to the
+    results file (in the order they finish)"""
     results = pathlib.Path(args['results'])
     solvers = args['solvers'].split(',')
     label = 'sqpopt' + (f'[{args["sqpopt"]}]' if args['sqpopt'] else '')
     labels = [label if s == 'sqpopt' else s for s in solvers]
+    jobs = max(1, int(args['jobs']))
     done = set()
     if results.exists() and not args['redo']:
         done = {(r['problem'], r['solver']) for r in read_results(results)}
     names = select(args)
-    print(f'{len(names)} problems, solvers {", ".join(labels)}, results in {results}')
-    for k, name in enumerate(names, 1):
-        todo = [s for s, lab in zip(solvers, labels) if (name, lab) not in done]
-        if not todo:
-            continue
-        command = [sys.executable, __file__, 'solve', f'--problems={name}', f'--solvers={",".join(todo)}',
-                   f'--maxiter={args["maxiter"]}', f'--sqpopt={args["sqpopt"]}']
-        lines, note = [], ''
+    print(f'{len(names)} problems, solvers {", ".join(labels)}, {jobs} at once, results in {results}')
+    todo = {name: [s for s, lab in zip(solvers, labels) if (name, lab) not in done] for name in names}
+    t0 = time.perf_counter()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
+        # (the threads only wait for their child processes; this one writes the results)
+        futures = {pool.submit(solve_in_child, name, todo[name], args): name for name in names if todo[name]}
         try:
-            out = subprocess.run(command, capture_output=True, text=True, timeout=float(args['timeout']))
-            lines = out.stdout.splitlines()
-            if out.returncode != 0:
-                note = f'exit code {out.returncode}: ' + out.stderr.strip().splitlines()[-1][:80] if out.stderr.strip() \
-                    else f'exit code {out.returncode}'
-        except subprocess.TimeoutExpired as e:
-            lines = (e.stdout.decode() if isinstance(e.stdout, bytes) else e.stdout or '').splitlines()
-            note = 'time limit'
-        records = [json.loads(line) for line in lines if line.startswith('{')]
-        solved = {r['solver'] for r in records}
-        for s, lab in zip(solvers, labels):   # (the solvers that didn't finish: the crash or the time limit)
-            if s in todo and lab not in solved:
-                records.append(dict(problem=name, solver=lab, success=False, status=-2, message=note or 'no result'))
-        with results.open('a') as f:
-            for r in records:
-                f.write(json.dumps(r) + '\n')
-        print(f'{k:4d}/{len(names)} {name:10s} ' + '  '.join(
-            f'{r["solver"]}: {"ok" if r["success"] else "--"}' for r in records) + (f'  ({note})' if note else ''),
-            flush=True)
+            for k, future in enumerate(concurrent.futures.as_completed(futures), 1):
+                name = futures[future]
+                records, note = future.result()
+                solved = {r['solver'] for r in records}
+                for s, lab in zip(solvers, labels):   # (the solvers that didn't finish: the crash or the time limit)
+                    if s in todo[name] and lab not in solved:
+                        records.append(dict(problem=name, solver=lab, success=False, status=-2,
+                                            message=note or 'no result'))
+                with results.open('a') as f:
+                    for r in records:
+                        f.write(json.dumps(r) + '\n')
+                print(f'{k:4d}/{len(futures)} {name:10s} ' + '  '.join(
+                    f'{r["solver"]}: {"ok" if r["success"] else "--"}' for r in records) +
+                    (f'  ({note})' if note else ''), flush=True)
+        except KeyboardInterrupt:
+            pool.shutdown(wait=False, cancel_futures=True)   # (the problems being solved finish; no more start)
+            raise
+    print(f'{time.perf_counter() - t0:.0f} s')
 
 
 def read_results(path: pathlib.Path) -> list[dict]:
@@ -282,6 +315,10 @@ def report(args: dict):
     """the table of the results: for each solver, the problems it reported success on, how many of those
     are feasible with the best objective found, and its evaluations and time on the problems all solved"""
     records = read_results(pathlib.Path(args['results']))
+    if args['no-overdetermined']:
+        # (a record of a crash or the time limit has no sizes: the problem's other records do)
+        over = {r['problem'] for r in records if r.get('m', 0) > r.get('n', 0)}
+        records = [r for r in records if r['problem'] not in over]
     solvers = sorted({r['solver'] for r in records})
     problems = sorted({r['problem'] for r in records})
     by = {(r['problem'], r['solver']): r for r in records}
@@ -328,12 +365,13 @@ def report(args: dict):
 def main():
     command = sys.argv[1] if len(sys.argv) > 1 else ''
     args = {'max-n': '100', 'max-m': '100', 'problems': '', 'solvers': ','.join(SOLVERS), 'maxiter': '250',
-            'timeout': '120', 'results': str(HOME / 'results.jsonl'), 'sqpopt': '', 'redo': False, 'failures': ''}
+            'timeout': '120', 'results': str(HOME / 'results.jsonl'), 'sqpopt': '', 'redo': False, 'failures': '',
+            'no-overdetermined': False, 'jobs': str(os.cpu_count() or 1)}
     for a in sys.argv[2:]:
         key, _, value = a[2:].partition('=')
         if not a.startswith('--') or key not in args:
             sys.exit(f'unknown option {a}\n{__doc__}')
-        if key == 'redo':
+        if key in ('redo', 'no-overdetermined'):
             args[key] = True
         elif key == 'failures':
             args[key] = value or 'all'
@@ -352,7 +390,8 @@ def main():
         sys.exit('missing: ' + ', '.join(missing) + ' (run: pixi run cutest setup)')
     if command == 'list':
         names = select(args)
-        print(f'{len(names)} problems with at most {args["max-n"]} variables and {args["max-m"]} constraints:')
+        print(f'{len(names)} problems with at most {args["max-n"]} variables and {args["max-m"]} constraints' +
+              (', and no more constraints than variables' if args['no-overdetermined'] else '') + ':')
         print(' '.join(names))
     elif command == 'solve':
         options = {}
