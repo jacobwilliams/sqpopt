@@ -398,11 +398,14 @@
     real(wp), optional,     intent(in)   :: phi_ref  !! reference value for the sufficient-decrease test, instead of
                                                     !! `phi0` (the non-monotone retry, see `nonmonotone_len`)
 
-    real(wp), dimension(size(x)) :: x_trial, p_soc
-    real(wp), dimension(size(c)) :: c_trial
+    real(wp), dimension(:), allocatable :: x_trial, p_soc
+    real(wp), dimension(:), allocatable :: step !! the trial step, for the second-order correction
+    real(wp), dimension(:), allocatable :: c_trial
     real(wp) :: phi_trial, slope, slack, phi_r
     logical  :: ok, soc_ok
     integer  :: it
+
+    allocate(x_trial(size(x)), p_soc(size(x)), step(size(x)), c_trial(size(c)))
 
     slope    = min(dphi0, 0.0_wp)
     phi_r    = phi0
@@ -426,7 +429,8 @@
                 ! the full step didn't reduce the constraint violation, so its
                 ! rejection may be due to constraint curvature (the Maratos
                 ! effect): try the second-order-corrected step before backtracking:
-                call soc(alpha*p, c_trial, p_soc, soc_ok)
+                step = alpha*p
+                call soc(step, c_trial, p_soc, soc_ok)
                 if (soc_ok) then
                     x_trial = x + p_soc
                     call eval_trial(me, eval_f, eval_c, x_trial, c_lb, c_ub, lambda, c_trial, phi_trial, ok, alpha)
@@ -548,9 +552,14 @@
     procedure(sqpopt_soc_func), optional :: soc     !! computes a second-order-corrected step
 
     real(wp) :: phi0, phi, alpha0, phi_full, phi_soc
-    real(wp), dimension(size(c)) :: c_full, c_soc
-    real(wp), dimension(size(x)) :: p_soc
+    real(wp), dimension(:), allocatable :: c_full, c_soc
+    real(wp), dimension(:), allocatable :: p_soc
+    real(wp), dimension(:), allocatable :: x_trial !! a trial point (also of `merit_along_direction`)
+    real(wp), dimension(:), allocatable :: c_trial !! the constraints at a trial point of `merit_along_direction`
+    real(wp), dimension(:), allocatable :: step    !! the trial step, for the second-order correction
     logical :: ok, soc_ok
+
+    allocate(c_full(size(c)), c_soc(size(c)), c_trial(size(c)), p_soc(size(x)), x_trial(size(x)), step(size(x)))
 
     call me%merit%eval(f, c, c_lb, c_ub, lambda, phi0)
     alpha0 = initial_step_length(x, p, me%major_step_limit)
@@ -559,12 +568,15 @@
     x_new  = x + alpha*p
 
     if (present(soc) .and. alpha < alpha0*(1.0_wp - sqrt(me%tol))) then
-        call eval_trial(me, eval_f, eval_c, x + alpha0*p, c_lb, c_ub, lambda, c_full, phi_full, ok, alpha0)
+        x_trial = x + alpha0*p
+        call eval_trial(me, eval_f, eval_c, x_trial, c_lb, c_ub, lambda, c_full, phi_full, ok, alpha0)
         if (ok) then
             if (l1_violation(c_full, c_lb, c_ub) >= l1_violation(c, c_lb, c_ub)) then
-                call soc(alpha0*p, c_full, p_soc, soc_ok)
+                step = alpha0*p
+                call soc(step, c_full, p_soc, soc_ok)
                 if (soc_ok) then
-                    call eval_trial(me, eval_f, eval_c, x + p_soc, c_lb, c_ub, lambda, c_soc, phi_soc, ok, alpha0)
+                    x_trial = x + p_soc
+                    call eval_trial(me, eval_f, eval_c, x_trial, c_lb, c_ub, lambda, c_soc, phi_soc, ok, alpha0)
                     call me%log%put(sqpopt_log_detail, 'ls  second-order correction: merit '//fmt_g(phi_soc)// &
                                     merge(' (better, taken)   ', ' (not better)      ', ok .and. phi_soc < phi))
                     if (ok .and. phi_soc < phi) then
@@ -594,17 +606,18 @@
     !>
     !  the merit function \( \phi(x + \alpha p) \) along the search direction,
     !  in the form required by `fmin` (`huge` at a non-finite trial point).
-    !  Uses the host-associated variables set by [[exact_line_search]].
+    !  Uses the host-associated variables set by [[exact_line_search]], and
+    !  its work arrays `x_trial` and `c_trial`.
 
         function merit_along_direction(alpha) result(phi)
 
         real(wp), intent(in) :: alpha !! step length along the search direction
         real(wp) :: phi !! merit function value at the trial point
 
-        real(wp), dimension(size(c_lb)) :: c_trial
         logical :: ok
 
-        call eval_trial(me, eval_f, eval_c, x + alpha*p, c_lb, c_ub, lambda, c_trial, phi, ok, alpha)
+        x_trial = x + alpha*p
+        call eval_trial(me, eval_f, eval_c, x_trial, c_lb, c_ub, lambda, c_trial, phi, ok, alpha)
 
         end function merit_along_direction
     !*******************************************************************************
@@ -646,9 +659,11 @@
     integer,                    intent(out) :: istat  !! status of the line search (0 if successful)
     procedure(sqpopt_soc_func), optional    :: soc    !! computes a second-order-corrected step
 
-    real(wp), dimension(size(c)) :: c_trial !! constraint values at the trial point
+    real(wp), dimension(:), allocatable :: c_trial !! constraint values at the trial point
     real(wp) :: phi0, dphi0, phi_trial, alpha0 !! merit function values, directional derivative, initial step length
     logical :: standard_ok, relaxed_used, ok !! flags indicating if standard or relaxed line search succeeded
+
+    allocate(c_trial(size(c)))
 
     call me%merit%eval(f, c, c_lb, c_ub, lambda, phi0)
     call me%merit%directional_derivative(jac, g, p, c, c_lb, c_ub, lambda, dphi0)
@@ -776,11 +791,14 @@
     integer,                intent(out)  :: istat  !! status code (see [[sqpopt_types_module]])
     procedure(sqpopt_soc_func), optional :: soc    !! computes a second-order-corrected step
 
-    real(wp), dimension(size(x)) :: x_trial, p_soc
-    real(wp), dimension(size(c)) :: c_trial
+    real(wp), dimension(:), allocatable :: x_trial, p_soc
+    real(wp), dimension(:), allocatable :: step !! the trial step, for the second-order correction
+    real(wp), dimension(:), allocatable :: c_trial
     real(wp) :: f_trial, theta0, theta_t, gtp, alpha_lim
     logical :: ok, soc_ok, f_type, acc
     integer :: it
+
+    allocate(x_trial(size(x)), p_soc(size(x)), step(size(x)), c_trial(size(c)))
 
     theta0 = l1_violation(c, c_lb, c_ub)
     call me%filter%prepare(theta0)
@@ -808,7 +826,8 @@
             if (theta_t >= theta0) then
                 ! the full step didn't reduce the constraint violation: try
                 ! the second-order-corrected step before backtracking:
-                call soc(alpha*p, c_trial, p_soc, soc_ok)
+                step = alpha*p
+                call soc(step, c_trial, p_soc, soc_ok)
                 if (soc_ok) then
                     x_trial = x + p_soc
                     call eval_fc(eval_f, eval_c, x_trial, f_trial, c_trial, ok)
@@ -1005,11 +1024,14 @@
     integer,                intent(out)  :: istat  !! status code (see [[sqpopt_types_module]])
     procedure(sqpopt_soc_func), optional :: soc    !! computes a second-order-corrected step
 
-    real(wp), dimension(size(x)) :: x_trial, p_soc
-    real(wp), dimension(size(c)) :: c_trial
+    real(wp), dimension(:), allocatable :: x_trial, p_soc
+    real(wp), dimension(:), allocatable :: step !! the trial step, for the second-order correction
+    real(wp), dimension(:), allocatable :: c_trial
     real(wp) :: f_trial, theta0, theta_t, gtp
     logical :: ok, soc_ok, f_type, acc
     integer :: it
+
+    allocate(x_trial(size(x)), p_soc(size(x)), step(size(x)), c_trial(size(c)))
 
     theta0 = l1_violation(c, c_lb, c_ub)
     call me%funnel%prepare(theta0)
@@ -1036,7 +1058,8 @@
             if (theta_t >= theta0) then
                 ! the full step didn't reduce the constraint violation: try
                 ! the second-order-corrected step before backtracking:
-                call soc(alpha*p, c_trial, p_soc, soc_ok)
+                step = alpha*p
+                call soc(step, c_trial, p_soc, soc_ok)
                 if (soc_ok) then
                     x_trial = x + p_soc
                     call eval_fc(eval_f, eval_c, x_trial, f_trial, c_trial, ok)

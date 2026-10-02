@@ -172,8 +172,10 @@
     real(wp), dimension(:),     intent(out) :: d    !! the solution `dimension(n)`
     logical,                    intent(out) :: ok   !! whether `d` was computed
 
-    integer,  dimension(me%m + me%n) :: status
-    real(wp), dimension(me%n + me%m) :: v
+    integer, dimension(:), allocatable :: status
+    real(wp), dimension(:), allocatable :: v
+
+    allocate(status(me%m + me%n), v(me%n + me%m))
 
     d  = 0.0_wp
     ok = .false.
@@ -219,8 +221,10 @@
     real(wp), dimension(:),     intent(inout) :: lambda !! the multipliers `dimension(m)` (set for the rows in `S`)
     logical,                    intent(out)   :: ok     !! whether they were computed
 
-    integer,  dimension(me%m + me%n) :: status
-    real(wp), dimension(me%n + me%m) :: v
+    integer, dimension(:), allocatable :: status
+    real(wp), dimension(:), allocatable :: v
+
+    allocate(status(me%m + me%n), v(me%n + me%m))
 
     ok = .false.
     if (.not. me%enabled) return
@@ -276,7 +280,7 @@
     integer, parameter :: lsqr_itnlim_stop = 5 !! `LSQR`'s `istop` for "iteration limit reached"
     type(lsqr_solver_ez) :: lsqr
     integer,  dimension(:), allocatable :: irow, icol, col_of_row
-    real(wp), dimension(:), allocatable :: val, lam
+    real(wp), dimension(:), allocatable :: val, lam, rhs
     integer :: m, n, m_s, nnz_s, i, k, istop
 
     m = size(rows)
@@ -312,7 +316,9 @@
     end do
 
     call lsqr%initialize(n, m_s, val(1:nnz_s), irow(1:nnz_s), icol(1:nnz_s), itnlim=4*(m_s+n)+10)
-    call lsqr%solve(merge(g, 0.0_wp, free), 0.0_wp, lam, istop)
+    allocate(rhs(n))
+    rhs = merge(g, 0.0_wp, free)
+    call lsqr%solve(rhs, 0.0_wp, lam, istop)
     if (istop == lsqr_itnlim_stop .or. .not. sqpopt_all_finite(lam)) return
     do i = 1, m
         if (rows(i)) lambda(i) = lam(col_of_row(i))

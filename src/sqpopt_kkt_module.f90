@@ -146,7 +146,8 @@
     integer,               intent(in), optional :: threads   !! number of OpenMP threads of the sparse solver (see
                                                              !! [[symmetric_solver_initialize]])
 
-    integer :: k
+    integer :: k, nh
+    integer, dimension(:), allocatable :: irow, icol !! the pattern of \( K \) (its lower triangle)
     logical :: oom
 
     call me%destroy()
@@ -159,9 +160,17 @@
         allocate(me%h_irow(0), me%h_icol(0))
     end if
 
-    call me%solver%initialize(n + m, &
-                              [(k, k=1, n+m), max(me%h_irow, me%h_icol), n + jac_irow], &
-                              [(k, k=1, n+m), min(me%h_irow, me%h_icol), jac_icol], ok, threads=threads)
+    nh = size(me%h_irow)
+    allocate(irow(n + m + nh + size(jac_irow)), icol(n + m + nh + size(jac_irow)))
+    do k = 1, n + m
+        irow(k) = k
+        icol(k) = k
+    end do
+    irow(n+m+1:n+m+nh) = max(me%h_irow, me%h_icol)
+    icol(n+m+1:n+m+nh) = min(me%h_irow, me%h_icol)
+    irow(n+m+nh+1:) = n + jac_irow
+    icol(n+m+nh+1:) = jac_icol
+    call me%solver%initialize(n + m, irow, icol, ok, threads=threads)
     if (.not. ok) then
         ! (keep the reason, for the caller)
         oom = me%solver%out_of_memory
@@ -346,10 +355,12 @@
     logical,                   intent(out)   :: ok      !! whether the solves succeeded
 
     real(wp), dimension(:,:), allocatable :: t, sm
-    real(wp), dimension(me%n + me%m) :: v
+    real(wp), dimension(:), allocatable :: v
     real(wp) :: sigma
     integer  :: r, j, n, pos_t, pos_m, n_neg, n_zero
     logical  :: nonsingular
+
+    allocate(v(me%n + me%m))
 
     ok = .true.
     n  = me%n

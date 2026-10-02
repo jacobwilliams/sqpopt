@@ -115,7 +115,9 @@
     real(wp),                intent(out) :: phi    !! value of the merit function
     real(wp), optional,      intent(in)  :: alpha  !! step length along the joint step (see above)
 
-    real(wp), dimension(size(c)) :: s, r, lam
+    real(wp), dimension(:), allocatable :: s, r, lam
+
+    allocate(s(size(c)), r(size(c)), lam(size(c)))
 
     select case (me%mode)
     case (sqpopt_merit_augmented_lagrangian)
@@ -199,8 +201,10 @@
     real(wp), dimension(:), intent(in) :: lambda   !! Lagrange multipliers for the constraints `dimension(m)`
     real(wp), intent(out) :: dphi0 !! directional derivative of the merit function along `p`
 
-    real(wp), dimension(size(c)) :: s !! slack variables for the augmented Lagrangian
-    real(wp), dimension(size(g)) :: jtlam, jtr
+    real(wp), dimension(:), allocatable :: s !! slack variables for the augmented Lagrangian
+    real(wp), dimension(:), allocatable :: jtlam, jtr
+
+    allocate(s(size(c)), jtlam(size(g)), jtr(size(g)))
 
     select case (me%mode)
     case (sqpopt_merit_augmented_lagrangian)
@@ -208,7 +212,8 @@
             ! (the multipliers and the slacks move too: by `xi = lambda - lambda0`
             ! and `q` per unit step, so `r = c-s` changes by `d = Jp - q`)
             block
-                real(wp), dimension(size(c)) :: jp, d
+                real(wp), dimension(:), allocatable :: jp, d
+                allocate(jp(size(c)), d(size(c)))
                 call sparse_matvec(jac, p, jp)
                 d = jp - me%q
                 s = c - me%s0     ! (= r0)
@@ -218,14 +223,16 @@
         else
             call augmented_lagrangian_slacks(me, c, c_lb, c_ub, lambda, s)
             call sparse_matvec_transpose(jac, lambda, jtlam)
-            call sparse_matvec_transpose(jac, c-s, jtr)
+            s = c - s   ! (= r)
+            call sparse_matvec_transpose(jac, s, jtr)
             dphi0 = dot_product(g - jtlam + me%penalty*jtr, p)
         end if
     case default
         block
-            real(wp), dimension(size(c)) :: jp
+            real(wp), dimension(:), allocatable :: jp
             real(wp) :: rate
             integer :: i
+            allocate(jp(size(c)))
             call sparse_matvec(jac, p, jp)
             rate = 0.0_wp
             do i = 1, size(c)
@@ -292,8 +299,10 @@
     real(wp), dimension(:),     intent(in) :: lambda    !! the current multipliers `dimension(m)`
     real(wp), dimension(:),     intent(in) :: lambda_qp !! the QP's multipliers `dimension(m)`
 
-    real(wp), dimension(size(c)) :: jp, s, r
+    real(wp), dimension(:), allocatable :: jp, s, r
     real(wp) :: dv, req, a, b, rho_hat, target
+
+    allocate(jp(size(c)), s(size(c)), r(size(c)))
 
     me%joint_active = .false.
     if (size(c) == 0) return
@@ -331,7 +340,8 @@
             end if
 
         case default   ! (l1)
-            dv = l1_violation(c, c_lb, c_ub) - l1_violation(c + jp, c_lb, c_ub)
+            r  = c + jp   ! (the linearized constraints)
+            dv = l1_violation(c, c_lb, c_ub) - l1_violation(r, c_lb, c_ub)
             if (dv > 0.0_wp) then
                 req = (dot_product(g, p) + 0.5_wp*max(php, 0.0_wp))/((1.0_wp - me%penalty_rho)*dv)
                 if (me%penalty < req) me%penalty = 1.1_wp*req

@@ -231,13 +231,15 @@
         !! try the unconstrained step \( -H^{-1} g \) of the limited-memory
         !! BFGS Hessian (see the module documentation). Sets
         !! `me%unconstrained_used` if it is feasible, and so solves the QP.
-        real(wp), dimension(size(c)) :: jp
+        real(wp), dimension(:), allocatable :: jp, neg_g
         integer :: n, m
         ! (only for a positive definite matrix with a cheap inverse)
         if (hessian%exact .or. hessian%use_sr1 .or. hessian%shift /= 0.0_wp) return
         n = size(g)
         m = size(c)
-        call hessian%inverse_vector_product(-g, p)
+        allocate(jp(m), neg_g(n))
+        neg_g = -g
+        call hessian%inverse_vector_product(neg_g, p)
         if (.not. sqpopt_all_finite(p)) return
         if (.not. dot_product(g, p) <= 0.0_wp) return
         if (any(x + p < x_lb) .or. any(x + p > x_ub)) return

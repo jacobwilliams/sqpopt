@@ -137,8 +137,9 @@
 !  or `sqpopt_qp_solve_failed` (iteration limit, or unbounded along a
 !  direction of nonpositive curvature; `p` is the last iterate). It is
 !  `sqpopt_out_of_memory`, with `p = 0` and `lambda = 0`, if one of the
-!  dense matrices (the Jacobian, the constraint rows, or the Hessian) can't
-!  be allocated.
+!  large dense matrices (the Jacobian, the constraint rows, the Hessian, or
+!  those of the starting step and of the initial working set) can't be
+!  allocated.
 
     subroutine solve_dense_qp(me, hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
 
@@ -158,13 +159,15 @@
     integer :: alloc_stat !! status of the allocations of the dense matrices
     real(wp), dimension(:,:), allocatable :: h, arows, ja, z, jd
     real(wp), dimension(:),   allocatable :: row_lb, row_ub, u, gext, hu_g, rg, dvec, coeff, s_sign, rhs_active, s0
-    real(wp), dimension(size(g)) :: p0
+    real(wp), dimension(:), allocatable :: p0
     real(wp), dimension(:),   allocatable :: jp0
     integer,  dimension(:),   allocatable :: status, orig_idx, coeff_idx, slack_row
     logical,  dimension(:),   allocatable :: is_equality
     real(wp) :: rho, rho_max, gscale, alpha, alpha_cap, scale
     integer  :: blocking, blocking_side
     logical  :: pd, at_face_optimum
+
+    allocate(p0(size(g)))
 
     n = size(g)
     m = size(c)
@@ -186,6 +189,10 @@
 
     ! ---- starting step: crash or warm start (see the module docs) ----
     call starting_step(p0)
+    if (alloc_stat /= 0) then
+        call out_of_memory()
+        return
+    end if
 
     ! ---- elastic slacks: one for each general row violated at p0 ----
     allocate(row_lb(m), row_ub(m))
@@ -257,13 +264,17 @@
     gext(n+1:nt) = rho
 
     ! ---- feasible starting point: p0, with the slacks just large enough ----
-    allocate(u(nt))
+    allocate(u(nt), hu_g(nt))
     u(1:n)    = p0
     u(n+1:nt) = s0
 
     ! ---- initial working set: rows at a bound at u, if linearly independent ----
     allocate(status(mtot)); status = 0
     call initial_working_set()
+    if (alloc_stat /= 0) then
+        call out_of_memory()
+        return
+    end if
 
     ! ---- active-set iterations ----
     istat = sqpopt_qp_solve_failed
@@ -275,7 +286,7 @@
         call build_active_set(arows, row_lb, row_ub, status, mtot, nt, ja, rhs_active, orig_idx, n_active)
         call dense_null_space(ja, n_active, nt, z, n_z)
 
-        hu_g = gradient(u)
+        call gradient(u, hu_g)
         scale = 1.0_wp
         if (n > 0) scale = 1.0_wp + maxval(abs(hu_g(1:n)))
         at_face_optimum = .false.
@@ -288,8 +299,9 @@
 
             rg = matmul(transpose(z), hu_g)
             block
-                real(wp), dimension(n_z,n_z) :: zthz, l_fac
-                real(wp), dimension(n_z)     :: dz, dcurv
+                real(wp), dimension(:,:), allocatable :: zthz, l_fac
+                real(wp), dimension(:), allocatable :: dz, dcurv
+                allocate(zthz(n_z,n_z), l_fac(n_z,n_z), dz(n_z), dcurv(n_z))
                 zthz = matmul(transpose(z(1:n,:)), matmul(h, z(1:n,:)))
                 call dense_cholesky_curvature(zthz, n_z, l_fac, pd, dcurv)
                 if (pd) then
@@ -307,7 +319,8 @@
                     ! (Negative curvature in the variables -- not just zero
                     ! curvature, e.g. along an elastic slack -- is reported.)
                     block
-                        real(wp), dimension(n) :: dp
+                        real(wp), dimension(:), allocatable :: dp
+                        allocate(dp(n))
                         dp = matmul(z(1:n,:), dcurv)
                         if (dot_product(dp, matmul(h, dp)) < &
                             -1.0e-8_wp*max(1.0_wp, maxval(abs(h)))*dot_product(dp, dp)) me%negative_curvature = .true.
@@ -341,13 +354,14 @@
 
         if (at_face_optimum) then
 
-            hu_g = gradient(u)
+            call gradient(u, hu_g)
 
             ! multipliers for the working set: least-squares solve of ja^T*coeff = H*u+g
             if (n_active > 0) then
                 block
-                    real(wp), dimension(n_active,n_active) :: gram, l_fac
-                    real(wp), dimension(n_active) :: coeff_local, correction
+                    real(wp), dimension(:,:), allocatable :: gram, l_fac
+                    real(wp), dimension(:), allocatable :: coeff_local, correction
+                    allocate(gram(n_active,n_active), l_fac(n_active,n_active), coeff_local(n_active), correction(n_active))
                     gram = matmul(ja, transpose(ja))
                     call dense_modified_cholesky(gram, n_active, l_fac)
                     call dense_solve_cholesky(l_fac, n_active, matmul(ja, hu_g), coeff_local)
@@ -443,16 +457,24 @@
         !! the minimum-norm step satisfying the initial working-set guess (the
         !! previous solve's final working set, or the equality constraints and
         !! fixed variables), with any violated variable bounds added to the
-        !! guess (up to 4 rounds), then clipped to the bounds
+        !! guess (up to 4 rounds), then clipped to the bounds. If its matrices
+        !! can't be allocated, `alloc_stat` is nonzero (and `p0` is zero).
         real(wp), dimension(n), intent(out) :: p0 !! the starting step `dimension(n)`
-        real(wp), dimension(n) :: blb, bub
-        integer,  dimension(m+n) :: guess   ! side (-1/+1, 0 = not in the guess) of each general row / bound
-        real(wp), dimension(n, n) :: qb     ! orthonormal basis of the selected rows
-        real(wp), dimension(n, n) :: t      ! lower-triangular coefficients: row_j = sum_i t(j,i) qb(:,i)
-        real(wp), dimension(n) :: a, r, y, bsel
+        real(wp), dimension(:), allocatable :: blb, bub
+        integer, dimension(:), allocatable :: guess ! side (-1/+1, 0 = not in the guess) of each general row / bound
+        real(wp), dimension(:,:), allocatable :: qb ! orthonormal basis of the selected rows
+        real(wp), dimension(:,:), allocatable :: t ! lower-triangular coefficients: row_j = sum_i t(j,i) qb(:,i)
+        real(wp), dimension(:), allocatable :: a, r, y, bsel
         real(wp) :: target
         integer :: kk, nb, round, j, jj
         logical :: added
+
+        p0 = 0.0_wp
+        allocate(qb(n, n), stat=alloc_stat)
+        if (alloc_stat /= 0) return
+        allocate(t(n, n), stat=alloc_stat)
+        if (alloc_stat /= 0) return
+        allocate(blb(n), bub(n), guess(m+n), a(n), r(n), y(n), bsel(n))
 
         blb = x_lb - x
         bub = x_ub - x
@@ -522,13 +544,13 @@
 
         end subroutine starting_step
 
-        function gradient(v) result(gr)
+        subroutine gradient(v, gr)
         !! the gradient of the (elastic) QP objective at `v`: `H*v_p + g`, then `rho` for each slack
-        real(wp), dimension(:), intent(in) :: v !! the unknowns: the step, then the elastic slacks `dimension(nt)`
-        real(wp), dimension(size(v)) :: gr
+        real(wp), dimension(:), intent(in)  :: v  !! the unknowns: the step, then the elastic slacks `dimension(nt)`
+        real(wp), dimension(:), intent(out) :: gr !! the gradient `dimension(nt)`
         gr(1:n)    = matmul(h, v(1:n)) + g
         gr(n+1:nt) = rho
-        end function gradient
+        end subroutine gradient
 
         subroutine ratio_test(d, alpha_cap, alpha, blocking, blocking_side)
         !! the largest `alpha <= alpha_cap` for which `u+alpha*d` satisfies every
@@ -568,11 +590,15 @@
         subroutine initial_working_set()
         !! add the rows that are at a bound at `u` (equality rows first) to the
         !! working set, skipping any that are linearly dependent on those
-        !! already added (modified Gram-Schmidt, with reorthogonalization)
-        real(wp), dimension(nt, min(mtot,nt)) :: qb
-        real(wp), dimension(nt) :: r
+        !! already added (modified Gram-Schmidt, with reorthogonalization). If
+        !! its matrix can't be allocated, `alloc_stat` is nonzero.
+        real(wp), dimension(:,:), allocatable :: qb
+        real(wp), dimension(:), allocatable :: r
         real(wp) :: val
         integer :: kk, pass, nb, side
+        allocate(qb(nt, min(mtot,nt)), stat=alloc_stat)
+        if (alloc_stat /= 0) return
+        allocate(r(nt))
         nb = 0
         do pass = 1, 2
             do kk = 1, mtot

@@ -235,12 +235,53 @@ program benchmark_large
     ! control problem
     !------------------------------------------------------------------------
 
+    subroutine set_uniform_bounds(problem, x_lb, x_ub, c_lb, c_ub)
+    !! give every variable the bounds `x_lb` and `x_ub`, and every constraint `c_lb` and `c_ub` (after
+    !! `set_problem_size`). The arrays are allocated here: an array expression given as an argument
+    !! (`spread(...)`, an array constructor) is a temporary, which some compilers put on the stack, and
+    !! these problems are large.
+    type(sqpopt_problem_type), intent(inout) :: problem !! the problem definition
+    real(wp),                  intent(in)    :: x_lb    !! lower bound of every variable
+    real(wp),                  intent(in)    :: x_ub    !! upper bound of every variable
+    real(wp),                  intent(in)    :: c_lb    !! lower bound of every constraint
+    real(wp),                  intent(in)    :: c_ub    !! upper bound of every constraint
+    real(wp), dimension(:), allocatable :: xl, xu, cl, cu
+    allocate(xl(problem%n), xu(problem%n), cl(problem%m), cu(problem%m))
+    xl = x_lb
+    xu = x_ub
+    cl = c_lb
+    cu = c_ub
+    call problem%set_bounds(xl, xu, cl, cu)
+    end subroutine set_uniform_bounds
+
+    subroutine set_banded_hessian(problem, tridiagonal)
+    !! set the sparsity pattern of the Hessian of the Lagrangian: the diagonal and, if `tridiagonal`, the
+    !! subdiagonal after it (the pattern's arrays are allocated here, see `set_uniform_bounds`)
+    type(sqpopt_problem_type), intent(inout) :: problem     !! the problem definition
+    logical,                   intent(in)    :: tridiagonal !! whether the subdiagonal is in the pattern
+    integer, dimension(:), allocatable :: irow, icol
+    integer :: n, nnz, i
+    n   = problem%n
+    nnz = n
+    if (tridiagonal) nnz = 2*n - 1
+    allocate(irow(nnz), icol(nnz))
+    do i = 1, n
+        irow(i) = i
+        icol(i) = i
+    end do
+    do i = n + 1, nnz
+        irow(i) = i - n + 1
+        icol(i) = i - n
+    end do
+    call problem%set_hessian_sparsity(nnz, irow, icol)
+    end subroutine set_banded_hessian
+
     subroutine setup_control(nn, problem, x0)
     !! the discretized optimal-control problem with `nn` steps
     integer,                             intent(in)  :: nn      !! number of time steps `N` (`n = 2N+1` variables)
     type(sqpopt_problem_type),           intent(out) :: problem !! the problem definition
     real(wp), dimension(:), allocatable, intent(out) :: x0      !! the starting point
-    real(wp), dimension(:), allocatable :: x_lb, x_ub
+    real(wp), dimension(:), allocatable :: x_lb, x_ub, c_b
     integer, dimension(:), allocatable :: irow, icol
     integer :: n, m, k, nnz
     nsteps = nn
@@ -265,12 +306,14 @@ program benchmark_large
     end do
 
     call problem%set_problem_size(n=n, m=m)
-    call problem%set_bounds(x_lb, x_ub, spread(0.0_wp,1,m), spread(0.0_wp,1,m))
-    problem%c_lb(1) = 1.0_wp; problem%c_ub(1) = 1.0_wp
+    allocate(c_b(m))
+    c_b    = 0.0_wp
+    c_b(1) = 1.0_wp
+    call problem%set_bounds(x_lb, x_ub, c_b, c_b)
     call problem%set_jacobian_sparsity(nnz, irow, icol)
     call problem%set_functions(fc=fc_control, gjac=gjac_control, hess=hess_control)
     ! the Hessian of the Lagrangian is diagonal:
-    call problem%set_hessian_sparsity(n, [(k, k=1,n)], [(k, k=1,n)])
+    call set_banded_hessian(problem, tridiagonal=.false.)
 
     allocate(x0(n))
     x0 = 0.0_wp
@@ -346,11 +389,11 @@ program benchmark_large
         icol(2*i)   = 2*i
     end do
     call problem%set_problem_size(n=n, m=m)
-    call problem%set_bounds(spread(-2.0_wp,1,n), spread(2.0_wp,1,n), spread(-1.0e20_wp,1,m), spread(1.5_wp,1,m))
+    call set_uniform_bounds(problem, -2.0_wp, 2.0_wp, -1.0e20_wp, 1.5_wp)
     call problem%set_jacobian_sparsity(2*m, irow, icol)
     call problem%set_functions(fc=fc_rosen, gjac=gjac_rosen, hess=hess_rosen)
     ! the Hessian of the Lagrangian is tridiagonal: the diagonal, then the subdiagonal
-    call problem%set_hessian_sparsity(2*n-1, [(i, i=1,n), (i+1, i=1,n-1)], [(i, i=1,n), (i, i=1,n-1)])
+    call set_banded_hessian(problem, tridiagonal=.true.)
     allocate(x0(n))
     do i = 1, n
         x0(i) = merge(-1.2_wp, 1.0_wp, mod(i,2) == 1)
@@ -431,11 +474,11 @@ program benchmark_large
         icol(4*k-3:4*k) = [4*k-3, 4*k-2, 4*k-1, 4*k]
     end do
     call problem%set_problem_size(n=n, m=m)
-    call problem%set_bounds(spread(-1.5_wp,1,n), spread(0.8_wp,1,n), spread(0.0_wp,1,m), spread(0.0_wp,1,m))
+    call set_uniform_bounds(problem, -1.5_wp, 0.8_wp, 0.0_wp, 0.0_wp)
     call problem%set_jacobian_sparsity(4*m, irow, icol)
     call problem%set_functions(fc=fc_wells, gjac=gjac_wells, hess=hess_wells)
     ! the Hessian of the Lagrangian is tridiagonal: the diagonal, then the subdiagonal
-    call problem%set_hessian_sparsity(2*n-1, [(i, i=1,n), (i+1, i=1,n-1)], [(i, i=1,n), (i, i=1,n-1)])
+    call set_banded_hessian(problem, tridiagonal=.true.)
     allocate(x0(n))
     do i = 1, n
         x0(i) = 0.1_wp*sin(real(i, wp))
@@ -514,23 +557,20 @@ program benchmark_large
         icol(2*i-1:2*i) = [i, i+1]
     end do
     call problem%set_problem_size(n=n, m=m)
-    call problem%set_bounds(spread(0.1_wp,1,n), spread(2.0_wp,1,n), spread(1.0_wp,1,m), spread(1.0e20_wp,1,m))
+    call set_uniform_bounds(problem, 0.1_wp, 2.0_wp, 1.0_wp, 1.0e20_wp)
     call problem%set_jacobian_sparsity(2*m, irow, icol)
     call problem%set_functions(fc=fc_hyperbolas, gjac=gjac_hyperbolas, hess=hess_hyperbolas)
     ! the Hessian of the Lagrangian is tridiagonal: the diagonal, then the subdiagonal
-    call problem%set_hessian_sparsity(2*n-1, [(i, i=1,n), (i+1, i=1,n-1)], [(i, i=1,n), (i, i=1,n-1)])
+    call set_banded_hessian(problem, tridiagonal=.true.)
     allocate(x0(n))
     x0 = 0.1_wp
     end subroutine setup_hyperbolas
 
-    pure function hyperbola_target(n) result(a)
-    !! the point the objective pulls toward
-    integer, intent(in) :: n !! number of variables
-    real(wp), dimension(n) :: a
-    integer :: i
-    do i = 1, n
-        a(i) = 1.0_wp + 0.5_wp*sin(0.37_wp*real(i, wp))
-    end do
+    pure function hyperbola_target(i) result(a)
+    !! the value the objective pulls variable `i` toward
+    integer, intent(in) :: i !! index of the variable
+    real(wp) :: a
+    a = 1.0_wp + 0.5_wp*sin(0.37_wp*real(i, wp))
     end function hyperbola_target
 
     subroutine fc_hyperbolas(x, f, c, status, data)
@@ -540,9 +580,13 @@ program benchmark_large
     real(wp), dimension(:), intent(out)   :: c      !! constraint values at `x` `dimension(m)`
     integer,                intent(inout) :: status !! `0` on entry; set `> 0` if `x` can't be evaluated, or `< 0` to stop the solver
     class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
-    integer :: n
+    integer :: n, i
     n = size(x)
-    f = 0.5_wp*sum((x - hyperbola_target(n))**2)
+    f = 0.0_wp
+    do i = 1, n
+        f = f + (x(i) - hyperbola_target(i))**2
+    end do
+    f = 0.5_wp*f
     c = x(1:n-1)*x(2:n)
     end subroutine fc_hyperbolas
 
@@ -556,7 +600,9 @@ program benchmark_large
     class(*), optional,     intent(inout) :: data   !! the user data passed to `set_functions` (if any)
     integer :: n, i
     n = size(x)
-    g = x - hyperbola_target(n)
+    do i = 1, n
+        g(i) = x(i) - hyperbola_target(i)
+    end do
     do i = 1, n-1
         jac(2*i-1:2*i) = [x(i+1), x(i)]
     end do
@@ -594,10 +640,10 @@ program benchmark_large
         icol(2*i-1:2*i) = [i, i+1]
     end do
     call problem%set_problem_size(n=n, m=m)
-    call problem%set_bounds(spread(-1.0e20_wp,1,n), spread(1.0e20_wp,1,n), spread(1.0_wp,1,m), spread(1.0_wp,1,m))
+    call set_uniform_bounds(problem, -1.0e20_wp, 1.0e20_wp, 1.0_wp, 1.0_wp)
     call problem%set_jacobian_sparsity(2*m, irow, icol)
     call problem%set_functions(fc=fc_circles, gjac=gjac_circles, hess=hess_circles)
-    call problem%set_hessian_sparsity(n, [(i, i=1,n)], [(i, i=1,n)])
+    call set_banded_hessian(problem, tridiagonal=.false.)
     allocate(x0(n))
     do i = 1, n
         x0(i) = merge(cos(0.3_wp), sin(0.3_wp), mod(i,2) == 1)

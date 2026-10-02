@@ -136,15 +136,18 @@
                                                                   !! at a nonconvex face (used if `inertia%enabled`)
 
     integer :: n, m, i, j, k
-    integer,  dimension(size(status)) :: st, st_new
-    real(wp), dimension(size(x) + size(c)) :: v
-    real(wp), dimension(size(x)) :: p_fixed, hp, z
-    real(wp), dimension(size(c)) :: jp
+    integer, dimension(:), allocatable :: st, st_new
+    real(wp), dimension(:), allocatable :: v
+    real(wp), dimension(:), allocatable :: p_fixed, hp, z
+    real(wp), dimension(:), allocatable :: jp
     real(wp) :: dual_tol, lin
     logical  :: ok, convex, shifted, consistent
     logical  :: regularized !! whether the current face's KKT matrix is singular, and so regularized
     logical  :: fine        !! whether the current face is being solved again with the smaller regularization
     real(wp) :: reg, target, jmax
+
+    allocate(st(size(status)), st_new(size(status)))
+    allocate(v(size(x) + size(c)), p_fixed(size(x)), hp(size(x)), z(size(x)), jp(size(c)))
 
     n = size(x)
     m = size(c)

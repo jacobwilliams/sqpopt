@@ -46,12 +46,14 @@
     real(wp), dimension(:,:), allocatable, intent(out) :: z    !! `dimension(n,n_z)`, `n_z = n-m_a`
     integer,                    intent(out) :: n_z  !! number of columns of `z`
 
-    real(wp), dimension(n,n)     :: q
-    real(wp), dimension(n,max(m_a,1)) :: r
-    real(wp), dimension(n) :: v
+    real(wp), dimension(:,:), allocatable :: q
+    real(wp), dimension(:,:), allocatable :: r
+    real(wp), dimension(:), allocatable :: v
     integer  :: i, j, k, kmax
     real(wp) :: alpha, vnorm, s
     real(wp), parameter :: tol = 1.0e-13_wp
+
+    allocate(q(n,n), r(n,max(m_a,1)), v(n))
 
     n_z = n - m_a
     allocate(z(n, max(n_z,0)))
@@ -203,8 +205,10 @@
     real(wp), dimension(n),   intent(in)  :: b !! right-hand side vector of the linear system `Ax=b`
     real(wp), dimension(n),   intent(out) :: x !! solution vector of the linear system `Ax=b`
 
-    real(wp), dimension(n) :: y
+    real(wp), dimension(:), allocatable :: y
     integer :: i
+
+    allocate(y(n))
 
     ! forward substitution: L y = b
     do i = 1, n
@@ -307,10 +311,12 @@
     integer,                  intent(out) :: n_zero     !! number of zero eigenvalues
 
     real(wp), parameter :: zero_tol = 1.0e-12_wp
-    real(wp), dimension(size(a,1), size(a,1)) :: b
-    real(wp), dimension(size(a,1)) :: v, p, w
+    real(wp), dimension(:,:), allocatable :: b
+    real(wp), dimension(:), allocatable :: v, p, w
     real(wp) :: alpha, vnorm, q, small, e, d, det, mean, radius
     integer :: n, k, i
+
+    allocate(b(size(a,1), size(a,1)), v(size(a,1)), p(size(a,1)), w(size(a,1)))
 
     n = size(a,1)
     n_positive = 0

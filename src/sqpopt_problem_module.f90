@@ -544,11 +544,13 @@
     real(wp),               intent(in) :: max_gradient !! \( g_{max} \)
     real(wp), optional,     intent(in) :: min_value    !! smallest scale factor (default `0`: no limit)
 
-    real(wp), dimension(me%n) :: g
-    real(wp), dimension(max(me%jac_nnz,0)) :: jval
-    real(wp), dimension(me%m) :: row_max
+    real(wp), dimension(:), allocatable :: g
+    real(wp), dimension(:), allocatable :: jval
+    real(wp), dimension(:), allocatable :: row_max
     real(wp) :: smin
     integer :: k
+
+    allocate(g(me%n), jval(max(me%jac_nnz,0)), row_max(me%m))
 
     smin = 0.0_wp
     if (present(min_value)) smin = min(max(min_value, 0.0_wp), 1.0_wp)
@@ -588,9 +590,7 @@
     real(wp), dimension(:),     intent(in)  :: x !! point `dimension(n)`
     real(wp),                   intent(out) :: f !! scaled objective function value at `x`
 
-    real(wp), dimension(me%m) :: c
-
-    call raw_fc(me, x, f, c)
+    call raw_fc(me, x, f)
     f = me%f_scale*f
 
     end subroutine eval_f_cached
@@ -626,9 +626,7 @@
     real(wp), dimension(:),     intent(in)  :: x !! point `dimension(n)`
     real(wp), dimension(:),     intent(out) :: g !! scaled gradient at `x` `dimension(n)`
 
-    real(wp), dimension(max(me%jac_nnz,0)) :: jac_val
-
-    call raw_gjac(me, x, g, jac_val)
+    call raw_gjac(me, x, g=g)
     g = me%f_scale*g
 
     end subroutine eval_g_cached
@@ -646,9 +644,8 @@
     real(wp), dimension(:),     intent(out) :: jac_val !! scaled Jacobian values `dimension(jac_nnz)`
 
     integer :: k
-    real(wp), dimension(me%n) :: g
 
-    call raw_gjac(me, x, g, jac_val)
+    call raw_gjac(me, x, jac_val=jac_val)
     do k = 1, me%jac_nnz
         jac_val(k) = me%c_scale(me%jac_irow(k))*jac_val(k)
     end do
@@ -658,106 +655,112 @@
 
 !*******************************************************************************
 !>
-!  the unscaled objective and constraints, from the cache or the user's `fc`
-!  (whose call is counted, and whose `status` is handled by [[check_status]]).
+!  the unscaled objective and (if `c` is present) constraints, from the
+!  cache or the user's `fc` (whose call is counted, and whose `status` is
+!  handled as by [[check_status]]). The user's function writes straight into
+!  the next cache entry, so an evaluation needs no work array.
 
     subroutine raw_fc(me, x, f, c)
 
     class(sqpopt_problem_type), intent(inout) :: me
     real(wp), dimension(:),     intent(in)  :: x !! point `dimension(n)`
     real(wp),                   intent(out) :: f !! objective at `x` (unscaled)
-    real(wp), dimension(:),     intent(out) :: c !! constraints at `x` (unscaled) `dimension(m)`
+    real(wp), dimension(:), optional, intent(out) :: c !! constraints at `x` (unscaled) `dimension(m)`
     real(wp) :: t0 !! (for the time spent in the user's function)
 
     integer :: k, status
-    real(wp), dimension(1+size(c)) :: v
 
     if (.not. allocated(me%cache_x)) call reset_evaluations(me)
     do k = 1, me%cache_n
         if (all(me%cache_x(:,k) == x)) then
             f = me%cache_f(k)
-            c = me%cache_c(:,k)
+            if (present(c)) c = me%cache_c(:,k)
             return
         end if
     end do
 
     if (me%stop_requested) then   ! (no more user calls once a stop has been requested)
         f = ieee_value(1.0_wp, ieee_quiet_nan)
-        c = f
+        if (present(c)) c = f
         return
     end if
+    k = me%cache_next
     status = 0
     t0 = wall_time()
     if (associated(me%user_data)) then
-        call me%eval_fc(x, f, c, status, me%user_data)
+        call me%eval_fc(x, me%cache_f(k), me%cache_c(:,k), status, me%user_data)
     else
-        call me%eval_fc(x, f, c, status)
+        call me%eval_fc(x, me%cache_f(k), me%cache_c(:,k), status)
     end if
     me%time_user = me%time_user + (wall_time() - t0)
     me%n_eval_fc = me%n_eval_fc + 1
-    v = [f, c]
-    call check_status(me, status, v)
-    f = v(1)
-    c = v(2:)
+    if (status /= 0) then
+        if (status < 0) me%stop_requested = .true.
+        me%cache_f(k)   = ieee_value(1.0_wp, ieee_quiet_nan)
+        me%cache_c(:,k) = ieee_value(1.0_wp, ieee_quiet_nan)
+    end if
 
-    me%cache_x(:,me%cache_next) = x
-    me%cache_f(me%cache_next)   = f
-    me%cache_c(:,me%cache_next) = c
-    me%cache_n    = min(me%cache_n + 1, cache_size)
-    me%cache_next = mod(me%cache_next, cache_size) + 1
+    me%cache_x(:,k) = x
+    me%cache_n      = min(me%cache_n + 1, cache_size)
+    me%cache_next   = mod(me%cache_next, cache_size) + 1
+
+    f = me%cache_f(k)
+    if (present(c)) c = me%cache_c(:,k)
 
     end subroutine raw_fc
 !*******************************************************************************
 
 !*******************************************************************************
 !>
-!  the unscaled gradient and Jacobian values, from the one-entry cache or
-!  the user's `gjac` (whose call is counted, and whose `status` is handled
-!  by [[check_status]]).
+!  the unscaled gradient and/or Jacobian values (whichever of `g` and
+!  `jac_val` is present), from the one-entry cache or the user's `gjac`
+!  (whose call is counted, and whose `status` is handled as by
+!  [[check_status]]). The user's function writes straight into the cache,
+!  so an evaluation needs no work array.
 
     subroutine raw_gjac(me, x, g, jac_val)
 
     class(sqpopt_problem_type), intent(inout) :: me
     real(wp), dimension(:),     intent(in)  :: x       !! point `dimension(n)`
-    real(wp), dimension(:),     intent(out) :: g       !! objective gradient at `x` (unscaled) `dimension(n)`
-    real(wp), dimension(:),     intent(out) :: jac_val !! nonzero Jacobian values at `x` (unscaled) `dimension(jac_nnz)`
+    real(wp), dimension(:), optional, intent(out) :: g       !! objective gradient at `x` (unscaled) `dimension(n)`
+    real(wp), dimension(:), optional, intent(out) :: jac_val !! nonzero Jacobian values at `x` (unscaled)
+                                                             !! `dimension(jac_nnz)`
     real(wp) :: t0 !! (for the time spent in the user's function)
 
     integer :: status
-    real(wp), dimension(size(g)+size(jac_val)) :: v
+    logical :: cached
 
     if (.not. allocated(me%cache_xg)) call reset_evaluations(me)
-    if (me%have_gjac) then
-        if (all(me%cache_xg == x)) then
-            g       = me%cache_g
-            jac_val = me%cache_jac
+    cached = .false.
+    if (me%have_gjac) cached = all(me%cache_xg == x)
+
+    if (.not. cached) then
+        if (me%stop_requested) then   ! (no more user calls once a stop has been requested)
+            if (present(g))       g       = ieee_value(1.0_wp, ieee_quiet_nan)
+            if (present(jac_val)) jac_val = ieee_value(1.0_wp, ieee_quiet_nan)
             return
         end if
+        me%have_gjac = .false.
+        status = 0
+        t0 = wall_time()
+        if (associated(me%user_data)) then
+            call me%eval_gjac(x, me%cache_g, me%cache_jac, me%derivative_accuracy, status, me%user_data)
+        else
+            call me%eval_gjac(x, me%cache_g, me%cache_jac, me%derivative_accuracy, status)
+        end if
+        me%time_user = me%time_user + (wall_time() - t0)
+        me%n_eval_gjac = me%n_eval_gjac + 1
+        if (status /= 0) then
+            if (status < 0) me%stop_requested = .true.
+            me%cache_g   = ieee_value(1.0_wp, ieee_quiet_nan)
+            me%cache_jac = ieee_value(1.0_wp, ieee_quiet_nan)
+        end if
+        me%cache_xg  = x
+        me%have_gjac = .true.
     end if
 
-    if (me%stop_requested) then
-        g       = ieee_value(1.0_wp, ieee_quiet_nan)
-        jac_val = ieee_value(1.0_wp, ieee_quiet_nan)
-        return
-    end if
-    status = 0
-    t0 = wall_time()
-    if (associated(me%user_data)) then
-        call me%eval_gjac(x, g, jac_val, me%derivative_accuracy, status, me%user_data)
-    else
-        call me%eval_gjac(x, g, jac_val, me%derivative_accuracy, status)
-    end if
-    me%time_user = me%time_user + (wall_time() - t0)
-    me%n_eval_gjac = me%n_eval_gjac + 1
-    v = [g, jac_val]
-    call check_status(me, status, v)
-    g       = v(1:size(g))
-    jac_val = v(size(g)+1:)
-
-    me%cache_xg  = x
-    me%cache_g   = g
-    me%cache_jac = jac_val
-    me%have_gjac = .true.
+    if (present(g))       g       = me%cache_g
+    if (present(jac_val)) jac_val = me%cache_jac
 
     end subroutine raw_gjac
 !*******************************************************************************
@@ -780,17 +783,20 @@
     real(wp) :: t0 !! (for the time spent in the user's function)
 
     integer :: status
+    real(wp), dimension(:), allocatable :: lambda_user !! the multipliers of the original problem
 
     if (me%stop_requested .or. .not. associated(me%eval_hess)) then
         hess_val = ieee_value(1.0_wp, ieee_quiet_nan)
         return
     end if
+    allocate(lambda_user(size(lambda)))
+    lambda_user = lambda*me%c_scale/me%f_scale
     status = 0
     t0 = wall_time()
     if (associated(me%user_data)) then
-        call me%eval_hess(x, lambda*me%c_scale/me%f_scale, hess_val, status, me%user_data)
+        call me%eval_hess(x, lambda_user, hess_val, status, me%user_data)
     else
-        call me%eval_hess(x, lambda*me%c_scale/me%f_scale, hess_val, status)
+        call me%eval_hess(x, lambda_user, hess_val, status)
     end if
     me%time_user = me%time_user + (wall_time() - t0)
     me%n_eval_hess = me%n_eval_hess + 1

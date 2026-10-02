@@ -79,15 +79,17 @@
                                                   !! `soc_max_ratio` \( \lVert p \rVert \)
     integer,  parameter :: lsqr_itnlim_stop = 5 !! `LSQR`'s `istop` for "iteration limit reached"
 
-    real(wp), dimension(size(c)) :: c_lin, resid
-    integer,  dimension(size(c)) :: row_map
-    real(wp), dimension(size(x)) :: d
+    real(wp), dimension(:), allocatable :: c_lin, resid
+    integer, dimension(:), allocatable :: row_map
+    real(wp), dimension(:), allocatable :: d
     real(wp), dimension(:), allocatable :: rhs
     integer,  dimension(:), allocatable :: irow, icol
     real(wp), dimension(:), allocatable :: val
     type(lsqr_solver_ez) :: lsqr
     integer :: i, k, m_s, nnz_s, istop
     logical :: solved
+
+    allocate(c_lin(size(c)), resid(size(c)), row_map(size(c)), d(size(x)))
 
     p_soc = p
     ok    = .false.
@@ -118,11 +120,23 @@
 
     ! the minimum-norm correction, by a direct solve if there is one:
     solved = .false.
-    if (present(least_squares)) call least_squares%min_norm(jac, row_map > 0, -resid, d, solved)
+    if (present(least_squares)) then
+        block
+            logical,  dimension(:), allocatable :: selected
+            real(wp), dimension(:), allocatable :: rhs_all
+            allocate(selected(size(c)), rhs_all(size(c)))
+            selected = row_map > 0
+            rhs_all  = -resid
+            call least_squares%min_norm(jac, selected, rhs_all, d, solved)
+        end block
+    end if
 
     if (.not. solved) then
         ! the sub-Jacobian of the selected rows, and the right-hand side:
-        nnz_s = count(row_map(jac%irow(1:jac%nnz)) > 0)
+        nnz_s = 0
+        do i = 1, jac%nnz
+            if (row_map(jac%irow(i)) > 0) nnz_s = nnz_s + 1
+        end do
         allocate(irow(nnz_s), icol(nnz_s), val(nnz_s), rhs(m_s))
         k = 0
         do i = 1, jac%nnz

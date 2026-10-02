@@ -165,8 +165,8 @@
     type(sqpopt_iter_info),  intent(out)   :: info      !! information about this iteration, for the log
 
     real(wp) :: f !! current objective function value
-    real(wp), dimension(problem%n) :: g, gl, p, x_new
-    real(wp), dimension(problem%m) :: c, new_lambda
+    real(wp), dimension(:), allocatable :: g, gl, p, x_new
+    real(wp), dimension(:), allocatable :: c, new_lambda
     real(wp) :: alpha
     integer :: qp_istat, step_istat
     logical :: restore
@@ -181,6 +181,8 @@
                             !! of it that is carried over from failed steps)
     logical :: keep_shift   !! with inertia control: whether the step failed, so the shift it was computed with
                             !! is carried over (increased) to the next iteration
+
+    allocate(g(problem%n), gl(problem%n), p(problem%n), x_new(problem%n), c(problem%m), new_lambda(problem%m))
 
     done = .false.
     lg = linesearch%log   ! (the detailed log, set up by `solve`)
@@ -237,13 +239,15 @@
         if (associated(report)) then
             block
                 logical :: user_stop
+                real(wp), dimension(:), allocatable :: c_user, lambda_user   ! (of the original problem)
+                allocate(c_user(problem%m), lambda_user(problem%m))
+                c_user      = c/problem%c_scale
+                lambda_user = lambda*problem%c_scale/problem%f_scale
                 user_stop = .false.
                 if (associated(problem%user_data)) then
-                    call report(iter, x, f/problem%f_scale, c/problem%c_scale, &
-                                lambda*problem%c_scale/problem%f_scale, user_stop, problem%user_data)
+                    call report(iter, x, f/problem%f_scale, c_user, lambda_user, user_stop, problem%user_data)
                 else
-                    call report(iter, x, f/problem%f_scale, c/problem%c_scale, &
-                                lambda*problem%c_scale/problem%f_scale, user_stop)
+                    call report(iter, x, f/problem%f_scale, c_user, lambda_user, user_stop)
                 end if
                 if (user_stop) then
                     istat = sqpopt_user_requested_stop
@@ -315,7 +319,8 @@
             if (allocated(f_prev)) deallocate(f_prev)
             viol_prev = maxval(max(problem%c_lb-c, 0.0_wp) + max(c-problem%c_ub, 0.0_wp))
             block
-                real(wp), dimension(problem%n) :: jtlam
+                real(wp), dimension(:), allocatable :: jtlam
+                allocate(jtlam(problem%n))
                 call sparse_matvec_transpose(jac, lambda, jtlam)
                 gl_prev = g - jtlam
             end block
@@ -362,7 +367,8 @@
     ! Lagrangian gradient at the current point, with the current multipliers
     ! (the multipliers the previous iteration's `gl_prev` was also formed with):
     block
-        real(wp), dimension(problem%n) :: jtlam
+        real(wp), dimension(:), allocatable :: jtlam
+        allocate(jtlam(problem%n))
         call sparse_matvec_transpose(jac, lambda, jtlam)
         gl = g - jtlam
     end block
@@ -371,7 +377,8 @@
         ! the user's exact Hessian of the Lagrangian, at the current point
         ! with the current multipliers (see [[sqpopt_hessian_module]]):
         block
-            real(wp), dimension(problem%hess_nnz) :: hval
+            real(wp), dimension(:), allocatable :: hval
+            allocate(hval(problem%hess_nnz))
             call problem%hess(x, lambda, hval)
             if (problem%stop_requested) then
                 istat = sqpopt_user_requested_stop
@@ -392,11 +399,17 @@
         ! (skipped on the very first iteration, since there is no previous point,
         ! and when the derivatives were just switched to accurate ones, since
         ! `gl_prev` was formed with the fast ones):
-        if (options%hessian_mode == sqpopt_hessian_sr1) then
-            call hessian%update_sr1(x - x_prev, gl - gl_prev)
-        else
-            call hessian%update_bfgs(x - x_prev, gl - gl_prev)
-        end if
+        block
+            real(wp), dimension(:), allocatable :: s, y   ! (the quasi-Newton pair)
+            allocate(s(problem%n), y(problem%n))
+            s = x - x_prev
+            y = gl - gl_prev
+            if (options%hessian_mode == sqpopt_hessian_sr1) then
+                call hessian%update_sr1(s, y)
+            else
+                call hessian%update_bfgs(s, y)
+            end if
+        end block
     end if
 
     ! (the Hessian has changed, so a factorization with it no longer applies)
@@ -669,7 +682,8 @@
     viol_prev = 0.0_wp
     if (problem%m > 0) viol_prev = maxval(max(problem%c_lb-c, 0.0_wp) + max(c-problem%c_ub, 0.0_wp))
     block
-        real(wp), dimension(problem%n) :: jtlam
+        real(wp), dimension(:), allocatable :: jtlam
+        allocate(jtlam(problem%n))
         call sparse_matvec_transpose(jac, new_lambda, jtlam)
         gl_prev = g - jtlam
     end block
@@ -759,14 +773,15 @@
         !! on a hanging-chain problem this fed on itself until the multipliers
         !! were `1e13`, the steps `1e-9`, and the solver stopped as stalled far
         !! from the solution. The estimate doesn't depend on the shift.
-        logical,  dimension(problem%m) :: rows
-        real(wp), dimension(problem%m) :: estimate
+        logical, dimension(:), allocatable :: rows, free
+        real(wp), dimension(:), allocatable :: estimate
         logical :: ok
         integer :: i
+        allocate(rows(problem%m), estimate(problem%m), free(problem%n))
         rows = (problem%c_ub - problem%c_lb <= 0.0_wp) .or. lambda /= 0.0_wp
+        free = x > problem%x_lb .and. x < problem%x_ub
         estimate = lambda
-        call multiplier_estimate(jac, rows, x > problem%x_lb .and. x < problem%x_ub, g, estimate, ok, &
-                                 least_squares=least_squares)
+        call multiplier_estimate(jac, rows, free, g, estimate, ok, least_squares=least_squares)
         if (.not. ok) return
         do i = 1, problem%m
             if (problem%c_ub(i) - problem%c_lb(i) <= 0.0_wp .or. estimate(i)*lambda(i) > 0.0_wp) lambda(i) = estimate(i)
@@ -804,7 +819,8 @@
         !! the multipliers `new_lambda` (see [[solve_qp_subproblem]]). Its
         !! direct method, if in use, may raise the exact Hessian's shift.
         real(wp) :: shift0
-        real(wp), dimension(size(x)) :: lb, ub
+        real(wp), dimension(:), allocatable :: lb, ub
+        allocate(lb(size(x)), ub(size(x)))
         shift0 = hessian%shift
         ! (the variables' bounds, and the limits on their steps if any: see `set_max_step`)
         call problem%step_bounds(x, lb, ub)
@@ -880,9 +896,10 @@
         subroutine note_restoration_step(how)
         !! the detailed log's line for a single restoration step just taken (or not)
         character(len=*), intent(in) :: how !! which kind of step it was, for the message
-        real(wp), dimension(problem%m) :: c_new
+        real(wp), dimension(:), allocatable :: c_new
         if (.not. lg%on(sqpopt_log_detail)) return
         if (step_istat == sqpopt_success) then
+            allocate(c_new(problem%m))
             call problem%c(x_new, c_new)
             call lg%put(sqpopt_log_detail, 'restoration step ('//how//'): violation '// &
                         fmt_e(l1_violation(c, problem%c_lb, problem%c_ub))//' -> '// &
@@ -934,7 +951,8 @@
         real(wp), dimension(:), intent(in)  :: c_trial !! constraint values at `x+p_trial`
         real(wp), dimension(:), intent(out) :: p_soc   !! the corrected step
         logical,                intent(out) :: ok      !! true if `p_soc` is usable
-        real(wp), dimension(size(x)) :: lb, ub
+        real(wp), dimension(:), allocatable :: lb, ub
+        allocate(lb(size(x)), ub(size(x)))
         call problem%step_bounds(x, lb, ub)
         call soc_step(jac, x, p_trial, c, c_trial, problem%c_lb, problem%c_ub, lb, ub, p_soc, ok, &
                       least_squares=least_squares)
@@ -968,9 +986,10 @@
         !! fail, the phase also ends, so that the next iteration tries the
         !! optimality QP again instead of retrying the phase from the same point.
         real(wp) :: f_new, theta0, theta_new
-        real(wp), dimension(problem%m) :: c_new
+        real(wp), dimension(:), allocatable :: c_new
         logical :: ended
         character(len=:), allocatable :: how
+        allocate(c_new(problem%m))
         theta0 = l1_violation(c, problem%c_lb, problem%c_ub)
         how = 'feasibility QP'
         call restoration%step(problem, jac, x, c, x_new, alpha, step_istat)
@@ -1026,11 +1045,13 @@
         !! iterates away.
         real(wp), parameter :: growth       = 1.5_wp !! the multiplier growth that indicates divergence
         integer,  parameter :: max_resolves = 3      !! maximum elastic re-solves per solve
-        real(wp) :: lim, rownorm(problem%m), wmax
-        real(wp), dimension(problem%n) :: lb_step, ub_step
-        integer  :: sgn(problem%m), k, i
+        real(wp) :: lim, wmax
+        real(wp), dimension(:), allocatable :: rownorm, lb_step, ub_step
+        integer,  dimension(:), allocatable :: sgn
+        integer  :: k, i
         if (options%elastic_multiplier_limit <= 0.0_wp .or. problem%m == 0 .or. &
             qp_solver%n_elastic >= max_resolves) return
+        allocate(rownorm(problem%m), sgn(problem%m), lb_step(problem%n), ub_step(problem%n))
         lim = options%elastic_multiplier_limit*max(1.0_wp, maxval(abs(g)))
         rownorm = 0.0_wp
         do k = 1, jac%nnz
@@ -1063,7 +1084,8 @@
         subroutine update_penalty()
         !! update the merit function's penalty parameter for the QP step `p`
         !! and multipliers `new_lambda` (see [[update_penalty_parameter]])
-        real(wp), dimension(problem%n) :: hp
+        real(wp), dimension(:), allocatable :: hp
+        allocate(hp(problem%n))
         call hessian%hv_product(p, hp)
         call linesearch%merit%update_penalty(jac, g, p, dot_product(p, hp), c, problem%c_lb, problem%c_ub, &
                                        lambda, new_lambda)
@@ -1095,9 +1117,11 @@
     real(wp), optional,         intent(out)   :: stat_error !! the stationarity residual (of the scaled problem,
                                                              !! without the multiplier scaling; see [[check_convergence]])
 
-    real(wp), dimension(size(x)) :: g, jtlam
+    real(wp), dimension(:), allocatable :: g, jtlam
     logical :: converged
     integer :: istat, j
+
+    allocate(g(size(x)), jtlam(size(x)))
 
     call problem%f(x, f)
     call problem%g(x, g)

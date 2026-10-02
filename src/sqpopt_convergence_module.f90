@@ -115,10 +115,12 @@
 
     real(wp), parameter :: s_max = 100.0_wp !! multiplier-scaling threshold (see above)
 
-    real(wp), dimension(size(g)) :: jtlam, r
-    real(wp), dimension(size(c)) :: rc
+    real(wp), dimension(:), allocatable :: jtlam, r
+    real(wp), dimension(:), allocatable :: rc
     real(wp) :: kkt_res, dual_res, c_viol, x_viol, rel_f, rel_x, lam_scale
     integer :: i
+
+    allocate(jtlam(size(g)), r(size(g)), rc(size(c)))
 
     istat     = sqpopt_success
     converged = .false.

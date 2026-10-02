@@ -1044,15 +1044,42 @@ which is now double precision only.
   `solve_sparse_linear_system` wrapper and the `sqpopt_linsolve_*`
   constants are removed, and `lbfgsb` is dropped. `lusol` is now used
   (F13, F1), and `LSMR` was dropped (F14).
-- **Allocation failures.** Only the dense QP solver's three large
+- **Allocation failures.** Only the dense QP solver's large
   matrices are checked so far (`sqpopt_out_of_memory`, see "Out-of-memory
   status" above). Go through every allocation whose size grows with the
   problem (`n`, `m`, the Jacobian and Hessian nonzeros, the L-BFGS
   memory) and make it end the solve with that status instead of aborting
   the program. That includes explicit `allocate` statements, automatic
-  (re)allocation on assignment, and automatic arrays (which can't be
-  checked, so the large ones would have to become allocatable). The
-  candidates are the rest of the dense QP (its working-set and
+  (re)allocation on assignment (the library has no automatic arrays
+  any more, see next).
+  *Stack use (2026-10-02, done):* `src/` had 137 automatic arrays (local
+  arrays sized by the problem: `n`, `m`, `n + m`, the nonzeros, and
+  `n x n` ones in the dense QP), and about 50 array temporaries sized by
+  the problem outside the dense QP (expressions given as arguments, array
+  constructors, `pack`, array-valued functions). With gfortran and FPM's
+  flags both are on the heap, but with `-fstack-arrays` (or `-Ofast`, or
+  the Intel compilers' default) they are on the stack: `test_scalable
+  --function=sphere` ran with 20,000 variables and crashed with 100,000.
+  Now every one is an allocatable array (or gone: the evaluation layer
+  has the user's functions write straight into its caches; the `LUSOL`
+  solves keep their work vectors with the factors; the basis method keeps
+  two for its inner loops), so the library's stack use no longer grows
+  with the problem. Built with `-O3 -fstack-arrays` and an 8 MB stack, it
+  solves the scalable functions with 1,000,000 variables (L-BFGS) and
+  the `benchmark_large` problems with 500,000 to 1,000,000 (the direct
+  QP, with MUMPS); the active-set QP ran for 9 minutes at 1,000,000
+  variables without overflowing (it wasn't left to finish). Results are
+  unchanged (the six HS baselines of `CLAUDE.md`, to the last `fc`
+  call), and the times of `benchmark_large --scale=1` are the same or
+  slightly lower. `tools/stack_check.sh` lists what is left: only small
+  temporaries, and the dense QP solver's, which is dense by design (with
+  such flags it is limited to a few hundred variables). Not tested with
+  the Intel compilers. The conversion found one bug: the dense QP's
+  starting-step and working-set matrices were automatic `n x n` arrays,
+  whose failed allocation was never noticed (`test_out_of_memory` passed
+  only because it didn't touch them); they are now checked like the
+  other three. Allocation failures of the vectors are still unchecked:
+  the candidates are the rest of the dense QP (its working-set and
   null-space matrices), the sparse QP and its `LUSOL` factors, the
   L-BFGS storage, the work vectors of `solve` and `sqpopt_iterate`, the
   problem type's bound, scaling, and cache arrays, and the Python shim.

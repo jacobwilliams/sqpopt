@@ -138,6 +138,12 @@ fpm build --profile release --flag "-DREAL128"   # quadruple precision</code></p
 
 <p>The working kind is exported as <code>sqpopt_module_wp</code> from <code>sqpopt_kinds</code>. The examples below import it as <code>wp</code>.</p>
 
+<div class="callout note"><p><strong>Large problems and the stack.</strong> Some compilers and flags put local arrays whose size is only known at run time, and the temporary arrays of expressions, on the stack: gfortran with <code>-fstack-arrays</code> (which <code>-Ofast</code> turns on), and the Intel compilers unless <code>-heap-arrays</code> is given. A large problem then overflows the stack (usually 8 MB), and the program crashes without a message. The library doesn't depend on this: every array of its own whose size grows with the problem is allocated on the heap. Built with gfortran's <code>-fstack-arrays</code>, it solves problems with a million variables in an 8 MB stack. Two things are not covered:</p>
+<ul>
+  <li>the dense QP solver (<code>sqpopt_qp_dense</code>), which is meant for small problems and works with dense temporary matrices: with such flags, use it for a few hundred variables at most;</li>
+  <li>your own code. An array sized by the problem that is a local variable of the program or of <code>fc</code>/<code>gjac</code>, or an array expression given as an argument (<code>spread(...)</code>, an array constructor), is placed as your compiler decides. Make such arrays allocatable, or raise the stack limit (<code>ulimit -s</code>, and <code>OMP_STACKSIZE</code> for the threads of an OpenMP program).</li>
+</ul></div>
+
 <p>Three options, meant for large problems, are optional, because they need a library that FPM can't fetch: <a href="#inertia-control">inertia control</a>, the <a href="#direct-qp">direct QP method</a>, and <a href="#direct-least-squares">direct least squares</a> use the sparse factorizations of the <a href="https://mumps-solver.org">MUMPS</a> solver. To enable them, define <code>HAS_MUMPS</code>, put MUMPS's <code>dmumps_struc.h</code> on the include path, and link with its sequential, double precision library. With conda-forge's <code>mumps-seq</code> package:</p>
 
 <pre><code class="language-bash">fpm build --profile release --flag "-DHAS_MUMPS -I$CONDA_PREFIX/include" --link-flag "-ldmumps_seq"</code></pre>

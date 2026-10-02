@@ -144,9 +144,12 @@
 
     integer :: retry, qp_istat
     logical :: use_filter, use_funnel, accept, ok, soc_ok, f_type
-    real(wp), dimension(size(x)) :: p, p_soc, x_lb2, x_ub2, hp
-    real(wp), dimension(size(c)) :: jp, c_trial, c_lin
+    real(wp), dimension(:), allocatable :: p, p_soc, x_lb2, x_ub2, hp
+    real(wp), dimension(:), allocatable :: jp, c_trial, c_lin
     real(wp) :: f_trial, h0, h_trial, q, pred, ratio, phi0, phi_model
+
+    allocate(p(size(x)), p_soc(size(x)), x_lb2(size(x)), x_ub2(size(x)), hp(size(x)))
+    allocate(jp(size(c)), c_trial(size(c)), c_lin(size(c)))
 
     if (.not. me%ready) then
         me%radius = me%radius0
@@ -199,7 +202,8 @@
             pred = phi0 - phi_model
         end if
 
-        call evaluate(x + p, accept)
+        x_new = x + p   ! (the trial point)
+        call evaluate(x_new, accept)
         call log_trial('tr  radius '//fmt_e(me%radius)//', QP '//qp_status_text(qp_istat)//': ')
 
         if (.not. accept .and. ok .and. problem%m > 0) then
@@ -211,7 +215,8 @@
                 call soc_step(jac, x, p, c, c_trial, problem%c_lb, problem%c_ub, x_lb2, x_ub2, p_soc, soc_ok, &
                               least_squares=least_squares)
                 if (soc_ok) then
-                    call evaluate(x + p_soc, accept)
+                    x_new = x + p_soc
+                    call evaluate(x_new, accept)
                     call log_trial('tr  second-order correction: ')
                     if (accept) then
                         p = p_soc

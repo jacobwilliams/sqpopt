@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+#
+# List what the library could put on the stack: its local arrays with
+# explicit bounds that aren't constants (automatic arrays), and the array
+# temporaries the compiler creates for its expressions (gfortran's
+# -Warray-temporaries). Some compilers and flags (gfortran -fstack-arrays or
+# -Ofast, the Intel compilers without -heap-arrays) put both on the stack,
+# which a large problem then overflows; the library's rule is to have neither
+# sized by the problem (see CLAUDE.md, "Ground rules").
+#
+# usage (from the repository root):
+#
+#    pixi run tools/stack_check.sh
+#
+# The automatic arrays must be none: the script fails if there is one. The
+# temporaries are listed for review. The ones left are small, or are not on
+# the stack: a one-element constructor (`[f]`), the filter's entries, the
+# reduced Hessian of at most `dense_max_ns` superbasics, the low-rank update
+# of the KKT matrix (twice the L-BFGS memory), the results of the functions
+# of the printed summary (allocatable, so on the heap), the copy of an
+# argument that may not be contiguous (`lsqr%solve(out, ...)`: made by the
+# run-time library, on the heap, and only if it isn't), and the dense QP
+# solver and its linear algebra (`sqpopt_qp_dense_module`,
+# `sqpopt_dense_linalg_module`, `hessian_dense`), whose matrices are dense
+# anyway.
+
+set -euo pipefail
+
+FPM=${FPM:-fpm}
+
+echo "automatic arrays in src/:"
+python3 - <<'PYTHON'
+import glob, re, sys
+found = 0
+for path in sorted(glob.glob('src/*.[fF]90')):
+    for i, line in enumerate(open(path), 1):
+        code = line.split('!')[0]
+        if '::' not in code:
+            continue
+        left, right = code.split('::', 1)
+        if re.search(r'intent|allocatable|parameter|pointer', left, re.I):
+            continue
+        if not re.match(r'\s*(real|integer|logical|character|complex)', left, re.I):
+            continue
+        m = re.search(r'dimension\s*\((.*)\)', left, re.I)
+        dims = [m.group(1)] if m else re.findall(r'\w+\s*\(([^()]*(?:\([^()]*\)[^()]*)*)\)', right.split('=')[0])
+        for d in dims:
+            if re.fullmatch(r'[\s:,]+', d) or re.fullmatch(r'[\d\s,]+', d):
+                continue   # (deferred shape, or constant bounds)
+            found += 1
+            print(f'  {path}:{i}: {line.strip()[:110]}')
+print(f'  {found} found')
+sys.exit(1 if found else 0)
+PYTHON
+
+# a build with the warning turned on: fpm keeps each object's compiler output
+# in a `.log` file next to it, and the commands in build/compile_commands.json
+$FPM build --flag "-O1 -Warray-temporaries -fdiagnostics-plain-output" > /dev/null 2>&1
+
+echo
+echo "array temporaries in src/ (for review):"
+python3 - <<'PYTHON'
+import json, re, sys
+seen = set()
+for entry in json.load(open('build/compile_commands.json')):
+    args = entry['arguments']
+    if '-Warray-temporaries' not in args or not re.search(r'(^|/)src/', entry['file']):
+        continue
+    try:
+        log = open(args[args.index('-o') + 1] + '.log').read()
+    except OSError:
+        sys.exit('no compiler log for ' + entry['file'])
+    for m in re.finditer(r'^\S*?(src/\w+\.[fF]90):(\d+):\d+: Warning: Creating array temporary', log, re.M):
+        seen.add((m.group(1), int(m.group(2))))
+for path, line in sorted(seen):
+    text = open(path).read().split('\n')[line - 1].strip()
+    print(f'  {path}:{line}: {text[:110]}')
+print(f'  {len(seen)} found')
+PYTHON

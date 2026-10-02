@@ -182,7 +182,7 @@
     type(csr_rows) :: rows
     type(sqpopt_sparse_matrix) :: ja   !! the working set's general rows, restricted to the free unknowns
     real(wp), dimension(:), allocatable :: row_lb, row_ub, u, hu_g, gproj, d_total, d_extra, coeff, s_sign, s0, jp0
-    real(wp), dimension(size(g)) :: p0
+    real(wp), dimension(:), allocatable :: p0
     integer,  dimension(:), allocatable :: status, orig_idx, coeff_idx, slack_row
     logical,  dimension(:), allocatable :: is_equality, fixed
     real(wp) :: rho, rho_max, gscale, alpha, alpha_cap, scale
@@ -203,6 +203,12 @@
     real(wp), dimension(:), allocatable :: pdiag       !! the CG preconditioner (a diagonal, in `v`)
     logical,  dimension(:), allocatable :: is_eqv      !! unknowns with equal bounds
     type(sqpopt_lu_type) :: blu                        !! LU factors of `B`
+    real(wp), dimension(:), allocatable :: resized      !! (for changing the size of an array)
+    real(wp), dimension(:), allocatable :: m_rhs, m_sol !! work vectors of `update_basics` and `z_times`
+                                                        !! `dimension(m)` (kept for the whole solve: they are
+                                                        !! called in the inner loops)
+
+    allocate(p0(size(g)))
 
     n = size(g)
     m = size(c)
@@ -244,7 +250,9 @@
             s0(nv) = max(0.0_wp, merge(row_lb(i) - jp0(i), jp0(i) - row_ub(i), s_sign(i) > 0.0_wp))
         end if
     end do
-    s0 = s0(1:nv)
+    allocate(resized(nv))
+    resized = s0(1:nv)
+    call move_alloc(resized, s0)
     nt   = n + nv
     mtot = m + nt
     max_pcg = merge(me%max_pcg_iter, 2*nt, me%max_pcg_iter > 0)
@@ -252,8 +260,16 @@
 
     ! ---- the combined constraint rows, in compressed-row form ----
     call build_rows()
-    row_lb = [row_lb, x_lb - x, spread(0.0_wp, 1, nv)]
-    row_ub = [row_ub, x_ub - x, spread(sqpopt_infinity, 1, nv)]
+    call move_alloc(row_lb, resized)
+    allocate(row_lb(mtot))
+    row_lb(1:m)        = resized
+    row_lb(m+1:m+n)    = x_lb - x
+    row_lb(m+n+1:mtot) = 0.0_wp
+    call move_alloc(row_ub, resized)
+    allocate(row_ub(mtot))
+    row_ub(1:m)        = resized
+    row_ub(m+1:m+n)    = x_ub - x
+    row_ub(m+n+1:mtot) = sqpopt_infinity
     allocate(is_equality(mtot))
     do k = 1, mtot
         is_equality(k) = row_ub(k)-row_lb(k) <= me%active_tol*max(1.0_wp, abs(row_lb(k)))
@@ -289,14 +305,14 @@
 
     ! ---- active-set iterations ----
     istat = sqpopt_qp_solve_failed
-    allocate(coeff(0), coeff_idx(0), gproj(nt), d_total(nt), d_extra(nt))
+    allocate(coeff(0), coeff_idx(0), hu_g(nt), gproj(nt), d_total(nt), d_extra(nt))
     maxit = max(me%max_iter, 10*(mtot+1))
 
     do it = 1, maxit
 
         call build_working_set(rows, status, m, ja, fixed, orig_idx, n_active)
 
-        hu_g = gradient(u)
+        call gradient(u, hu_g)
         ! (relative to the gradient on every free unknown, including the
         ! elastic slacks, whose large penalty weight limits how accurately
         ! the iterative projections can be computed):
@@ -341,20 +357,22 @@
             ! multipliers on the fixed unknowns): lambda_G is the least-squares
             ! solution on the free unknowns, and each bound multiplier is then
             ! the remaining residual in its fixed coordinate:
-            hu_g = gradient(u)
+            call gradient(u, hu_g)
             coeff     = [real(wp) ::]
             coeff_idx = [integer ::]
             if (n_active > 0) then
                 block
-                    real(wp), dimension(ja%nrows) :: lam_g
-                    real(wp), dimension(nt) :: resid
+                    real(wp), dimension(:), allocatable :: lam_g
+                    real(wp), dimension(:), allocatable :: resid
                     type(lsqr_solver_ez) :: lsqr
                     integer :: istop, idx, j
+                    allocate(lam_g(ja%nrows), resid(nt))
                     lam_g = 0.0_wp
                     if (ja%nrows > 0) then
                         call lsqr%initialize(nt, ja%nrows, ja%val, ja%icol, ja%irow, &
                                               atol=me%lsqr_atol, btol=me%lsqr_btol, conlim=me%lsqr_conlim, itnlim=itnlim)
-                        call lsqr%solve(merge(0.0_wp, hu_g, fixed), 0.0_wp, lam_g, istop)
+                        resid = merge(0.0_wp, hu_g, fixed)   ! (the right-hand side)
+                        call lsqr%solve(resid, 0.0_wp, lam_g, istop)
                     end if
                     resid = hu_g
                     do idx = 1, ja%nrows  ! (the first ja%nrows entries of orig_idx are the general rows)
@@ -443,16 +461,18 @@
         !! general rows. Any violated variable bounds are added to the guess
         !! (up to 4 rounds), then the step is clipped to the bounds.
         real(wp), dimension(n), intent(out) :: p0 !! the starting step `dimension(n)`
-        real(wp), dimension(n) :: blb, bub
-        integer,  dimension(m+n) :: guess
-        logical,  dimension(n) :: fix
-        integer,  dimension(m) :: gmap
+        real(wp), dimension(:), allocatable :: blb, bub
+        integer, dimension(:), allocatable :: guess
+        logical, dimension(:), allocatable :: fix
+        integer, dimension(:), allocatable :: gmap
         real(wp), dimension(:), allocatable :: rhs, pf
         integer,  dimension(:), allocatable :: ir, ic
         real(wp), dimension(:), allocatable :: vv
         type(lsqr_solver_ez) :: lsqr
         integer :: kk, round, ng, nnz_g, istop
         logical :: added
+
+        allocate(blb(n), bub(n), guess(m+n), fix(n), gmap(m))
 
         blb = x_lb - x
         bub = x_ub - x
@@ -553,15 +573,17 @@
         !! failed.
         real(wp), dimension(n), intent(out) :: p0 !! the starting step `dimension(n)`
         logical,                intent(out) :: ok !! whether the basis could be factorized (else the LSQR starting step is used)
-        integer,  dimension(n+m) :: st_v, cp
+        integer, dimension(:), allocatable :: st_v, cp
         integer,  dimension(:), allocatable :: cr, bv_idx
         real(wp), dimension(:), allocatable :: cv
-        real(wp), dimension(n+m) :: wlb, wub, w
-        logical,  dimension(n+m) :: eqv, chosen
-        real(wp), dimension(m) :: rhs, wb
+        real(wp), dimension(:), allocatable :: wlb, wub, w
+        logical, dimension(:), allocatable :: eqv, chosen
+        real(wp), dimension(:), allocatable :: rhs, wb
         type(sqpopt_lu_type) :: lu0
         integer :: kk, jj, ll, round, stat, nc
         logical :: added
+
+        allocate(st_v(n+m), cp(n+m), wlb(n+m), wub(n+m), w(n+m), eqv(n+m), chosen(n+m), rhs(m), wb(m))
 
         ok = .false.
         nc = n + m
@@ -596,8 +618,9 @@
         cp(n+1:nc) = 1
         allocate(cr(sum(cp)), cv(sum(cp)))
         block
-            integer, dimension(nc+1) :: ptr
-            integer, dimension(nc)   :: pos
+            integer, dimension(:), allocatable :: ptr
+            integer, dimension(:), allocatable :: pos
+            allocate(ptr(nc+1), pos(nc))
             ptr(1) = 1
             do jj = 1, nc
                 ptr(jj+1) = ptr(jj) + cp(jj)
@@ -622,13 +645,18 @@
                 where (st_v == -1) w = wlb
                 where (st_v ==  1) w = wub
                 if (m > 0) then
-                    bv_idx = pack([(jj, jj=1,nc)], chosen)
+                    if (.not. allocated(bv_idx)) allocate(bv_idx(m))
+                    kk = 0
+                    do jj = 1, nc   ! (`choose_basis` picked exactly `m` columns)
+                        if (chosen(jj)) then
+                            kk = kk + 1
+                            bv_idx(kk) = jj
+                        end if
+                    end do
                     block
                         integer,  dimension(:), allocatable :: bi, bj
                         real(wp), dimension(:), allocatable :: bvv
-                        bi  = [(cr(ptr(bv_idx(kk)):ptr(bv_idx(kk)+1)-1), kk=1,m)]
-                        bj  = [(spread(kk, 1, ptr(bv_idx(kk)+1)-ptr(bv_idx(kk))), kk=1,m)]
-                        bvv = [(cv(ptr(bv_idx(kk)):ptr(bv_idx(kk)+1)-1), kk=1,m)]
+                        call basis_triplets(ptr, cr, cv, bv_idx, bi, bj, bvv)
                         call lu0%factorize(m, bi, bj, bvv, 1.0e-12_wp, stat)
                     end block
                     if (stat /= 0) return
@@ -695,14 +723,14 @@
         end do
         end subroutine build_rows
 
-        function gradient(v) result(gr)
+        subroutine gradient(v, gr)
         !! the gradient of the (elastic) QP objective at `v`: `H*v_p + g`, then `rho + delta*s` for each slack
-        real(wp), dimension(:), intent(in) :: v !! the unknowns: the step, then the elastic slacks `dimension(nt)`
-        real(wp), dimension(size(v)) :: gr
+        real(wp), dimension(:), intent(in)  :: v  !! the unknowns: the step, then the elastic slacks `dimension(nt)`
+        real(wp), dimension(:), intent(out) :: gr !! the gradient `dimension(nt)`
         call hext_product(v, gr)
         gr(1:n)    = gr(1:n) + g
         gr(n+1:nt) = gr(n+1:nt) + rho
-        end function gradient
+        end subroutine gradient
 
         subroutine hext_product(v, hv)
         !! the (elastic) QP Hessian times `v`: `H` on `p`, and a small proximal
@@ -727,8 +755,9 @@
         real(wp), dimension(:),     intent(in)  :: v     !! the vector to project
         real(wp), dimension(:),     intent(out) :: out   !! its projection
         type(lsqr_solver_ez) :: lsqr
-        real(wp), dimension(ja%nrows) :: z
+        real(wp), dimension(:), allocatable :: z
         integer :: istop, kk
+        allocate(z(ja%nrows))
         out = merge(0.0_wp, v, fixed)
         if (ja%nrows == 0) return
         call lsqr%initialize(nt, ja%nrows, ja%val, ja%icol, ja%irow, &
@@ -752,9 +781,10 @@
         real(wp), dimension(:),     intent(out) :: d_total   !! the accumulated CG step
         real(wp), dimension(:),     intent(out) :: d_extra   !! a direction of nonpositive curvature (if `truncated`)
         logical,                    intent(out) :: truncated !! whether CG stopped at a direction of nonpositive curvature
-        real(wp), dimension(nt) :: r, gp, dvec, hd, tmp
+        real(wp), dimension(:), allocatable :: r, gp, dvec, hd, tmp
         real(wp) :: rg_old, rg_new, kappa, alpha, beta, tol
         integer :: j, max_it
+        allocate(r(nt), gp(nt), dvec(nt), hd(nt), tmp(nt))
         d_total = 0.0_wp
         d_extra = 0.0_wp
         truncated = .false.
@@ -839,7 +869,8 @@
         end do
         allocate(crow(cptr(nn+1)-1), cval(cptr(nn+1)-1))
         block
-            integer, dimension(nn) :: pos
+            integer, dimension(:), allocatable :: pos
+            allocate(pos(nn))
             pos = cptr(1:nn)
             do r = 1, m
                 do l = rows%ptr(r), rows%ptr(r+1)-1
@@ -865,7 +896,7 @@
         ! ---- initial basis and working set ----
         ! The unknowns at a bound are the candidates for the working set (see
         ! [[choose_basis]] for how the basis is picked from all the columns).
-        allocate(state(nn), bpos(nn), bvar(m), chosen(nn)); state = 0; bpos = 0
+        allocate(state(nn), bpos(nn), bvar(m), chosen(nn), m_rhs(m), m_sol(m)); state = 0; bpos = 0
         do j = 1, nn
             state(j) = at_bound_v(j)
             if (is_eqv(j)) state(j) = -1
@@ -909,8 +940,8 @@
         cg_done = .false.
         do iter = 1, maxit_b
 
-            sup = pack([(j, j=1,nn)], state == 0 .and. bpos == 0)
-            gv(1:nt) = gradient(v(1:nt))
+            call list_superbasics()
+            call gradient(v(1:nt), gv(1:nt))
             gv(nt+1:nn) = 0.0_wp
             if (allocated(rs)) deallocate(rs)
             allocate(rs(size(sup)))
@@ -1016,10 +1047,30 @@
         do r = 1, m
             if (state(nt+r) /= 0) lambda(r) = y(r)
         end do
-        me%warm_status = [state(nt+1:nn), state(1:n)]
+        if (allocated(me%warm_status)) deallocate(me%warm_status)
+        allocate(me%warm_status(m+n))
+        me%warm_status(1:m)     = state(nt+1:nn)
+        me%warm_status(m+1:m+n) = state(1:n)
         ok = .true.
 
         end subroutine basis_active_set
+
+        subroutine list_superbasics()
+        !! set `sup`: the free unknowns that are not basic
+        integer :: jj, ns
+        ns = count(state == 0 .and. bpos == 0)
+        if (allocated(sup)) then
+            if (size(sup) /= ns) deallocate(sup)
+        end if
+        if (.not. allocated(sup)) allocate(sup(ns))
+        ns = 0
+        do jj = 1, nn
+            if (state(jj) == 0 .and. bpos(jj) == 0) then
+                ns = ns + 1
+                sup(ns) = jj
+            end if
+        end do
+        end subroutine list_superbasics
 
         integer function at_bound_v(jj)
         !! -1 or +1 if unknown `jj` is at its lower or upper bound, else 0
@@ -1044,10 +1095,8 @@
         !! factorize `B` (the columns `bvar`) from scratch
         integer,  dimension(:), allocatable :: bi, bj
         real(wp), dimension(:), allocatable :: bv
-        integer :: kk, stat
-        bi = [(crow(cptr(bvar(kk)):cptr(bvar(kk)+1)-1), kk=1,m)]
-        bj = [(spread(kk, 1, cptr(bvar(kk)+1)-cptr(bvar(kk))), kk=1,m)]
-        bv = [(cval(cptr(bvar(kk)):cptr(bvar(kk)+1)-1), kk=1,m)]
+        integer :: stat
+        call basis_triplets(cptr, crow, cval, bvar, bi, bj, bv)
         call blu%factorize(m, bi, bj, bv, 1.0e-12_wp, stat)
         factorize_basis = stat == 0
         nupd = 0
@@ -1057,34 +1106,32 @@
         !! the basic unknowns from the constraints, given the others:
         !! `B v_B = -(sum of a_j v_j over the nonbasic j)` (this also removes
         !! any drift from the constraints)
-        real(wp), dimension(m) :: rhs, vb
         integer :: jj
         if (m == 0) return
-        rhs = 0.0_wp
+        m_rhs = 0.0_wp
         do jj = 1, nn
             if (bpos(jj) /= 0 .or. v(jj) == 0.0_wp) cycle
-            rhs(crow(cptr(jj):cptr(jj+1)-1)) = rhs(crow(cptr(jj):cptr(jj+1)-1)) - cval(cptr(jj):cptr(jj+1)-1)*v(jj)
+            m_rhs(crow(cptr(jj):cptr(jj+1)-1)) = m_rhs(crow(cptr(jj):cptr(jj+1)-1)) - cval(cptr(jj):cptr(jj+1)-1)*v(jj)
         end do
-        call blu%solve(rhs, vb, transpose=.false.)
-        v(bvar) = vb
+        call blu%solve(m_rhs, m_sol, transpose=.false.)
+        v(bvar) = m_sol
         end subroutine update_basics
 
         subroutine z_times(vs, d)
         !! `d = Z vs`: `vs` on the superbasics, then the basics from `B d_B = -S vs`
         real(wp), dimension(:), intent(in)  :: vs !! values on the superbasics
         real(wp), dimension(:), intent(out) :: d  !! the step on all the unknowns
-        real(wp), dimension(m) :: rhs, db
         integer :: kk, jj
         d = 0.0_wp
         if (size(sup) > 0) d(sup) = vs
         if (m == 0) return
-        rhs = 0.0_wp
+        m_rhs = 0.0_wp
         do kk = 1, size(sup)
             jj = sup(kk)
-            rhs(crow(cptr(jj):cptr(jj+1)-1)) = rhs(crow(cptr(jj):cptr(jj+1)-1)) - cval(cptr(jj):cptr(jj+1)-1)*vs(kk)
+            m_rhs(crow(cptr(jj):cptr(jj+1)-1)) = m_rhs(crow(cptr(jj):cptr(jj+1)-1)) - cval(cptr(jj):cptr(jj+1)-1)*vs(kk)
         end do
-        call blu%solve(rhs, db, transpose=.false.)
-        d(bvar) = db
+        call blu%solve(m_rhs, m_sol, transpose=.false.)
+        d(bvar) = m_sol
         end subroutine z_times
 
         subroutine zt_times(w, rr, yy)
@@ -1095,7 +1142,8 @@
         real(wp), dimension(:), intent(out) :: yy !! the solution of `B^T yy = w_B` (the multiplier estimates)
         integer :: kk
         if (m > 0) then
-            call blu%solve(w(bvar), yy, transpose=.true.)
+            m_rhs = w(bvar)
+            call blu%solve(m_rhs, yy, transpose=.true.)
         end if
         do kk = 1, size(sup)
             rr(kk) = w(sup(kk))
@@ -1116,7 +1164,8 @@
         !! the variables' part `v` of a direction of nonpositive curvature
         !! (not just zero curvature, e.g. along an elastic slack)
         real(wp), dimension(:), intent(in) :: v !! the direction, on all the unknowns
-        real(wp), dimension(size(v)) :: hv
+        real(wp), dimension(:), allocatable :: hv
+        allocate(hv(size(v)))
         if (dot_product(v, v) <= 0.0_wp) return
         call hessian%hv_product(v, hv)
         if (dot_product(v, hv) < -1.0e-8_wp*norm2(v)*max(norm2(hv), 1.0e-300_wp)) me%negative_curvature = .true.
@@ -1133,11 +1182,12 @@
         real(wp), dimension(:), intent(out) :: d_total   !! the accumulated step, on all the unknowns
         real(wp), dimension(:), intent(out) :: d_extra   !! a direction of nonpositive curvature (if `truncated`)
         logical,                intent(out) :: truncated !! whether CG stopped at a direction of nonpositive curvature
-        real(wp), dimension(size(rg0)) :: rr, ds, hd, zz, pm
-        real(wp), dimension(m)  :: yy
-        real(wp), dimension(nn) :: zd, hzd
+        real(wp), dimension(:), allocatable :: rr, ds, hd, zz, pm
+        real(wp), dimension(:), allocatable :: yy
+        real(wp), dimension(:), allocatable :: zd, hzd
         real(wp) :: rz_old, rz_new, kappa, alpha, tol
         integer :: jj, max_it
+        allocate(rr(size(rg0)), ds(size(rg0)), hd(size(rg0)), zz(size(rg0)), pm(size(rg0)), yy(m), zd(nn), hzd(nn))
         d_total = 0.0_wp
         d_extra = 0.0_wp
         truncated = .false.
@@ -1183,10 +1233,11 @@
         !! need one each (e.g. the elastic slacks reaching zero together).
         real(wp), dimension(:), intent(in) :: d    !! the CG step, on all the unknowns
         integer,  intent(out)              :: stat !! `0`, or `-1` if a basis update failed
-        real(wp), dimension(nn) :: w, v_old
-        integer,  dimension(nn) :: st_old
+        real(wp), dimension(:), allocatable :: w, v_old
+        integer, dimension(:), allocatable :: st_old
         real(wp) :: a_b, ak, q_old, tolb
         integer  :: jj, bb, bs, nclip, bt
+        allocate(w(nn), v_old(nn), st_old(nn))
         projected_step = .false.
         stat = 0
         ! the step length allowed by the basics:
@@ -1258,7 +1309,8 @@
         !! the (elastic) QP objective at `vv`: `1/2 v^T H v + g^T p + rho*sum(e)`
         !! (with the elastic slacks' proximal term)
         real(wp), dimension(:), intent(in) :: vv !! the unknowns
-        real(wp), dimension(nn) :: hv
+        real(wp), dimension(:), allocatable :: hv
+        allocate(hv(nn))
         call hv_product(vv, hv)
         qp_objective = 0.5_wp*dot_product(vv, hv) + dot_product(g, vv(1:n)) + rho*sum(vv(n+1:nt))
         end function qp_objective
@@ -1273,11 +1325,12 @@
         !! (numerically) positive definite.
         real(wp), dimension(:), intent(in)  :: rg0     !! reduced gradient, on the superbasics
         real(wp), dimension(:), intent(out) :: d_total !! the Newton step on the face, on all the unknowns
-        real(wp), dimension(size(rg0),size(rg0)) :: rh
-        real(wp), dimension(size(rg0)) :: e_j, ds
-        real(wp), dimension(m)  :: yy
-        real(wp), dimension(nn) :: zd, hzd
+        real(wp), dimension(:,:), allocatable :: rh
+        real(wp), dimension(:), allocatable :: e_j, ds
+        real(wp), dimension(:), allocatable :: yy
+        real(wp), dimension(:), allocatable :: zd, hzd
         integer :: jj, ii, kk, ns
+        allocate(rh(size(rg0),size(rg0)), e_j(size(rg0)), ds(size(rg0)), yy(m), zd(nn), hzd(nn))
         dense_reduced_step = .false.
         ns = size(rg0)
         if (ns == 0 .or. ns > me%dense_max_ns) return
@@ -1349,9 +1402,10 @@
         !! `B^{-1} S` replaces it in the basis. `.false.` if the factorization failed.
         integer, intent(in) :: jj !! index of the unknown
         integer, intent(in) :: sd !! its bound: `-1` lower, `+1` upper
-        real(wp), dimension(m) :: e_p, w
+        real(wp), dimension(:), allocatable :: e_p, w
         real(wp) :: piv, best
         integer  :: pp, kk, q, stat
+        allocate(e_p(m), w(m))
         fix = .true.
         state(jj) = sd
         v(jj) = merge(vlb(jj), vub(jj), sd == -1)
@@ -1436,12 +1490,14 @@
         !! (with an `LSQR` projection each).
         real(wp), parameter :: w_bound = 1.0e-2_wp  !! priority weight of an (inequality) variable bound
         real(wp), parameter :: w_ineq  = 1.0e-4_wp  !! priority weight of an inequality general row
-        integer,  dimension(mtot) :: cand, cside
+        integer, dimension(:), allocatable :: cand, cside
         integer,  dimension(:), allocatable :: ir, ic
         real(wp), dimension(:), allocatable :: vv
         logical,  dimension(:), allocatable :: indep
         real(wp) :: wt, rn
         integer  :: kk, pass, side, nc, nz, j, l, lu_stat
+
+        allocate(cand(mtot), cside(mtot))
 
         ! the candidates: rows at a bound (equality rows and bounds first, as
         ! for the fallback below):
@@ -1506,8 +1562,9 @@
         type(sqpopt_sparse_matrix) :: ja_cur
         integer, dimension(:), allocatable :: idx_cur
         logical, dimension(:), allocatable :: fixed_cur
-        real(wp), dimension(nt) :: a, r
+        real(wp), dimension(:), allocatable :: a, r
         integer :: jj, kk, na, j
+        allocate(a(nt), r(nt))
         do jj = 1, size(cand)
             kk = cand(jj)
             a = 0.0_wp
@@ -1576,6 +1633,41 @@
 
 !*******************************************************************************
 !>
+!  the basis matrix `B` as COO triplets: the columns `bvar` of the matrix
+!  stored by columns (`cptr`, `crow`, `cval`), numbered in that order.
+
+    subroutine basis_triplets(cptr, crow, cval, bvar, bi, bj, bv)
+
+    integer,  dimension(:), intent(in) :: cptr !! start of each column in `crow`/`cval`
+    integer,  dimension(:), intent(in) :: crow !! row index of each nonzero
+    real(wp), dimension(:), intent(in) :: cval !! value of each nonzero
+    integer,  dimension(:), intent(in) :: bvar !! the basic columns
+    integer,  dimension(:), allocatable, intent(out) :: bi !! row indices of the nonzeros of `B`
+    integer,  dimension(:), allocatable, intent(out) :: bj !! their column indices in `B`
+    real(wp), dimension(:), allocatable, intent(out) :: bv !! their values
+
+    integer :: k, l, nz
+
+    nz = 0
+    do k = 1, size(bvar)
+        nz = nz + cptr(bvar(k)+1) - cptr(bvar(k))
+    end do
+    allocate(bi(nz), bj(nz), bv(nz))
+    nz = 0
+    do k = 1, size(bvar)
+        do l = cptr(bvar(k)), cptr(bvar(k)+1)-1
+            nz = nz + 1
+            bi(nz) = crow(l)
+            bj(nz) = k
+            bv(nz) = cval(l)
+        end do
+    end do
+
+    end subroutine basis_triplets
+!*******************************************************************************
+
+!*******************************************************************************
+!>
 !  pick a basis (`m` linearly independent columns) of the `m x nn` sparse
 !  matrix `A = [J E -I]` (by columns: `cptr`, `crow`, `cval`; the last
 !  `nn-nx` columns are the row slacks `-I`), for the basis method of
@@ -1608,11 +1700,13 @@
     logical,  dimension(:), intent(out) :: chosen !! the basic columns
     integer,                intent(out) :: istat  !! 0 if exactly `m` columns were picked
 
-    real(wp), dimension(size(cval)) :: wv
-    integer,  dimension(size(cval)) :: wc
-    real(wp), dimension(m) :: rn
+    real(wp), dimension(:), allocatable :: wv
+    integer, dimension(:), allocatable :: wc
+    real(wp), dimension(:), allocatable :: rn
     real(wp) :: wt
     integer  :: j, l
+
+    allocate(wv(size(cval)), wc(size(cval)), rn(m))
 
     rn = 0.0_wp
     do j = 1, nx

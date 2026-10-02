@@ -35,6 +35,9 @@
         real(rp)    :: parmlu(30) = 0.0_rp
         real(rp),    dimension(:), allocatable :: a
         integer(ip), dimension(:), allocatable :: indc, indr, p, q, lenc, lenr, locc, locr
+        real(rp),    dimension(:), allocatable :: v, w !! work vectors of the solves and the column
+                                                       !! replacements `dimension(n)` (kept here so that a
+                                                       !! solve allocates nothing)
         contains
         procedure, public :: factorize => lu_factorize
         procedure, public :: solve     => lu_solve
@@ -202,8 +205,8 @@
     istat = 0
     if (n == 0) return
     me%lena = 1 + max(10*nelem, 20*me%n, 10000_ip)   ! (with room for column replacements)
-    if (allocated(me%p)) deallocate(me%p, me%q, me%lenc, me%lenr, me%locc, me%locr)
-    allocate(me%p(n), me%q(n), me%lenc(n), me%lenr(n), me%locc(n), me%locr(n), &
+    if (allocated(me%p)) deallocate(me%p, me%q, me%lenc, me%lenr, me%locc, me%locr, me%v, me%w)
+    allocate(me%p(n), me%q(n), me%lenc(n), me%lenr(n), me%locc(n), me%locr(n), me%v(n), me%w(n), &
              iploc(n), iqloc(n), ipinv(n), iqinv(n), w(n))
 
     do attempt = 1, 3   ! (enlarging the workspace if `lu1fac` asks for it)
@@ -251,20 +254,19 @@
     real(wp), dimension(:), intent(out)   :: x         !! solution `dimension(n)`
     logical,                intent(in)    :: transpose !! solve with \( A^T \) instead of \( A \)
 
-    real(rp), dimension(me%n) :: v, w
     integer(ip) :: inform
 
     if (me%n == 0) return
     if (transpose) then
-        w = real(b, rp)   ! (mode 6: `v` solves `A'v = w`; `w` is destroyed)
-        call lu6sol(6_ip, me%n, me%n, v, w, me%lena, me%luparm, me%parmlu, me%a, me%indc, me%indr, &
+        me%w(1:me%n) = real(b, rp)   ! (mode 6: `v` solves `A'v = w`; `w` is destroyed)
+        call lu6sol(6_ip, me%n, me%n, me%v, me%w, me%lena, me%luparm, me%parmlu, me%a, me%indc, me%indr, &
                     me%p, me%q, me%lenc, me%lenr, me%locc, me%locr, inform)
-        x = real(v, wp)
+        x = real(me%v, wp)
     else
-        v = real(b, rp)   ! (mode 5: `w` solves `A w = v`; `v` is altered)
-        call lu6sol(5_ip, me%n, me%n, v, w, me%lena, me%luparm, me%parmlu, me%a, me%indc, me%indr, &
+        me%v(1:me%n) = real(b, rp)   ! (mode 5: `w` solves `A w = v`; `v` is altered)
+        call lu6sol(5_ip, me%n, me%n, me%v, me%w, me%lena, me%luparm, me%parmlu, me%a, me%indc, me%indr, &
                     me%p, me%q, me%lenc, me%lenr, me%locc, me%locr, inform)
-        x = real(w, wp)
+        x = real(me%w, wp)
     end if
 
     end subroutine lu_solve
@@ -287,17 +289,16 @@
     real(wp), dimension(:), intent(in)    :: val   !! the nonzeros of the new column
     integer,                intent(out)   :: istat !! status (0 = success)
 
-    real(rp), dimension(me%n) :: v, w
     real(rp)    :: diag, vnorm
     integer(ip) :: inform, nrank0
     integer :: k
 
-    v = 0.0_rp
+    me%v(1:me%n) = 0.0_rp
     do k = 1, size(val)
-        v(irow(k)) = v(irow(k)) + real(val(k), rp)
+        me%v(irow(k)) = me%v(irow(k)) + real(val(k), rp)
     end do
     nrank0 = me%luparm(16)
-    call lu8rpc(1_ip, 1_ip, me%n, me%n, int(jrep, ip), v, w, me%lena, me%luparm, me%parmlu, &
+    call lu8rpc(1_ip, 1_ip, me%n, me%n, int(jrep, ip), me%v, me%w, me%lena, me%luparm, me%parmlu, &
                 me%a, me%indc, me%indr, me%p, me%q, me%lenc, me%lenr, me%locc, me%locr, inform, diag, vnorm)
     if (inform == 0 .and. me%luparm(16) == nrank0) then
         istat = 0

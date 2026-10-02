@@ -231,7 +231,7 @@ program test_scalable
     type(sqpopt_problem_type) :: problem
     type(sqpopt_options_type) :: options
     type(sqpopt_results_type) :: r
-    real(wp), dimension(fun%n) :: x, g
+    real(wp), dimension(:), allocatable :: x, g
     real(wp), dimension(0) :: lambda
     integer, dimension(0) :: no_rows
     real(wp) :: f0, g0, pg
@@ -240,6 +240,7 @@ program test_scalable
     character(len=6) :: verdict
 
     n = fun%n
+    allocate(x(n), g(n))
     call problem%set_problem_size(n=n, m=0)
     call problem%set_bounds(x_lb=fun%x_lb, x_ub=fun%x_ub, c_lb=[real(wp) ::], c_ub=[real(wp) ::])
     call problem%set_jacobian_sparsity(nnz=0, irow=no_rows, icol=no_rows)

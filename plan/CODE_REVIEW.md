@@ -201,7 +201,9 @@ iteration. The automatic mode only uses it for `n ≤ 200`, but a user who
 forces `sqpopt_qp_dense` on a large problem gets no warning. *Fix:* warn,
 or refuse, above a size limit.
 
-**P3. Many per-call automatic arrays** (low). Evaluation and iteration
+**P3. Many per-call automatic arrays** (low). *(Done 2026-10-02: the library has no automatic arrays
+left, and no array temporaries sized by the problem outside the dense QP solver; the evaluation layer
+needs no work arrays at all. See "Stack use" in [ROADMAP.md](ROADMAP.md).)* Evaluation and iteration
 routines declare work arrays sized `n`, `m`, or `n + m` on every call
 (e.g. [`raw_fc`](../src/sqpopt_problem_module.f90#L575)); for very large
 problems these can exhaust the stack, depending on compiler flags. Moving

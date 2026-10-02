@@ -135,12 +135,14 @@
     integer,  parameter :: max_ls    = 30        !! maximum number of backtracking steps
     integer,  parameter :: lsqr_itnlim_stop = 5  !! `LSQR`'s `istop` for "iteration limit reached"
 
-    real(wp), dimension(size(c)) :: rc, c_trial
-    real(wp), dimension(size(x)) :: p, x_trial, lb, ub
+    real(wp), dimension(:), allocatable :: rc, c_trial
+    real(wp), dimension(:), allocatable :: p, x_trial, lb, ub
     real(wp) :: h0, h_trial, dh0
     type(lsqr_solver_ez) :: lsqr
     integer :: istop, it
     logical :: solved
+
+    allocate(rc(size(c)), c_trial(size(c)), p(size(x)), x_trial(size(x)), lb(size(x)), ub(size(x)))
 
     rc = violation(c, problem%c_lb, problem%c_ub)
     h0 = 0.5_wp*dot_product(rc, rc)
@@ -153,15 +155,18 @@
         solved = .false.
         if (present(least_squares)) then
             block
-                logical, dimension(size(c)) :: all_rows
+                logical, dimension(:), allocatable :: all_rows
+                allocate(all_rows(size(c)))
                 all_rows = .true.
-                call least_squares%min_norm(jac, all_rows, -rc, p, solved)
+                c_trial = -rc   ! (the right-hand side; `c_trial` is free until the line search)
+                call least_squares%min_norm(jac, all_rows, c_trial, p, solved)
             end block
         end if
         if (.not. solved) then
             call lsqr%initialize(problem%m, problem%n, jac%val, jac%irow, jac%icol, &
                                  itnlim=2*(problem%m+problem%n)+10)
-            call lsqr%solve(-rc, 0.0_wp, p, istop)
+            c_trial = -rc   ! (the right-hand side; `c_trial` is free until the line search)
+            call lsqr%solve(c_trial, 0.0_wp, p, istop)
             if (istop == lsqr_itnlim_stop .or. .not. sqpopt_all_finite(p)) then
                 ! LSQR didn't converge: no usable Gauss-Newton step
                 alpha = 0.0_wp
@@ -177,8 +182,9 @@
 
     ! directional derivative of 0.5*|r_c|^2 along p: r_c^T J p
     block
-        real(wp), dimension(size(c)) :: jp
+        real(wp), dimension(:), allocatable :: jp
         integer :: k
+        allocate(jp(size(c)))
         jp = 0.0_wp
         do k = 1, jac%nnz
             jp(jac%irow(k)) = jp(jac%irow(k)) + jac%val(k)*p(jac%icol(k))
@@ -257,10 +263,12 @@
     real(wp), parameter :: steps(3) = [1.0e-3_wp, 1.0e-2_wp, 1.0e-1_wp] !! relative perturbations tried
     real(wp), parameter :: col_tol = sqrt(epsilon(1.0_wp)) !! a column is also negligible below this (relative)
 
-    real(wp), dimension(size(c)) :: rc, c_trial
-    real(wp), dimension(size(x)) :: colmax, x_trial, lb, ub
+    real(wp), dimension(:), allocatable :: rc, c_trial
+    real(wp), dimension(:), allocatable :: colmax, x_trial, lb, ub
     real(wp) :: h0, h_trial, jmax, xj
     integer :: j, k, i, s, n_probe
+
+    allocate(rc(size(c)), c_trial(size(c)), colmax(size(x)), x_trial(size(x)), lb(size(x)), ub(size(x)))
 
     x_new = x
     istat = sqpopt_line_search_failed
@@ -359,10 +367,13 @@
     real(wp), parameter :: eta       = 1.0e-4_wp !! Armijo constant
     real(wp), parameter :: alpha_min = 1.0e-8_wp !! smallest step length tried
 
-    real(wp), dimension(size(x)) :: g_r, p, x_trial, lb, ub
-    real(wp), dimension(size(c)) :: lambda_r, jp, c_trial
+    real(wp), dimension(:), allocatable :: g_r, p, x_trial, lb, ub
+    real(wp), dimension(:), allocatable :: lambda_r, jp, c_trial
     real(wp) :: theta0, theta_t, pred
     integer :: qp_istat
+
+    allocate(g_r(size(x)), p(size(x)), x_trial(size(x)), lb(size(x)), ub(size(x)))
+    allocate(lambda_r(size(c)), jp(size(c)), c_trial(size(c)))
 
     me%n_iter = me%n_iter + 1
     x_new = x
@@ -378,7 +389,8 @@
 
     ! the decrease in the violation predicted by the linearization:
     call sparse_matvec(jac, p, jp)
-    pred = theta0 - l1_violation(c + jp, problem%c_lb, problem%c_ub)
+    c_trial = c + jp   ! (the linearized constraints; `c_trial` is free until the line search)
+    pred = theta0 - l1_violation(c_trial, problem%c_lb, problem%c_ub)
     if (.not. (pred > 1.0e-12_wp*max(1.0_wp, theta0))) return
 
     alpha = 1.0_wp
@@ -434,12 +446,12 @@
 !  the signed violation of the constraint bounds: `c-c_lb` below the lower
 !  bound, `c-c_ub` above the upper bound, and `0` in between.
 
-    pure function violation(c, c_lb, c_ub) result(rc)
+    elemental function violation(c, c_lb, c_ub) result(rc)
 
-    real(wp), dimension(:), intent(in) :: c    !! constraint values `dimension(m)`
-    real(wp), dimension(:), intent(in) :: c_lb !! constraint lower bounds `dimension(m)`
-    real(wp), dimension(:), intent(in) :: c_ub !! constraint upper bounds `dimension(m)`
-    real(wp), dimension(size(c)) :: rc
+    real(wp), intent(in) :: c    !! constraint value
+    real(wp), intent(in) :: c_lb !! its lower bound
+    real(wp), intent(in) :: c_ub !! its upper bound
+    real(wp) :: rc
 
     rc = min(c-c_lb, 0.0_wp) + max(c-c_ub, 0.0_wp)
 

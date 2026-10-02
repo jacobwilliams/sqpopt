@@ -208,7 +208,7 @@
     real(wp), dimension(:), intent(in) :: s  !! step vector `dimension(n)`
     real(wp), dimension(:), intent(in) :: y  !! Lagrangian gradient change `dimension(n)`
 
-    real(wp), dimension(size(s)) :: y_used, bs
+    real(wp), dimension(:), allocatable :: y_used, bs
     real(wp) :: sty, yty, sbs, theta
 
     if (me%exact) return
@@ -217,6 +217,7 @@
     ! an ill-conditioned (huge `rho`) update, so skip it outright:
     if (norm2(s) <= 1.0e-10_wp) return
 
+    allocate(y_used(size(s)), bs(size(s)))
     y_used = y
     sty    = dot_product(s, y)
 
@@ -258,7 +259,7 @@
     real(wp), dimension(:), intent(in) :: s  !! step vector `dimension(n)`
     real(wp), dimension(:), intent(in) :: y  !! Lagrangian gradient change `dimension(n)`
 
-    real(wp), dimension(me%n) :: bs, w
+    real(wp), dimension(:), allocatable :: bs, w
     real(wp) :: denom, sty, yty
 
     if (me%exact) return
@@ -267,6 +268,7 @@
     ! an ill-conditioned update, so skip it outright:
     if (norm2(s) <= 1.0e-10_wp) return
 
+    allocate(bs(me%n), w(me%n))
     call hessian_vector_product(me, s, bs)
     w = y - bs
     denom = dot_product(w, s)
@@ -782,8 +784,8 @@
     real(wp), dimension(:), intent(in)  :: v  !! input vector `dimension(n)`
     real(wp), dimension(:), intent(out) :: d  !! result `dimension(n)`
 
-    real(wp), dimension(me%n_history) :: alpha !! temporary storage for the two-loop recursion coefficients in L-BFGS
-    real(wp), dimension(me%n) :: q !! temporary vector used in the two-loop recursion
+    real(wp), dimension(:), allocatable :: alpha !! temporary storage for the two-loop recursion coefficients in L-BFGS
+    real(wp), dimension(:), allocatable :: q !! temporary vector used in the two-loop recursion
     integer :: i !! loop index for the two-loop recursion
     integer :: c !! column of the `i`-th pair
     real(wp) :: beta
@@ -794,6 +796,7 @@
     end if
 
     ! standard L-BFGS two-loop recursion:
+    allocate(alpha(me%n_history), q(me%n))
     q = v
     do i = me%n_history, 1, -1
         c = pair_col(me, i)
@@ -824,9 +827,11 @@
     real(wp), dimension(:), intent(in)  :: v !! right-hand side `dimension(n)`
     real(wp), dimension(:), intent(out) :: d !! solution of \( B d = v \) `dimension(n)`
 
-    real(wp), dimension(me%n) :: r, p, hp
+    real(wp), dimension(:), allocatable :: r, p, hp
     real(wp) :: rs_old, rs_new, alpha, beta, pHp
     integer :: iter, maxit
+
+    allocate(r(me%n), p(me%n), hp(me%n))
 
     d = 0.0_wp
     r = v

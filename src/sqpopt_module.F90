@@ -344,9 +344,11 @@
         integer, intent(in)                    :: stat   !! the final status code
         character(len=*), intent(in), optional :: detail !! extra detail appended to the status message
         real(wp) :: fs
-        real(wp), dimension(me%problem%m) :: cs
-        real(wp), dimension(size(me%x)) :: zs
+        real(wp), dimension(:), allocatable :: cs
+        real(wp), dimension(:), allocatable :: zs
         integer :: ios
+
+        allocate(cs(me%problem%m), zs(size(me%x)))
 
         istat = stat
         me%results%istat   = stat
@@ -374,9 +376,11 @@
             me%results%n_eval_hess = me%problem%n_eval_hess
         else
             me%results%f = 0.0_wp
-            me%results%c = spread(0.0_wp, 1, max(me%problem%m,0))
+            if (allocated(me%results%c)) deallocate(me%results%c)
+            allocate(me%results%c(max(me%problem%m,0)), source=0.0_wp)
             me%results%lambda = me%lambda
-            me%results%z = spread(0.0_wp, 1, size(x0))
+            if (allocated(me%results%z)) deallocate(me%results%z)
+            allocate(me%results%z(size(x0)), source=0.0_wp)
             me%results%n_eval_fc = 0; me%results%n_eval_gjac = 0; me%results%n_eval_hess = 0
         end if
         call system_clock(t_now)
@@ -490,12 +494,15 @@
         subroutine print_scale_factors()
         !! the smallest constraint scale factors (at most 10, `print_level >= 3`)
         integer :: u, i, k, n_show
-        integer, dimension(me%problem%m) :: order
+        integer, dimension(:), allocatable :: order
         integer :: ios
+        allocate(order(me%problem%m))
         u = me%options%output_unit
         if (all(me%problem%c_scale == 1.0_wp)) return
         ! (the smallest factors first: the constraints scaled down the most)
-        order = [(i, i=1, me%problem%m)]
+        do i = 1, me%problem%m
+            order(i) = i
+        end do
         call sort_by_scale(order)
         n_show = min(me%problem%m, 10)
         write(u, '(A)', iostat=ios) '   constraint scale factors (smallest '//fmt_i(n_show)//' of '//fmt_i(me%problem%m)//'):'
@@ -817,9 +824,10 @@
 
         function constraint_side() result(side)
         !! for each constraint: 0 = inactive, -1 = at its lower bound, +1 = at its upper bound, 2 = equality
-        integer, dimension(me%problem%m) :: side
+        integer, dimension(:), allocatable :: side
         real(wp) :: lb, ub, tol
         integer :: i
+        allocate(side(me%problem%m))
         side = 0
         do i = 1, me%problem%m
             lb = me%problem%c_lb(i)/me%problem%c_scale(i)
@@ -837,9 +845,10 @@
 
         function bound_side() result(side)
         !! for each variable: 0 = free, -1 = at its lower bound, +1 = at its upper bound, 2 = fixed
-        integer, dimension(me%problem%n) :: side
+        integer, dimension(:), allocatable :: side
         real(wp) :: tol
         integer :: j
+        allocate(side(me%problem%n))
         side = 0
         tol = max(me%options%ctol, 1.0e-8_wp)
         do j = 1, me%problem%n
@@ -858,9 +867,10 @@
         !! (`print_level >= 3`; at most `max_rows` of each)
         integer, parameter :: max_rows = 100
         integer :: u, i
-        integer, dimension(me%problem%m) :: cside
-        integer, dimension(me%problem%n) :: xside
+        integer, dimension(:), allocatable :: cside
+        integer, dimension(:), allocatable :: xside
         integer :: ios
+        allocate(cside(me%problem%m), xside(me%problem%n))
         u = me%options%output_unit
         cside = constraint_side()
         xside = bound_side()
