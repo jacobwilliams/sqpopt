@@ -1410,7 +1410,7 @@ which is now double precision only.
     the structure, so the sparse QP is exercised naturally) from those
     tables. (3) A harness like `test_hs_suite` (sqpopt, optionally SLSQP;
     Markdown report and web data, e.g. a CUTEst tab on
-    `web/hs_results.html`).
+    `web/performance.html`).
   - **Hard or uncertain parts.** SIF is a large language (S2MPJ needed a
     substantial translator to cover all of CUTEst), so start with a subset
     and grow it file by file. Most CUTEst problems have no validated

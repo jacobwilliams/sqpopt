@@ -15,7 +15,7 @@ It covers installation as an FPM dependency, the API, every option, the
 status codes, worked examples, and benchmark results. The
 [API documentation](https://jacobwilliams.github.io/sqpopt/api/),
 [test coverage](https://jacobwilliams.github.io/sqpopt/coverage/), and
-[Hock-Schittkowski results](https://jacobwilliams.github.io/sqpopt/hs_results.html)
+[Hock-Schittkowski results](https://jacobwilliams.github.io/sqpopt/performance.html#hs-results)
 are published there too.
 
 This README is for working on SQPOPT itself.
@@ -161,7 +161,7 @@ pixi run run-mumps --example benchmark_large --profile release -- --scale=10 --n
 |---|---|
 | `coverage.sh [--mumps]` | runs the tests with `--coverage` and makes an lcov HTML report in `coverage/html` (dark-mode aware). With `--mumps` (what CI uses), the build with MUMPS is tested, so the report covers the code that uses it |
 | `pixi run fortitude check` | lints the Fortran sources with [Fortitude](https://fortitude.readthedocs.io) (configured in `fortitude.toml`; also run by the VS Code extension) |
-| `tools/hs_performance_table.sh --mumps` | runs the HS suite in every configuration of the guide's Performance table and prints the table rows. It also regenerates the data of the results page (`web/js/hs_results_data.js`, `web/js/hs_slsqp_data.js`). Run it whenever a change affects the HS results. (`--mumps` builds with MUMPS, for the rows of the options that need it; without it those rows are left out.) |
+| `tools/hs_performance_table.sh --mumps` | runs the HS suite in every configuration of the Performance page's table (`web/performance.html`) and prints the table rows. It also regenerates the data of that page's results of every problem (`web/js/hs_results_data.js`, `web/js/hs_slsqp_data.js`). Run it whenever a change affects the HS results. (`--mumps` builds with MUMPS, for the rows of the options that need it; without it those rows are left out.) |
 | `tools/hs_compare.sh N [options]` | runs HS problem `N` with SQPOPT and SLSQP, printing both solvers' iterations, for investigating a difference |
 | `python/` | Python bindings with a `scipy.optimize.minimize`-like interface, and a Qt options dialog for SQPOPT (see [python/README.md](python/README.md)) |
 
@@ -169,11 +169,12 @@ All are run from the repository root, e.g. `pixi run tools/hs_compare.sh 220`.
 
 ## Documentation and website
 
-The website is `web/`: the user guide (`web/index.html`), the
-Hock-Schittkowski results page (`web/hs_results.html`), the settings and
-scalable-function pages (`web/choosing_settings.html`,
-`web/scalable_results.html`), and their CSS and JavaScript. Update the guide along with any change to the API, options, or
-behavior. When the HS results change, regenerate its Performance table with
+The website is `web/`: the user guide (`web/index.html`), the Performance
+page (`web/performance.html`: the Hock-Schittkowski results, the large
+problems, and the scalable test functions), the settings page
+(`web/choosing_settings.html`), and their CSS and JavaScript. Update the
+guide along with any change to the API, options, or behavior. When the HS
+results change, regenerate the Performance page's table with
 `tools/hs_performance_table.sh`.
 
 The API documentation is generated from the source comments with

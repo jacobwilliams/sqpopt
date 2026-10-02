@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #
-# Regenerate the Performance table of the user guide (web/index.html,
-# section "Performance"): runs the Hock-Schittkowski test suite
+# Regenerate the Hock-Schittkowski table of the Performance page
+# (web/performance.html, "By configuration"): runs the Hock-Schittkowski test suite
 # (test/test_hs_suite.f90, 305 problems) once for each globalization
 # configuration below (line search / merit function / penalty, or trust region), and prints the table rows (HTML by
 # default, or Markdown with --markdown), ready to paste into the guide. The
 # default configuration's run also regenerates the data of the interactive
-# results page (web/js/hs_results_data.js, for web/hs_results.html), and the
+# results page (web/js/hs_results_data.js, for the same page's results of every problem), and the
 # SLSQP comparison's data is regenerated too (test/test_hs_slsqp.f90,
 # web/js/hs_slsqp_data.js).
 #

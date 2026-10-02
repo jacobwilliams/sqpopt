@@ -487,7 +487,7 @@
 
   // ---------- tabs ----------
   var tabs = Array.prototype.slice.call(document.querySelectorAll('.hs-tab'));
-  function setMode(mode, focus) {
+  function setMode(mode, focus, initial) {
     if (!MODES[mode]) mode = 'nlpqlp';
     state.mode = mode;
     state.cat = 'all';
@@ -499,7 +499,10 @@
       t.tabIndex = on ? 0 : -1;
       if (on && focus) t.focus();
     });
-    try { history.replaceState(null, '', mode === 'nlpqlp' ? location.pathname : '#' + mode); } catch (e) {}
+    // (the page has other sections: keep the reader's anchor on load, and name this section's on a switch)
+    if (!initial) {
+      try { history.replaceState(null, '', mode === 'nlpqlp' ? '#hs-results' : '#' + mode); } catch (e) {}
+    }
     setTexts();
     buildTiles();
     buildChips();
@@ -541,5 +544,5 @@
   } else {
     window.addEventListener('resize', function () { drawChart(probs.filter(matches)); });
   }
-  setMode(location.hash.slice(1) || 'nlpqlp');
+  setMode(location.hash === '#slsqp' ? 'slsqp' : 'nlpqlp', false, true);
 })();

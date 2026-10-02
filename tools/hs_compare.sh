@@ -2,7 +2,7 @@
 #
 # Run one Hock-Schittkowski problem with both SQPOPT and SLSQP, printing each
 # solver's iterations, for debugging a difference between them (e.g. on the
-# interactive results page, web/hs_results.html).
+# interactive results page, web/performance.html).
 #
 # usage (from the repository root):
 #
