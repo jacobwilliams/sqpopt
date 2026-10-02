@@ -177,6 +177,25 @@ program test_direct
     end if
 
     call kkt%destroy()
+
+    ! ---- a long step: a nearly singular (positive definite) Hessian, whose Newton step is about
+    !      1e10 times the gradient. H p is then the difference of terms of that size, so the
+    !      stationarity residual of an accurate solve is far above roundoff relative to the
+    !      gradient: the accuracy test must be relative to the terms. (The chain function `trid`
+    !      of `test_scalable`, with 100,000 variables, has such a first step.) ----
+    call h%initialize(2, 1)
+    call h%set_exact([1, 2, 2], [1, 1, 2])
+    call h%set_values([1.3_wp, -1.1_wp, 1.1_wp**2/1.3_wp + 1.0e-10_wp], decay=.false.)
+    call kkt%initialize(2, 1, jac%irow, jac%icol, ok, hess_irow=h%h_irow, hess_icol=h%h_icol)
+    if (.not. ok) error stop 'test_direct FAILED: the KKT matrix could not be set up'
+    status = 0
+    call direct_qp_step(kkt, h, jac, x, [-2.7_wp, -1.9_wp], c, [-big, -big], [big, big], [-big], [big], &
+                        10, tol, status, p, lambda, n_changes, outcome)
+    print '(A,I0,A,2ES12.4)', 'long step: outcome ', outcome, ', p = ', p
+    if (outcome /= sqpopt_direct_solved) error stop 'test_direct FAILED: a long step was not accepted'
+    if (.not. minval(p) > 1.0e9_wp) error stop 'test_direct FAILED: the long step is not long'
+    call kkt%destroy()
+
     print '(A)', 'test_direct [the direct method''s special paths] PASSED'
 
     end subroutine test_direct_step

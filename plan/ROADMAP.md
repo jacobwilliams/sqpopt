@@ -1309,11 +1309,12 @@ which is now double precision only.
     `ellipsoid`, `dixon_price`, and `qing` converge in 150 to 240
     iterations and 2 to 4 s. With the exact Hessian all five take less
     than 0.5 s. (These are skipped in the default run.)
-  - *`trid` at 100,000 variables with the direct QP never finishes its
-    first QP* (stopped after 30 s; at 10,000 it takes 0.1 s). Not
-    investigated. A guess: the condition number of its Hessian grows with
-    `n^2`, so the direct solve may fail its accuracy test, and the
-    active-set fallback has 100,000 free variables.
+  - ~~*`trid` at 100,000 variables with the direct QP never finishes its
+    first QP.*~~ *Fixed 2026-10-02:* the direct method's accuracy test
+    rejected the (correct) step, which is 1e9 times the gradient, and the
+    active-set fallback has 100,000 free variables. The test is now
+    relative to the terms of the residual (see MUMPS_PLAN.md). It takes
+    2.2 s.
   - *The dense QP is slow at its upper size.* With 200 variables (the
     largest that `sqpopt_qp_auto` gives to the dense QP) and no
     constraints, `brown` took 1.9 s for 9 iterations, against 0.002 s with

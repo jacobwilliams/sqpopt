@@ -170,8 +170,9 @@ All are run from the repository root, e.g. `pixi run tools/hs_compare.sh 220`.
 ## Documentation and website
 
 The website is `web/`: the user guide (`web/index.html`), the
-Hock-Schittkowski results page (`web/hs_results.html`), and their CSS and
-JavaScript. Update the guide along with any change to the API, options, or
+Hock-Schittkowski results page (`web/hs_results.html`), the settings and
+scalable-function pages (`web/choosing_settings.html`,
+`web/scalable_results.html`), and their CSS and JavaScript. Update the guide along with any change to the API, options, or
 behavior. When the HS results change, regenerate its Performance table with
 `tools/hs_performance_table.sh`.
 

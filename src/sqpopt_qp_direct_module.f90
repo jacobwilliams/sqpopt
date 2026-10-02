@@ -76,8 +76,10 @@
 
     public :: direct_qp_step, direct_outcome_text
 
-    real(wp), parameter :: stationarity_tol = 1.0e-8_wp !! relative tolerance on the stationarity residual of a
-                                                        !! solve, in the free variables
+    real(wp), parameter :: stationarity_tol = 1.0e-8_wp !! tolerance on the stationarity residual of a solve, in
+                                                        !! the free variables, relative to the terms that it is
+                                                        !! the difference of (the gradient, and the Hessian times
+                                                        !! the step)
     real(wp), parameter :: reg_factor = 1.0e-8_wp  !! the regularization of a singular face, relative to the square
                                                    !! of the largest element of the face's part of the Jacobian (the
                                                    !! working set's rows, in the variables that are not fixed)
@@ -224,8 +226,12 @@
         call sparse_matvec(jac, p, jp)
 
         ! (the step must satisfy the stationarity condition in the free
-        ! variables: this checks the accuracy of the solve)
-        if (maxval(abs(z), mask=st(m+1:) == 0) > stationarity_tol*(1.0_wp + maxval(abs(g)) + maxval(abs(hp)))) then
+        ! variables: this checks the accuracy of the solve. The residual is
+        ! relative to the terms that it is the difference of: for a long step,
+        ! H p is the sum of products much larger than itself, and its roundoff
+        ! is relative to those)
+        if (maxval(abs(z), mask=st(m+1:) == 0) > stationarity_tol*(1.0_wp + maxval(abs(g)) + maxval(abs(hp)) + &
+                (hessian%magnitude() + hessian%shift)*maxval(abs(p)))) then
             outcome = sqpopt_direct_inaccurate
             return
         end if
