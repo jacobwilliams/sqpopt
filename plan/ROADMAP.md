@@ -1088,6 +1088,16 @@ which is now double precision only.
 
 ## 5. Features toward state of the art
 
+- **Ideas from OpenSQP** *(not implemented; see
+  [OPENSQP_COMPARISON.md](OPENSQP_COMPARISON.md), 2026-10-02)*: no
+  algorithm to adopt (it is a dense BFGS method for up to about 100
+  variables), but its testing is worth copying: see "CUTEst through
+  PyCUTEst" in §6. Smaller ones: moving the projected starting point off
+  its bounds if the functions can't be evaluated there; one penalty
+  parameter per constraint for the augmented Lagrangian merit function
+  (also in the Yukon comparison); and trying another globalization when
+  the line search fails (only if a larger test set shows such failures).
+
 - **Ideas from OPTGRA** *(not implemented; see
   [OPTGRA_COMPARISON.md](OPTGRA_COMPARISON.md), 2026-10-02)*: scale
   factors for the variables, applied inside the evaluation layer
@@ -1666,6 +1676,56 @@ which is now double precision only.
     values; then widen the set. Rough effort: a few sessions for a working
     translator on common problems, more to reach 100–300 validated
     problems.
+
+- **CUTEst through PyCUTEst and the Python bindings** *(started
+  2026-10-02: the tool and a first run, see the end of this entry; from [OPENSQP_COMPARISON.md](OPENSQP_COMPARISON.md),
+  2026-10-02)*. A quicker route to CUTEst results than the pure-Fortran
+  harness above, now that there is a `minimize` for Python: a script that
+  runs sqpopt, SLSQP, scipy's `trust-constr`, and IPOPT (cyipopt) on the
+  575 CUTEst problems of the OpenSQP paper (at most 100 variables and 100
+  constraints), with its limits and tolerances (250 iterations,
+  optimality `1.22e-4`, feasibility `2e-6`), so that its table (SNOPT and
+  OpenSQP 479 solved, IPOPT 475, SLSQP 463, `trust-constr` 378) is a
+  published reference for SNOPT. Outputs: the success counts, and a
+  performance profile (time) and a data profile (evaluations) for the
+  Performance page. It needs CUTEst and its problem files installed, so
+  it is a developer's tool, not a test of `fpm test`; the pure-Fortran
+  harness stays the way to a regression test with no dependencies. Start
+  with a few dozen problems, to see that PyCUTEst and the bindings work
+  together.
+
+  *First results (2026-10-02; `tools/cutest_benchmark.py`, `pixi run
+  cutest setup|list|run|report`).* It works with the binary releases of
+  CUTEst and SIFDecode and PyCUTEst 1.8.2 (which assumes Homebrew on
+  macOS: the tool puts a stand-in `brew` on the path). The set is the 664
+  problems whose sizes are fixed in CUTEst's classification, with at most
+  100 variables and 100 constraints (the paper's 575 are those with
+  default sizes within the limits, in an older collection), at most 250
+  iterations, every solver's default tolerances (scipy's as in the
+  paper), each problem in its own process with a 60 s limit:
+
+  | solver | reported success | of which, the best objective of the three | on the 144 with m > n | on the other 520 |
+  |---|---|---|---|---|
+  | sqpopt | 525 | 460 | 57 | 468 |
+  | SLSQP | 493 | 438 | 45 | 448 |
+  | trust-constr | 412 (396 feasible) | 301 | 34 | 362 |
+
+  On the 368 problems all three solved: 24,275 evaluations (objective,
+  gradient, constraints, Jacobian) for sqpopt, 22,409 for SLSQP, 49,696
+  for trust-constr. sqpopt never crashed or reached the time limit (the
+  scipy solvers did, on 16 problems and 2). 31 problems were solved only
+  by sqpopt, 16 only by SLSQP, 3 only by trust-constr. sqpopt's 139
+  failures: 64 at the iteration limit, 55 reported infeasible (53 of them
+  with more constraints than variables, which no solver solved: they are
+  mostly nonlinear least-squares problems posed as equations), 17
+  line-search failures, 2 function errors (S365, S365MOD), and 1 QP
+  failure. With the paper's looser tolerances (`ktol = 1.22e-4`,
+  `ctol = 2e-6`) only 3 of the 139 are solved, so the tolerances are not
+  the reason. What to look at next: the 23 that another solver solved
+  (20 at the iteration limit, e.g. 3PK, ALLINITC, GAUSS2LS, HIMMELBJ,
+  MAXLIKA, PALMER8E; and ALLINITA, HS13, HS99EXP), and the 17 line-search
+  failures. Not done: IPOPT (needs cyipopt), the problems whose size is
+  a parameter, and the performance profiles.
 
 - **Promote the review probes to regression tests** (they were throwaway
   programs built against the library):
