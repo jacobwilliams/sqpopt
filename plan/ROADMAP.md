@@ -1061,6 +1061,13 @@ which is now double precision only.
 
 ## 5. Features toward state of the art
 
+- **Ideas from OPTGRA** *(not implemented; see
+  [OPTGRA_COMPARISON.md](OPTGRA_COMPARISON.md), 2026-10-02)*: scale
+  factors for the variables, applied inside the evaluation layer
+  (`problem%set_variable_scaling`); the sensitivities of the solution to
+  the constraint bounds and to parameters, from one KKT solve each; names
+  for the variables and constraints in the output; and a flag to maximize.
+
 - **Ideas from filterSD** *(not implemented; see
   [FILTERSD_COMPARISON.md](FILTERSD_COMPARISON.md), 2026-10-02)*: a
   derivative checker for the user's `gjac` and `hess`; listing the
