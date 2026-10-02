@@ -102,8 +102,8 @@ Before calling a change done, go through the items that apply.
 - Note in the summary to the user that the change breaks existing user code.
 
 ### Change that can affect convergence (algorithm, defaults, tolerances)
-Run the HS suite in release mode, and compare it with the baseline recorded in the `known_unsolved` comment of `test/test_hs_suite.f90`. That baseline is currently 280 solved, 25 local, 0 failed, and 9,067 `fc` calls.
-- If the change affects the exact Hessian, also run `--hessian=exact` (270 solved, 32 local, 3 failed, 11,194 `fc`). If it affects the factorization-based options, run, in the build with MUMPS: `--hessian=exact --inertia` (274, 29, 2, and 9,399), `--hessian=exact --inertia --direct` (274, 29, 2, and 9,585), `--hessian=sr1 --inertia` (274, 27, 4, and 10,455), and `--direct` (279, 26, 0, and 9,746; its automatic L-BFGS memory is 10 pairs); and `benchmark_large` for the timings. None of these is regression-tested, so compare them by hand.
+Run the HS suite in release mode, and compare it with the baseline recorded in the `known_unsolved` comment of `test/test_hs_suite.f90`. That baseline is currently 281 solved, 24 local, 0 failed, and 9,121 `fc` calls.
+- If the change affects the exact Hessian, also run `--hessian=exact` (270 solved, 32 local, 3 failed, 11,197 `fc`). If it affects the factorization-based options, run, in the build with MUMPS: `--hessian=exact --inertia` (274, 29, 2, and 9,400), `--hessian=exact --inertia --direct` (274, 29, 2, and 9,474), `--hessian=sr1 --inertia` (274, 27, 4, and 10,454), and `--direct` (279, 26, 0, and 9,750; its automatic L-BFGS memory is 10 pairs); and `benchmark_large` for the timings. None of these is regression-tested, so compare them by hand.
 - If problems newly fail, it is a regression. Investigate it, don't just update the baseline.
 - If results change, do all of the following:
   - Update the `known_unsolved` list and the counts and date in its comment.

@@ -49,6 +49,14 @@
 !  `sqpopt_infeasible`. This step is also the fallback when a restoration
 !  phase step fails.
 !
+!  For an inconsistent QP, if the Gauss-Newton step and the QP's elastic
+!  step find no decrease of the violation in two iterations in a row, a
+!  Levenberg-Marquardt step is tried ([[restoration_damped_step]]: the
+!  Gauss-Newton direction is useless where the Jacobian is nearly rank
+!  deficient); and if that finds none either, the point is reported as
+!  infeasible. A problem with more equality constraints than variables is
+!  solved by these steps alone, as a least-squares problem.
+!
 !  In both cases, before a point that is stationary for the violation is
 !  reported as infeasible, [[escape_step]] looks for a second-order
 !  decrease of the violation.
@@ -70,7 +78,7 @@
 
     private
 
-    public :: restoration_step, escape_step
+    public :: restoration_step, restoration_damped_step, escape_step
 
     integer, parameter, public :: sqpopt_restoration_phase        = 1 !! (default) a feasibility restoration phase
                                                                       !! (see the module documentation)
@@ -82,6 +90,14 @@
         integer  :: n_iter    = 0        !! number of iterations of the current phase
         integer  :: n_phases  = 0        !! number of restoration phases so far
         real(wp) :: theta_ref = 0.0_wp   !! \( \ell_1 \) violation where the phase started
+        real(wp) :: damping   = 0.0_wp   !! the damping of the last Levenberg-Marquardt restoration step (see
+                                         !! [[restoration_damped_step]]; `0`: none yet)
+        logical  :: failed = .false.      !! whether the last iteration's restoration steps for an inconsistent
+                                          !! QP (the Gauss-Newton step and the QP's elastic step) found no
+                                          !! decrease of the violation
+        logical  :: no_decrease = .false. !! whether, after that happened twice in a row, the damped steps found
+                                          !! none either: the point is then stationary for the violation, as
+                                          !! far as can be told (see [[sqpopt_iterate_module]])
         real(wp), dimension(:), allocatable :: x_ref !! the point where the phase started (the proximal center)
         type(sqpopt_qp_solver_type) :: qp   !! the QP solver for the feasibility QPs (a copy of the main one,
                                             !! so that the latter's warm start is kept for the optimality QPs)
@@ -219,6 +235,116 @@
     istat = sqpopt_line_search_failed
 
     end subroutine restoration_step
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  take a Levenberg-Marquardt step toward feasibility of the constraints:
+!  the last resort when [[restoration_step]] finds no decrease of the
+!  violation in two iterations in a row. With a Jacobian that is (nearly) rank deficient, the
+!  Gauss-Newton step is dominated by the directions in which the Jacobian
+!  says least, and no step length along it decreases the violation. The
+!  damped step is the minimizer of
+!  \( \lVert J p + r_c \rVert^2 + \mu \lVert D p \rVert^2 \), with \( D \)
+!  the norms of the Jacobian's columns (Marquardt's scaling, so that the
+!  damping acts alike on variables of different sizes), made to respect the
+!  variable bounds and the step-length cap. The damping \( \mu \) is raised
+!  tenfold, from a tenth of the value the previous call ended with, until
+!  the step passes the Armijo test on
+!  \( \tfrac12 \lVert r_c \rVert_2^2 \). If none does up to the largest
+!  damping (when the step is a very short one along the gradient of the
+!  violation), `x_new=x` and `istat=sqpopt_line_search_failed`: the point
+!  is then stationary for the violation, as far as can be told.
+
+    subroutine restoration_damped_step(problem, jac, x, c, max_step, damping, x_new, alpha, istat)
+
+    type(sqpopt_problem_type),  intent(inout) :: problem  !! problem definition
+    type(sqpopt_sparse_matrix), intent(in)    :: jac      !! constraint Jacobian at `x`, `dimension(m,n)`
+    real(wp), dimension(:),     intent(in)    :: x        !! current point `dimension(n)`
+    real(wp), dimension(:),     intent(in)    :: c        !! constraint values at `x` `dimension(m)`
+    real(wp),                   intent(in)    :: max_step !! cap on \( \lVert p \rVert_2 \)
+    real(wp),                   intent(inout) :: damping  !! on entry, the damping \( \mu \) the previous call ended
+                                                          !! with (`0`: none yet); on exit, the one of this step
+    real(wp), dimension(:),     intent(out)   :: x_new    !! new point `dimension(n)`
+    real(wp),                   intent(out)   :: alpha    !! accepted step length (`1`, or `0` if none)
+    integer,                    intent(out)   :: istat    !! status code (see [[sqpopt_types_module]])
+
+    real(wp), parameter :: sigma    = 1.0e-4_wp !! Armijo sufficient-decrease parameter
+    real(wp), parameter :: mu_first = 1.0e-4_wp !! the smallest damping tried
+    real(wp), parameter :: mu_max   = 1.0e8_wp  !! the largest damping tried
+    integer,  parameter :: lsqr_itnlim_stop = 5 !! `LSQR`'s `istop` for "iteration limit reached"
+
+    real(wp), dimension(:), allocatable :: rc, rc_trial, c_trial, jp, rhs, p, lb, ub
+    real(wp), dimension(:), allocatable :: colnorm !! the norm of each column of the Jacobian (`1` if it is zero)
+    real(wp), dimension(:), allocatable :: jscaled !! the Jacobian's values, each column divided by its norm
+    real(wp) :: h0, h_trial, dh0, mu
+    type(lsqr_solver_ez) :: lsqr
+    integer :: istop, k
+    logical :: ok
+
+    allocate(rc(size(c)), rc_trial(size(c)), c_trial(size(c)), jp(size(c)), rhs(size(c)))
+    allocate(p(size(x)), lb(size(x)), ub(size(x)), colnorm(size(x)), jscaled(jac%nnz))
+
+    alpha = 0.0_wp
+    x_new = x
+    istat = sqpopt_line_search_failed
+
+    rc = violation(c, problem%c_lb, problem%c_ub)
+    h0 = 0.5_wp*dot_product(rc, rc)
+    rhs = -rc
+    call problem%step_bounds(x, lb, ub)
+
+    colnorm = 0.0_wp
+    do k = 1, jac%nnz
+        colnorm(jac%icol(k)) = colnorm(jac%icol(k)) + jac%val(k)**2
+    end do
+    do k = 1, size(x)
+        colnorm(k) = sqrt(colnorm(k))
+        if (.not. colnorm(k) > 0.0_wp) colnorm(k) = 1.0_wp
+    end do
+    do k = 1, jac%nnz
+        jscaled(k) = jac%val(k)/colnorm(jac%icol(k))
+    end do
+    call lsqr%initialize(problem%m, problem%n, jscaled, jac%irow, jac%icol, itnlim=2*(problem%m+problem%n)+10)
+
+    mu = max(0.1_wp*damping, mu_first)
+    do
+        ! (in the variables `D p`, the damping is on their norm)
+        call lsqr%solve(rhs, sqrt(mu), p, istop)
+        ok = .not. (istop == lsqr_itnlim_stop .or. .not. sqpopt_all_finite(p))
+        if (ok) then
+            p = p/colnorm
+            p = min(max(x+p, lb), ub) - x
+            if (norm2(p) > max_step) p = p*(max_step/norm2(p))
+            ! directional derivative of 0.5*|r_c|^2 along p: r_c^T J p
+            jp = 0.0_wp
+            do k = 1, jac%nnz
+                jp(jac%irow(k)) = jp(jac%irow(k)) + jac%val(k)*p(jac%icol(k))
+            end do
+            dh0 = dot_product(rc, jp)
+            ok  = dh0 < 0.0_wp
+        end if
+        if (ok) then
+            x_new = x + p
+            call problem%c(x_new, c_trial)
+            h_trial = huge(1.0_wp)   ! (a non-finite trial point is always rejected)
+            if (sqpopt_all_finite(c_trial)) then
+                rc_trial = violation(c_trial, problem%c_lb, problem%c_ub)
+                h_trial = 0.5_wp*dot_product(rc_trial, rc_trial)
+            end if
+            if (h_trial <= h0 + sigma*dh0 .and. h_trial < h0) then
+                alpha = 1.0_wp
+                istat = sqpopt_success
+                exit
+            end if
+        end if
+        if (mu >= mu_max) exit
+        mu = 10.0_wp*mu
+    end do
+    damping = mu
+    if (istat /= sqpopt_success) x_new = x
+
+    end subroutine restoration_damped_step
 !*******************************************************************************
 
 !*******************************************************************************

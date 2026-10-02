@@ -893,7 +893,7 @@ call problem%set_max_step([0.1_wp, 0.1_wp, sqpopt_infinity, 5.0_wp])   ! (no lim
   <li><strong>Restoration steps:</strong> on a chain of hyperbola constraints with 10,000 variables (<code>hyperbolas</code> there), the 9 Gauss-Newton restoration steps took 2.3 s with <code>LSQR</code> and 0.02 s directly (though that problem's total time is dominated by the QPs that find the linearization inconsistent).</li>
 </ul>
 
-<p>On small problems it changes little, and not always for the better: on the Hock&ndash;Schittkowski problems the default options solve 279 problems with it and fail on one (TP106, where a more accurate correction leads to a slow crawl), against 280 and none without it. So it is off by default: turn it on for large problems that take corrections or restoration steps (<code>results%n_soc</code>, <code>results%n_restoration_steps</code>) and spend their time outside the QP and the user functions.</p>
+<p>On small problems it changes little, and not always for the better: on the Hock&ndash;Schittkowski problems the default options solve 278 problems with it and fail on one (TP106, where a more accurate correction leads to a slow crawl), against 281 and none without it. So it is off by default: turn it on for large problems that take corrections or restoration steps (<code>results%n_soc</code>, <code>results%n_restoration_steps</code>) and spend their time outside the QP and the user functions.</p>
 
 <h3 id="dense-qp">Dense QP options <span class="h-note"><code>qp_solver%dense_qp%&lt;name&gt;</code></span></h3>
 <p class="set-on">Used when <code>mode == sqpopt_qp_dense</code>.</p>
@@ -1086,6 +1086,13 @@ call problem%set_max_step([0.1_wp, 0.1_wp, sqpopt_infinity, 5.0_wp])   ! (no lim
   <li>The phase ends once the violation is below <code>restoration_exit_factor</code> times its value where the phase started and the point is acceptable to the filter or funnel, when the point is feasible, or after <code>restoration_max_iter</code> iterations. The multipliers are kept from before the phase.</li>
 </ul>
 <p>An inconsistent QP (linearized constraints that can't be satisfied) is still handled with a single Gauss-Newton step on the violation, falling back to the QP's elastic step, which also accounts for the objective. With <code>sqpopt_restoration_gauss_newton</code>, that single step is also used when the filter or funnel line search fails, and the trust region takes no restoration step at all. Before a point is reported as infeasible (a point where the violation can't be decreased to first order), the solver also probes for a second-order decrease of the violation, which escapes, for example, symmetry planes of the problem.</p>
+
+<p><strong>Problems with more equality constraints than variables</strong> have an inconsistent QP at every iteration, so they are solved by these Gauss-Newton steps alone: SQPOPT then acts as a least-squares solver for the constraints. Three things help there:</p>
+<ul>
+  <li>The cap on the step's length (<code>qp_solver%max_step</code>) adapts after these steps as it does after a line search: a full step that the cap cut short doubles it, and a shortened one halves it. A solution far from the starting point is then reached in a few iterations, not by steps of the cap's length.</li>
+  <li>If the Gauss-Newton step and the QP's elastic step find no decrease of the violation in two iterations in a row, a <em>Levenberg&ndash;Marquardt</em> step is tried: the Gauss-Newton step with damping, raised until the step decreases the violation. With a Jacobian that is nearly rank deficient, the Gauss-Newton step is dominated by the directions the Jacobian says least about, and no length of it helps.</li>
+  <li>If that finds no decrease either, the point is stationary for the violation as far as can be told, and the solve ends as <code>sqpopt_infeasible</code>. If the constraints can't all hold (a data-fitting problem written as one equation per data point), that point is the least-squares solution, and this status is the expected one. With the automatic <a href="#scaling">scaling</a>, it is the least-squares solution of the scaled constraints, which weights them differently from the original ones.</li>
+</ul>
 
 </div><!-- .reference -->
 

@@ -1706,7 +1706,7 @@ which is now double precision only.
 
   | solver | reported success | of which, the best objective of the three | on the 144 with m > n | on the other 520 |
   |---|---|---|---|---|
-  | sqpopt | 525 | 460 | 57 | 468 |
+  | sqpopt | 525 (526 after the change below) | 460 | 57 | 468 |
   | SLSQP | 493 | 438 | 45 | 448 |
   | trust-constr | 412 (396 feasible) | 301 | 34 | 362 |
 
@@ -1726,6 +1726,48 @@ which is now double precision only.
   MAXLIKA, PALMER8E; and ALLINITA, HS13, HS99EXP), and the 17 line-search
   failures. Not done: IPOPT (needs cyipopt), the problems whose size is
   a parameter, and the performance profiles.
+
+  *More constraints than variables (2026-10-02).* Why these went badly:
+  every QP of such a problem is inconsistent, so every iteration is a
+  Gauss-Newton restoration step, and that step (a) was capped at
+  `max_step` times a factor that only adapted after line searches
+  (BROWNBSNE, whose solution is at `x1 = 1e6`, moved by 2 per
+  iteration), (b) is useless where the Jacobian is nearly rank deficient
+  (JENSMPNE, MGH09, the CERI651 problems), and (c) when it found no
+  decrease, was repeated until `max_consecutive_failures` and reported
+  as a line-search failure, although the point is then a least-squares
+  solution of the equations. Done: the cap adapts after restoration steps
+  too (doubled after a full step that it cut short, halved after a
+  shortened one); a Levenberg-Marquardt step
+  (`restoration_damped_step`, damping scaled by the Jacobian's column
+  norms) when the Gauss-Newton and the elastic steps fail in two
+  iterations in a row; and `sqpopt_infeasible` if that fails too. New
+  test `test_overdetermined`. Results: 526 of the 664 solved (BROWNBSNE
+  is new, none lost); sqpopt's failures are now 70 at the iteration
+  limit, 60 infeasible, 5 line-search failures (17 before), 2 function
+  errors, 1 QP failure. HS suite: 281 solved, 24 local, 0 failed, 9,121
+  `fc` (TP109 is newly solved; the other baselines are in `CLAUDE.md`).
+  One row of the Performance table got worse: Armijo with the augmented
+  Lagrangian now fails on TP109 (2 failures, 1 before).
+  *Tried and not adopted:* damping as the first choice (raise it until
+  the full step is accepted, never backtrack), and damping whenever the
+  Gauss-Newton search shortens the step to 1% or gains less than 1%.
+  Both solve TENBARS1 to 3 and halve the evaluations spent on the
+  unsolved problems (178,000 to 78,000), but lose CORE1, DISCS, LAKES,
+  and LANCZOS1, which the Gauss-Newton step with backtracking solves: a
+  damped step that is accepted with a small gain keeps the solver
+  crawling where the old path recovered. Net 0 to +2 problems, so the
+  conservative version was kept. Still slow: the 27 problems with
+  `m > n` that reach the iteration limit (badly conditioned fits such as
+  CERI651A to E, MEYER3NE, MGH10S, and the PALMER "ENE" problems). A
+  proper trust-region Levenberg-Marquardt method for the case where
+  *every* QP is inconsistent (the problem is then a nonlinear
+  least-squares problem) would be the way to do better, kept apart from
+  the restoration steps of ordinary problems so that those don't change.
+  Also seen: with the automatic scaling, the point reported as
+  infeasible is the least-squares solution of the scaled constraints
+  (Jennrich-Sampson: a sum of squares of 359.7, against 124.4 without
+  scaling).
 
 - **Promote the review probes to regression tests** (they were throwaway
   programs built against the library):

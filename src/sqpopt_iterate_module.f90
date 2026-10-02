@@ -41,7 +41,8 @@
     use sqpopt_soc_module,        only: soc_step
     use sqpopt_log_module,        only: sqpopt_log_type, sqpopt_log_detail, fmt_e, fmt_i, plural, qp_status_text
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
-    use sqpopt_restoration_module,  only: restoration_step, escape_step, sqpopt_restoration_type, &
+    use sqpopt_restoration_module,  only: restoration_step, restoration_damped_step, escape_step, &
+                                          sqpopt_restoration_type, &
                                           sqpopt_restoration_phase
     use sqpopt_inertia_module,      only: sqpopt_inertia_type
     use sqpopt_kkt_module,          only: sqpopt_kkt_type
@@ -71,7 +72,10 @@
 !
 !  On exit, `done` is true if the solver should stop at the (unchanged)
 !  input point `x`, with the reason in `istat`: `sqpopt_success`,
-!  `sqpopt_stalled`, or `sqpopt_infeasible` (from [[check_convergence]]),
+!  `sqpopt_stalled`, or `sqpopt_infeasible` (from [[check_convergence]]; or
+!  `sqpopt_infeasible` because the restoration steps of the last two
+!  iterations, the last one with damping, found no decrease of the
+!  violation),
 !  `sqpopt_acceptable` (the acceptable-level test held for
 !  `options%acceptable_iter` consecutive iterations, counted in
 !  `n_acceptable`), `sqpopt_unbounded` (the objective is below
@@ -155,6 +159,8 @@
                             !! of it that is carried over from failed steps)
     logical :: keep_shift   !! with inertia control: whether the step failed, so the shift it was computed with
                             !! is carried over (increased) to the next iteration
+    logical :: failed_before !! whether the previous iteration's restoration steps (for an inconsistent QP) found
+                             !! no decrease of the violation
 
     allocate(g(problem%n), gl(problem%n), p(problem%n), x_new(problem%n), c(problem%m), new_lambda(problem%m))
 
@@ -279,6 +285,21 @@
         n_stalled = n_stalled0
     end do
 
+    ! An infeasible point from which the restoration steps of the last two
+    ! iterations found no decrease of the violation, the last one with any
+    ! damping, is stationary for it as far as can be told, even if the
+    ! gradient of the violation is above the tolerance of the test (the
+    ! least-squares problem may be too ill-conditioned to reach it): report
+    ! it as infeasible, instead of repeating the failed step until
+    ! `max_consecutive_failures`.
+    if (.not. done .and. restoration%no_decrease .and. info%feas > options%ctol) then
+        done  = .true.
+        istat = sqpopt_infeasible
+        call lg%put(sqpopt_log_detail, 'no restoration step decreased the violation: the point is taken as '// &
+                    'stationary for it')
+    end if
+    restoration%no_decrease = .false.
+
     ! a point that is stationary for the violation may still be a saddle of
     ! it (e.g. on a symmetry plane of the problem, which exactly computed
     ! steps never leave): before declaring the problem infeasible, look for a
@@ -396,6 +417,8 @@
 
     qp_istat = sqpopt_success
     restore  = .false.
+    failed_before = restoration%failed
+    restoration%failed = .false.
     shift_floor = hessian%shift
     keep_shift  = .false.
 
@@ -542,6 +565,17 @@
             call restoration_step(problem, jac, x, c, qp_solver%max_step*qp_solver%step_scale, x_new, alpha, step_istat, &
                                   least_squares=least_squares)
             call note_restoration_step('Gauss-Newton')
+            ! adapt the step-length cap as after a line search (see below): a
+            ! full step that the cap cut short doubles it (so that a feasible
+            ! point far away isn't approached by steps of `max_step`), and a
+            ! step that had to be shortened halves it
+            if (step_istat == sqpopt_success .and. alpha >= 1.0_wp) then
+                if (norm2(x_new - x) >= 0.99_wp*qp_solver%max_step*qp_solver%step_scale) then
+                    qp_solver%step_scale = min(2.0_wp*qp_solver%step_scale, 1.0e10_wp)
+                end if
+            else if (step_istat == sqpopt_success) then
+                qp_solver%step_scale = max(1.0_wp, 0.5_wp*qp_solver%step_scale)
+            end if
             if (step_istat /= sqpopt_success .and. norm2(p) > 0.0_wp) then
                 ! no first-order decrease of the violation is possible from `x`
                 ! (it is stationary for the violation, e.g. `J=0` at a maximum
@@ -552,6 +586,18 @@
                                       x_new, alpha, step_istat, direction=p)
                 call note_restoration_step('along the elastic QP step')
             end if
+            if (step_istat /= sqpopt_success .and. failed_before) then
+                ! Both failed in the previous iteration too, at this point (the
+                ! Hessian reset after it changed nothing). The last resort, for
+                ! a Jacobian that is (nearly) rank deficient: a
+                ! Levenberg-Marquardt step. If that finds no decrease either,
+                ! the point is stationary for the violation (see above).
+                call restoration_damped_step(problem, jac, x, c, qp_solver%max_step*qp_solver%step_scale, &
+                                             restoration%damping, x_new, alpha, step_istat)
+                call note_restoration_step('Levenberg-Marquardt')
+                restoration%no_decrease = step_istat /= sqpopt_success
+            end if
+            restoration%failed = step_istat /= sqpopt_success
 
         else
 

@@ -125,8 +125,11 @@ program test_hs_suite
 
     !> problems not (yet) solved by `sqpopt` with the default options -- the
     !! regression baseline (see the program documentation). As of 2026-10-02:
-    !! 280 of the 305 problems solved, 25 local solutions, 0 failures (9,067
-    !! `fc` calls on the solved problems).
+    !! 281 of the 305 problems solved, 24 local solutions, 0 failures (9,121
+    !! `fc` calls on the solved problems), in a release build. TP109 is
+    !! solved in a release build but not in a debug build (where it ends at
+    !! a local solution), so it stays in the list: the test passes either
+    !! way, and a release run reports it as now solved.
     integer, dimension(*), parameter :: known_unsolved = [ &
           2,  16,  25,  33,  38,  54,  55,  57,  59,  87,  97,  98, 105, 109, 213, &
         265, 272, 283, 287, 304, 305, 312, 327, 338, 362 ]
