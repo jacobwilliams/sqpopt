@@ -550,6 +550,8 @@ end subroutine gjac_y</code></pre>
 <!-- ============================================================ -->
 <h2 id="least-squares">Least-squares problems <code class="h-type">sqpopt_nlls_type</code></h2>
 
+<div class="callout note"><strong>Experimental.</strong> This interface is new and may change. It has been tested on few problems, and on plain fits it finds the best fit less often than a solver written for least squares (see <em>What to expect</em> below).</div>
+
 <p>An optional interface, for problems whose objective is a sum of squares:</p>
 \[ \min_x \; \tfrac12 \sum_{i=1}^{l} r_i(x)^2 \quad \text{s.t.} \quad c_l \le c(x) \le c_u, \quad x_l \le x \le x_u \]
 <p>The \( r_i \) are the <em>residuals</em>: in a data-fitting problem, the differences between a model and the data. Use it for those, and for a system of equations that can't all hold (more equations than unknowns). Given to the solver as equality constraints, such a system makes every QP subproblem inconsistent, and the solve ends as <code>sqpopt_infeasible</code> at best, after many <a href="#restoration">restoration steps</a>.</p>
@@ -637,19 +639,26 @@ print(res.x, res.cost, res.message)</code></pre>
 
 <p>Its <code>bounds</code>, <code>constraints</code>, <code>options</code>, <code>max_step</code>, and output files are those of <code>minimize</code> (see <a href="#python">Python</a>), <code>jac_sparsity</code> gives the pattern of a sparse Jacobian, and <code>gauss_newton=True</code> selects the Gauss-Newton Hessian (as a dense matrix in Python, so for small problems). The result has <code>x</code>, <code>fun</code> (the residuals), <code>cost</code> (half the sum of their squares), the multipliers, and <code>nlp</code>, the result of <code>minimize</code> for the transformed problem.</p>
 
-<p><strong>What to expect.</strong> On 94 overdetermined systems of equations from <a href="performance.html#cutest">CUTEst</a> (those with at most 100 variables and equations, 250 iterations at most), counting the problems where each reaches the best sum of squares that any of them found:</p>
+<p><strong>What to expect.</strong> For a fit with no constraints other than bounds, a solver written for least squares (scipy's <code>least_squares</code>, MINPACK's <code>lmder</code>) is the better choice. Use this interface when the fit also has general constraints, which those solvers don't take, or when the equations would otherwise be given to SQPOPT as equality constraints.</p>
+
+<p>The numbers behind that: 94 test problems from <a href="performance.html#cutest">CUTEst</a>, each a system with more equations than unknowns and no other constraints, solved four ways with at most 250 iterations. A method counts as having found the best fit on a problem if its sum of squares is as small as the smallest that any of the four reached.</p>
 
 <div class="table-wrap"><table>
-<thead><tr><th></th><th>reach the best sum of squares</th><th>residual evaluations (all 94)</th></tr></thead>
+<thead><tr><th>method</th><th>problems where it found<br>the best fit (of 94)</th><th>residual evaluations,<br>all 94 problems</th></tr></thead>
 <tbody>
-<tr><td>the equations as equality constraints of <code>minimize</code></td><td>52</td><td>52,958</td></tr>
-<tr><td><code>least_squares</code>, L-BFGS (the default)</td><td>59</td><td>6,842</td></tr>
-<tr><td><code>least_squares</code>, Gauss-Newton Hessian</td><td>68</td><td>13,154</td></tr>
-<tr><td>scipy's <code>least_squares</code> (trust-region reflective)</td><td>87</td><td>10,326</td></tr>
+<tr><td>SQPOPT, the equations given as equality constraints</td><td>52</td><td>52,958</td></tr>
+<tr><td>SQPOPT, this interface with L-BFGS (the default)</td><td>59</td><td>6,842</td></tr>
+<tr><td>SQPOPT, this interface with the Gauss-Newton Hessian</td><td>68</td><td>13,154</td></tr>
+<tr><td>scipy's <code>least_squares</code></td><td>87</td><td>10,326</td></tr>
 </tbody>
 </table></div>
 
-<p>So the interface takes an eighth of the evaluations that the equations take as constraints, and ends with a success status where those end as infeasible (92 of the 94 with L-BFGS). But a code written for least squares is still better at it: of the solves that end with a success status, a third with L-BFGS stop at a larger sum of squares than scipy finds (some at another local minimum, some as <code>sqpopt_acceptable</code> or <code>sqpopt_stalled</code> short of one). For an unconstrained fit that is hard, prefer such a code (MINPACK's <code>lmder</code>, or scipy's). What this interface adds is the solver's general constraints and sparsity. If a fit ends short of the solution, try the Gauss-Newton Hessian, or the other one of the two (one or the other reaches the best sum of squares on 79 of the 94).</p>
+<ul>
+  <li><strong>Against equality constraints, the interface is much cheaper.</strong> It needs an eighth of the evaluations with L-BFGS, a quarter with the Gauss-Newton Hessian, and finds the best fit somewhat more often.</li>
+  <li><strong>Against scipy, it finds the best fit less often</strong>: 59 or 68 problems against 87. These problems are the kind scipy's solver is written for.</li>
+  <li><strong>A success status doesn't mean the best fit.</strong> With L-BFGS, 92 of the 94 solves end with a success status, but only 59 are at the best fit. The others stopped at a point where the sum of squares is larger: a different local minimum, or a point that only met the looser tests (<code>sqpopt_acceptable</code>, <code>sqpopt_stalled</code>).</li>
+  <li><strong>If a fit looks poor, try the other Hessian.</strong> At least one of the two finds the best fit on 79 of the 94.</li>
+</ul>
 
 <p><strong>Limits.</strong> The QP subproblem has \( n + l \) variables (DFNLP eliminates \( z \) from it, SQPOPT doesn't), so with many residuals the <a href="#qp-modes">sparse QP solver</a> is the one to use, which <code>sqpopt_qp_auto</code> chooses by the problem's size. Only the sum of squares is offered: the same device gives the \( l_1 \) and maximum norms, which are not implemented.</p>
 
