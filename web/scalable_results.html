@@ -67,7 +67,7 @@
 
 <ul>
   <li><strong>With second derivatives, the solver handles these functions at every size tried.</strong> With the exact Hessian and the <a href="index.html#direct-qp">direct QP method</a>, most functions with 100,000 variables are solved in about 2 seconds or less.</li>
-  <li><strong>Without them, the default L-BFGS Hessian is slow on ill-conditioned functions</strong> with 1,000 variables, and fails on two of them (<code>trid</code> and <code>rosenbrock</code>).</li>
+  <li><strong>Without them, the default L-BFGS Hessian is slow on ill-conditioned functions</strong> with 1,000 variables: up to 40 seconds, and <code>rosenbrock</code> reaches the iteration limit.</li>
   <li><strong>One bug was found and fixed</strong> (the direct QP method rejected very long steps), and two weaknesses remain. They are described under <a href="#findings">What the runs show</a>.</li>
 </ul>
 
@@ -126,7 +126,7 @@
 <tr><td><code>sphere</code></td><td class="num">7 / &lt; 0.01 s</td><td class="num">7 / &lt; 0.01 s</td><td class="num">7 / &lt; 0.01 s</td></tr>
 <tr><td><code>ellipsoid</code></td><td class="num">154 / 1.70 s</td><td class="num">6 / &lt; 0.01 s</td><td class="num">6 / &lt; 0.01 s</td></tr>
 <tr><td><code>schumer_steiglitz</code></td><td class="num">25 / &lt; 0.01 s</td><td class="num">19 / &lt; 0.01 s</td><td class="num">19 / 0.01 s</td></tr>
-<tr><td><code>trid</code></td><td class="num"><strong>failed</strong> (line search failed): 1,106 / 27.7 s</td><td class="num">23 / 0.07 s</td><td class="num">23 / &lt; 0.01 s</td></tr>
+<tr><td><code>trid</code></td><td class="num">1,679 / 42.2 s</td><td class="num">23 / 0.07 s</td><td class="num">23 / &lt; 0.01 s</td></tr>
 <tr><td><code>rosenbrock</code></td><td class="num"><strong>failed</strong> (iteration limit): 2,000 / 30.4 s</td><td class="num">1,704 / 0.40 s</td><td class="num">1,704 / 0.53 s</td></tr>
 <tr><td><code>dixon_price</code></td><td class="num">236 / 3.83 s</td><td class="num">9 / &lt; 0.01 s</td><td class="num">9 / &lt; 0.01 s</td></tr>
 <tr><td><code>powell_singular</code></td><td class="num">29 / 0.01 s</td><td class="num">19 / &lt; 0.01 s</td><td class="num">19 / &lt; 0.01 s</td></tr>
@@ -156,7 +156,7 @@
 <tr><td><code>sphere</code></td><td class="num">8 / &lt; 0.01 s</td><td class="num">8 / 0.04 s</td></tr>
 <tr><td><code>ellipsoid</code></td><td class="num">7 / &lt; 0.01 s</td><td class="num">7 / 0.04 s</td></tr>
 <tr><td><code>schumer_steiglitz</code></td><td class="num">20 / &lt; 0.01 s (loose)</td><td class="num">20 / 0.12 s (loose)</td></tr>
-<tr><td><code>trid</code></td><td class="num">31 / 10.6 s</td><td class="num">31 / 0.10 s</td></tr>
+<tr><td><code>trid</code></td><td class="num">31 / 10.4 s</td><td class="num">31 / 0.10 s</td></tr>
 <tr><td><code>rosenbrock</code></td><td class="num"><strong>failed</strong> (iteration limit): 2,000 / 4.98 s</td><td class="num"><strong>failed</strong> (iteration limit): 2,000 / 6.04 s</td></tr>
 <tr><td><code>dixon_price</code></td><td class="num">10 / 0.02 s</td><td class="num">10 / 0.03 s</td></tr>
 <tr><td><code>powell_singular</code></td><td class="num">20 / 0.01 s</td><td class="num">20 / 0.05 s</td></tr>
@@ -181,7 +181,7 @@
 <tr><td><code>sphere</code></td><td class="num">10 / 0.57 s</td></tr>
 <tr><td><code>ellipsoid</code></td><td class="num">9 / 0.52 s</td></tr>
 <tr><td><code>schumer_steiglitz</code></td><td class="num">22 / 1.31 s (loose)</td></tr>
-<tr><td><code>trid</code></td><td class="num">63 / 2.20 s</td></tr>
+<tr><td><code>trid</code></td><td class="num">63 / 2.39 s</td></tr>
 <tr><td><code>dixon_price</code></td><td class="num">12 / 0.36 s</td></tr>
 <tr><td><code>powell_singular</code></td><td class="num">22 / 0.61 s (loose)</td></tr>
 <tr><td><code>brown</code></td><td class="num">12 / 0.41 s</td></tr>
@@ -197,7 +197,8 @@
 <h2 id="findings">What the runs show</h2>
 
 <ul>
-  <li><strong>L-BFGS is slow on ill-conditioned functions, and fails on two.</strong> With 1,000 variables, <code>trid</code> stops with "line search failed" after 1,106 iterations and 28 seconds, a relative distance of \( 4 \times 10^{-8} \) from the minimum, and <code>rosenbrock</code> reaches the limit of 2,000 iterations in 30 seconds. <code>ellipsoid</code>, <code>dixon_price</code>, and <code>qing</code> converge, in 150 to 240 iterations and 2 to 4 seconds. With the exact Hessian each of the five takes under half a second. If you have second derivatives of a large problem, use them.</li>
+  <li><strong>L-BFGS is slow on ill-conditioned functions.</strong> With 1,000 variables, <code>trid</code> (whose Hessian has a condition number of \( 4 \times 10^{5} \)) takes 1,679 iterations and 42 seconds, and <code>rosenbrock</code> reaches the limit of 2,000 iterations in 30 seconds. <code>ellipsoid</code>, <code>dixon_price</code>, and <code>qing</code> converge in 150 to 240 iterations and 2 to 4 seconds. With the exact Hessian each of the five takes under half a second. If you have second derivatives of a large problem, use them. Nearly all of the L-BFGS time is in the QP solver (about 25 milliseconds per iteration), which doesn't take advantage of the absence of constraints.</li>
+  <li><strong>Roundoff in the objective can stop the line search.</strong> <code>trid</code> was first evaluated as its definition reads, the difference of two sums. Near the minimizer with 1,000 variables each sum is about \( 3 \times 10^{13} \) and their difference \( -1.7 \times 10^{8} \), so the value had an error of about 0.1. That is more than a quasi-Newton step gains near the solution, so no step length was acceptable, and the solve ended with "line search failed" at a relative distance of \( 4 \times 10^{-8} \) from the minimum. Evaluated term by term, without the cancellation, the function is solved. If a solve of yours ends that way close to a solution, look at how accurately the objective is computed.</li>
   <li><strong>A bug in the direct QP method was found and fixed.</strong> <code>trid</code> with 100,000 variables did not finish: its first QP was handed to the active-set solver, which can't cope with 100,000 free variables. The direct method had computed the right step, but rejected it as inaccurate. The first Newton step of this function is about \( 10^{9} \) times its gradient, so the stationarity residual \( g + Hp \) is a difference of very large terms, and its roundoff was compared with the size of the gradient instead of the size of those terms. With the test corrected, the solve takes 2.2 seconds.</li>
   <li><strong>The dense QP solver is slow at the largest size it is given.</strong> The automatic choice uses the dense QP for up to 200 variables. With 200 variables, <code>brown</code> took 1.9 seconds for 9 iterations, against 0.002 seconds with 1,000 variables and the sparse QP. For problems of 100 to 200 variables with few active constraints, set <code>options%qp_solver_mode = sqpopt_qp_reduced_hessian</code> (see <a href="choosing_settings.html#qp-solver">Which QP solver</a>).</li>
   <li><strong>A starting point with a very large gradient gives a loose solution.</strong> The objective is scaled by its gradient at the starting point (see <a href="index.html#scaling">Scaling</a>), and convergence is tested on the scaled problem. <code>zakharov</code> with 1,000 variables starts at \( f \approx 4 \times 10^{21} \) and stops, with the status <code>sqpopt_acceptable</code>, at \( f = 5.3 \times 10^{6} \) (the minimum is 0); <code>schwefel12</code> goes from \( 8 \times 10^{11} \) to 593. A tighter <code>options%ktol</code>, or a starting point with a smaller gradient, gets closer.</li>
@@ -207,7 +208,7 @@
 <!-- ============================================================ -->
 <h2 id="method">How these were measured</h2>
 
-<p><code>test_scalable</code> first checks every gradient and Hessian by central differences. Run without options, it solves every function with 20 and 1,000 variables, and fails if a solve doesn't converge. (That run skips the L-BFGS solves of the five ill-conditioned functions at 1,000 variables, which take up to 30 seconds each.) With options it runs other sizes and reports the results:</p>
+<p><code>test_scalable</code> first checks every gradient and Hessian by central differences. Run without options, it solves every function with 20 and 1,000 variables, and fails if a solve doesn't converge. (That run skips the L-BFGS solves of the five ill-conditioned functions at 1,000 variables, which take up to 40 seconds each.) With options it runs other sizes and reports the results:</p>
 
 <pre><code class="language-bash"># the default run (a regression test)
 pixi run fpm test test_scalable

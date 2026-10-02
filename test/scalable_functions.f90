@@ -21,6 +21,13 @@
 !    stops at once.
 !  * `schumer_steiglitz` starts at \( x_i = 5 \sin i \): the package's start
 !    is random.
+!  * `trid` is evaluated term by term, not as the difference of the two
+!    sums of its definition. Near its minimizer those sums are each about
+!    \( n^5/30 \) and their difference about \( n^3/6 \), so the
+!    difference loses \( \log_{10}(n^2/5) \) digits. With 1000 variables
+!    that noise (about 0.1 in an objective of \( -1.7 \times 10^8 \)) was
+!    larger than the decrease of a quasi-Newton step near the solution, and
+!    the line search failed there.
 !
 !  Each function has a `kind`, which says what a local method can be
 !  expected to find:
@@ -297,7 +304,13 @@
         f = sum(x**4)
 
     case (id_trid)
-        f = sum((x - 1.0_wp)**2) - sum(x(2:n)*x(1:n-1))
+        ! (term by term, as x_i*(x_i - x_{i-1}) - 2*x_i + 1: the two sums of the definition are
+        ! each about n^5/30 near the minimizer, and their difference, about n^3/6, would lose
+        ! log10(n^2/5) digits, which is enough to stop a line search before it has converged)
+        f = x(1)*x(1) - 2.0_wp*x(1) + 1.0_wp
+        do i = 2, n
+            f = f + (x(i)*(x(i) - x(i-1)) - 2.0_wp*x(i) + 1.0_wp)
+        end do
 
     case (id_rosenbrock)
         f = sum(100.0_wp*(x(2:n) - x(1:n-1)**2)**2 + (x(1:n-1) - 1.0_wp)**2)

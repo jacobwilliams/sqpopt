@@ -1303,9 +1303,15 @@ which is now double precision only.
   constraints, so this tests the bound-constrained path. The default run
   (20 and 1000 variables) passes in both builds. What the larger runs
   showed, none of it fixed (release build):
-  - *L-BFGS on ill-conditioned functions at 1000 variables is slow, and
-    fails on two.* `trid` ends with "line search failed" after 1106
-    iterations (28 s), and `rosenbrock` reaches 2000 iterations (31 s);
+  - *L-BFGS on ill-conditioned functions at 1000 variables is slow.*
+    `trid` takes 1679 iterations (42 s, ending as "stalled" at the
+    minimum), and `rosenbrock` reaches 2000 iterations (31 s). (`trid`
+    first ended with "line search failed" after 1106 iterations: that was
+    roundoff in the test function, about 0.1 in an objective of -1.7e8,
+    from evaluating it as the difference of two sums of 3e13. It is now
+    evaluated term by term.) Nearly all the time is in the QP (25 ms per
+    iteration, for a step that an unconstrained L-BFGS method gets from
+    its two-loop recursion: see the idea below);
     `ellipsoid`, `dixon_price`, and `qing` converge in 150 to 240
     iterations and 2 to 4 s. With the exact Hessian all five take less
     than 0.5 s. (These are skipped in the default run.)
@@ -1327,6 +1333,24 @@ which is now double precision only.
     `4e21`), and `schwefel12` at `f = 593` (start `8e11`).
   - *The chained Rosenbrock function takes about 1.7 iterations per
     variable with the exact Hessian* (1704 at 1000 variables, 0.4 s).
+  Ideas from these runs *(not implemented)*:
+  - *A cheap QP for an L-BFGS step with no active constraints.* With no
+    general constraints and no bound in the working set, the QP's solution
+    is `-H^{-1} g`, which the L-BFGS inverse gives in `O(n k)` operations
+    (the two-loop recursion). The sparse QP instead runs conjugate
+    gradients on the reduced Hessian with every variable superbasic: 25 ms
+    per iteration on `trid` at 1000 variables, 97% of the solve. Try the
+    closed-form step first, and keep it if it stays inside the bounds and
+    the step cap.
+  - *Noise in the objective.* When no step length is acceptable at a
+    feasible point and every trial objective is within `ftol*|f|` of the
+    current one, the objective can't be resolved any further: that could
+    be reported as `sqpopt_stalled` (a success code) and not, after
+    `max_consecutive_failures` Hessian resets, as
+    `sqpopt_line_search_failed`. It would change the classification of
+    some solves, so compare it on the HS suite first. (IPOPT allows for
+    roundoff of `10*eps*|f|` in its acceptance tests; that is far smaller
+    than the noise of a badly conditioned function evaluation.)
 
 - **CUTEst test problems, as a pure-Fortran harness** *(planned,
   deferred 2026-09-27)*. A test like `test_hs_suite` on problems from the

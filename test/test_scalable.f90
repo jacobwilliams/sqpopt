@@ -35,8 +35,8 @@ program test_scalable
     !! By default the numbers of variables are 20 and 1000, and with 1000 the
     !! limited-memory BFGS solves of five ill-conditioned functions
     !! (`slow_bfgs`) are skipped: they take hundreds or thousands of
-    !! iterations, and 2 to 30 seconds each in a release build (two of them,
-    !! `trid` and `rosenbrock`, fail). Give `--n=1000` to run them.
+    !! iterations, and 2 to 40 seconds each in a release build (`rosenbrock`
+    !! reaches the iteration limit). Give `--n=1000` to run them.
     !!
     !! Command-line options (any of them makes the run a non-default
     !! configuration, which runs every solve and reports the results, but
