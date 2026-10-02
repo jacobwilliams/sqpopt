@@ -41,7 +41,7 @@
     use sqpopt_soc_module,        only: soc_step
     use sqpopt_log_module,        only: sqpopt_log_type, sqpopt_log_detail, fmt_e, fmt_i, plural, qp_status_text
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
-    use sqpopt_restoration_module,  only: restoration_step, restoration_damped_step, escape_step, &
+    use sqpopt_restoration_module,  only: restoration_step, escape_step, &
                                           sqpopt_restoration_type, &
                                           sqpopt_restoration_phase
     use sqpopt_inertia_module,      only: sqpopt_inertia_type
@@ -159,8 +159,6 @@
                             !! of it that is carried over from failed steps)
     logical :: keep_shift   !! with inertia control: whether the step failed, so the shift it was computed with
                             !! is carried over (increased) to the next iteration
-    logical :: failed_before !! whether the previous iteration's restoration steps (for an inconsistent QP) found
-                             !! no decrease of the violation
 
     allocate(g(problem%n), gl(problem%n), p(problem%n), x_new(problem%n), c(problem%m), new_lambda(problem%m))
 
@@ -285,21 +283,6 @@
         n_stalled = n_stalled0
     end do
 
-    ! An infeasible point from which the restoration steps of the last two
-    ! iterations found no decrease of the violation, the last one with any
-    ! damping, is stationary for it as far as can be told, even if the
-    ! gradient of the violation is above the tolerance of the test (the
-    ! least-squares problem may be too ill-conditioned to reach it): report
-    ! it as infeasible, instead of repeating the failed step until
-    ! `max_consecutive_failures`.
-    if (.not. done .and. restoration%no_decrease .and. info%feas > options%ctol) then
-        done  = .true.
-        istat = sqpopt_infeasible
-        call lg%put(sqpopt_log_detail, 'no restoration step decreased the violation: the point is taken as '// &
-                    'stationary for it')
-    end if
-    restoration%no_decrease = .false.
-
     ! a point that is stationary for the violation may still be a saddle of
     ! it (e.g. on a symmetry plane of the problem, which exactly computed
     ! steps never leave): before declaring the problem infeasible, look for a
@@ -417,8 +400,6 @@
 
     qp_istat = sqpopt_success
     restore  = .false.
-    failed_before = restoration%failed
-    restoration%failed = .false.
     shift_floor = hessian%shift
     keep_shift  = .false.
 
@@ -586,18 +567,6 @@
                                       x_new, alpha, step_istat, direction=p)
                 call note_restoration_step('along the elastic QP step')
             end if
-            if (step_istat /= sqpopt_success .and. failed_before) then
-                ! Both failed in the previous iteration too, at this point (the
-                ! Hessian reset after it changed nothing). The last resort, for
-                ! a Jacobian that is (nearly) rank deficient: a
-                ! Levenberg-Marquardt step. If that finds no decrease either,
-                ! the point is stationary for the violation (see above).
-                call restoration_damped_step(problem, jac, x, c, qp_solver%max_step*qp_solver%step_scale, &
-                                             restoration%damping, x_new, alpha, step_istat)
-                call note_restoration_step('Levenberg-Marquardt')
-                restoration%no_decrease = step_istat /= sqpopt_success
-            end if
-            restoration%failed = step_istat /= sqpopt_success
 
         else
 

@@ -216,6 +216,7 @@ architecture ([PLAN.md](plan/PLAN.md)), the backlog
 | `sqpopt_merit_module`, `sqpopt_filter_module`, `sqpopt_funnel_module` | the acceptance tests the line searches and the trust region use |
 | `sqpopt_trust_region_module` | the trust-region globalization |
 | `sqpopt_restoration_module` | feasibility restoration |
+| `sqpopt_nlls_module` | an optional interface for least-squares problems (`sqpopt_nlls_type`), on top of the solver: it gives the solver the problem in Schittkowski's form, `min 1/2 z'z` subject to `r(x) - z = 0` |
 | `sqpopt_soc_module` | second-order corrections |
 | `sqpopt_convergence_module` | the KKT convergence test |
 | `sqpopt_log_module` | the detailed iteration log, and the formatting of the printed output |

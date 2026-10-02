@@ -338,7 +338,7 @@
 <ul>
   <li><strong>SQPOPT solves the most problems</strong>: 526 of 664 (79%), against 493 for SLSQP and 396 for <code>trust-constr</code>. 32 problems are solved by SQPOPT alone, 16 by SLSQP alone, and 3 by <code>trust-constr</code> alone. No solver solves 115 of them.</li>
   <li><strong>The difference is on the constrained problems.</strong> Without constraints SLSQP solves four more than SQPOPT. With them, SQPOPT solves 323 and SLSQP 286.</li>
-  <li><strong>SLSQP needs slightly fewer evaluations.</strong> On the 368 problems that all three solve, SLSQP makes 22,409 calls of the objective, gradient, constraint, and Jacobian functions, SQPOPT 24,273, and <code>trust-constr</code> 49,696. The time for those problems, with the functions called from Python, is 0.6 s, 1.3 s, and 8.0 s.</li>
+  <li><strong>SLSQP needs slightly fewer evaluations.</strong> On the 368 problems that all three solve, SLSQP makes 22,409 calls of the objective, gradient, constraint, and Jacobian functions, SQPOPT 24,273, and <code>trust-constr</code> 49,696. The time for those problems, with the functions called from Python, is 0.6 s, 1.2 s, and 8.0 s.</li>
   <li><strong>SQPOPT always returned.</strong> Each problem runs in a process of its own with a 60-second limit. That process crashed or reached the limit on 18 problems, in one of the SciPy solvers each time, after SQPOPT had returned its result. <code>trust-constr</code> also raised an error on 92 problems, most of them with more equality constraints than variables, which it doesn't accept.</li>
 </ul>
 
@@ -347,9 +347,9 @@
 <div class="table-wrap"><table class="bench compact">
 <thead><tr><th>final status</th><th class="num">problems</th><th class="num">of which, solved<br>by another solver</th><th>what they are</th></tr></thead>
 <tbody>
-<tr><td>iteration limit (250)</td><td class="num">70</td><td class="num">20</td><td>27 have more constraints than variables; several of the rest are least-squares fits (the <code>PALMER</code>, <code>DMN</code>, and <code>GAUSS</code> families)</td></tr>
-<tr><td>infeasible</td><td class="num">60</td><td class="num">0</td><td>58 have more constraints than variables: the equations have no common solution, and the solver stops at a stationary point of the violation (their least-squares solution), which is the right answer for them</td></tr>
-<tr><td>no acceptable step</td><td class="num">5</td><td class="num">2</td><td>1 has more constraints than variables</td></tr>
+<tr><td>iteration limit (250)</td><td class="num">63</td><td class="num">20</td><td>22 have more constraints than variables; several of the rest are least-squares fits (the <code>PALMER</code>, <code>DMN</code>, and <code>GAUSS</code> families)</td></tr>
+<tr><td>infeasible</td><td class="num">54</td><td class="num">0</td><td>52 have more constraints than variables: the equations have no common solution, and the solver stops at a stationary point of the violation (their least-squares solution), which is the right answer for them</td></tr>
+<tr><td>no acceptable step</td><td class="num">18</td><td class="num">2</td><td>12 have more constraints than variables: fits where the Gauss-Newton step finds no decrease of the violation, most of them within tens of iterations</td></tr>
 <tr><td>function error</td><td class="num">2</td><td class="num">0</td><td><code>S365</code> and <code>S365MOD</code>: a derivative isn't finite at the starting point</td></tr>
 <tr><td>QP failure</td><td class="num">1</td><td class="num">1</td><td><code>HS99EXP</code></td></tr>
 </tbody>
@@ -357,7 +357,7 @@
 
 <ul>
   <li><strong>The tolerances are not the reason.</strong> SQPOPT's defaults (<code>ktol = 1e-6</code>, <code>ctol = 1e-8</code>) are tighter than the other solvers' settings here. With the tolerances of a published benchmark (<code>ktol = 1.22e-4</code>, <code>ctol = 2e-6</code>), only 3 of the 138 are solved.</li>
-  <li><strong>More constraints than variables.</strong> Every QP subproblem of such a problem is inconsistent, so SQPOPT solves it by Gauss-Newton steps on the constraint violation alone (see <a href="index.html#restoration">Feasibility restoration</a>). 58 of the 144 have a point that satisfies all the constraints, which it finds; for most of the others the status <code>sqpopt_infeasible</code> is the answer. The 27 that reach the iteration limit are badly conditioned fits, on which those steps converge slowly.</li>
+  <li><strong>More constraints than variables.</strong> Every QP subproblem of such a problem is inconsistent, so SQPOPT solves it by Gauss-Newton steps on the constraint violation alone (see <a href="index.html#restoration">Feasibility restoration</a>). 58 of the 144 have a point that satisfies all the constraints, which it finds; for most of the others the status <code>sqpopt_infeasible</code> is the answer. The 22 that reach the iteration limit and the 12 that end with no acceptable step are badly conditioned fits, on which those steps converge slowly or find no decrease. Problems of this kind are better given to the <a href="index.html#least-squares">least-squares interface</a>, which is not what was measured here.</li>
   <li><strong>The 23 that another solver solves are the ones to study</strong>: 20 that reach the iteration limit (among them <code>3PK</code>, <code>ALLINITC</code>, <code>GAUSS2LS</code>, <code>HIMMELBJ</code>, and <code>MAXLIKA</code>), and <code>ALLINITA</code>, <code>HS13</code>, and <code>HS99EXP</code>.</li>
 </ul>
 

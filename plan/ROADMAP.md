@@ -1392,6 +1392,77 @@ which is now double precision only.
   - To make the per-iteration data available without evaluations,
     `sqpopt_iterate` passes each iterate's values and derivatives to the
     diagnostics; `sqpopt_iter_info` moved to `sqpopt_types_module`.
+- **F20: a least-squares interface, by Schittkowski's transformation**
+  *(done 2026-10-02 for the sum of squares, as an optional layer:
+  `sqpopt_nlls_module` (`sqpopt_nlls_type`) in Fortran and
+  `sqpopt.least_squares` in Python, both of which only build the
+  transformed problem and call the solver, which is unchanged; with
+  `hessian_mode = exact` the Fortran one supplies the Gauss-Newton Hessian
+  `diag(0, I)`, and `gauss_newton=True` does in Python. Tests `test_nlls`
+  and `python/tests/test_least_squares.py`, example
+  `example/nlls_bard.f90`, guide section "Least-squares problems". Not
+  done: the `l1` and maximum norms, eliminating `z` from the QP, and the
+  MINPACK ideas below. From `references/DFNLP.pdf` and MINPACK)*. DFNLP (Schittkowski, 2005) solves
+  `min 1/2 sum f_i(x)^2` subject to constraints with a general SQP code,
+  by adding a variable `z_i` for each residual: `min 1/2 z'z` subject to
+  `f_i(x) - z_i = 0` (and the other constraints). The QP subproblem is
+  then always consistent, and with a Hessian `diag(B, I)` its step solves
+  `(J'J + B) d = -J'F`: a Gauss-Newton step plus a quasi-Newton
+  correction for the second-order term, which is what the special
+  least-squares codes do. The same device gives the `l1` norm (`z_i >=
+  +-f_i`, minimize `sum z_i`) and the maximum norm and min-max problems
+  (one `z >= +-f_i`, minimize `z`).
+  This is what the overdetermined CUTEst problems need (see "More
+  constraints than variables" in §6): posed as equations they are
+  infeasible, and sqpopt solves them by restoration steps alone. Measured
+  on the 94 of them that are systems of equations without an objective
+  (2026-10-02, through the Python bindings, 250 iterations at most; the
+  script was a throwaway; measured again with `sqpopt.least_squares`
+  once it was written: the same counts, with 6,842 and 13,154
+  evaluations, and one or the other Hessian reaches the best sum of
+  squares on 79):
+
+  | | reach the best sum of squares found | statuses | residual evaluations (all 94) |
+  |---|---|---|---|
+  | as posed (equality constraints) | 52 | 11 success, 56 infeasible, 27 iteration limit | 52,958 |
+  | least-squares form, L-BFGS (defaults) | 59 | 92 success, 2 iteration limit | 6,937 |
+  | least-squares form, Hessian `diag(0, I)` given as the exact Hessian | 68 | 81 success, 8 iteration limit, 5 failures | 13,288 |
+  | scipy `least_squares` (trust-region reflective) | 87 | | 10,326 |
+
+  So with no change to the solver the transformation removes nearly all
+  the iteration-limit endings and seven eighths of the evaluations. The
+  row with the exact Hessian is Gauss-Newton with sqpopt's Hessian shift
+  as the Levenberg-Marquardt damping. A dedicated Levenberg-Marquardt
+  code is still better on pure least-squares problems (87 against 68):
+  the transformed solves sometimes stall, or stop at a stationary point
+  that is not the best one (MISRA1A to D, HAHN1, THURBER, the CERI651
+  and MGH problems).
+  What to build, cheapest first: (1) a paragraph in the guide ("if your
+  constraints are equations that can't all hold, or your objective is a
+  sum of squares, pose it this way"), with the example; (2)
+  `sqpopt.least_squares(fun, x0, jac, bounds, constraints, loss)` in the
+  Python bindings, which builds the transformed problem (sparse `[J -I]`)
+  and returns the residuals, for the `l2`, `l1`, and maximum norms; (3)
+  the same as a Fortran helper. DFNLP also eliminates `z` from the QP, so
+  that it has `n` variables whatever the number of residuals; in sqpopt
+  the QP has `n + l`, which the sparse QP solver handles but the dense
+  one won't for many residuals, so (2) should pick the sparse solver
+  then. Not proposed: switching to this form automatically when every QP
+  is inconsistent (it changes the problem that is solved and what is
+  reported).
+  From MINPACK's Levenberg-Marquardt (`lmder`), if damped restoration
+  steps are tried again (`restoration_damped_step` was removed, see §6):
+  its scaling `D` is the largest norm each
+  Jacobian column has had so far, not the current one, which is steadier;
+  it controls the step by a trust radius with the ratio of actual to
+  predicted reduction (a version of this was tried for the restoration
+  steps and lost problems, see §6); and its `gtol` test, the largest
+  cosine of the angle between the residual and a column of the Jacobian,
+  is a stationarity test for the violation that doesn't depend on the
+  scaling of the variables, unlike the infeasibility test of
+  `check_convergence` (`|J'r|_inf <= ktol |r|`). Few of the problems that
+  end at the iteration limit are at a least-squares solution, though, so
+  the test alone would not change much.
 - **F12: interoperability.** A `bind(c)` C API, then a thin Python
   wrapper. This is how SLSQP-style solvers get adopted.
   *(Python part done 2026-09-28, without a C API: `python/sqpopt`, a
@@ -1749,6 +1820,18 @@ which is now double precision only.
   `fc` (TP109 is newly solved; the other baselines are in `CLAUDE.md`).
   One row of the Performance table got worse: Armijo with the augmented
   Lagrangian now fails on TP109 (2 failures, 1 before).
+  *Removed the same day:* the Levenberg-Marquardt step and the "no
+  decrease, so infeasible" rule. Measured apart on the 664 problems, the
+  cap's adaptation alone gives the 526 (BROWNBSNE) and all of the HS
+  change, with 81,903 evaluations (99,511 before any of this); the
+  Levenberg-Marquardt step and the rule solved nothing more, cost 27,000
+  more evaluations (108,750), and turned 13 line-search failures that
+  took tens of iterations into infeasible endings or runs to the
+  iteration limit. They were complexity in the core for the case that
+  the least-squares interface (F20) now serves. `test_overdetermined`'s
+  inconsistent case is now Bard's problem, which ends as infeasible at
+  its least-squares solution by Gauss-Newton steps alone. sqpopt's
+  failures without them: see the Performance page.
   *Tried and not adopted:* damping as the first choice (raise it until
   the full step is accepted, never backtrack), and damping whenever the
   Gauss-Newton search shortens the step to 1% or gains less than 1%.
