@@ -1066,7 +1066,9 @@ which is now double precision only.
   for each variable, as bounds on the QP's step *(done 2026-10-02:
   `problem%set_max_step`)*; finite-difference
   derivatives in the library, so that `fc` alone is enough; keeping the
-  quasi-Newton pairs of the watchdog's best point; and a
+  quasi-Newton pairs of the watchdog's best point *(tried 2026-10-02: no
+  difference on the HS suite, where the watchdog goes back to its best
+  point only in TP13; not adopted)*; and a
   reverse-communication interface, for hosts that can't be called back.
 
 - **F1: a real QP as the default, and a real large-scale QP.** *(Done

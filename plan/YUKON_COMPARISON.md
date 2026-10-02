@@ -124,13 +124,23 @@ and the step limit.
    modes, and the gradient-based scaling already evens the constraints out
    at the starting point. Low priority.
 
-5. **Keep the Hessian of the best point in the watchdog.** sqpopt's
-   watchdog stores the best point (`watchdog_x_opt`); Yukon also stores
-   the Hessian approximation there and restores both. Returning to an old
-   point with a quasi-Newton matrix built from later, rejected steps is a
-   mismatch. For L-BFGS that means saving the pairs (or their count at the
-   best point). A small change to try on the watchdog rows of the HS
-   table.
+5. **Keep the Hessian of the best point in the watchdog.** *(Tried
+   2026-10-02: no difference, not adopted.)* When sqpopt's watchdog goes
+   back to its best point, it resets the quasi-Newton approximation and
+   keeps the multipliers of the abandoned point; Yukon restores the
+   approximation it had at the best point. The experiment saved the
+   L-BFGS pairs and the multipliers at the best point and restored both
+   on a backtrack. On the HS suite it changes nothing, because the
+   watchdog hardly ever goes back: with the l1 merit function (either
+   penalty update, with or without interpolation) and with the augmented
+   Lagrangian and the model penalty, there are 22 to 26 relaxed steps in
+   about 15,000 iterations and no backtrack at all; with the augmented
+   Lagrangian and the multiplier penalty there are 171 relaxed steps and
+   76 backtracks, all of them in TP13, which fails either way (its
+   constraint qualification doesn't hold at the solution). The solved,
+   local, and failed counts and the `fc` totals are identical in all five
+   configurations. A relaxed step is only allowed after a full step that
+   passed the standard test, and nearly always pays off.
 
 6. **Self-scaled BFGS.** sqpopt's L-BFGS already rescales its initial
    matrix from the latest pair at every update, which does the same job
@@ -147,7 +157,7 @@ and can report local infeasibility).
 ## Suggested order
 
 2 (small, self-contained, useful for the trajectory problems sqpopt is
-meant for), then 3, then 5 as an experiment. 1 needs a design of its own
+meant for; done), then 3. 5 was tried, and makes no difference. 1 needs a design of its own
 first. 4 only if the merit modes get more use.
 
 ## Status
@@ -155,4 +165,5 @@ first. 4 only if the merit modes get more use.
 Written 2026-10-02. Idea 2 is implemented (2026-10-02): `problem%set_max_step`, a limit on the change of
 each variable per major iteration, enforced as bounds on every step (the QP's, the second-order
 correction, the restoration steps, and the trust region's box); `max_step=` in the Python bindings;
-tests `test_max_step` and `test_minimize.py`. The others are not.
+tests `test_max_step` and `test_minimize.py`. Idea 5 was tried and not adopted (see above). The others
+are not implemented.
