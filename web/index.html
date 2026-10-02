@@ -54,6 +54,7 @@
     <a href="#status-codes">Status codes</a>
     <a href="#diagnostics">Diagnostics</a>
     <a href="#scaling">Scaling</a>
+    <a href="#least-squares">Least squares</a>
     <a href="#python">Python</a>
     <p class="toc-group"><svg class="toc-icon" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="15" cy="6" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="17" cy="18" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>Configuration</p>
     <a href="#configuration">How configuration works</a>
@@ -547,6 +548,121 @@ end subroutine gjac_y</code></pre>
 </ul>
 
 <!-- ============================================================ -->
+<h2 id="least-squares">Least-squares problems <code class="h-type">sqpopt_nlls_type</code></h2>
+
+<div class="callout note"><strong>Experimental.</strong> This interface is new and may change. It has been tested on few problems, and on plain fits it finds the best fit less often than a solver written for least squares (see <em>What to expect</em> below).</div>
+
+<p>An optional interface, for problems whose objective is a sum of squares:</p>
+\[ \min_x \; \tfrac12 \sum_{i=1}^{l} r_i(x)^2 \quad \text{s.t.} \quad c_l \le c(x) \le c_u, \quad x_l \le x \le x_u \]
+<p>The \( r_i \) are the <em>residuals</em>: in a data-fitting problem, the differences between a model and the data. Use it for those, and for a system of equations that can't all hold (more equations than unknowns). Given to the solver as equality constraints, such a system makes every QP subproblem inconsistent, and the solve ends as <code>sqpopt_infeasible</code> at best, after many <a href="#restoration">restoration steps</a>.</p>
+
+<p><strong>How it works.</strong> The module <code>sqpopt_nlls_module</code> is a layer on top of the solver, which is not changed by it and has no least-squares mode of its own. It gives the solver the problem in the form Schittkowski proposed for his code DFNLP, with a new variable \( z_i \) for each residual:</p>
+\[ \min_{x,z} \; \tfrac12 z^T z \quad \text{s.t.} \quad r(x) - z = 0, \quad c_l \le c(x) \le c_u, \quad x_l \le x \le x_u \]
+<p>This is an ordinary nonlinear program in \( n + l \) variables and \( l + m \) constraints. Its QP subproblems are consistent as far as the residuals go (any step in \( x \) has a \( z \) to go with it), and their step is a Gauss-Newton step with a correction from the Hessian approximation, as in the codes written for least squares.</p>
+
+<p><strong>Fortran.</strong> You give the residuals and the constraints in one routine, and the nonzeros of their two Jacobians in another, as <code>fc</code> and <code>gjac</code> do for an ordinary problem (see <a href="#user-functions">User functions</a>; <code>status</code>, <code>accuracy</code>, and <code>data</code> mean the same). This is <code>example/nlls_bard.f90</code>, which fits the model \( y = x_1 + u/(v x_2 + w x_3) \) to 15 points:</p>
+
+<pre><code class="language-fortran">subroutine residuals(x, r, c, status, data)
+    real(wp), dimension(:), intent(in)    :: x      ! variables
+    real(wp), dimension(:), intent(out)   :: r      ! residuals
+    real(wp), dimension(:), intent(out)   :: c      ! constraints (none here)
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
+    integer :: i
+    do i = 1, l
+        r(i) = y(i) - (x(1) + i/((16 - i)*x(2) + min(i, 16 - i)*x(3)))
+    end do
+end subroutine residuals
+
+subroutine jacobian(x, rjac_val, cjac_val, accuracy, status, data)
+    real(wp), dimension(:), intent(in)    :: x
+    real(wp), dimension(:), intent(out)   :: rjac_val ! nonzeros of the residuals' Jacobian
+    real(wp), dimension(:), intent(out)   :: cjac_val ! nonzeros of the constraints' Jacobian (none here)
+    integer,                intent(in)    :: accuracy
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
+    integer :: i
+    real(wp) :: d
+    do i = 1, l
+        d = ((16 - i)*x(2) + min(i, 16 - i)*x(3))**2
+        rjac_val(3*i-2) = -1.0_wp
+        rjac_val(3*i-1) = i*(16 - i)/d
+        rjac_val(3*i)   = i*min(i, 16 - i)/d
+    end do
+end subroutine jacobian</code></pre>
+
+<pre><code class="language-fortran">use sqpopt_nlls_module, only: sqpopt_nlls_type
+
+type(sqpopt_nlls_type) :: nlls
+
+! irow, icol: the pattern of the residuals' Jacobian (here dense, by rows)
+call nlls%initialize(n=n, n_residuals=l, residuals=residuals, jacobian=jacobian, &
+                     rjac_irow=irow, rjac_icol=icol, x_lb=[0.0_wp, 0.0_wp, 0.0_wp])
+call nlls%solve([1.0_wp, 1.0_wp, 1.0_wp], istat)
+call nlls%get_solution(x, residuals=r, sum_of_squares=sum_of_squares)
+call nlls%destroy()</code></pre>
+
+<div class="table-wrap"><table>
+<thead><tr><th>argument of <code>initialize</code></th><th>meaning</th></tr></thead>
+<tbody>
+<tr><td><code>n</code>, <code>n_residuals</code></td><td>the numbers of variables and of residuals</td></tr>
+<tr><td><code>residuals</code>, <code>jacobian</code></td><td>the two routines above</td></tr>
+<tr><td><code>rjac_irow</code>, <code>rjac_icol</code></td><td>the sparsity pattern of the residuals' Jacobian: the row (residual) and column (variable) of each nonzero, 1-based</td></tr>
+<tr><td><code>x_lb</code>, <code>x_ub</code></td><td>bounds on the variables (optional)</td></tr>
+<tr><td><code>c_lb</code>, <code>c_ub</code>, <code>cjac_irow</code>, <code>cjac_icol</code></td><td>the bounds of the constraints and the pattern of their Jacobian (optional: give all four, or none)</td></tr>
+<tr><td><code>options</code>, <code>hessian</code>, <code>qp_solver</code>, <code>linesearch</code>, <code>trust_region</code></td><td>the solver's settings, as for <code>solver%initialize</code> (see <a href="#configuration">How configuration works</a>)</td></tr>
+<tr><td><code>data</code></td><td>user data, passed to the two routines</td></tr>
+</tbody>
+</table></div>
+
+<p><code>solve</code> returns the solver's <a href="#status-codes">status code</a>: <code>sqpopt_success</code> at a least-squares solution, whether or not the residuals are zero there. <code>get_solution</code> returns the variables and, optionally, the residuals, the sum of their squares, and the multipliers of the constraints. <code>get_results</code> returns the solver's <a href="#results">results</a>, which are those of the transformed problem: <code>x</code> is the variables followed by \( z \), and <code>c</code> and <code>lambda</code> are those of the \( l \) residual equations followed by the constraints.</p>
+
+<p><strong>The Hessian.</strong> By default the solver approximates the Hessian of the transformed problem as it does any other (L-BFGS). With <code>options%hessian_mode = sqpopt_hessian_exact</code>, the module supplies the <em>Gauss-Newton</em> Hessian instead: the identity on \( z \) and zero on \( x \), which neglects the second derivatives of the residuals and of the constraints. The solver's <a href="#hessian">Hessian shift</a> then acts as the damping of the Levenberg&ndash;Marquardt method. It usually takes fewer iterations, mostly so when the residuals are small at the solution (6 against 18 on the example), but it fails more often.</p>
+
+<p><strong>Python.</strong> <code>sqpopt.least_squares</code> does the same on top of <code>minimize</code>:</p>
+
+<pre><code class="language-python">import numpy as np
+from sqpopt import least_squares
+
+y = np.array([0.14, 0.18, 0.22, 0.25, 0.29, 0.32, 0.35, 0.39, 0.37, 0.58, 0.73, 0.96, 1.34, 2.10, 4.39])
+u = np.arange(1, 16.0); v = 16 - u; w = np.minimum(u, v)
+
+def residuals(x):
+    return y - (x[0] + u/(v*x[1] + w*x[2]))
+
+def jacobian(x):
+    d = (v*x[1] + w*x[2])**2
+    return np.column_stack([-np.ones(15), u*v/d, u*w/d])
+
+res = least_squares(residuals, [1, 1, 1], jacobian, bounds=[(0, None)] * 3)
+print(res.x, res.cost, res.message)</code></pre>
+
+<p>Its <code>bounds</code>, <code>constraints</code>, <code>options</code>, <code>max_step</code>, and output files are those of <code>minimize</code> (see <a href="#python">Python</a>), <code>jac_sparsity</code> gives the pattern of a sparse Jacobian, and <code>gauss_newton=True</code> selects the Gauss-Newton Hessian (as a dense matrix in Python, so for small problems). The result has <code>x</code>, <code>fun</code> (the residuals), <code>cost</code> (half the sum of their squares), the multipliers, and <code>nlp</code>, the result of <code>minimize</code> for the transformed problem.</p>
+
+<p><strong>What to expect.</strong> For a fit with no constraints other than bounds, a solver written for least squares (scipy's <code>least_squares</code>, MINPACK's <code>lmder</code>) is the better choice. Use this interface when the fit also has general constraints, which those solvers don't take, or when the equations would otherwise be given to SQPOPT as equality constraints.</p>
+
+<p>The numbers behind that: 94 test problems from <a href="performance.html#cutest">CUTEst</a>, each a system with more equations than unknowns and no other constraints, solved four ways with at most 250 iterations. A method counts as having found the best fit on a problem if its sum of squares is as small as the smallest that any of the four reached.</p>
+
+<div class="table-wrap"><table>
+<thead><tr><th>method</th><th>problems where it found<br>the best fit (of 94)</th><th>residual evaluations,<br>all 94 problems</th></tr></thead>
+<tbody>
+<tr><td>SQPOPT, the equations given as equality constraints</td><td>52</td><td>52,958</td></tr>
+<tr><td>SQPOPT, this interface with L-BFGS (the default)</td><td>59</td><td>6,842</td></tr>
+<tr><td>SQPOPT, this interface with the Gauss-Newton Hessian</td><td>68</td><td>13,154</td></tr>
+<tr><td>scipy's <code>least_squares</code></td><td>87</td><td>10,326</td></tr>
+</tbody>
+</table></div>
+
+<ul>
+  <li><strong>Against equality constraints, the interface is much cheaper.</strong> It needs an eighth of the evaluations with L-BFGS, a quarter with the Gauss-Newton Hessian, and finds the best fit somewhat more often.</li>
+  <li><strong>Against scipy, it finds the best fit less often</strong>: 59 or 68 problems against 87. These problems are the kind scipy's solver is written for.</li>
+  <li><strong>A success status doesn't mean the best fit.</strong> With L-BFGS, 92 of the 94 solves end with a success status, but only 59 are at the best fit. The others stopped at a point where the sum of squares is larger: a different local minimum, or a point that only met the looser tests (<code>sqpopt_acceptable</code>, <code>sqpopt_stalled</code>).</li>
+  <li><strong>If a fit looks poor, try the other Hessian.</strong> At least one of the two finds the best fit on 79 of the 94.</li>
+</ul>
+
+<p><strong>Limits.</strong> The QP subproblem has \( n + l \) variables (DFNLP eliminates \( z \) from it, SQPOPT doesn't), so with many residuals the <a href="#qp-modes">sparse QP solver</a> is the one to use, which <code>sqpopt_qp_auto</code> chooses by the problem's size. Only the sum of squares is offered: the same device gives the \( l_1 \) and maximum norms, which are not implemented.</p>
+
+<!-- ============================================================ -->
 <h2 id="python">Python</h2>
 
 <p>The <code>python/sqpopt</code> package calls the solver from Python, with an interface like <code>scipy.optimize.minimize</code>. Its native extension is built with NumPy's <a href="https://numpy.org/doc/stable/f2py/">f2py</a>. Build it with <code>pixi run build-python</code>.</p>
@@ -582,6 +698,7 @@ print(res.x, res.fun, res.message)</code></pre>
   <li><strong>Printed output:</strong> <code>output_file</code> writes the solver's printed output to a file instead of the process's standard output, which a Jupyter notebook doesn't show.</li>
   <li><strong>Diagnostics:</strong> with <code>options={'diagnostic_level': 1}</code> (or more), the result's <code>diagnostics</code> is a dict with the <a href="#diagnostics">diagnosis</a> (its indices are 0-based). <code>diagnostics_file</code> writes the history of the iterations to a file, from level 2.</li>
   <li><strong>Result:</strong> an <code>OptimizeResult</code>, which also has the multipliers, the KKT and feasibility errors, and the counts.</li>
+  <li><strong>Least squares:</strong> <code>least_squares(fun, x0, jac)</code> minimizes \( \tfrac12 \sum r_i(x)^2 \) for residuals <code>fun</code> with the Jacobian <code>jac</code>, with the same bounds, constraints, and options (see <a href="#least-squares">Least-squares problems</a>).</li>
 </ul>
 
 <p>See <a href="https://github.com/jacobwilliams/sqpopt/blob/master/python/README.md"><code>python/README.md</code></a> for the details.</p>
@@ -893,7 +1010,7 @@ call problem%set_max_step([0.1_wp, 0.1_wp, sqpopt_infinity, 5.0_wp])   ! (no lim
   <li><strong>Restoration steps:</strong> on a chain of hyperbola constraints with 10,000 variables (<code>hyperbolas</code> there), the 9 Gauss-Newton restoration steps took 2.3 s with <code>LSQR</code> and 0.02 s directly (though that problem's total time is dominated by the QPs that find the linearization inconsistent).</li>
 </ul>
 
-<p>On small problems it changes little, and not always for the better: on the Hock&ndash;Schittkowski problems the default options solve 279 problems with it and fail on one (TP106, where a more accurate correction leads to a slow crawl), against 280 and none without it. So it is off by default: turn it on for large problems that take corrections or restoration steps (<code>results%n_soc</code>, <code>results%n_restoration_steps</code>) and spend their time outside the QP and the user functions.</p>
+<p>On small problems it changes little, and not always for the better: on the Hock&ndash;Schittkowski problems the default options solve 278 problems with it and fail on one (TP106, where a more accurate correction leads to a slow crawl), against 281 and none without it. So it is off by default: turn it on for large problems that take corrections or restoration steps (<code>results%n_soc</code>, <code>results%n_restoration_steps</code>) and spend their time outside the QP and the user functions.</p>
 
 <h3 id="dense-qp">Dense QP options <span class="h-note"><code>qp_solver%dense_qp%&lt;name&gt;</code></span></h3>
 <p class="set-on">Used when <code>mode == sqpopt_qp_dense</code>.</p>
@@ -1086,6 +1203,9 @@ call problem%set_max_step([0.1_wp, 0.1_wp, sqpopt_infinity, 5.0_wp])   ! (no lim
   <li>The phase ends once the violation is below <code>restoration_exit_factor</code> times its value where the phase started and the point is acceptable to the filter or funnel, when the point is feasible, or after <code>restoration_max_iter</code> iterations. The multipliers are kept from before the phase.</li>
 </ul>
 <p>An inconsistent QP (linearized constraints that can't be satisfied) is still handled with a single Gauss-Newton step on the violation, falling back to the QP's elastic step, which also accounts for the objective. With <code>sqpopt_restoration_gauss_newton</code>, that single step is also used when the filter or funnel line search fails, and the trust region takes no restoration step at all. Before a point is reported as infeasible (a point where the violation can't be decreased to first order), the solver also probes for a second-order decrease of the violation, which escapes, for example, symmetry planes of the problem.</p>
+
+<p><strong>Problems with more equality constraints than variables</strong> have an inconsistent QP at every iteration, so they are solved by these Gauss-Newton steps alone: SQPOPT then acts as a least-squares solver for the constraints. The cap on the step's length (<code>qp_solver%max_step</code>) adapts after these steps as it does after a line search: a full step that the cap cut short doubles it, and a shortened one halves it. A solution far from the starting point is then reached in a few iterations, not by steps of the cap's length.</p>
+<p>If the equations can't all hold (a data-fitting problem written as one equation per data point), the solve ends as <code>sqpopt_infeasible</code> at best, at a least-squares solution of the constraints (of the scaled constraints, with the automatic <a href="#scaling">scaling</a>, which weights them differently from the original ones). Where the Jacobian is nearly rank deficient, the Gauss-Newton step finds no decrease, and the solve ends as a line-search failure or at the iteration limit instead. Give such a problem to the <a href="#least-squares">least-squares interface</a>, which solves it as an ordinary problem with far fewer evaluations.</p>
 
 </div><!-- .reference -->
 

@@ -105,6 +105,33 @@ an `OptimizeResult`.
   and is re-raised by `minimize`. Solves may be nested, but they are not
   thread-safe.
 
+### Least squares
+
+`least_squares(fun, x0, jac)` minimizes `1/2 sum(fun(x)**2)`, for residuals
+`fun(x)` with the Jacobian `jac(x)` (dense or sparse), subject to the same
+`bounds` and `constraints` as `minimize`:
+
+```python
+from sqpopt import least_squares
+
+res = least_squares(residuals, x0, jacobian, bounds=[(0, None)] * 3)
+print(res.x, res.cost, res.fun)     # the variables, half the sum of squares, the residuals
+```
+
+Use it for data fitting, and for equations that can't all hold (more
+equations than unknowns), which `minimize` handles badly as equality
+constraints. It is written in Python on top of `minimize`
+(`sqpopt/_least_squares.py`): the solver gets the problem `min 1/2 z'z`
+subject to `r(x) - z = 0`, in the variables `(x, z)`. `gauss_newton=True`
+gives the solver the Gauss-Newton Hessian instead of its quasi-Newton
+approximation (a dense matrix here, so for small problems), `jac_sparsity`
+gives the pattern of a sparse Jacobian, and `options`, `max_step`,
+`output_file`, and `diagnostics_file` are those of `minimize`. The result
+also has `nlp`, the result of `minimize` for the transformed problem. See
+the guide's "Least-squares problems" for what to expect of it (a code
+written for least squares, such as scipy's `least_squares`, is better on
+hard unconstrained fits).
+
 ### Building
 
 The native extension is built with [f2py](https://numpy.org/doc/stable/f2py/)

@@ -33,7 +33,8 @@ program test_diagnostics
 
     ! the problems (see `fc`):
     integer, parameter :: p_disk      = 1 !! the Rosenbrock function on the unit disk
-    integer, parameter :: p_wrong     = 2 !! two constraints, the second with a wrong Jacobian row
+    integer, parameter :: p_wrong     = 2 !! the same, with a second constraint (never active) whose Jacobian row
+                                          !! is wrong
     integer, parameter :: p_infeas    = 3 !! two constraints that can't both hold
     integer, parameter :: p_structure = 4 !! dependent equalities, a single-variable constraint, and a tiny variable
     integer, parameter :: p_weak      = 5 !! a constraint that is active with a zero multiplier
@@ -75,10 +76,10 @@ program test_diagnostics
         call problem%set_jacobian_sparsity(2, [1, 1], [1, 2])
         x0 = [-1.2_wp, 1.0_wp]
     case (p_wrong)
-        call problem%set_problem_size(n=3, m=2)
-        call problem%set_bounds([-inf, -inf, -inf], [inf, inf, inf], [1.0_wp, 2.0_wp], [1.0_wp, 2.0_wp])
-        call problem%set_jacobian_sparsity(6, [1, 1, 1, 2, 2, 2], [1, 2, 3, 1, 2, 3])
-        x0 = [2.0_wp, 0.5_wp, 1.5_wp]
+        call problem%set_problem_size(n=2, m=2)
+        call problem%set_bounds([-inf, -inf], [inf, inf], [-inf, -inf], [1.0_wp, 100.0_wp])
+        call problem%set_jacobian_sparsity(4, [1, 1, 2, 2], [1, 2, 1, 2])
+        x0 = [-1.2_wp, 1.0_wp]
     case (p_infeas)
         call problem%set_problem_size(n=2, m=2)
         call problem%set_bounds([-inf, -inf], [inf, inf], [3.0_wp, -inf], [inf, 1.0_wp])
@@ -229,12 +230,12 @@ program test_diagnostics
     end subroutine test_history_file
 
     subroutine test_wrong_derivative()
-    !! a Jacobian row that doesn't match its constraint is found from the steps taken
+    !! a Jacobian row that doesn't match its constraint is found from the steps taken (the constraint is
+    !! never active, so the solve is the same as without it)
     type(sqpopt_options_type) :: options
     type(sqpopt_results_type) :: r
     integer :: istat
     which = p_wrong
-    options%max_iter = 60
     call solve(2, 0, options, r, istat)
     print '(A)', r%diagnosis%report
     if (size(r%diagnosis%derivative_suspects) /= 1) error stop 'test_diagnostics FAILED: one constraint is suspect'
@@ -377,9 +378,9 @@ program test_diagnostics
         f = 100.0_wp*(x(2) - x(1)**2)**2 + (1.0_wp - x(1))**2
         c(1) = x(1)**2 + x(2)**2
     case (p_wrong)
-        f = (x(1) - 1.0_wp)**2 + (x(2) - 2.0_wp)**2 + (x(3) - 3.0_wp)**2
-        c(1) = x(1) + x(2)**2 + x(3)
-        c(2) = x(1)*x(2) + x(3)**2
+        f = 100.0_wp*(x(2) - x(1)**2)**2 + (1.0_wp - x(1))**2
+        c(1) = x(1)**2 + x(2)**2
+        c(2) = x(1) + x(2)**2
     case (p_infeas)
         f = x(1)**2 + x(2)**2
         c(1) = x(1) + x(2)
@@ -415,9 +416,9 @@ program test_diagnostics
         g = [-400.0_wp*x(1)*(x(2) - x(1)**2) - 2.0_wp*(1.0_wp - x(1)), 200.0_wp*(x(2) - x(1)**2)]
         jac_val = 2.0_wp*x
     case (p_wrong)
-        g = 2.0_wp*(x - [1.0_wp, 2.0_wp, 3.0_wp])
-        ! (the second row is wrong: its last entry should be `2*x(3)`, and its first `x(2)`)
-        jac_val = [1.0_wp, 2.0_wp*x(2), 1.0_wp, 3.0_wp*x(2), x(1), 0.5_wp*x(3)]
+        g = [-400.0_wp*x(1)*(x(2) - x(1)**2) - 2.0_wp*(1.0_wp - x(1)), 200.0_wp*(x(2) - x(1)**2)]
+        ! (the second row is wrong: its last entry should be `2*x(2)`)
+        jac_val = [2.0_wp*x(1), 2.0_wp*x(2), 1.0_wp, 0.5_wp*x(2)]
     case (p_infeas)
         g = 2.0_wp*x
         jac_val = 1.0_wp

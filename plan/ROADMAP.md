@@ -1088,6 +1088,16 @@ which is now double precision only.
 
 ## 5. Features toward state of the art
 
+- **Ideas from OpenSQP** *(not implemented; see
+  [OPENSQP_COMPARISON.md](OPENSQP_COMPARISON.md), 2026-10-02)*: no
+  algorithm to adopt (it is a dense BFGS method for up to about 100
+  variables), but its testing is worth copying: see "CUTEst through
+  PyCUTEst" in §6. Smaller ones: moving the projected starting point off
+  its bounds if the functions can't be evaluated there; one penalty
+  parameter per constraint for the augmented Lagrangian merit function
+  (also in the Yukon comparison); and trying another globalization when
+  the line search fails (only if a larger test set shows such failures).
+
 - **Ideas from OPTGRA** *(not implemented; see
   [OPTGRA_COMPARISON.md](OPTGRA_COMPARISON.md), 2026-10-02)*: scale
   factors for the variables, applied inside the evaluation layer
@@ -1382,6 +1392,77 @@ which is now double precision only.
   - To make the per-iteration data available without evaluations,
     `sqpopt_iterate` passes each iterate's values and derivatives to the
     diagnostics; `sqpopt_iter_info` moved to `sqpopt_types_module`.
+- **F20: a least-squares interface, by Schittkowski's transformation**
+  *(done 2026-10-02 for the sum of squares, as an optional layer:
+  `sqpopt_nlls_module` (`sqpopt_nlls_type`) in Fortran and
+  `sqpopt.least_squares` in Python, both of which only build the
+  transformed problem and call the solver, which is unchanged; with
+  `hessian_mode = exact` the Fortran one supplies the Gauss-Newton Hessian
+  `diag(0, I)`, and `gauss_newton=True` does in Python. Tests `test_nlls`
+  and `python/tests/test_least_squares.py`, example
+  `example/nlls_bard.f90`, guide section "Least-squares problems". Not
+  done: the `l1` and maximum norms, eliminating `z` from the QP, and the
+  MINPACK ideas below. From `references/DFNLP.pdf` and MINPACK)*. DFNLP (Schittkowski, 2005) solves
+  `min 1/2 sum f_i(x)^2` subject to constraints with a general SQP code,
+  by adding a variable `z_i` for each residual: `min 1/2 z'z` subject to
+  `f_i(x) - z_i = 0` (and the other constraints). The QP subproblem is
+  then always consistent, and with a Hessian `diag(B, I)` its step solves
+  `(J'J + B) d = -J'F`: a Gauss-Newton step plus a quasi-Newton
+  correction for the second-order term, which is what the special
+  least-squares codes do. The same device gives the `l1` norm (`z_i >=
+  +-f_i`, minimize `sum z_i`) and the maximum norm and min-max problems
+  (one `z >= +-f_i`, minimize `z`).
+  This is what the overdetermined CUTEst problems need (see "More
+  constraints than variables" in §6): posed as equations they are
+  infeasible, and sqpopt solves them by restoration steps alone. Measured
+  on the 94 of them that are systems of equations without an objective
+  (2026-10-02, through the Python bindings, 250 iterations at most; the
+  script was a throwaway; measured again with `sqpopt.least_squares`
+  once it was written: the same counts, with 6,842 and 13,154
+  evaluations, and one or the other Hessian reaches the best sum of
+  squares on 79):
+
+  | | reach the best sum of squares found | statuses | residual evaluations (all 94) |
+  |---|---|---|---|
+  | as posed (equality constraints) | 52 | 11 success, 56 infeasible, 27 iteration limit | 52,958 |
+  | least-squares form, L-BFGS (defaults) | 59 | 92 success, 2 iteration limit | 6,937 |
+  | least-squares form, Hessian `diag(0, I)` given as the exact Hessian | 68 | 81 success, 8 iteration limit, 5 failures | 13,288 |
+  | scipy `least_squares` (trust-region reflective) | 87 | | 10,326 |
+
+  So with no change to the solver the transformation removes nearly all
+  the iteration-limit endings and seven eighths of the evaluations. The
+  row with the exact Hessian is Gauss-Newton with sqpopt's Hessian shift
+  as the Levenberg-Marquardt damping. A dedicated Levenberg-Marquardt
+  code is still better on pure least-squares problems (87 against 68):
+  the transformed solves sometimes stall, or stop at a stationary point
+  that is not the best one (MISRA1A to D, HAHN1, THURBER, the CERI651
+  and MGH problems).
+  What to build, cheapest first: (1) a paragraph in the guide ("if your
+  constraints are equations that can't all hold, or your objective is a
+  sum of squares, pose it this way"), with the example; (2)
+  `sqpopt.least_squares(fun, x0, jac, bounds, constraints, loss)` in the
+  Python bindings, which builds the transformed problem (sparse `[J -I]`)
+  and returns the residuals, for the `l2`, `l1`, and maximum norms; (3)
+  the same as a Fortran helper. DFNLP also eliminates `z` from the QP, so
+  that it has `n` variables whatever the number of residuals; in sqpopt
+  the QP has `n + l`, which the sparse QP solver handles but the dense
+  one won't for many residuals, so (2) should pick the sparse solver
+  then. Not proposed: switching to this form automatically when every QP
+  is inconsistent (it changes the problem that is solved and what is
+  reported).
+  From MINPACK's Levenberg-Marquardt (`lmder`), if damped restoration
+  steps are tried again (`restoration_damped_step` was removed, see §6):
+  its scaling `D` is the largest norm each
+  Jacobian column has had so far, not the current one, which is steadier;
+  it controls the step by a trust radius with the ratio of actual to
+  predicted reduction (a version of this was tried for the restoration
+  steps and lost problems, see §6); and its `gtol` test, the largest
+  cosine of the angle between the residual and a column of the Jacobian,
+  is a stationarity test for the violation that doesn't depend on the
+  scaling of the variables, unlike the infeasibility test of
+  `check_convergence` (`|J'r|_inf <= ktol |r|`). Few of the problems that
+  end at the iteration limit are at a least-squares solution, though, so
+  the test alone would not change much.
 - **F12: interoperability.** A `bind(c)` C API, then a thin Python
   wrapper. This is how SLSQP-style solvers get adopted.
   *(Python part done 2026-09-28, without a C API: `python/sqpopt`, a
@@ -1666,6 +1747,110 @@ which is now double precision only.
     values; then widen the set. Rough effort: a few sessions for a working
     translator on common problems, more to reach 100–300 validated
     problems.
+
+- **CUTEst through PyCUTEst and the Python bindings** *(started
+  2026-10-02: the tool and a first run, see the end of this entry; from [OPENSQP_COMPARISON.md](OPENSQP_COMPARISON.md),
+  2026-10-02)*. A quicker route to CUTEst results than the pure-Fortran
+  harness above, now that there is a `minimize` for Python: a script that
+  runs sqpopt, SLSQP, scipy's `trust-constr`, and IPOPT (cyipopt) on the
+  575 CUTEst problems of the OpenSQP paper (at most 100 variables and 100
+  constraints), with its limits and tolerances (250 iterations,
+  optimality `1.22e-4`, feasibility `2e-6`), so that its table (SNOPT and
+  OpenSQP 479 solved, IPOPT 475, SLSQP 463, `trust-constr` 378) is a
+  published reference for SNOPT. Outputs: the success counts, and a
+  performance profile (time) and a data profile (evaluations) for the
+  Performance page. It needs CUTEst and its problem files installed, so
+  it is a developer's tool, not a test of `fpm test`; the pure-Fortran
+  harness stays the way to a regression test with no dependencies. Start
+  with a few dozen problems, to see that PyCUTEst and the bindings work
+  together.
+
+  *First results (2026-10-02; `tools/cutest_benchmark.py`, `pixi run
+  cutest setup|list|run|report`).* It works with the binary releases of
+  CUTEst and SIFDecode and PyCUTEst 1.8.2 (which assumes Homebrew on
+  macOS: the tool puts a stand-in `brew` on the path). The set is the 664
+  problems whose sizes are fixed in CUTEst's classification, with at most
+  100 variables and 100 constraints (the paper's 575 are those with
+  default sizes within the limits, in an older collection), at most 250
+  iterations, every solver's default tolerances (scipy's as in the
+  paper), each problem in its own process with a 60 s limit:
+
+  | solver | reported success | of which, the best objective of the three | on the 144 with m > n | on the other 520 |
+  |---|---|---|---|---|
+  | sqpopt | 525 (526 after the change below) | 460 | 57 | 468 |
+  | SLSQP | 493 | 438 | 45 | 448 |
+  | trust-constr | 412 (396 feasible) | 301 | 34 | 362 |
+
+  On the 368 problems all three solved: 24,275 evaluations (objective,
+  gradient, constraints, Jacobian) for sqpopt, 22,409 for SLSQP, 49,696
+  for trust-constr. sqpopt never crashed or reached the time limit (the
+  scipy solvers did, on 16 problems and 2). 31 problems were solved only
+  by sqpopt, 16 only by SLSQP, 3 only by trust-constr. sqpopt's 139
+  failures: 64 at the iteration limit, 55 reported infeasible (53 of them
+  with more constraints than variables, which no solver solved: they are
+  mostly nonlinear least-squares problems posed as equations), 17
+  line-search failures, 2 function errors (S365, S365MOD), and 1 QP
+  failure. With the paper's looser tolerances (`ktol = 1.22e-4`,
+  `ctol = 2e-6`) only 3 of the 139 are solved, so the tolerances are not
+  the reason. What to look at next: the 23 that another solver solved
+  (20 at the iteration limit, e.g. 3PK, ALLINITC, GAUSS2LS, HIMMELBJ,
+  MAXLIKA, PALMER8E; and ALLINITA, HS13, HS99EXP), and the 17 line-search
+  failures. Not done: IPOPT (needs cyipopt), the problems whose size is
+  a parameter, and the performance profiles.
+
+  *More constraints than variables (2026-10-02).* Why these went badly:
+  every QP of such a problem is inconsistent, so every iteration is a
+  Gauss-Newton restoration step, and that step (a) was capped at
+  `max_step` times a factor that only adapted after line searches
+  (BROWNBSNE, whose solution is at `x1 = 1e6`, moved by 2 per
+  iteration), (b) is useless where the Jacobian is nearly rank deficient
+  (JENSMPNE, MGH09, the CERI651 problems), and (c) when it found no
+  decrease, was repeated until `max_consecutive_failures` and reported
+  as a line-search failure, although the point is then a least-squares
+  solution of the equations. Done: the cap adapts after restoration steps
+  too (doubled after a full step that it cut short, halved after a
+  shortened one); a Levenberg-Marquardt step
+  (`restoration_damped_step`, damping scaled by the Jacobian's column
+  norms) when the Gauss-Newton and the elastic steps fail in two
+  iterations in a row; and `sqpopt_infeasible` if that fails too. New
+  test `test_overdetermined`. Results: 526 of the 664 solved (BROWNBSNE
+  is new, none lost); sqpopt's failures are now 70 at the iteration
+  limit, 60 infeasible, 5 line-search failures (17 before), 2 function
+  errors, 1 QP failure. HS suite: 281 solved, 24 local, 0 failed, 9,121
+  `fc` (TP109 is newly solved; the other baselines are in `CLAUDE.md`).
+  One row of the Performance table got worse: Armijo with the augmented
+  Lagrangian now fails on TP109 (2 failures, 1 before).
+  *Removed the same day:* the Levenberg-Marquardt step and the "no
+  decrease, so infeasible" rule. Measured apart on the 664 problems, the
+  cap's adaptation alone gives the 526 (BROWNBSNE) and all of the HS
+  change, with 81,903 evaluations (99,511 before any of this); the
+  Levenberg-Marquardt step and the rule solved nothing more, cost 27,000
+  more evaluations (108,750), and turned 13 line-search failures that
+  took tens of iterations into infeasible endings or runs to the
+  iteration limit. They were complexity in the core for the case that
+  the least-squares interface (F20) now serves. `test_overdetermined`'s
+  inconsistent case is now Bard's problem, which ends as infeasible at
+  its least-squares solution by Gauss-Newton steps alone. sqpopt's
+  failures without them: see the Performance page.
+  *Tried and not adopted:* damping as the first choice (raise it until
+  the full step is accepted, never backtrack), and damping whenever the
+  Gauss-Newton search shortens the step to 1% or gains less than 1%.
+  Both solve TENBARS1 to 3 and halve the evaluations spent on the
+  unsolved problems (178,000 to 78,000), but lose CORE1, DISCS, LAKES,
+  and LANCZOS1, which the Gauss-Newton step with backtracking solves: a
+  damped step that is accepted with a small gain keeps the solver
+  crawling where the old path recovered. Net 0 to +2 problems, so the
+  conservative version was kept. Still slow: the 27 problems with
+  `m > n` that reach the iteration limit (badly conditioned fits such as
+  CERI651A to E, MEYER3NE, MGH10S, and the PALMER "ENE" problems). A
+  proper trust-region Levenberg-Marquardt method for the case where
+  *every* QP is inconsistent (the problem is then a nonlinear
+  least-squares problem) would be the way to do better, kept apart from
+  the restoration steps of ordinary problems so that those don't change.
+  Also seen: with the automatic scaling, the point reported as
+  infeasible is the least-squares solution of the scaled constraints
+  (Jennrich-Sampson: a sum of squares of 359.7, against 124.4 without
+  scaling).
 
 - **Promote the review probes to regression tests** (they were throwaway
   programs built against the library):

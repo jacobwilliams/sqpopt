@@ -49,6 +49,11 @@
 !  `sqpopt_infeasible`. This step is also the fallback when a restoration
 !  phase step fails.
 !
+!  A problem with more equality constraints than variables has an
+!  inconsistent QP at every iteration, and is solved by these steps alone
+!  (see [[sqpopt_nlls_module]] for a better way to pose one whose
+!  equations can't all hold).
+!
 !  In both cases, before a point that is stationary for the violation is
 !  reported as infeasible, [[escape_step]] looks for a second-order
 !  decrease of the violation.
