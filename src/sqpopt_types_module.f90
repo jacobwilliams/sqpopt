@@ -85,6 +85,9 @@
         integer  :: n_qp_solves          = 0 !! QP subproblems solved (without those of restoration phases)
         integer  :: n_direct_qp          = 0 !! of which, solved directly, without the active-set solver (see
                                              !! `options%direct_qp`)
+        integer  :: n_unconstrained_qp   = 0 !! of which, solved by the unconstrained step of the limited-memory
+                                             !! BFGS Hessian, without a QP solver (see
+                                             !! `qp_solver%unconstrained_step`)
         integer  :: n_factorizations     = 0 !! sparse factorizations, by the inertia control, the direct QP
                                              !! method, and the direct least-squares solves (see
                                              !! `options%inertia_control`, `direct_qp`, and

@@ -432,7 +432,8 @@ class _Solve:
             constr_violation=float(rinfo[2]), kkt_error=float(rinfo[1]), stationarity_error=float(rinfo[3]),
             execution_time=float(rinfo[4]), n_qp_iterations=int(iinfo[5]),
             derivative_switch_iteration=int(iinfo[6]), n_factorizations=int(iinfo[13]),
-            n_qp_solves=int(iinfo[14]), n_direct_qp=int(iinfo[15]), time_factorization=float(rinfo[7]))
+            n_qp_solves=int(iinfo[14]), n_direct_qp=int(iinfo[15]), n_unconstrained_qp=int(iinfo[16]),
+            time_factorization=float(rinfo[7]))
 
 
 def minimize(fun: Callable, x0, args=(), jac=None, hess=None, bounds=None, constraints: Sequence | Any = (),
@@ -488,7 +489,9 @@ def minimize(fun: Callable, x0, args=(), jac=None, hess=None, bounds=None, const
         ``njev`` and ``nhev`` (gradient/Jacobian and Hessian evaluations requested by the solver),
         ``constr`` and ``v`` (the values and multipliers of each constraint object), ``z`` (the
         variable-bound multipliers), ``constr_violation``, ``kkt_error``, ``stationarity_error``,
-        ``execution_time``, ``n_qp_iterations``, ``derivative_switch_iteration``, ``n_factorizations``,
+        ``execution_time``, ``n_qp_iterations``, ``derivative_switch_iteration``, ``n_unconstrained_qp`` (QPs
+        solved by the unconstrained step, without a QP solver: see ``qp_solver%unconstrained_step``),
+        ``n_factorizations``,
         ``n_qp_solves``, ``n_direct_qp``, and ``time_factorization`` (the last four for the options that use
         sparse factorizations: ``inertia_control``, ``direct_qp``, and ``direct_least_squares``;
         ``time_factorization`` is the part of ``execution_time``, in seconds, spent in them). The multipliers are

@@ -62,6 +62,7 @@
     <a href="#hessian">Hessian approximation</a>
     <a href="#inertia-control" class="toc-sub">Inertia control</a>
     <a href="#qp-solver">QP subproblem solver</a>
+    <a href="#unconstrained-step" class="toc-sub">Unconstrained step</a>
     <a href="#direct-qp" class="toc-sub">Direct method</a>
     <a href="#dense-qp" class="toc-sub">Dense QP options</a>
     <a href="#sparse-qp" class="toc-sub">Sparse QP options</a>
@@ -359,6 +360,7 @@ end program hs71</code></pre>
 <tr><td><code>kkt_error</code></td><td>KKT (stationarity/complementarity) error, of the scaled problem used by the convergence test</td></tr>
 <tr><td><code>stationarity_error</code></td><td>stationarity error of the original (unscaled) problem (see <code>dual_inf_tol</code>)</td></tr>
 <tr><td><code>n_qp_iterations</code></td><td>total active-set iterations of the QP subproblem solves, and, for those solved by the <a href="#direct-qp">direct method</a>, changes of the working set</td></tr>
+<tr><td><code>n_unconstrained_qp</code></td><td>QP subproblems solved by the <a href="#unconstrained-step">unconstrained step</a> of the L-BFGS Hessian, without a QP solver</td></tr>
 <tr><td><code>n_qp_solves</code>, <code>n_direct_qp</code></td><td>QP subproblems solved (without those of restoration phases), and how many of them the <a href="#direct-qp">direct method</a> solved</td></tr>
 <tr><td><code>n_factorizations</code></td><td>sparse factorizations, by the <a href="#inertia-control">inertia control</a>, the <a href="#direct-qp">direct QP method</a>, and the <a href="#direct-least-squares">direct least-squares solves</a> (<code>0</code> without them)</td></tr>
 <tr><td><code>n_soc</code>, <code>n_hessian_resets</code>, <code>n_restoration_steps</code>, <code>n_restoration_phases</code>, <code>n_elastic</code>, <code>n_escape</code></td><td>counts of the solve's events: accepted second-order corrections, Hessian resets (or shift increases), iterations with a restoration step, restoration phases entered, elastic QP re-solves, and escape steps</td></tr>
@@ -698,12 +700,19 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <tr><td><code>mode</code></td><td><code>sqpopt_qp_auto</code></td><td>which QP algorithm to use (overwritten from <code>options%qp_solver_mode</code>); see <a href="#qp-modes">modes</a> below</td></tr>
 <tr><td><code>auto_dense_max_n</code></td><td><code>200</code></td><td><code>mode = sqpopt_qp_auto</code> uses <code>sqpopt_qp_dense</code> for problems with at most this many variables, else <code>sqpopt_qp_reduced_hessian</code></td></tr>
 <tr><td><code>max_step</code></td><td><code>2.0</code></td><td>trust-region-style cap on \( \lVert p\rVert_2 \), applied after every QP solve regardless of <code>mode</code>. The cap starts at \( \max(\) <code>max_step</code>\(,\ \lVert x_0\rVert_\infty) \), relative to the size of the variables, and adapts like a trust radius: it doubles after a capped step that the line search accepts in full, and halves back toward <code>max_step</code> after a shortened one, so solutions far from the start are still reached in a few iterations.</td></tr>
+<tr><td><code>unconstrained_step</code></td><td><code>.true.</code></td><td>with the L-BFGS Hessian, first try the <a href="#unconstrained-step">unconstrained step</a> \( -H^{-1}g \): if it satisfies the bounds and the linearized constraints, it is the QP's solution, and no QP solver is run</td></tr>
 <tr><td><code>direct_max_changes</code></td><td><code>10</code></td><td>with <code>options%direct_qp</code>: the <a href="#direct-qp">direct method</a> gives up, and the active-set solver is run, after this many changes of the working set (each is a factorization) without reaching the QP's solution</td></tr>
 <tr><td><code>direct_tol</code></td><td><code>1e-8</code></td><td>the direct method's relative tolerance for a violated row or bound, and for the sign of a multiplier</td></tr>
 <tr><td><code>dense_qp</code></td><td>&mdash;</td><td>the dense QP solver's own options (used only when <code>mode == sqpopt_qp_dense</code>); see <a href="#dense-qp">below</a></td></tr>
 <tr><td><code>sparse_qp</code></td><td>&mdash;</td><td>the sparse QP solver's own options (used only when <code>mode == sqpopt_qp_reduced_hessian</code>); see <a href="#sparse-qp">below</a></td></tr>
 </tbody>
 </table></div>
+
+<h3 id="unconstrained-step">The unconstrained step <span class="h-note"><code>qp_solver%unconstrained_step</code></span></h3>
+
+<p>The L-BFGS matrix \( H \) is positive definite, so the QP's objective alone has the minimizer \( p = -H^{-1} g \), which the two-loop recursion gives at the cost of a few vector operations per stored pair. Before a QP solver is run, that step is tried: if \( x + p \) is within the bounds and the linearized constraints, it is the solution of the QP, with zero multipliers. So a problem without constraints is solved as a plain L-BFGS method wherever its bounds aren't active, and an iteration of a constrained problem at which nothing is active costs no QP solve either. When the step isn't feasible, the QP solver runs as before, and the attempt has cost one product.</p>
+
+<p>This matters for large problems. The active-set solvers handle a QP with every variable free too, but the sparse one does it by conjugate gradients on a matrix of the order of the problem. With 1,000 variables, the chained Rosenbrock function (4,946 iterations) takes 7.8 seconds with the step and 78 without it, and the same iterations. <code>results%n_unconstrained_qp</code> counts the QPs solved this way. The step isn't used with the exact Hessian or SR1 (which can be indefinite, and have no such inverse), nor in an elastic re-solve. On the Hock&ndash;Schittkowski problems it changes little: 9,067 <code>fc</code> calls instead of 9,173, with the same problems solved.</p>
 
 <h3 id="qp-modes">QP modes <span class="h-note"><code>options%qp_solver_mode</code></span></h3>
 <div class="table-wrap"><table class="opt-table modes">
@@ -988,32 +997,32 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <div class="table-wrap"><table class="bench">
 <thead><tr><th>globalization</th><th class="num">solved</th><th class="num">local</th><th class="num">failed</th><th class="num"><code>fc</code> calls (solved)</th></tr></thead>
 <tbody>
-<tr class="best"><td><strong>filter</strong> (default, with interpolation)</td><td class="num"><strong>280</strong></td><td class="num">25</td><td class="num"><strong>0</strong></td><td class="num"><strong>9,173</strong></td></tr>
-<tr><td>filter, without interpolation</td><td class="num">279</td><td class="num">26</td><td class="num">0</td><td class="num">9,501</td></tr>
-<tr><td>funnel (with interpolation)</td><td class="num">280</td><td class="num">25</td><td class="num">0</td><td class="num">9,389</td></tr>
-<tr><td>filter, exact Hessian (finite differences of the gradients)</td><td class="num">270</td><td class="num">32</td><td class="num">3</td><td class="num">11,267</td></tr>
-<tr><td>filter, exact Hessian with inertia control (MUMPS)</td><td class="num">274</td><td class="num">29</td><td class="num">2</td><td class="num">9,472</td></tr>
-<tr><td>filter, exact Hessian with inertia control and direct QP (MUMPS)</td><td class="num">274</td><td class="num">29</td><td class="num">2</td><td class="num">9,402</td></tr>
+<tr class="best"><td><strong>filter</strong> (default, with interpolation)</td><td class="num"><strong>280</strong></td><td class="num">25</td><td class="num"><strong>0</strong></td><td class="num"><strong>9,067</strong></td></tr>
+<tr><td>filter, without interpolation</td><td class="num">279</td><td class="num">26</td><td class="num">0</td><td class="num">9,464</td></tr>
+<tr><td>funnel (with interpolation)</td><td class="num">280</td><td class="num">25</td><td class="num">0</td><td class="num">9,360</td></tr>
+<tr><td>filter, exact Hessian (finite differences of the gradients)</td><td class="num">270</td><td class="num">32</td><td class="num">3</td><td class="num">11,194</td></tr>
+<tr><td>filter, exact Hessian with inertia control (MUMPS)</td><td class="num">274</td><td class="num">29</td><td class="num">2</td><td class="num">9,399</td></tr>
+<tr><td>filter, exact Hessian with inertia control and direct QP (MUMPS)</td><td class="num">274</td><td class="num">29</td><td class="num">2</td><td class="num">9,585</td></tr>
 <tr><td>filter, L-SR1 with inertia control (MUMPS)</td><td class="num">274</td><td class="num">27</td><td class="num">4</td><td class="num">10,454</td></tr>
-<tr><td>filter, L-BFGS with direct QP (MUMPS)</td><td class="num">279</td><td class="num">26</td><td class="num">0</td><td class="num">9,544</td></tr>
-<tr><td>Armijo / \( \ell_1 \) / multipliers</td><td class="num">273</td><td class="num">26</td><td class="num">6</td><td class="num">22,356</td></tr>
-<tr><td>Armijo / \( \ell_1 \) / model (Byrd&ndash;Nocedal)</td><td class="num">276</td><td class="num">26</td><td class="num">3</td><td class="num">32,415</td></tr>
-<tr><td>Armijo / augmented Lagrangian / multipliers</td><td class="num">276</td><td class="num">28</td><td class="num">1</td><td class="num">10,155</td></tr>
-<tr><td>Armijo / augmented Lagrangian / multipliers, interpolation + non-monotone (10)</td><td class="num">277</td><td class="num">28</td><td class="num">0</td><td class="num">10,303</td></tr>
-<tr><td>Armijo / augmented Lagrangian / model (GMSW)</td><td class="num">275</td><td class="num">27</td><td class="num">3</td><td class="num">13,317</td></tr>
-<tr><td>watchdog / \( \ell_1 \) / model</td><td class="num">274</td><td class="num">29</td><td class="num">2</td><td class="num">28,849</td></tr>
-<tr><td>trust region / filter</td><td class="num">263</td><td class="num">39</td><td class="num">3</td><td class="num">8,949</td></tr>
-<tr><td>trust region / funnel</td><td class="num">263</td><td class="num">40</td><td class="num">2</td><td class="num">10,376</td></tr>
+<tr><td>filter, L-BFGS with direct QP (MUMPS)</td><td class="num">279</td><td class="num">26</td><td class="num">0</td><td class="num">9,746</td></tr>
+<tr><td>Armijo / \( \ell_1 \) / multipliers</td><td class="num">273</td><td class="num">26</td><td class="num">6</td><td class="num">22,388</td></tr>
+<tr><td>Armijo / \( \ell_1 \) / model (Byrd&ndash;Nocedal)</td><td class="num">276</td><td class="num">26</td><td class="num">3</td><td class="num">32,446</td></tr>
+<tr><td>Armijo / augmented Lagrangian / multipliers</td><td class="num">276</td><td class="num">28</td><td class="num">1</td><td class="num">10,112</td></tr>
+<tr><td>Armijo / augmented Lagrangian / multipliers, interpolation + non-monotone (10)</td><td class="num">277</td><td class="num">28</td><td class="num">0</td><td class="num">10,271</td></tr>
+<tr><td>Armijo / augmented Lagrangian / model (GMSW)</td><td class="num">275</td><td class="num">27</td><td class="num">3</td><td class="num">13,355</td></tr>
+<tr><td>watchdog / \( \ell_1 \) / model</td><td class="num">275</td><td class="num">29</td><td class="num">1</td><td class="num">31,987</td></tr>
+<tr><td>trust region / filter</td><td class="num">263</td><td class="num">39</td><td class="num">3</td><td class="num">9,251</td></tr>
+<tr><td>trust region / funnel</td><td class="num">263</td><td class="num">40</td><td class="num">2</td><td class="num">10,676</td></tr>
 </tbody>
 </table></div>
 
 <p><a href="hs_results.html"><strong>Explore the results of every problem &rarr;</strong></a> An interactive page with the default configuration's result on each of the 305 problems, compared with NLPQLP's published results and with <a href="https://github.com/jacobwilliams/slsqp">SLSQP</a> run on the same problems: charts of the function evaluations, and sortable, filterable tables.</p>
 
-<p class="small">The merit-function rows are without interpolation, except where noted. With interpolation, Armijo / \( \ell_1 \) / multipliers needs 20,324 <code>fc</code> calls instead of 22,356, and solves two more problems. Analytic derivatives are used throughout, except for the 16 problems for which the collection provides none (they are solved with finite-difference derivatives, as the collection intends); the analytic derivatives that were wrong in the original collection are fixed in <code>test/schittkowski_problems.f90</code>.</p>
+<p class="small">The merit-function rows are without interpolation, except where noted. With interpolation, Armijo / \( \ell_1 \) / multipliers needs 20,224 <code>fc</code> calls instead of 22,388, and solves two more problems. Analytic derivatives are used throughout, except for the 16 problems for which the collection provides none (they are solved with finite-difference derivatives, as the collection intends); the analytic derivatives that were wrong in the original collection are fixed in <code>test/schittkowski_problems.f90</code>.</p>
 
 <p class="small">The collection has no second derivatives, so the exact-Hessian row uses Hessians of the Lagrangian computed by the test harness by central differences of the analytic gradients (the 16 problems without analytic derivatives keep BFGS). On the problems that both it and the default solve, it needs 30% fewer iterations (median), and far fewer on some (TP116: 25 instead of 127); its larger <code>fc</code> total comes from a few problems where Newton steps crawl along a curved valley. <a href="#inertia-control">Inertia control</a> (a build with MUMPS) removes most of that difference. It helps the other globalizations with the exact Hessian too: funnel 272 solved and 3 failed instead of 270 and 4, Armijo 271 solved with 9,195 <code>fc</code> calls instead of 268 with 19,027 (but 6 failed instead of 3), and the sparse QP 273 and 1 instead of 271 and 3. With the trust region it halves the <code>fc</code> calls (4,889 instead of 10,209), with 265 solved instead of 264.</p>
 
-<p class="small">The rows marked MUMPS need a build with it (see <a href="#installation">Installation</a>). The <a href="#direct-qp">direct QP method</a> is meant for large problems: on these small ones it gives the same solutions of the QPs, so the outcomes barely change (the L-BFGS row differs from the default mostly because its automatic memory is 10 pairs: the defaults with <code>lbfgs_memory = 10</code> give 280, 25, 0, and 9,787). L-SR1 without inertia control (not in the table) solves 244 problems and fails on 30, with 47,454 <code>fc</code> calls. With the trust region, SR1 with inertia control solves 255 and fails on 10, against 265 and 13 without it. The factorizations cost time on small problems: all 305 take 1.6 s with the exact Hessian and inertia control (1.0 s for the defaults), 1.5 s with the direct QP as well, 1.8 s for L-BFGS with the direct QP, and 13 s for SR1 with inertia control (1.6 s without).</p>
+<p class="small">The rows marked MUMPS need a build with it (see <a href="#installation">Installation</a>). The <a href="#direct-qp">direct QP method</a> is meant for large problems: on these small ones it gives the same solutions of the QPs, so the outcomes barely change (the L-BFGS row differs from the default mostly because its automatic memory is 10 pairs: the defaults with <code>lbfgs_memory = 10</code> give 280, 25, 0, and 9,787). L-SR1 without inertia control (not in the table) solves 244 problems and fails on 30, with 47,454 <code>fc</code> calls. With the trust region, SR1 with inertia control solves 255 and fails on 10, against 265 and 13 without it. The factorizations cost time on small problems: all 305 take 1.6 s with the exact Hessian and inertia control (0.7 s for the defaults), 1.5 s with the direct QP as well, 1.8 s for L-BFGS with the direct QP, and 13 s for SR1 with inertia control (1.6 s without).</p>
 
 <p class="small">This table is generated by <code>tools/hs_performance_table.sh</code> (run it with <code>pixi run tools/hs_performance_table.sh --mumps</code>; it prints the rows above, and the footnote's figures; without <code>--mumps</code> it leaves out the rows that need MUMPS). Individual configurations can be run with the test suite's command-line options, e.g. <code>fpm test test_hs_suite --profile release -- results.md --linesearch=armijo --merit=al</code>.</p>
 

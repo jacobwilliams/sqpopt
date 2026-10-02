@@ -1305,13 +1305,15 @@ which is now double precision only.
   showed, none of it fixed (release build):
   - *L-BFGS on ill-conditioned functions at 1000 variables is slow.*
     `trid` takes 1679 iterations (42 s, ending as "stalled" at the
-    minimum), and `rosenbrock` reaches 2000 iterations (31 s). (`trid`
+    minimum), and `rosenbrock` 4946 iterations (78 s; it reaches the
+    test's limit of 2000 unless `--max-iter` is raised). (`trid`
     first ended with "line search failed" after 1106 iterations: that was
     roundoff in the test function, about 0.1 in an objective of -1.7e8,
     from evaluating it as the difference of two sums of 3e13. It is now
     evaluated term by term.) Nearly all the time is in the QP (25 ms per
     iteration, for a step that an unconstrained L-BFGS method gets from
-    its two-loop recursion: see the idea below);
+    its two-loop recursion: see the first idea below, now done: 2.6 s and
+    7.8 s);
     `ellipsoid`, `dixon_price`, and `qing` converge in 150 to 240
     iterations and 2 to 4 s. With the exact Hessian all five take less
     than 0.5 s. (These are skipped in the default run.)
@@ -1331,10 +1333,27 @@ which is now double precision only.
     is tested on the scaled problem: `zakharov` at 1000 variables stops
     with status "acceptable" at `f = 5.3e6` (minimum 0, start about
     `4e21`), and `schwefel12` at `f = 593` (start `8e11`).
-  - *The chained Rosenbrock function takes about 1.7 iterations per
-    variable with the exact Hessian* (1704 at 1000 variables, 0.4 s).
-  Ideas from these runs *(not implemented)*:
-  - *A cheap QP for an L-BFGS step with no active constraints.* With no
+  - *The chained Rosenbrock function takes iterations in proportion to
+    its size:* about 1.7 per variable with the exact Hessian (1704 at 1000
+    variables in 0.4 s, 16,887 at 10,000 in 51 s with the direct QP) and
+    about 5 with L-BFGS (491, 980, 1973, and 4946 at 100, 200, 400, and
+    1000 variables). That is the function, not the solver: a textbook
+    L-BFGS (two-loop recursion and Armijo backtracking, in numpy) takes
+    489, 980, 1967, and 4958. But it takes them in 1.3 s at 1000
+    variables, against 78 s here: the cost is the QP (see the first idea
+    below).
+  Ideas from these runs:
+  - *A cheap QP for an L-BFGS step with no active constraints* *(done
+    2026-10-02: `qp_solver%unconstrained_step`, on by default. The QP front
+    end tries `-H^{-1} g` first, and it is the QP's solution if it
+    satisfies the bounds and the linearized constraints. At 1000
+    variables: `trid` 42 s -> 2.6 s, `rosenbrock` 78 s -> 7.8 s, the
+    others 10 times faster too, with the same iterations; and the
+    iterations match scipy's L-BFGS-B within 2% on `rosenbrock`
+    (`python/tests/test_scipy_compare.py`). HS suite: 280/25/0 unchanged,
+    9,173 -> 9,067 `fc`; the other rows of the guide's table moved by a
+    few percent either way, see MUMPS_PLAN.md for the MUMPS ones. Tests:
+    `test_unconstrained_step`.)* With no
     general constraints and no bound in the working set, the QP's solution
     is `-H^{-1} g`, which the L-BFGS inverse gives in `O(n k)` operations
     (the two-loop recursion). The sparse QP instead runs conjugate

@@ -384,6 +384,7 @@
         me%results%time_qp        = me%qp_solver%time
         me%results%n_qp_solves    = me%qp_solver%n_solves
         me%results%n_direct_qp    = me%qp_solver%n_direct
+        me%results%n_unconstrained_qp = me%qp_solver%n_unconstrained
         me%results%n_factorizations   = kkt%solver%n_factor + least_squares%kkt%solver%n_factor
         me%results%time_factorization = kkt%solver%time + least_squares%kkt%solver%time
         call kkt%destroy()
@@ -729,6 +730,10 @@
         if (me%results%n_direct_qp > 0) then
             write(u, '(A,3(I0,A))', iostat=ios) '   QP iterations       = ', me%results%n_qp_iterations, ' (', &
                                    me%results%n_direct_qp, ' of ', me%results%n_qp_solves, ' QPs solved directly)'
+        else if (me%results%n_unconstrained_qp > 0) then
+            write(u, '(A,3(I0,A))', iostat=ios) '   QP iterations       = ', me%results%n_qp_iterations, ' (', &
+                                   me%results%n_unconstrained_qp, ' of ', me%results%n_qp_solves, &
+                                   ' QPs solved by the unconstrained step)'
         else
             write(u, '(A,I0)', iostat=ios)  '   QP iterations       = ', me%results%n_qp_iterations
         end if

@@ -32,11 +32,12 @@ program test_scalable
     !! The test fails if a solve fails that isn't in the list of the known
     !! failures (`known_failures`), or one in the list passes.
     !!
-    !! By default the numbers of variables are 20 and 1000, and with 1000 the
-    !! limited-memory BFGS solves of five ill-conditioned functions
-    !! (`slow_bfgs`) are skipped: they take hundreds or thousands of
-    !! iterations, and 2 to 40 seconds each in a release build (`rosenbrock`
-    !! reaches the iteration limit). Give `--n=1000` to run them.
+    !! By default the numbers of variables are 20 and 1000. The iteration
+    !! limit is high because `rosenbrock` needs about 5 iterations per
+    !! variable with the limited-memory BFGS Hessian, and 1.7 with the exact
+    !! one. These problems have no constraints, so with the limited-memory
+    !! BFGS Hessian their QPs are solved by the unconstrained step (see
+    !! [[sqpopt_qp_solver_module]]) wherever the bounds aren't active.
     !!
     !! Command-line options (any of them makes the run a non-default
     !! configuration, which runs every solve and reports the results, but
@@ -48,7 +49,7 @@ program test_scalable
     !! * `--hessian=bfgs|exact|direct`: only that configuration (`direct` is
     !!   the exact Hessian with inertia control and the direct QP method, and
     !!   needs a build with MUMPS)
-    !! * `--max-iter=K`: `options%max_iter` (default 2000)
+    !! * `--max-iter=K`: `options%max_iter` (default 10000)
     !! * `--print=L`: `options%print_level`
 
     use sqpopt_module,           only: sqpopt_type
@@ -76,12 +77,6 @@ program test_scalable
         integer :: n              !! the number of variables
         integer :: cfg            !! the configuration
     end type known_failure
-
-    !> the functions whose limited-memory BFGS solves are skipped in the default run for more than
-    !> `slow_bfgs_n` variables (see the program's documentation)
-    character(len=*), parameter :: slow_bfgs(5) = [character(len=20) :: 'ellipsoid', 'trid', 'rosenbrock', &
-                                                                           'dixon_price', 'qing']
-    integer, parameter :: slow_bfgs_n = 100
 
     !> the solves of the default configuration that are known to fail (see the comments at each)
     type(known_failure), parameter :: known_failures(0) = [known_failure ::]
@@ -119,8 +114,6 @@ program test_scalable
                 if (only_cfg /= 0 .and. cfg /= only_cfg) cycle
                 if (cfg /= cfg_bfgs .and. .not. fun%has_hessian) cycle
                 if (cfg == cfg_direct .and. .not. sqpopt_has_mumps) cycle
-                if (default_run .and. cfg == cfg_bfgs .and. sizes(k) > slow_bfgs_n .and. &
-                    any(slow_bfgs == fun%name)) cycle
                 call solve(fun, cfg)
             end do
         end do
@@ -145,7 +138,7 @@ program test_scalable
     sizes = [20, 1000]
     only_function = ''
     only_cfg    = 0
-    max_iter    = 2000
+    max_iter    = 10000
     print_level = 0
     default_run = command_argument_count() == 0
     do i = 1, command_argument_count()

@@ -78,7 +78,8 @@ an `OptimizeResult`.
   * `z`: the variable-bound multipliers;
   * `constr_violation`, `kkt_error`, `stationarity_error`, and
     `execution_time`;
-  * `n_qp_iterations`, `derivative_switch_iteration`, `n_factorizations`,
+  * `n_qp_iterations`, `derivative_switch_iteration`, `n_unconstrained_qp`,
+    `n_factorizations`,
     `n_qp_solves`, `n_direct_qp`, and `time_factorization` (the last four for
     the options that use sparse factorizations, see below;
     `time_factorization` is the part of `execution_time` spent in them).

@@ -812,6 +812,10 @@
         subroutine note_qp()
         !! the detailed log's line for the QP solve just done
         if (.not. lg%on(sqpopt_log_detail)) return
+        if (qp_solver%unconstrained_used) then
+            call lg%put(sqpopt_log_detail, 'QP: the unconstrained quasi-Newton step is feasible (no QP solver run)')
+            return
+        end if
         if (qp_solver%direct_used) then
             call lg%put(sqpopt_log_detail, 'direct QP: '//plural(qp_solver%n_iter, 'change', 'changes')// &
                         ' of the working set, working set '//fmt_i(qp_solver%n_working)//', ok')

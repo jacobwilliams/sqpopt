@@ -484,6 +484,11 @@ TOPICS: tuple[Topic, ...] = (
                       'Trust-region-style cap on the QP step length ‖p‖₂, applied after every QP solve. The cap '
                       'starts at max(max_step, ‖x₀‖∞), doubles after a capped step that the line search accepts '
                       'in full, and halves back toward max_step after a shortened one.'),
+            _o('qp_solver%unconstrained_step', 'bool', True,
+               'With the L-BFGS Hessian, first try the unconstrained step −H⁻¹g, which costs one two-loop recursion. '
+               'If it satisfies the bounds and the linearized constraints it is the QP\'s solution, and no QP solver '
+               'is run. That is every QP of a problem without constraints whose bounds are not active, which is then '
+               'solved many times faster.'),
         )),
         Section('Dense QP', (
             _o('qp_solver%dense_qp%max_iter', 'int', 100,

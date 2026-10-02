@@ -21,8 +21,21 @@
 !  * `sqpopt_qp_auto` (the default): `sqpopt_qp_dense` when
 !    `n <= auto_dense_max_n`, else `sqpopt_qp_reduced_hessian`.
 !
+!  Before either is run, the *unconstrained step* is tried (unless
+!  `unconstrained_step` is false): with the limited-memory BFGS Hessian,
+!  which is positive definite, the minimizer of the QP's objective alone is
+!  \( p = -H^{-1} g \), which the two-loop recursion gives in `O(nk)`
+!  operations for `k` stored pairs (see [[hessian_inverse_vector_product]]).
+!  If that step satisfies the bounds and the linearized constraints, it is
+!  the solution of the QP, with zero multipliers, and no QP solver is run.
+!  That is every QP of a problem without constraints whose bounds aren't
+!  active, where the active-set solvers would otherwise work with every
+!  variable free (the sparse one by conjugate gradients on a reduced
+!  Hessian of order `n`). When the step isn't feasible, the attempt costs
+!  one such product.
+!
 !  With `direct` (`options%direct_qp`, in a build with MUMPS), the
-!  subproblem is first tried directly, by factoring the KKT matrix of the
+!  subproblem is then tried directly, by factoring the KKT matrix of the
 !  working set that the active-set solver would start from (see
 !  [[sqpopt_qp_direct_module]]); the active-set solver is only run if that
 !  doesn't give the solution within `direct_max_changes` changes of the
@@ -43,7 +56,8 @@
 
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
     use, intrinsic :: iso_fortran_env, only: int64
-    use sqpopt_types_module,   only: sqpopt_sparse_matrix, sqpopt_out_of_memory, sqpopt_success
+    use sqpopt_types_module,   only: sqpopt_sparse_matrix, sqpopt_out_of_memory, sqpopt_success, sqpopt_all_finite
+    use sqpopt_linalg_module,  only: sparse_matvec
     use sqpopt_hessian_module, only: sqpopt_hessian_type
     use sqpopt_qp_dense_module, only: sqpopt_dense_qp_type
     use sqpopt_qp_reduced_hessian_module, only: sqpopt_reduced_hessian_qp_type
@@ -88,6 +102,12 @@
         logical :: out_of_memory = .false. !! whether a QP solve of this `solve` returned `sqpopt_out_of_memory`
                                            !! (output; it stays set, so the solver stops whichever step asked
                                            !! for that QP; reset on each `solve`)
+        logical :: unconstrained_step = .true. !! whether to try the unconstrained step first, with the
+                                           !! limited-memory BFGS Hessian: if \( -H^{-1} g \) satisfies the bounds
+                                           !! and the linearized constraints, it is the QP's solution, and no QP
+                                           !! solver is run (see the module docs)
+        logical :: unconstrained_used = .false. !! whether the last QP was solved by the unconstrained step (output)
+        integer :: n_unconstrained = 0     !! number of QPs of this `solve` solved by the unconstrained step (output)
         logical :: direct = .false.        !! whether to try the direct method first (overwritten from
                                            !! `options%direct_qp`; see [[sqpopt_qp_direct_module]])
         integer :: direct_max_changes = 10 !! the direct method gives up, and the active-set solver is run,
@@ -126,9 +146,15 @@
 !  `istat=sqpopt_out_of_memory`, `me%out_of_memory` is also set (and stays
 !  set), for [[sqpopt_iterate]] to stop the solve.
 !
+!  With the limited-memory BFGS Hessian (and `me%unconstrained_step`, and
+!  not in a forced elastic solve), the unconstrained step is tried first
+!  (see the module documentation): if it is feasible, it is the QP's
+!  solution (`me%unconstrained_used`), no solver is run, and the next QP
+!  starts from an empty working set.
+!
 !  If `kkt` is given (and `me%direct` is set, and this is not a forced
 !  elastic solve), the direct method is tried
-!  first (see [[direct_qp_step]]), from the working set that the active-set
+!  next (see [[direct_qp_step]]), from the working set that the active-set
 !  solver would start from. If it finds the QP's solution, the active-set
 !  solver is not run (`me%direct_used`), and the working set it ended with
 !  is kept as that solver's warm start. With `inertia`, the direct method
@@ -172,13 +198,17 @@
     call system_clock(t0, rate)
     forced = present(elastic_sign) .and. present(elastic_weight)
     me%n_solves    = me%n_solves + 1
+    me%unconstrained_used = .false.
     me%direct_used    = .false.
     me%direct_outcome = -1
     me%direct_changes = 0
     t_kkt = 0.0_wp
 
-    if (present(kkt) .and. me%direct .and. .not. forced) call solve_direct()
-    if (.not. me%direct_used) call solve_active_set()
+    if (me%unconstrained_step .and. .not. forced) call solve_unconstrained()
+    if (.not. me%unconstrained_used) then
+        if (present(kkt) .and. me%direct .and. .not. forced) call solve_direct()
+        if (.not. me%direct_used) call solve_active_set()
+    end if
 
     if (istat == sqpopt_out_of_memory) me%out_of_memory = .true.
 
@@ -196,6 +226,42 @@
     me%time = me%time + max(real(t1 - t0, wp)/real(rate, wp) - t_kkt, 0.0_wp)
 
     contains
+
+        subroutine solve_unconstrained()
+        !! try the unconstrained step \( -H^{-1} g \) of the limited-memory
+        !! BFGS Hessian (see the module documentation). Sets
+        !! `me%unconstrained_used` if it is feasible, and so solves the QP.
+        real(wp), dimension(size(c)) :: jp
+        integer :: n, m
+        ! (only for a positive definite matrix with a cheap inverse)
+        if (hessian%exact .or. hessian%use_sr1 .or. hessian%shift /= 0.0_wp) return
+        n = size(g)
+        m = size(c)
+        call hessian%inverse_vector_product(-g, p)
+        if (.not. sqpopt_all_finite(p)) return
+        if (.not. dot_product(g, p) <= 0.0_wp) return
+        if (any(x + p < x_lb) .or. any(x + p > x_ub)) return
+        if (m > 0) then
+            call sparse_matvec(jac, p, jp)
+            if (any(c + jp < c_lb) .or. any(c + jp > c_ub)) return
+        end if
+        me%unconstrained_used = .true.
+        me%n_unconstrained = me%n_unconstrained + 1
+        lambda = 0.0_wp
+        istat  = sqpopt_success
+        me%n_iter    = 0
+        me%n_working = 0
+        me%n_slacks  = 0
+        me%negative_curvature = .false.
+        ! (the next QP starts from the empty working set)
+        if (resolved_mode(me, n) == sqpopt_qp_dense) then
+            if (allocated(me%dense_qp%warm_status)) deallocate(me%dense_qp%warm_status)
+            allocate(me%dense_qp%warm_status(m + n), source=0)
+        else
+            if (allocated(me%sparse_qp%warm_status)) deallocate(me%sparse_qp%warm_status)
+            allocate(me%sparse_qp%warm_status(m + n), source=0)
+        end if
+        end subroutine solve_unconstrained
 
         subroutine solve_direct()
         !! try the direct method (see [[sqpopt_qp_direct_module]]), from the

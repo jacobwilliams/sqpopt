@@ -9,13 +9,15 @@ program test_out_of_memory
     !! (`sqpopt_qp_auto` would choose the sparse one): its `n x n` matrices
     !! need `8 n**2 = 2.9e14` bytes each (`real64`), more than the whole
     !! 48-bit address space, so the allocation fails on any machine. The
-    !! starting point must be returned unchanged. (One L-BFGS pair, so the
+    !! unconstrained step of the QP front end is turned off
+    !! (`qp_solver%unconstrained_step`): it would solve these QPs without the
+    !! dense solver. The starting point must be returned unchanged. (One L-BFGS pair, so the
     !! test's own memory is a few dozen vectors of length `n`.)
 
     use sqpopt_module,           only: sqpopt_type
     use sqpopt_problem_module,   only: sqpopt_problem_type
     use sqpopt_options_module,   only: sqpopt_options_type
-    use sqpopt_qp_solver_module, only: sqpopt_qp_dense
+    use sqpopt_qp_solver_module, only: sqpopt_qp_dense, sqpopt_qp_solver_type
     use sqpopt_types_module,     only: sqpopt_out_of_memory, sqpopt_results_type
     use sqpopt_kinds,            only: wp => sqpopt_module_wp
 
@@ -26,6 +28,7 @@ program test_out_of_memory
     type(sqpopt_type)         :: solver
     type(sqpopt_problem_type) :: problem
     type(sqpopt_options_type) :: options
+    type(sqpopt_qp_solver_type) :: qp
     type(sqpopt_results_type) :: r
     real(wp), dimension(:), allocatable :: x0, xsol, lam, big
     integer, dimension(0) :: none
@@ -47,7 +50,8 @@ program test_out_of_memory
     options%qp_solver_mode = sqpopt_qp_dense
     options%lbfgs_memory   = 1
     options%scaling        = .false.
-    call solver%initialize(problem=problem, options=options)
+    qp%unconstrained_step  = .false.
+    call solver%initialize(problem=problem, options=options, qp_solver=qp)
     call solver%solve(x0, istat)
     call solver%get_solution(xsol, lam)
     call solver%get_results(r)
