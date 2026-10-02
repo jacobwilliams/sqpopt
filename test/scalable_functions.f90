@@ -39,7 +39,7 @@
 !
 !  The functions with a sparse Hessian (diagonal, tridiagonal, or in 4 by 4
 !  blocks) provide it (`has_hessian`), in the solver's format: one triangle,
-!  with the pattern of [[scalable_hessian_pattern]]. The others have a dense
+!  with the pattern set by [[scalable_function_setup]]. The others have a dense
 !  Hessian, and are for the quasi-Newton methods only.
 
     module scalable_functions_module

@@ -108,7 +108,7 @@
 
         ! `LSQR` settings, used for the minimum-norm starting step, and (with
         ! `null_space=sqpopt_null_space_lsqr`) for every null-space projection
-        ! and multiplier solve (see [[lsqr_module]] for the precise meaning of
+        ! and multiplier solve (see `lsqr_module` for the precise meaning of
         ! each). `0` for `lsqr_atol`/`lsqr_btol`/`lsqr_conlim` means "let LSQR
         ! use its own machine-precision-based default"; loosening these trades
         ! QP-solve accuracy for speed:

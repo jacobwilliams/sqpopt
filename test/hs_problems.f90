@@ -159,7 +159,7 @@
 
     pure integer function hs_index(id)
 
-    integer, intent(in) :: id
+    integer, intent(in) :: id !! problem number
 
     integer :: k
 
@@ -181,7 +181,8 @@
 
     subroutine call_problem(id, mode)
 
-    integer, intent(in) :: id, mode
+    integer, intent(in) :: id   !! problem number
+    integer, intent(in) :: mode !! what the problem's routine is asked for (its `MODE` argument)
 
     select case (id)
         case (  1); call tp1(mode)
@@ -505,8 +506,8 @@
 
     subroutine hs_setup(id, prob)
 
-    integer,          intent(in)  :: id
-    type(hs_problem), intent(out) :: prob
+    integer,          intent(in)  :: id   !! problem number
+    type(hs_problem), intent(out) :: prob !! the problem's sizes, bounds, starting point, and solution
 
     integer :: i
 
@@ -552,9 +553,9 @@
 
     subroutine hs_f(id, x, f)
 
-    integer,                intent(in)  :: id
-    real(dp), dimension(:), intent(in)  :: x
-    real(dp),               intent(out) :: f
+    integer,                intent(in)  :: id !! problem number
+    real(dp), dimension(:), intent(in)  :: x  !! point `dimension(n)`
+    real(dp),               intent(out) :: f  !! objective at `x`
 
     x_(1:size(x)) = real(x, pk)
     call call_problem(id, 2)
@@ -570,9 +571,9 @@
 
     subroutine hs_g(id, x, g)
 
-    integer,                intent(in)  :: id
-    real(dp), dimension(:), intent(in)  :: x
-    real(dp), dimension(:), intent(out) :: g
+    integer,                intent(in)  :: id !! problem number
+    real(dp), dimension(:), intent(in)  :: x  !! point `dimension(n)`
+    real(dp), dimension(:), intent(out) :: g  !! objective gradient at `x` `dimension(n)`
 
     x_(1:size(x)) = real(x, pk)
     call call_problem(id, 2)   ! (some problems compute shared terms in mode 2)
@@ -589,9 +590,9 @@
 
     subroutine hs_c(id, x, c)
 
-    integer,                intent(in)  :: id
-    real(dp), dimension(:), intent(in)  :: x
-    real(dp), dimension(:), intent(out) :: c
+    integer,                intent(in)  :: id !! problem number
+    real(dp), dimension(:), intent(in)  :: x  !! point `dimension(n)`
+    real(dp), dimension(:), intent(out) :: c  !! constraint values at `x` `dimension(m)`
 
     if (size(c) == 0) return
     x_(1:size(x)) = real(x, pk)
@@ -610,9 +611,9 @@
 
     subroutine hs_jac(id, x, jac)
 
-    integer,                  intent(in)  :: id
-    real(dp), dimension(:),   intent(in)  :: x
-    real(dp), dimension(:,:), intent(out) :: jac
+    integer,                  intent(in)  :: id  !! problem number
+    real(dp), dimension(:),   intent(in)  :: x   !! point `dimension(n)`
+    real(dp), dimension(:,:), intent(out) :: jac !! constraint Jacobian at `x` `dimension(m,n)`
 
     if (size(jac,1) == 0) return
     x_(1:size(x)) = real(x, pk)

@@ -103,7 +103,10 @@ The tests are in `test/`:
   Hessian only solves with it), larger sparse ones
   (`test_large_sparse`), a two-variable problem whose path is drawn in the
   guide (`test_rosenbrock_disk`), 17 bound-constrained functions of any size
-  (`test_scalable`), and regression tests of the interface and edge cases
+  (`test_scalable`), tests of single features (`test_unconstrained_step`,
+  the QP front end's shortcut for a QP with nothing active;
+  `test_max_step`, the limits on each variable's step; `test_scaling`, the
+  safeguards for a badly scaled starting point), and regression tests of the interface and edge cases
   (`test_callbacks`, `test_input_validation`, `test_infeasible`,
   `test_nonfinite`, `test_resolve`, `test_results`, `test_termination`, ...).
 - **`test_hs_suite`**: the 305 Hock-Schittkowski problems
@@ -163,6 +166,7 @@ pixi run run-mumps --example benchmark_large --profile release -- --scale=10 --n
 | `coverage.sh [--mumps]` | runs the tests with `--coverage` and makes an lcov HTML report in `coverage/html` (dark-mode aware). With `--mumps` (what CI uses), the build with MUMPS is tested, so the report covers the code that uses it |
 | `pixi run fortitude check` | lints the Fortran sources with [Fortitude](https://fortitude.readthedocs.io) (configured in `fortitude.toml`; also run by the VS Code extension) |
 | `tools/hs_performance_table.sh --mumps` | runs the HS suite in every configuration of the Performance page's table (`web/performance.html`) and prints the table rows. It also regenerates the data of that page's results of every problem (`web/js/hs_results_data.js`, `web/js/hs_slsqp_data.js`). Run it whenever a change affects the HS results. (`--mumps` builds with MUMPS, for the rows of the options that need it; without it those rows are left out.) |
+| `tools/rosenbrock_disk_figure.py` | redraws the figure of the Performance page's first example, from the iterates that `test_rosenbrock_disk` writes with `--path=FILE` (the script's header has both commands) |
 | `tools/hs_compare.sh N [options]` | runs HS problem `N` with SQPOPT and SLSQP, printing both solvers' iterations, for investigating a difference |
 | `python/` | Python bindings with a `scipy.optimize.minimize`-like interface, and a Qt options dialog for SQPOPT (see [python/README.md](python/README.md)) |
 
@@ -205,7 +209,7 @@ architecture ([PLAN.md](plan/PLAN.md)), the backlog
 | `sqpopt_inertia_module` | inertia control of the exact and SR1 Hessians |
 | `sqpopt_qp_direct_module` | the direct QP method (a primal-dual active-set method on the KKT matrix) |
 | `sqpopt_least_squares_module` | direct minimum-norm solves, for the restoration steps and second-order corrections |
-| `sqpopt_qp_solver_module` | the QP subproblem front end, which chooses a solver |
+| `sqpopt_qp_solver_module` | the QP subproblem front end, which chooses a solver (and tries the unconstrained quasi-Newton step first) |
 | `sqpopt_qp_dense_module` | the dense active-set QP |
 | `sqpopt_qp_reduced_hessian_module` | the sparse active-set QP (LUSOL basis, reduced-Hessian CG) |
 | `sqpopt_linesearch_module` | the line searches (Armijo, exact, watchdog, filter, funnel) |
@@ -214,6 +218,7 @@ architecture ([PLAN.md](plan/PLAN.md)), the backlog
 | `sqpopt_restoration_module` | feasibility restoration |
 | `sqpopt_soc_module` | second-order corrections |
 | `sqpopt_convergence_module` | the KKT convergence test |
+| `sqpopt_log_module` | the detailed iteration log, and the formatting of the printed output |
 | `sqpopt_linalg_module`, `sqpopt_dense_linalg_module` | sparse and dense linear algebra |
 | `sqpopt_kinds` | the real kind (precision) |
 
