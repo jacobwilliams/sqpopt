@@ -58,6 +58,7 @@
     <a href="#configuration">How configuration works</a>
     <a href="choosing_settings.html">Choosing settings</a>
     <a href="#problem-definition">Problem definition</a>
+    <a href="#max-step" class="toc-sub">Step limits</a>
     <a href="#solver-options">Solver options</a>
     <a href="#hessian">Hessian approximation</a>
     <a href="#inertia-control" class="toc-sub">Inertia control</a>
@@ -417,7 +418,7 @@ end program hs71</code></pre>
 <tr><td>KKT test (<code>ktol</code>)</td><td>stationarity is judged by the size of the gradient of the Lagrangian, and multiplying a variable by \( s \) divides its gradient element by \( s \): the same <code>ktol</code> is looser or tighter depending on the variable's units</td></tr>
 <tr><td>stalled-progress test (<code>xtol</code>)</td><td>the change in \( x \) is measured relative to \( \max(1, \lVert x \rVert) \), so large variables mask changes in small ones</td></tr>
 <tr><td>Hessian approximation</td><td>the limited-memory BFGS/SR1 approximation starts from a single multiple of the identity. Variables of very different sizes make it badly conditioned, and it takes many iterations to learn their relative scales.</td></tr>
-<tr><td>step limits</td><td>the QP step cap starts at \( \max(\) <code>qp_solver%max_step</code>\(, \lVert x_0 \rVert_\infty) \), the size of the <em>largest</em> variable. <code>linesearch%major_step_limit</code> is relative to \( \max(1, |x_j|) \), so for variables much smaller than 1 it is an absolute limit.</td></tr>
+<tr><td>step limits</td><td>the QP step cap starts at \( \max(\) <code>qp_solver%max_step</code>\(, \lVert x_0 \rVert_\infty) \), the size of the <em>largest</em> variable. <code>linesearch%major_step_limit</code> is relative to \( \max(1, |x_j|) \), so for variables much smaller than 1 it is an absolute limit. <a href="#max-step"><code>problem%set_max_step</code></a> sets a limit for each variable.</td></tr>
 <tr><td>trust region</td><td>the radius is in the units of \( x \): <code>radius0</code> = 1, <code>radius_max</code> = 1e3</td></tr>
 <tr><td>feasibility restoration</td><td>its proximal term (stay close to where the phase started) treats all the variables alike</td></tr>
 <tr><td>bounds</td><td>a bound of magnitude \( \ge \) <code>sqpopt_infinity</code> (1e20) is treated as absent</td></tr>
@@ -574,11 +575,23 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <tbody>
 <tr><td><code>set_problem_size(n, m)</code></td><td>number of variables <code>n</code> and constraints <code>m</code>. Which constraints are equalities is given by their bounds (<code>c_lb(i) == c_ub(i)</code>, see <code>set_bounds</code>), so equalities and inequalities may come in any order.</td></tr>
 <tr><td><code>set_bounds(x_lb, x_ub, c_lb, c_ub)</code></td><td>variable bounds and constraint bounds. Use <code>c_lb(i) == c_ub(i)</code> for an equality constraint. Any value with magnitude <code>&gt;= sqpopt_infinity</code> (<code>1e20</code>; <code>huge(1.0_wp)</code> is fine) means a one-sided or absent bound.</td></tr>
+<tr><td><code>set_max_step(max_step)</code></td><td>optional: the largest change of each variable in one major iteration, \( |x_{k+1} - x_k|_j \le \) <code>max_step(j)</code> (each <code>&gt; 0</code>; <code>&gt;= sqpopt_infinity</code> for no limit). See <a href="#max-step">Step limits</a> below</td></tr>
 <tr><td><code>set_jacobian_sparsity(nnz, irow, icol)</code></td><td>fixed, 1-based COO sparsity pattern of the constraint Jacobian</td></tr>
 <tr><td><code>set_hessian_sparsity(nnz, irow, icol)</code></td><td>fixed, 1-based COO sparsity pattern of the Lagrangian Hessian, each off-diagonal element given once (only needed for <code>sqpopt_hessian_exact</code>)</td></tr>
 <tr><td><code>set_functions(fc, gjac, hess, data)</code></td><td>attach the user callbacks: <code>fc</code> evaluates the objective and the constraints; <code>gjac</code> evaluates the objective gradient and the Jacobian's nonzero values; <code>hess</code> (optional) evaluates the Hessian's nonzero values (only used by <code>sqpopt_hessian_exact</code>); <code>data</code> (optional) is passed through to every callback</td></tr>
 </tbody>
 </table></div>
+
+<h3 id="max-step">Step limits <span class="h-note"><code>problem%set_max_step</code></span></h3>
+
+<p>When the variables have different units or sensitivities (a velocity change in km/s next to an epoch in days), you often know how far each can move before the problem's linearization stops being useful. <code>set_max_step</code> gives the solver that: a limit on the change of each variable in one major iteration.</p>
+
+<pre><code class="language-fortran">call problem%set_bounds(x_lb, x_ub, c_lb, c_ub)
+call problem%set_max_step([0.1_wp, 0.1_wp, sqpopt_infinity, 5.0_wp])   ! (no limit on the third variable)</code></pre>
+
+<p>The limits are bounds on the steps the solver computes: the QP subproblem is solved with \( |p_j| \le \) <code>max_step(j)</code> next to the variables' own bounds, so its step is the best one within the limits, not a longer one cut short. The second-order correction, the restoration steps, and the trust region respect them too. They are in addition to the solver's own cap on the length of the whole step (<code>qp_solver%max_step</code>, which treats the variables alike and adapts as the solve goes). The printed header reports how many variables are limited.</p>
+
+<p>Limits usually cost iterations (the Rosenbrock function on the unit disk of the <a href="performance.html#example">Performance page</a> takes 39 steps with limits of 0.2 and 0.05, instead of 12), so set them where they prevent steps into regions where the functions can't be evaluated or the model is meaningless, not everywhere. With the Python bindings: <code>minimize(..., max_step=...)</code>.</p>
 
 <!-- ============================================================ -->
 <h2 id="solver-options">Solver options <code class="h-type">sqpopt_options_type</code></h2>

@@ -176,6 +176,23 @@ class TestMinimize(unittest.TestCase):
         self.assertFalse(r.success)
         self.assertEqual(r.nit, 3)
 
+    def test_max_step(self):
+        # the largest change of each variable per iteration: no iterate may move further
+        for limit in (0.1, [0.2, 0.05], [np.inf, 0.05]):
+            with self.subTest(max_step=limit):
+                xs = [np.array([-1.2, 1.0])]
+                r = minimize(rosen, [-1.2, 1], jac=rosen_g, callback=lambda x: xs.append(np.array(x)),
+                             max_step=limit, options={'maxiter': 1000})
+                self.assertTrue(r.success, r.message)
+                np.testing.assert_allclose(r.x, [1.0, 1.0], atol=1e-5)
+                steps = np.abs(np.diff(np.array(xs), axis=0)).max(axis=0)
+                self.assertTrue(np.all(steps <= np.broadcast_to(limit, (2,)) * (1 + 1e-12)), steps)
+        r = minimize(rosen, [-1.2, 1], jac=rosen_g, max_step=[0.1, 0.0])
+        self.assertFalse(r.success)                            # (a limit must be positive)
+        self.assertIn('set_max_step', r.message)
+        with self.assertRaises(ValueError):
+            minimize(rosen, [-1.2, 1], jac=rosen_g, max_step=[0.1, 0.1, 0.1])
+
     def test_options(self):
         r = minimize(rosen, [-1.2, 1], jac=rosen_g, options={'maxiter': 3})
         self.assertFalse(r.success)

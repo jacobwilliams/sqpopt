@@ -88,6 +88,9 @@
 
         real(wp), dimension(:), allocatable :: x_lb  !! lower bounds on the optimization variables `dimension(n)`
         real(wp), dimension(:), allocatable :: x_ub  !! upper bounds on the optimization variables `dimension(n)`
+        real(wp), dimension(:), allocatable :: x_max_step !! the largest change of each variable in one major
+                                                     !! iteration `dimension(n)` (unallocated: no limits; see
+                                                     !! [[set_max_step]])
 
         real(wp), dimension(:), allocatable :: c_lb  !! lower bounds on the constraints `dimension(m)`
         real(wp), dimension(:), allocatable :: c_ub  !! upper bounds on the constraints `dimension(m)`
@@ -131,6 +134,8 @@
 
         procedure, public :: set_problem_size      !! set the problem dimensions and allocate the bound arrays
         procedure, public :: set_bounds            !! set the variable and constraint bounds
+        procedure, public :: set_max_step          !! set the largest change of each variable in one major iteration
+        procedure, public :: step_bounds           !! the bounds on the variables for a step from a point
         procedure, public :: set_jacobian_sparsity !! set the (fixed) sparsity pattern of the constraint Jacobian
         procedure, public :: set_hessian_sparsity  !! set the (fixed) sparsity pattern of the Lagrangian Hessian
         procedure, public :: set_functions         !! attach the user-supplied evaluation procedures (and user data)
@@ -217,6 +222,7 @@
     if (allocated(me%x_ub)) deallocate(me%x_ub)
     if (allocated(me%c_lb)) deallocate(me%c_lb)
     if (allocated(me%c_ub)) deallocate(me%c_ub)
+    if (allocated(me%x_max_step)) deallocate(me%x_max_step)
     allocate(me%x_lb(n), me%x_ub(n))
     allocate(me%c_lb(me%m), me%c_ub(me%m))
 
@@ -243,6 +249,56 @@
     me%c_ub = c_ub
 
     end subroutine set_bounds
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  set the largest change of each variable in one major iteration:
+!  \( |x_{k+1} - x_k|_j \le \) `max_step(j)`. The limits are enforced as
+!  bounds on every step the solver computes (the QP subproblem's, the
+!  second-order correction, and the restoration steps), so a step is the
+!  best one within them, not a longer one cut short. A value
+!  `>= sqpopt_infinity` means no limit for that variable. Without this call
+!  (or after another `set_problem_size`) there are no limits.
+!
+!  Use it for variables with different units or sensitivities, when you
+!  know how far each can move before the problem's linearization stops
+!  being useful (the solver's own cap on the length of the step,
+!  `qp_solver%max_step`, treats all variables alike).
+
+    subroutine set_max_step(me, max_step)
+
+    class(sqpopt_problem_type), intent(inout) :: me
+    real(wp), dimension(:), intent(in) :: max_step !! the largest change of each variable `dimension(n)` (each
+                                                   !! `> 0`)
+
+    me%x_max_step = max_step
+
+    end subroutine set_max_step
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the bounds on the variables for a step from the point `x`: the
+!  variables' bounds, tightened to `x - max_step` and `x + max_step` if
+!  step limits were set (see [[set_max_step]]). `x` must be within the
+!  bounds, so that `lb <= x <= ub`.
+
+    pure subroutine step_bounds(me, x, lb, ub)
+
+    class(sqpopt_problem_type), intent(in)  :: me
+    real(wp), dimension(:),     intent(in)  :: x  !! the point the step starts from `dimension(n)`
+    real(wp), dimension(:),     intent(out) :: lb !! lower bounds for the new point `dimension(n)`
+    real(wp), dimension(:),     intent(out) :: ub !! upper bounds for the new point `dimension(n)`
+
+    lb = me%x_lb
+    ub = me%x_ub
+    if (allocated(me%x_max_step)) then
+        lb = max(lb, x - me%x_max_step)
+        ub = min(ub, x + me%x_max_step)
+    end if
+
+    end subroutine step_bounds
 !*******************************************************************************
 
 !*******************************************************************************
@@ -293,6 +349,15 @@
     end if
     if (any(me%c_lb > me%c_ub)) then
         msg = 'a constraint lower bound exceeds its upper bound'; return
+    end if
+    if (allocated(me%x_max_step)) then
+        if (size(me%x_max_step) /= me%n) then
+            msg = 'the step limits (set_max_step) must have size n'; return
+        end if
+        me%x_max_step = min(me%x_max_step, sqpopt_infinity)
+        if (.not. all(me%x_max_step > 0.0_wp)) then
+            msg = 'a step limit (set_max_step) is not > 0'; return
+        end if
     end if
     if (any(me%x_lb >= sqpopt_infinity) .or. any(me%x_ub <= -sqpopt_infinity) .or. &
         any(me%c_lb >= sqpopt_infinity) .or. any(me%c_ub <= -sqpopt_infinity)) then

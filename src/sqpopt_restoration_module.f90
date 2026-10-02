@@ -136,7 +136,7 @@
     integer,  parameter :: lsqr_itnlim_stop = 5  !! `LSQR`'s `istop` for "iteration limit reached"
 
     real(wp), dimension(size(c)) :: rc, c_trial
-    real(wp), dimension(size(x)) :: p, x_trial
+    real(wp), dimension(size(x)) :: p, x_trial, lb, ub
     real(wp) :: h0, h_trial, dh0
     type(lsqr_solver_ez) :: lsqr
     integer :: istop, it
@@ -171,7 +171,8 @@
             end if
         end if
     end if
-    p = min(max(x+p, problem%x_lb), problem%x_ub) - x
+    call problem%step_bounds(x, lb, ub)
+    p = min(max(x+p, lb), ub) - x
     if (norm2(p) > max_step) p = p*(max_step/norm2(p))
 
     ! directional derivative of 0.5*|r_c|^2 along p: r_c^T J p
@@ -257,7 +258,7 @@
     real(wp), parameter :: col_tol = sqrt(epsilon(1.0_wp)) !! a column is also negligible below this (relative)
 
     real(wp), dimension(size(c)) :: rc, c_trial
-    real(wp), dimension(size(x)) :: colmax, x_trial
+    real(wp), dimension(size(x)) :: colmax, x_trial, lb, ub
     real(wp) :: h0, h_trial, jmax, xj
     integer :: j, k, i, s, n_probe
 
@@ -275,6 +276,7 @@
     end do
     jmax = maxval(colmax)
 
+    call problem%step_bounds(x, lb, ub)
     n_probe = 0
     do j = 1, size(x)
         if (colmax(j) > max(tol, col_tol*jmax)) cycle
@@ -282,7 +284,7 @@
         if (n_probe > max_probe) exit
         do i = 1, size(steps)
             do s = 1, -1, -2
-                xj = min(max(x(j) + s*steps(i)*max(1.0_wp, abs(x(j))), problem%x_lb(j)), problem%x_ub(j))
+                xj = min(max(x(j) + s*steps(i)*max(1.0_wp, abs(x(j))), lb(j)), ub(j))
                 if (xj == x(j)) cycle
                 x_trial    = x
                 x_trial(j) = xj
@@ -357,7 +359,7 @@
     real(wp), parameter :: eta       = 1.0e-4_wp !! Armijo constant
     real(wp), parameter :: alpha_min = 1.0e-8_wp !! smallest step length tried
 
-    real(wp), dimension(size(x)) :: g_r, p, x_trial
+    real(wp), dimension(size(x)) :: g_r, p, x_trial, lb, ub
     real(wp), dimension(size(c)) :: lambda_r, jp, c_trial
     real(wp) :: theta0, theta_t, pred
     integer :: qp_istat
@@ -369,7 +371,8 @@
 
     theta0 = l1_violation(c, problem%c_lb, problem%c_ub)
     g_r = zeta*(x - me%x_ref)
-    call me%qp%solve(me%hess, jac, x, g_r, c, problem%x_lb, problem%x_ub, problem%c_lb, problem%c_ub, &
+    call problem%step_bounds(x, lb, ub)
+    call me%qp%solve(me%hess, jac, x, g_r, c, lb, ub, problem%c_lb, problem%c_ub, &
                      p, lambda_r, qp_istat)
     if (qp_istat /= sqpopt_success .and. qp_istat /= sqpopt_infeasible .and. qp_istat /= sqpopt_qp_solve_failed) return
 

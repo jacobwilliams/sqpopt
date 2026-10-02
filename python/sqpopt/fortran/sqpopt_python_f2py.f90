@@ -38,7 +38,7 @@
 
     subroutine sqpopt_py_solve(fc, gjac, hess, report, use_hess, use_report, n, m, nnz, nnzh, nopt, &
                                x0, x_lb, x_ub, c_lb, c_ub, jac_irow, jac_icol, hess_irow, hess_icol, &
-                               opt_id, opt_val, lambda0, use_lambda0, output_file, &
+                               opt_id, opt_val, lambda0, use_lambda0, max_step, use_max_step, output_file, &
                                x, lambda, z, c, iinfo, rinfo, message)
 
     use, intrinsic :: iso_fortran_env, only: real64, int32
@@ -73,6 +73,9 @@
     real(real64),   dimension(m),    intent(in)  :: lambda0     !! starting constraint multipliers (only used if
                                                                 !! `use_lambda0 /= 0`)
     integer(int32),                  intent(in)  :: use_lambda0 !! whether to start from `lambda0`
+    real(real64),   dimension(n),    intent(in)  :: max_step    !! the largest change of each variable in one major
+                                                                !! iteration (only used if `use_max_step /= 0`)
+    integer(int32),                  intent(in)  :: use_max_step !! whether to limit the steps by `max_step`
     character(len=*),                intent(in)  :: output_file !! file for the printed output (replaced; blank:
                                                                 !! `options%output_unit`)
     real(real64),   dimension(n),    intent(out) :: x           !! solution
@@ -89,7 +92,8 @@
     c = 0.0_real64
     call sqpopt_python_solve(fc, gjac, hess, report, use_hess, use_report, x0, x_lb, x_ub, c_lb, c_ub, &
                              jac_irow, jac_icol, hess_irow, hess_icol, opt_id, opt_val, &
-                             lambda0, use_lambda0, output_file, x, lambda, z, c, iinfo, rinfo, message)
+                             lambda0, use_lambda0, max_step, use_max_step, output_file, &
+                             x, lambda, z, c, iinfo, rinfo, message)
 
     end subroutine sqpopt_py_solve
 !*******************************************************************************

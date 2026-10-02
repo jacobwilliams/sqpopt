@@ -804,8 +804,11 @@
         !! the multipliers `new_lambda` (see [[solve_qp_subproblem]]). Its
         !! direct method, if in use, may raise the exact Hessian's shift.
         real(wp) :: shift0
+        real(wp), dimension(size(x)) :: lb, ub
         shift0 = hessian%shift
-        call qp_solver%solve(hessian, jac, x, g, c, problem%x_lb, problem%x_ub, &
+        ! (the variables' bounds, and the limits on their steps if any: see `set_max_step`)
+        call problem%step_bounds(x, lb, ub)
+        call qp_solver%solve(hessian, jac, x, g, c, lb, ub, &
                               problem%c_lb, problem%c_ub, p, new_lambda, qp_istat, kkt=kkt, inertia=inertia)
         if (hessian%shift > shift0) then
             info%hess_reset = .true.
@@ -931,7 +934,9 @@
         real(wp), dimension(:), intent(in)  :: c_trial !! constraint values at `x+p_trial`
         real(wp), dimension(:), intent(out) :: p_soc   !! the corrected step
         logical,                intent(out) :: ok      !! true if `p_soc` is usable
-        call soc_step(jac, x, p_trial, c, c_trial, problem%c_lb, problem%c_ub, problem%x_lb, problem%x_ub, p_soc, ok, &
+        real(wp), dimension(size(x)) :: lb, ub
+        call problem%step_bounds(x, lb, ub)
+        call soc_step(jac, x, p_trial, c, c_trial, problem%c_lb, problem%c_ub, lb, ub, p_soc, ok, &
                       least_squares=least_squares)
         end subroutine soc
 
@@ -1022,6 +1027,7 @@
         real(wp), parameter :: growth       = 1.5_wp !! the multiplier growth that indicates divergence
         integer,  parameter :: max_resolves = 3      !! maximum elastic re-solves per solve
         real(wp) :: lim, rownorm(problem%m), wmax
+        real(wp), dimension(problem%n) :: lb_step, ub_step
         integer  :: sgn(problem%m), k, i
         if (options%elastic_multiplier_limit <= 0.0_wp .or. problem%m == 0 .or. &
             qp_solver%n_elastic >= max_resolves) return
@@ -1046,7 +1052,8 @@
                     plural(count(sgn /= 0), 'constraint', 'constraints')//' with a diverging multiplier, weight '// &
                     fmt_e(lim/wmax))
         ! (the weight caps each elastic row's push at about the limit)
-        call qp_solver%solve(hessian, jac, x, g, c, problem%x_lb, problem%x_ub, &
+        call problem%step_bounds(x, lb_step, ub_step)
+        call qp_solver%solve(hessian, jac, x, g, c, lb_step, ub_step, &
                               problem%c_lb, problem%c_ub, p, new_lambda, qp_istat, &
                               elastic_sign=sgn, elastic_weight=lim/wmax)
         call note_qp()

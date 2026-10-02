@@ -60,6 +60,9 @@ an `OptimizeResult`.
   sets `ktol`.
 * **Callback.** `callback(intermediate_result)` or `callback(x)`, once per
   major iteration. Return `True` or raise `StopIteration` to stop.
+* **Step limits** (not in scipy). `max_step` gives the largest change of each
+  variable in one major iteration: one value for every variable, or an array
+  (`inf` for no limit). See the guide's "Step limits".
 * **Warm start** (not in scipy). `lambda0` gives the starting constraint
   multipliers, either one array per constraint object or one array of all the
   rows. For example, `minimize(..., x0=res.x, lambda0=res.v)` restarts from a

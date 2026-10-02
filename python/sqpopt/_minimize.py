@@ -390,7 +390,7 @@ class _Solve:
             raise ValueError(f'lambda0 must have one multiplier per constraint row ({self.m})')
         return flat
 
-    def run(self, options: dict[str, Any], lambda0=None, output_file=None) -> OptimizeResult:
+    def run(self, options: dict[str, Any], lambda0=None, output_file=None, max_step=None) -> OptimizeResult:
         ext = _native()
         n, m = self.n, self.m
         offsets = np.cumsum([0] + [c.k for c in self.cons])
@@ -404,6 +404,11 @@ class _Solve:
         c_lb = np.concatenate([c.lb for c in self.cons]) if self.cons else np.zeros(0)
         c_ub = np.concatenate([c.ub for c in self.cons]) if self.cons else np.zeros(0)
         lam0 = np.zeros(m) if lambda0 is None else self.multipliers(lambda0)
+        if max_step is None:
+            step = np.zeros(n)
+        else:
+            step = np.broadcast_to(np.asarray(max_step, dtype=float), (n,)).copy()   # (a scalar is for every variable)
+            step[~np.isfinite(step) & (step > 0)] = INFINITY
 
         def pad(a, dtype=float):
             # (a contiguous array with at least one element: see `fortran/_sqpopt.pyf`)
@@ -418,6 +423,7 @@ class _Solve:
             pad(irow + 1, np.int32), pad(icol + 1, np.int32),
             pad(self.hess_rows + 1, np.int32), pad(self.hess_cols + 1, np.int32),
             pad(opt_id, np.int32), pad(opt_val), pad(lam0), int(lambda0 is not None),
+            pad(step), int(max_step is not None),
             '' if output_file is None else str(output_file), x, lam, z, c)
         x, lam, c = x[:n], lam[:m], c[:m]
         if isinstance(message, bytes):
@@ -438,7 +444,7 @@ class _Solve:
 
 def minimize(fun: Callable, x0, args=(), jac=None, hess=None, bounds=None, constraints: Sequence | Any = (),
              tol: float | None = None, callback: Callable | None = None,
-             options: dict | None = None, lambda0=None, output_file=None) -> OptimizeResult:
+             options: dict | None = None, lambda0=None, output_file=None, max_step=None) -> OptimizeResult:
     """Minimize a function of several variables subject to bounds and constraints, with SQPOPT.
 
     The interface follows ``scipy.optimize.minimize``:
@@ -477,6 +483,10 @@ def minimize(fun: Callable, x0, args=(), jac=None, hess=None, bounds=None, const
         Starting constraint multipliers (not in scipy): one array per constraint object (e.g. the ``v`` of a
         previous result, to warm-start from it with its ``x``), or one array with a multiplier per
         constraint row. By default they start at zero.
+    max_step : float or array, optional
+        The largest change of each variable in one major iteration (not in scipy): one value for every
+        variable, or an array of ``n`` values (``inf``: no limit for that variable). The limits are bounds
+        on the steps the solver computes. Use them for variables with different units or sensitivities.
     output_file : str or path, optional
         Write the printed output (see ``print_level``/``disp``) to this file (replacing it), instead of the
         process's standard output, which e.g. a Jupyter notebook doesn't show (not in scipy).
@@ -503,4 +513,4 @@ def minimize(fun: Callable, x0, args=(), jac=None, hess=None, bounds=None, const
         opts.setdefault('options%ktol', _option_value(schema.OPTIONS['options%ktol'], tol))
     if hess is not None:
         opts.setdefault('options%hessian_mode', _choice('options%hessian_mode', 'sqpopt_hessian_exact'))
-    return solve.run(opts, lambda0=lambda0, output_file=output_file)
+    return solve.run(opts, lambda0=lambda0, output_file=output_file, max_step=max_step)

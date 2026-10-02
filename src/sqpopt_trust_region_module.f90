@@ -165,8 +165,10 @@
 
     do retry = 1, me%max_retries
 
-        x_lb2 = max(problem%x_lb, x - me%radius)
-        x_ub2 = min(problem%x_ub, x + me%radius)
+        ! (the box, within the variables' bounds and their step limits, if any)
+        call problem%step_bounds(x, x_lb2, x_ub2)
+        x_lb2 = max(x_lb2, x - me%radius)
+        x_ub2 = min(x_ub2, x + me%radius)
         ! the trust region controls the step length, so the QP solver's own
         ! (line-search) cap on it, `max_step*step_scale`, must not bind inside
         ! the box (whose steps are at most `sqrt(n)*radius` long): otherwise

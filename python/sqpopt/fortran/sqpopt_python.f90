@@ -141,7 +141,7 @@
 
     subroutine sqpopt_python_solve(fc, gjac, hess, report, use_hess, use_report, x0, x_lb, x_ub, c_lb, c_ub, &
                      jac_irow, jac_icol, hess_irow, hess_icol, opt_id, opt_val, &
-                     lambda0, use_lambda0, output_file, &
+                     lambda0, use_lambda0, max_step, use_max_step, output_file, &
                      x, lambda, z, c, iinfo, rinfo, message)
 
     use sqpopt_module,           only: sqpopt_type
@@ -175,6 +175,10 @@
     real(real64),   dimension(:),   intent(in)    :: lambda0    !! starting constraint multipliers `dimension(m)`
                                                                 !! (only used if `use_lambda0 /= 0`)
     integer(int32),                 intent(in)    :: use_lambda0 !! whether to start from `lambda0`
+    real(real64),   dimension(:),   intent(in)    :: max_step   !! the largest change of each variable in one major
+                                                                !! iteration `dimension(n)` (only used if
+                                                                !! `use_max_step /= 0`)
+    integer(int32),                 intent(in)    :: use_max_step !! whether to limit the steps by `max_step`
     character(len=*),               intent(in)    :: output_file !! file for the printed output (replaced; blank:
                                                                  !! `options%output_unit`)
     real(real64),   dimension(:),   intent(inout) :: x          !! solution `dimension(n)`
@@ -243,6 +247,7 @@
 
     call problem%set_problem_size(n=n, m=m)
     call problem%set_bounds(x_lb, x_ub, c_lb, c_ub)
+    if (use_max_step /= 0) call problem%set_max_step(max_step)
     call problem%set_jacobian_sparsity(size(jac_irow), jac_irow, jac_icol)
     if (use_hess /= 0) then
         call problem%set_functions(fc=fc_bridge, gjac=gjac_bridge, hess=hess_bridge)

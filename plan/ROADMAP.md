@@ -1061,6 +1061,14 @@ which is now double precision only.
 
 ## 5. Features toward state of the art
 
+- **Ideas from Yukon, GMAT's SQP optimizer** *(not implemented; see
+  [YUKON_COMPARISON.md](YUKON_COMPARISON.md), 2026-10-02)*: a maximum step
+  for each variable, as bounds on the QP's step *(done 2026-10-02:
+  `problem%set_max_step`)*; finite-difference
+  derivatives in the library, so that `fc` alone is enough; keeping the
+  quasi-Newton pairs of the watchdog's best point; and a
+  reverse-communication interface, for hosts that can't be called back.
+
 - **F1: a real QP as the default, and a real large-scale QP.** *(Done
   2026-09-26; see "Phase 4 status".)* The
   composite step was removed (2026-09-26; it couldn't survive the B2

@@ -448,6 +448,12 @@
         else
             write(u, '(A)', iostat=ios) '   scaling:    off'
         end if
+        if (allocated(me%problem%x_max_step)) then
+            write(u, '(A)', iostat=ios) '   max step:   '// &
+                fmt_i(count(me%problem%x_max_step < sqpopt_infinity))//' of '// &
+                plural(me%problem%n, 'variable', 'variables')//' limited (set_max_step), smallest limit '// &
+                fmt_e(minval(me%problem%x_max_step))
+        end if
         write(u, '(A)', iostat=ios) '   tolerances: ktol '//fmt_e(me%options%ktol)//', ctol '//fmt_e(me%options%ctol)// &
                        ', dual_inf_tol '//fmt_e(me%options%dual_inf_tol)//', max_iter '//fmt_i(me%options%max_iter)
         if (me%options%print_level >= sqpopt_log_detail .and. me%problem%m > 0) call print_scale_factors()
