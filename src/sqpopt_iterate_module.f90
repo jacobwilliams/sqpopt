@@ -29,7 +29,7 @@
     use sqpopt_types_module,      only: sqpopt_sparse_matrix, sqpopt_success, sqpopt_user_requested_stop, sqpopt_report_func, &
                                          sqpopt_infeasible, sqpopt_function_error, sqpopt_all_finite, sqpopt_unbounded, &
                                          sqpopt_acceptable, sqpopt_infinity, sqpopt_stalled, sqpopt_qp_solve_failed, &
-                                         sqpopt_out_of_memory
+                                         sqpopt_out_of_memory, sqpopt_iter_info
     use sqpopt_problem_module,    only: sqpopt_problem_type, sqpopt_derivatives_fast, sqpopt_derivatives_accurate
     use sqpopt_options_module,    only: sqpopt_options_type
     use sqpopt_hessian_module,    only: sqpopt_hessian_type, sqpopt_hessian_sr1, sqpopt_hessian_exact
@@ -47,42 +47,13 @@
     use sqpopt_kkt_module,          only: sqpopt_kkt_type
     use sqpopt_least_squares_module, only: sqpopt_least_squares_type, multiplier_estimate
     use sqpopt_qp_direct_module,    only: direct_outcome_text
+    use sqpopt_diagnostics_module,  only: sqpopt_diagnostics_type
 
     implicit none
 
     private
 
     public :: sqpopt_iterate, sqpopt_evaluate_point
-
-    type, public :: sqpopt_iter_info
-        !! information about one major iteration, for the iteration log
-        real(wp) :: f         = 0.0_wp  !! objective at the start of the iteration (of the scaled problem)
-        real(wp) :: kkt       = 0.0_wp  !! KKT error there (see [[check_convergence]])
-        real(wp) :: feas      = 0.0_wp  !! feasibility error there
-        real(wp) :: alpha     = 0.0_wp  !! step length taken
-        real(wp) :: step_norm = 0.0_wp  !! \( \lVert x_{k+1}-x_k \rVert_2 \)
-        real(wp) :: penalty   = 0.0_wp  !! merit function penalty parameter
-        integer  :: qp_istat  = 0       !! status of the QP solve
-        integer  :: qp_iter   = 0       !! active-set iterations of the QP solve
-        logical  :: restoration = .false. !! whether a feasibility-restoration step was taken (a single step, or
-                                          !! an iteration of a restoration phase: see `phase`)
-        logical  :: phase     = .false. !! whether the step was an iteration of a restoration phase
-        logical  :: stepped   = .false. !! whether the iteration got as far as computing a step
-        logical  :: soc       = .false. !! whether the accepted step was second-order corrected
-        logical  :: hess_reset = .false. !! whether the Hessian approximation was reset (or its shift increased)
-        logical  :: elastic   = .false. !! whether the QP was re-solved with diverging-multiplier constraints elastic
-        logical  :: escape    = .false. !! whether an escape step (from a stationary point of the violation) was taken
-        logical  :: nonmonotone = .false. !! whether the step came from the line search's non-monotone retry
-        logical  :: relaxed   = .false. !! whether the step was a watchdog relaxed step
-        real(wp) :: stat_unscaled = 0.0_wp !! stationarity error of the *unscaled* problem at the start of the iteration
-        real(wp) :: lam_max   = 0.0_wp  !! largest multiplier magnitude of the unscaled problem, after the step
-        real(wp) :: glob      = 0.0_wp  !! the globalization's state after the step: the merit penalty, the number
-                                        !! of filter entries, the funnel width, or the trust-region radius
-        real(wp) :: hess_measure = 0.0_wp !! the number of stored quasi-Newton pairs, or the exact Hessian's shift
-        integer  :: n_fc      = 0       !! calls of `fc` during the iteration (set by the caller)
-        logical  :: derivatives = .false. !! whether the solver switched from fast to accurate derivatives (see
-                                          !! `options%derivative_accuracy`)
-    end type sqpopt_iter_info
 
     contains
 !*******************************************************************************
@@ -122,7 +93,7 @@
 
     subroutine sqpopt_iterate(problem, options, hessian, qp_solver, linesearch, trust_region, &
                                x, lambda, x_prev, gl_prev, f_prev, viol_prev, jac, n_acceptable, n_stalled, n_escape, &
-                               restoration, inertia, kkt, least_squares, iter, report, done, &
+                               restoration, inertia, kkt, least_squares, diagnostics, iter, report, done, &
                                istat, info)
 
     type(sqpopt_problem_type),    intent(inout)   :: problem      !! problem definition
@@ -158,6 +129,9 @@
                                                         !! restoration steps and second-order corrections (used
                                                         !! if `least_squares%enabled`, see
                                                         !! [[sqpopt_least_squares_module]])
+    type(sqpopt_diagnostics_type), intent(inout) :: diagnostics !! the diagnostics of the solve, which note each
+                                                        !! iterate (see `options%diagnostic_level` and
+                                                        !! [[sqpopt_diagnostics_module]])
     integer,                intent(in)    :: iter      !! major iteration number (starts at 1), passed to `report`
     procedure(sqpopt_report_func), optional, pointer :: report !! optional user progress-reporting callback (see [[sqpopt_types_module]])
     logical,                 intent(out)   :: done      !! true if the solver should stop at `x` (see `istat` for why)
@@ -223,6 +197,10 @@
         done  = .true.
         return
     end if
+
+    ! (the diagnostics check the functions' changes since the previous
+    ! iterate against their derivatives)
+    call diagnostics%point(x, f, g, c, jac)
 
     ! with the exact Hessian: if the last step's shift dominated it, the QP's
     ! multipliers are mostly an artifact of the shift, and the Hessian that
@@ -296,6 +274,7 @@
             done  = .true.
             return
         end if
+        call diagnostics%point(x, f, g, c, jac)   ! (the derivatives it keeps are now the accurate ones)
         done      = .false.
         n_stalled = n_stalled0
     end do

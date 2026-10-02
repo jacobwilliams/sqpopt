@@ -52,6 +52,7 @@
     <a href="#example">Worked example</a>
     <a href="#results">Results</a>
     <a href="#status-codes">Status codes</a>
+    <a href="#diagnostics">Diagnostics</a>
     <a href="#scaling">Scaling</a>
     <a href="#python">Python</a>
     <p class="toc-group"><svg class="toc-icon" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="15" cy="6" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="17" cy="18" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>Configuration</p>
@@ -371,6 +372,7 @@ end program hs71</code></pre>
 <tr><td><code>n_soc</code>, <code>n_hessian_resets</code>, <code>n_restoration_steps</code>, <code>n_restoration_phases</code>, <code>n_elastic</code>, <code>n_escape</code></td><td>counts of the solve's events: accepted second-order corrections, Hessian resets (or shift increases), iterations with a restoration step, restoration phases entered, elastic QP re-solves, and escape steps</td></tr>
 <tr><td><code>feasibility_error</code></td><td>largest violation of a constraint or variable bound</td></tr>
 <tr><td><code>derivative_switch_iteration</code></td><td>the iteration at which the solver switched from fast to accurate derivatives (<code>0</code> if it didn't; see <a href="#fast-derivatives">Fast derivatives</a>)</td></tr>
+<tr><td><code>diagnosis</code></td><td>the diagnostics of the solve, if <code>diagnostic_level &ge; 1</code> (see <a href="#diagnostics">Diagnostics</a>)</td></tr>
 </tbody>
 </table></div>
 
@@ -403,6 +405,79 @@ end program hs71</code></pre>
 </tbody>
 </table></div>
 <p class="legend"><span><span class="dot ok"></span>solution found</span> <span><span class="dot warn"></span>stopped by a limit or by you</span> <span><span class="dot bad"></span>failure</span></p>
+
+<!-- ============================================================ -->
+<h2 id="diagnostics">Diagnostics</h2>
+
+<p>The iteration log (<code>print_level</code>) says what happened at each iteration. The diagnostics say which constraints and variables are responsible, and what the final status most likely means. They are off by default, and turned on by <code>options%diagnostic_level</code>:</p>
+
+<div class="table-wrap"><table>
+<thead><tr><th>level</th><th>what it adds</th><th>cost</th></tr></thead>
+<tbody>
+<tr><td><code>0</code></td><td>nothing (the default)</td><td>none</td></tr>
+<tr><td><code>1</code></td><td>a diagnosis of the final point: a verdict for the final status; the constraints with the largest violations and multipliers; the variables with the largest stationarity residuals; the active set and its degeneracy (multipliers that are zero or have the wrong sign, active gradients that are linearly dependent); and the last QP subproblem, with the constraints it had to relax</td><td>one sparse factorization of the active constraints' gradients at the end; nothing per iteration</td></tr>
+<tr><td><code>2</code></td><td>a report on the starting point: the sizes of the gradients (how the problem is scaled), constraints that are constant, depend on one variable, or are linearly dependent equalities. And what the iterations showed: the rate of convergence and the iterations still needed, shortened steps, a working set that flips between two states, derivatives that disagree with the functions' changes, and the iteration that took the most time. Optionally, the history of the iterations in a file</td><td>work of the order of \( n + m \) and the Jacobian's nonzeros per iteration</td></tr>
+<tr><td><code>3</code></td><td>the diagnostics that evaluate your functions: <code>f</code> and <code>c</code> at two points next to the starting point, to see whether it is at the edge of their domain</td><td>two more calls of <code>fc</code></td></tr>
+</tbody>
+</table></div>
+
+<p>Two things are guaranteed, and tested. Levels <code>0</code> to <code>2</code> call <code>fc</code>, <code>gjac</code>, and <code>hess</code> exactly as often as a solve without diagnostics. And no level changes the iterates or the solution.</p>
+
+<p><strong>Where they go.</strong> The diagnostics are returned in <code>results%diagnosis</code> (see below). They are printed to <code>output_unit</code> only if <code>print_level &ge; 1</code>: the report on the starting point after the header, and the diagnosis after the summary. With <code>print_level = 0</code> nothing is printed at any diagnostic level. This is the diagnosis of a solve that was stopped by <code>max_iter</code>:</p>
+
+<pre><code> sqpopt diagnosis (diagnostic_level = 2):
+   the limit was reached while the solver was still converging: raise it
+   largest violations: c(1) by 2.728E-03 (value 1.003E+00, bounds [-inf, 1.000E+00])
+   largest stationarity residuals: x(2) 2.006E-01; x(1) 1.062E-01
+   largest multipliers: c(1) -9.574E-04
+   active set: 0 of 1 constraint and 0 of 2 variable bounds active, 2 free variables
+   last QP: dense QP (auto), 2 iterations, working set 1 (of 2 variables)
+   convergence: the error is 2.274E+05 times its tolerance, and changed by a factor 3.503E-01 per iteration
+     over the last 9: about 12 more iterations at this rate</code></pre>
+
+<p>And the report on the starting point of a problem with two proportional equality constraints and a variable of a very different size:</p>
+
+<pre><code>   diagnostics of the starting point:
+     objective gradient: largest element 2.000E+00
+     constraint gradients: largest element from 1.000E-07 (c(3)) to 2.000E+00 (c(2)), a ratio of 2.000E+07
+       the constraints differ widely in scale: the automatic scaling only scales down those above
+         scaling_max_gradient, so consider scaling the small ones up
+     variables: largest gradient or Jacobian element from 2.000E-07 (x(3)) to 2.000E+00 (x(1)), a ratio of
+       1.000E+07
+       the variables differ widely in scale: only the objective and the constraints are scaled automatically,
+         so consider rescaling the variables
+     structure: 1 constraint depends on a single variable (if linear, a bound on the variable is cheaper):
+       c(3)
+     equalities: the gradient of c(2) is linearly dependent on those of the other equality constraints at the
+       starting point (a redundant or inconsistent constraint)</code></pre>
+
+<p><strong>The derivative check</strong> of level <code>2</code> needs no evaluations. Between two consecutive iterates \( x \) and \( x^+ = x + s \), the change of a function is \( \tfrac12 (\nabla c(x) + \nabla c(x^+))^T s \) up to a term of the third order in \( s \), and the solver has the values and the derivatives at both points. A constraint (or the objective) whose changes differ from that by more than 20% in most of the steps has derivatives that don't match its values, or isn't smooth along the way. Only steps that change no variable by more than 10% of its size are used. On the 305 Hock&ndash;Schittkowski problems, whose derivatives are right, it suspects three: two whose objective is a root that isn't differentiable at the solution, and one whose derivatives are finite differences.</p>
+
+<p><strong>The history file.</strong> With <code>diagnostic_level &ge; 2</code> and <code>options%diagnostics_unit</code> set to a unit that is open for formatted writing, one line per major iteration is written to it, as comma-separated values under a header line: <code>iteration</code>, <code>objective</code>, <code>infeasibility</code>, <code>kkt_error</code>, <code>stationarity</code>, <code>alpha</code>, <code>step_norm</code>, <code>fc</code> (calls so far), <code>fc_iteration</code>, <code>qp_iterations</code>, <code>qp_status</code>, <code>largest_multiplier</code>, <code>globalization</code> and <code>hessian</code> (the last two columns of the log at <code>print_level = 2</code>), <code>working_set_changes</code>, <code>time</code>, <code>time_functions</code>, <code>time_qp</code>, <code>time_factorization</code> (seconds, of that iteration), and <code>flags</code>. A field that doesn't apply is empty (the last line is the final point, from which no step was taken). The file is data for plotting, not part of the log, so it is written whatever <code>print_level</code> is.</p>
+
+<p><strong>In the results.</strong> <code>results%diagnosis</code> is a <code>sqpopt_diagnosis_type</code>. Its <code>level</code> is the level it was computed at (<code>0</code>: nothing below is set). Values are for the original problem, and each list has at most five entries, the largest first.</p>
+
+<div class="table-wrap"><table>
+<thead><tr><th>field</th><th>level</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>report</code></td><td class="num">1</td><td>the diagnosis, as printed (its lines, each ended by a newline character)</td></tr>
+<tr><td><code>violated_constraints</code>, <code>violations</code></td><td class="num">1</td><td>the constraints with the largest violation of their bounds, and the violations</td></tr>
+<tr><td><code>stationarity_variables</code>, <code>stationarity_residuals</code></td><td class="num">1</td><td>the variables with the largest stationarity residual (the gradient of the Lagrangian, projected onto the bounds), and the residuals</td></tr>
+<tr><td><code>multiplier_constraints</code>, <code>multipliers</code></td><td class="num">1</td><td>the constraints with the largest multipliers, and the multipliers</td></tr>
+<tr><td><code>n_active_constraints</code>, <code>n_active_bounds</code></td><td class="num">1</td><td>constraints and variables at one of their bounds (including equalities and fixed variables)</td></tr>
+<tr><td><code>n_weakly_active</code>, <code>n_wrong_sign</code></td><td class="num">1</td><td>active inequality constraints and bounds whose multiplier is nearly zero, or has the wrong sign for the bound they are at</td></tr>
+<tr><td><code>n_dependent</code></td><td class="num">1</td><td>active constraints whose gradients are linearly dependent on those of the others, in the variables that are not at a bound (<code>-1</code>: not computed)</td></tr>
+<tr><td><code>elastic_constraints</code>, <code>elastic_slacks</code></td><td class="num">1</td><td>the constraints the last QP subproblem had to relax, and by how much its step violates each linearized constraint</td></tr>
+<tr><td><code>convergence_rate</code>, <code>iterations_needed</code></td><td class="num">2</td><td>the factor by which the error (the larger of the KKT error over <code>ktol</code> and the feasibility error over <code>ctol</code>) changed per iteration, fitted over the last iterations (at most 20; <code>0</code>: too few to tell), and the further iterations it would take to reach the tolerances at that rate (<code>-1</code>: unknown, or not converging)</td></tr>
+<tr><td><code>n_active_set_flips</code></td><td class="num">2</td><td>the consecutive iterations, up to the last, in which the QP's working set went back to what it was two iterations before</td></tr>
+<tr><td><code>derivative_suspects</code>, <code>objective_derivative_suspect</code></td><td class="num">2</td><td>the constraints whose changes along the steps disagreed with their Jacobian rows, and whether the objective's did with its gradient</td></tr>
+<tr><td><code>slowest_iteration</code>, <code>slowest_iteration_time</code></td><td class="num">2</td><td>the iteration that took the most time, and its time (seconds)</td></tr>
+<tr><td><code>problem_report</code></td><td class="num">2</td><td>the report on the starting point, as printed</td></tr>
+<tr><td><code>constraint_gradient_ratio</code>, <code>variable_gradient_ratio</code></td><td class="num">2</td><td>at the starting point: the largest over the smallest size of a constraint's gradient, and of a variable's column of the objective gradient and the Jacobian (above <code>1e6</code>, the report calls it poorly scaled)</td></tr>
+<tr><td><code>n_constant_constraints</code>, <code>n_single_variable_constraints</code>, <code>n_dependent_equalities</code></td><td class="num">2</td><td>constraints with no entry, and with one entry, in the Jacobian's pattern; and equality constraints whose gradients at the starting point are linearly dependent on those of the others (<code>-1</code>: not computed)</td></tr>
+<tr><td><code>probe_not_finite</code></td><td class="num">3</td><td>whether <code>f</code> or <code>c</code> is not finite at one of the two points probed next to the starting point</td></tr>
+</tbody>
+</table></div>
 
 <!-- ============================================================ -->
 <h2 id="scaling">Scaling</h2>
@@ -505,6 +580,7 @@ print(res.x, res.fun, res.message)</code></pre>
   <li><strong>Step limits:</strong> <code>max_step</code> gives the largest change of each variable in one major iteration, as one value or an array (see <a href="#max-step">Step limits</a>).</li>
   <li><strong>Warm start:</strong> <code>lambda0</code> gives the starting multipliers, so <code>minimize(..., x0=res.x, lambda0=res.v)</code> restarts from a previous result.</li>
   <li><strong>Printed output:</strong> <code>output_file</code> writes the solver's printed output to a file instead of the process's standard output, which a Jupyter notebook doesn't show.</li>
+  <li><strong>Diagnostics:</strong> with <code>options={'diagnostic_level': 1}</code> (or more), the result's <code>diagnostics</code> is a dict with the <a href="#diagnostics">diagnosis</a> (its indices are 0-based). <code>diagnostics_file</code> writes the history of the iterations to a file, from level 2.</li>
   <li><strong>Result:</strong> an <code>OptimizeResult</code>, which also has the multipliers, the KKT and feasibility errors, and the counts.</li>
 </ul>
 
@@ -669,6 +745,8 @@ call problem%set_max_step([0.1_wp, 0.1_wp, sqpopt_infinity, 5.0_wp])   ! (no lim
   <code>3</code>: also indented detail lines under each iteration: every QP solve (solver, iterations, working-set size, elastic slacks, status, negative curvature; for the direct method, its changes of the working set, or why it gave up), every line-search or trust-region trial (step length or radius, violation and objective or merit value, and why it was accepted or rejected), second-order corrections, restoration phases (start, iterations, end and why), elastic re-solves, escape steps, Hessian resets (and why), multipliers re-estimated by least squares, and the shifts of the inertia control (for which working set, the number of directions of negative curvature, and the factorizations it took); the smallest constraint scale factors; and the solution: the variables and constraints with their bounds, multipliers, and which are active (up to 100 of each).
 </td></tr>
 <tr><td><code>output_unit</code></td><td>standard output</td><td>Fortran unit the output is written to</td></tr>
+<tr><td><code>diagnostic_level</code></td><td><code>0</code></td><td>diagnostics of the solve, to help when it doesn't converge (see <a href="#diagnostics">Diagnostics</a>). <code>0</code>: none. <code>1</code>: a diagnosis of the final point. <code>2</code>: also a report on the starting point, and what the iterations showed. <code>3</code>: also the diagnostics that call the user's functions (two calls of <code>fc</code>). Levels <code>0</code> to <code>2</code> cost no function evaluations, and no level changes the iterates. They are returned in <code>results%diagnosis</code>, and printed if <code>print_level &ge; 1</code></td></tr>
+<tr><td><code>diagnostics_unit</code></td><td><code>-1</code></td><td>with <code>diagnostic_level &ge; 2</code>: a Fortran unit, open for formatted writing, for the history of the iterations as comma-separated values (<code>-1</code>: none). It is written whatever <code>print_level</code> is</td></tr>
 </tbody>
 </table></div>
 

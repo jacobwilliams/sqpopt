@@ -62,6 +62,9 @@ program test_hs_suite
     !!   the merit-function ratio test)
     !! * `--merit=l1|al` (`options%merit_mode`)
     !! * `--acceptable-obj-change=X` (`options%acceptable_obj_change_tol`)
+    !! * `--diagnostics=L` (`options%diagnostic_level`; from level 2, the
+    !!   problems on which the diagnostics suspect a derivative are listed
+    !!   and counted: with the problems' own derivatives there should be few)
     !! * `--penalty=multipliers|model` (`options%penalty_update`)
     !! * `--no-interpolate` (`linesearch%interpolate = .false.`)
     !! * `--nonmonotone=N` (`linesearch%nonmonotone_len = N`)
@@ -183,6 +186,8 @@ program test_hs_suite
     integer :: cfg_derivatives = 0  !! `--derivatives=`: `0` the problems' own, `1` central, `2` forward, `3` fast
     real(dp) :: cfg_switch_tol = -1.0_dp !! `--derivative-switch-tol=X` (`< 0`: the default)
     real(dp) :: cfg_obj_change = -1.0_dp !! `--acceptable-obj-change=X` (`< 0`: the default)
+    integer :: cfg_diagnostics = 0   !! `--diagnostics=L`
+    integer :: n_suspected           !! problems on which the diagnostics suspected a derivative
     logical :: cfg_default     = .true.   !! whether every setting is the default (then the regression test runs)
 
     call ieee_set_halting_mode(ieee_all, .false.)  ! (trial points may produce NaN/Inf, which the solver handles)
@@ -196,6 +201,7 @@ program test_hs_suite
 
     n_solved = 0; n_local = 0; n_failed = 0; n_fd = 0; n_regressions = 0; n_improved = 0
     sum_nf = 0; sum_ng = 0; sum_nlpqlp_nf = 0; sum_nlpqlp_ndf = 0; sum_nfd = 0; n_switched = 0
+    n_suspected = 0
     call system_clock(t0, rate)
 
     do k = 1, hs_n_problems
@@ -216,6 +222,7 @@ program test_hs_suite
         write(*,'(A,I0,A,I0,A)') 'finite differences (solved problems): ', sum_nfd, ' function evaluations (', &
             sum_nf + sum_nfd, ' in all)'
         if (cfg_derivatives == 3) write(*,'(A,I0)') 'switched to accurate derivatives: ', n_switched
+        if (cfg_diagnostics >= 2) write(*,'(A,I0)') 'diagnostics suspected a derivative on: ', n_suspected
     end if
     write(*,'(A,F0.2,A)') 'time: ', real(t1-t0, dp)/real(rate, dp), ' s'
 
@@ -319,6 +326,9 @@ program test_hs_suite
             else if (arg(1:24) == '--acceptable-obj-change=') then
                 read(arg(25:), *, iostat=ios) cfg_obj_change
                 if (ios /= 0 .or. cfg_obj_change < 0.0_dp) error stop 'test_hs_suite: bad --acceptable-obj-change value'
+            else if (arg(1:14) == '--diagnostics=') then
+                read(arg(15:), *, iostat=ios) cfg_diagnostics
+                if (ios /= 0) error stop 'test_hs_suite: bad --diagnostics value'
             else if (arg(1:8) == '--print=') then
                 read(arg(9:), *, iostat=ios) n
                 if (ios /= 0) error stop 'test_hs_suite: bad --print value'
@@ -397,6 +407,7 @@ program test_hs_suite
     if (cfg_derivatives == 3) options%derivative_accuracy = sqpopt_derivatives_fast
     if (cfg_switch_tol >= 0.0_dp) options%derivative_switch_tol = cfg_switch_tol
     if (cfg_obj_change >= 0.0_dp) options%acceptable_obj_change_tol = cfg_obj_change
+    options%diagnostic_level = cfg_diagnostics
     if (cfg_hessian == sqpopt_hessian_exact .and. (ctx%fd_g .or. ctx%fd_jac)) options%hessian_mode = sqpopt_hessian_bfgs
     options%inertia_control = cfg_inertia
     options%direct_qp       = cfg_direct
@@ -411,6 +422,14 @@ program test_hs_suite
                            trust_region=trust_region)
     call solver%solve(real(p%x0, wp), istat)
     call solver%get_results(r)
+    if (cfg_diagnostics >= 2) then
+        if (r%diagnosis%objective_derivative_suspect .or. size(r%diagnosis%derivative_suspects) > 0) then
+            n_suspected = n_suspected + 1
+            write(*,'(A,I0,A,L1,A,I0,A,*(1X,I0))') 'diagnostics: TP', id, ' objective ', &
+                r%diagnosis%objective_derivative_suspect, ', ', size(r%diagnosis%derivative_suspects), &
+                ' constraints:', r%diagnosis%derivative_suspects
+        end if
+    end if
 
     viol = max(r%feasibility_error, maxval(max(p%x_lb - r%x, 0.0_dp) + max(r%x - p%x_ub, 0.0_dp)))
     rel  = (r%f - p%f_star)/max(1.0_dp, abs(p%f_star))

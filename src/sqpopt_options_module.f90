@@ -35,6 +35,30 @@
                                                    !! factors, and the solution (variables and constraints, with
                                                    !! their bounds, multipliers, and which are active)
         integer  :: output_unit       = output_unit !! Fortran unit for the printed output (default: standard output)
+        integer  :: diagnostic_level  = 0        !! diagnostics of the solve, to help when it doesn't converge (see
+                                                   !! [[sqpopt_diagnostics_module]]): `0` = none (no cost); `1` = a
+                                                   !! diagnosis of the final point (the constraints and variables
+                                                   !! with the largest errors and multipliers, the active set and
+                                                   !! its degeneracy, the last QP, and what the final status most
+                                                   !! likely means); `2` = also a report on the starting point (the
+                                                   !! problem's scaling and structure), and what the iterations
+                                                   !! showed (the rate of convergence, constraints whose changes
+                                                   !! disagree with their derivatives, a working set that keeps
+                                                   !! flipping, where the time went), which costs work of the order
+                                                   !! of `n + m` and the Jacobian's nonzeros per iteration; `3` =
+                                                   !! also the diagnostics that call the user's functions (two
+                                                   !! calls of `fc` next to the starting point). Levels `0` to `2`
+                                                   !! call the user's functions exactly as often as level `0`, and
+                                                   !! no level changes the iterates. The diagnostics are returned
+                                                   !! in `results%diagnosis`, and printed to `output_unit` if
+                                                   !! `print_level >= 1` (with `print_level = 0`, nothing is
+                                                   !! printed at any diagnostic level)
+        integer  :: diagnostics_unit  = -1       !! with `diagnostic_level >= 2`: a Fortran unit (open for
+                                                   !! formatted writing) for the history of the iterations, one
+                                                   !! line per major iteration with comma-separated values and a
+                                                   !! header line (`-1`: none). It is data for plotting and
+                                                   !! post-processing, not part of the log, so it is written
+                                                   !! whatever `print_level` is
         integer  :: hessian_mode      = sqpopt_hessian_bfgs !! Hessian approximation strategy to use
         logical  :: inertia_control   = .false.   !! with `hessian_mode = sqpopt_hessian_exact` or
                                                    !! `sqpopt_hessian_sr1` (the Hessians that can be indefinite):

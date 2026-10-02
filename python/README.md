@@ -71,6 +71,17 @@ an `OptimizeResult`.
   set, the solver's log goes to the process's standard output, which a
   Jupyter notebook doesn't show. `output_file='log.txt'` writes it to that
   file instead, replacing any existing file.
+* **Diagnostics** (not in scipy). With `options={'diagnostic_level': 1}` (or
+  `2`, or `3`; see the user guide), the result's `diagnostics` is a dict with
+  the diagnosis of the solve: its `report` (the text the solver prints), the
+  constraints with the largest violations and multipliers, the variables with
+  the largest stationarity residuals, and what the active set looks like;
+  from level 2 also what the starting point and the iterations showed
+  (`convergence_rate`, `derivative_suspects`, ...). Indices are 0-based, and a
+  constraint's index is its row among all the constraints. Levels 1 and 2
+  call no function. `diagnostics_file='history.csv'` writes one line per
+  iteration to that file (from level 2), which
+  `numpy.genfromtxt(path, delimiter=',', names=True)` reads.
 * **Result.** The fields are:
   * `x`, `fun`, and `message`;
   * `success`: `status` is 0, 1, or 2;
@@ -86,6 +97,8 @@ an `OptimizeResult`.
     `n_qp_solves`, `n_direct_qp`, and `time_factorization` (the last four for
     the options that use sparse factorizations, see below;
     `time_factorization` is the part of `execution_time` spent in them).
+
+  * `diagnostics`: the diagnosis (a dict), or `None` without diagnostics.
 
   The multipliers are those of the Lagrangian `f - vᵀc - zᵀx`.
 * **Exceptions.** An exception raised by a user function stops the solver

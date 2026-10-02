@@ -32,8 +32,11 @@
 
     private
 
-    integer(int32), parameter, public :: sqpopt_python_n_iinfo = 17 !! size of `iinfo` (see [[sqpopt_python_solve]])
-    integer(int32), parameter, public :: sqpopt_python_n_rinfo = 8  !! size of `rinfo`
+    integer(int32), parameter, public :: sqpopt_python_n_iinfo = 31 !! size of `iinfo` (see [[sqpopt_python_solve]])
+    integer(int32), parameter, public :: sqpopt_python_n_rinfo = 12 !! size of `rinfo`
+    integer(int32), parameter, public :: sqpopt_python_n_diag  = 25 !! size of `diag_index` and `diag_value`: five
+                                                                    !! lists of at most five entries
+    integer(int32), parameter, public :: sqpopt_python_len_report = 8000 !! length of `report` and `problem_report`
 
     abstract interface
         subroutine py_fc_func(n, m, status, x, f, c)
@@ -134,15 +137,32 @@
 !  `n_eval_hess`, `n_qp_iterations`, `derivative_switch_iteration`,
 !  `n_soc`, `n_hessian_resets`, `n_restoration_steps`,
 !  `n_restoration_phases`, `n_elastic`, `n_escape`, `n_factorizations`,
-!  `n_qp_solves`, `n_direct_qp`, `n_unconstrained_qp`.
+!  `n_qp_solves`, `n_direct_qp`, `n_unconstrained_qp`; then, of
+!  `results%diagnosis` (see `options%diagnostic_level`): `level`,
+!  `n_active_constraints`, `n_active_bounds`, `n_weakly_active`,
+!  `n_wrong_sign`, `n_dependent`, `iterations_needed`,
+!  `n_active_set_flips`, `objective_derivative_suspect`,
+!  `slowest_iteration`, `n_constant_constraints`,
+!  `n_single_variable_constraints`, `n_dependent_equalities`,
+!  `probe_not_finite`.
 !
 !  `rinfo`: `f`, `kkt_error`, `feasibility_error`, `stationarity_error`,
-!  `time`, `time_functions`, `time_qp`, `time_factorization`.
+!  `time`, `time_functions`, `time_qp`, `time_factorization`; then, of the
+!  diagnosis: `convergence_rate`, `slowest_iteration_time`,
+!  `constraint_gradient_ratio`, `variable_gradient_ratio`.
+!
+!  `diag_index` and `diag_value` hold five lists of the diagnosis, each in
+!  five elements (unused ones are `0`): the indices (1-based) and values of
+!  the violated constraints, of the variables with the largest stationarity
+!  residuals, of the largest multipliers, and of the last QP's elastic
+!  constraints, and the indices of the constraints whose derivatives are
+!  suspect. `report` and `problem_report` are the diagnosis's texts (cut
+!  short if longer than `sqpopt_python_len_report`).
 
     subroutine sqpopt_python_solve(fc, gjac, hess, report, use_hess, use_report, x0, x_lb, x_ub, c_lb, c_ub, &
                      jac_irow, jac_icol, hess_irow, hess_icol, opt_id, opt_val, &
-                     lambda0, use_lambda0, max_step, use_max_step, output_file, &
-                     x, lambda, z, c, iinfo, rinfo, message)
+                     lambda0, use_lambda0, max_step, use_max_step, output_file, diagnostics_file, &
+                     x, lambda, z, c, iinfo, rinfo, message, diag_index, diag_value, report_text, problem_report)
 
     use sqpopt_module,           only: sqpopt_type
     use sqpopt_problem_module,   only: sqpopt_problem_type
@@ -181,6 +201,9 @@
     integer(int32),                 intent(in)    :: use_max_step !! whether to limit the steps by `max_step`
     character(len=*),               intent(in)    :: output_file !! file for the printed output (replaced; blank:
                                                                  !! `options%output_unit`)
+    character(len=*),               intent(in)    :: diagnostics_file !! file for the history of the iterations
+                                                                 !! (replaced; blank: none; see
+                                                                 !! `options%diagnostics_unit`)
     real(real64),   dimension(:),   intent(inout) :: x          !! solution `dimension(n)`
     real(real64),   dimension(:),   intent(inout) :: lambda     !! constraint multipliers `dimension(m)`
     real(real64),   dimension(:),   intent(inout) :: z          !! variable-bound multipliers `dimension(n)`
@@ -188,6 +211,12 @@
     integer(int32), dimension(:),   intent(inout) :: iinfo      !! integer results (see above)
     real(real64),   dimension(:),   intent(inout) :: rinfo      !! real results (see above)
     character(len=256),             intent(out)   :: message    !! description of the status
+    integer(int32), dimension(:),   intent(inout) :: diag_index !! the lists of the diagnosis: indices (see above)
+    real(real64),   dimension(:),   intent(inout) :: diag_value !! the lists of the diagnosis: values (see above)
+    character(len=sqpopt_python_len_report), intent(out) :: report_text    !! the diagnosis of the solve (blank
+                                                                           !! if none)
+    character(len=sqpopt_python_len_report), intent(out) :: problem_report !! the diagnostics' report on the
+                                                                           !! starting point (blank if none)
 
     type(sqpopt_type)              :: solver
     type(sqpopt_problem_type)      :: problem
@@ -203,14 +232,20 @@
     procedure(py_report_func), pointer :: report0
     integer :: istat, i, n, m
     integer :: unit !! the unit of `output_file` (`-1` if none)
+    integer :: diag_unit !! the unit of `diagnostics_file` (`-1` if none)
     integer :: ios
     logical :: ok
 
     n = size(x0)
     m = size(c_lb)
     unit = -1
+    diag_unit = -1
     iinfo = 0
     rinfo = 0.0_real64
+    diag_index = 0
+    diag_value = 0.0_real64
+    report_text = ''
+    problem_report = ''
 
     ! (the callbacks of an enclosing solve, restored on exit)
     fc0 => py_fc
@@ -243,6 +278,17 @@
             return
         end if
         options%output_unit = unit
+    end if
+    if (len_trim(diagnostics_file) > 0) then
+        open(newunit=diag_unit, file=trim(diagnostics_file), status='replace', action='write', iostat=ios)
+        if (ios /= 0) then
+            diag_unit = -1
+            iinfo(1) = sqpopt_invalid_input
+            message = 'diagnostics_file can''t be opened: '//trim(diagnostics_file)
+            call restore()
+            return
+        end if
+        options%diagnostics_unit = diag_unit
     end if
 
     call problem%set_problem_size(n=n, m=m)
@@ -278,24 +324,56 @@
     iinfo(1:sqpopt_python_n_iinfo) = [r%istat, r%iterations, r%n_eval_fc, r%n_eval_gjac, r%n_eval_hess, r%n_qp_iterations, &
                    r%derivative_switch_iteration, r%n_soc, r%n_hessian_resets, r%n_restoration_steps, &
                    r%n_restoration_phases, r%n_elastic, r%n_escape, r%n_factorizations, r%n_qp_solves, r%n_direct_qp, &
-                   r%n_unconstrained_qp]
+                   r%n_unconstrained_qp, &
+                   r%diagnosis%level, r%diagnosis%n_active_constraints, r%diagnosis%n_active_bounds, &
+                   r%diagnosis%n_weakly_active, r%diagnosis%n_wrong_sign, r%diagnosis%n_dependent, &
+                   r%diagnosis%iterations_needed, r%diagnosis%n_active_set_flips, &
+                   merge(1, 0, r%diagnosis%objective_derivative_suspect), r%diagnosis%slowest_iteration, &
+                   r%diagnosis%n_constant_constraints, r%diagnosis%n_single_variable_constraints, &
+                   r%diagnosis%n_dependent_equalities, merge(1, 0, r%diagnosis%probe_not_finite)]
     rinfo(1:sqpopt_python_n_rinfo) = [r%f, r%kkt_error, r%feasibility_error, r%stationarity_error, r%time, &
-                                      r%time_functions, r%time_qp, r%time_factorization]
+                                      r%time_functions, r%time_qp, r%time_factorization, &
+                                      r%diagnosis%convergence_rate, r%diagnosis%slowest_iteration_time, &
+                                      r%diagnosis%constraint_gradient_ratio, r%diagnosis%variable_gradient_ratio]
     message = ''
     if (allocated(r%message)) message = r%message
+    if (r%diagnosis%level >= 1 .and. size(diag_index) >= sqpopt_python_n_diag .and. &
+        size(diag_value) >= sqpopt_python_n_diag) then
+        call put_list(1, r%diagnosis%violated_constraints, r%diagnosis%violations)
+        call put_list(2, r%diagnosis%stationarity_variables, r%diagnosis%stationarity_residuals)
+        call put_list(3, r%diagnosis%multiplier_constraints, r%diagnosis%multipliers)
+        call put_list(4, r%diagnosis%elastic_constraints, r%diagnosis%elastic_slacks)
+        call put_list(5, r%diagnosis%derivative_suspects)
+        if (allocated(r%diagnosis%report)) report_text = r%diagnosis%report
+        if (allocated(r%diagnosis%problem_report)) problem_report = r%diagnosis%problem_report
+    end if
 
     call restore()
 
     contains
 
         subroutine restore()
-        !! restore the callbacks of an enclosing solve, and close `output_file`
+        !! restore the callbacks of an enclosing solve, and close `output_file` and `diagnostics_file`
         if (unit /= -1) close(unit, iostat=ios)
+        if (diag_unit /= -1) close(diag_unit, iostat=ios)
         py_fc => fc0
         py_gjac => gjac0
         py_hess => hess0
         py_report => report0
         end subroutine restore
+
+        subroutine put_list(k, idx, val)
+        !! copy list `k` of the diagnosis into `diag_index` and `diag_value` (at most five entries)
+        integer,                              intent(in) :: k   !! which list (1 to 5)
+        integer,  dimension(:), allocatable,  intent(in) :: idx !! its indices (may be unallocated: no entries)
+        real(real64), dimension(:), allocatable, intent(in), optional :: val !! its values
+        integer :: j
+        if (.not. allocated(idx)) return
+        do j = 1, min(size(idx), 5)
+            diag_index(5*(k - 1) + j) = idx(j)
+            if (present(val)) diag_value(5*(k - 1) + j) = val(j)
+        end do
+        end subroutine put_list
 
     end subroutine sqpopt_python_solve
 !*******************************************************************************

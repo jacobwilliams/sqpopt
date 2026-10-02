@@ -390,7 +390,8 @@ class _Solve:
             raise ValueError(f'lambda0 must have one multiplier per constraint row ({self.m})')
         return flat
 
-    def run(self, options: dict[str, Any], lambda0=None, output_file=None, max_step=None) -> OptimizeResult:
+    def run(self, options: dict[str, Any], lambda0=None, output_file=None, max_step=None,
+            diagnostics_file=None) -> OptimizeResult:
         ext = _native()
         n, m = self.n, self.m
         offsets = np.cumsum([0] + [c.k for c in self.cons])
@@ -416,7 +417,7 @@ class _Solve:
             return np.ascontiguousarray(a if a.size else np.zeros(1, dtype=dtype))
 
         x, lam, z, c = pad(np.zeros(n)), pad(np.zeros(m)), pad(np.zeros(n)), pad(np.zeros(m))
-        iinfo, rinfo, message = ext.sqpopt_py_solve(
+        iinfo, rinfo, message, diag_index, diag_value, report, problem_report = ext.sqpopt_py_solve(
             self.fc, self.gjac, self.hess, self.report, int(use_hess), int(self.callback is not None),
             n, m, irow.size, self.hess_rows.size, opt_id.size,
             pad(self.x0), pad(self.x_lb), pad(self.x_ub), pad(c_lb), pad(c_ub),
@@ -424,7 +425,8 @@ class _Solve:
             pad(self.hess_rows + 1, np.int32), pad(self.hess_cols + 1, np.int32),
             pad(opt_id, np.int32), pad(opt_val), pad(lam0), int(lambda0 is not None),
             pad(step), int(max_step is not None),
-            '' if output_file is None else str(output_file), x, lam, z, c)
+            '' if output_file is None else str(output_file),
+            '' if diagnostics_file is None else str(diagnostics_file), x, lam, z, c)
         x, lam, c = x[:n], lam[:m], c[:m]
         if isinstance(message, bytes):
             message = message.decode(errors='replace')
@@ -439,12 +441,49 @@ class _Solve:
             execution_time=float(rinfo[4]), n_qp_iterations=int(iinfo[5]),
             derivative_switch_iteration=int(iinfo[6]), n_factorizations=int(iinfo[13]),
             n_qp_solves=int(iinfo[14]), n_direct_qp=int(iinfo[15]), n_unconstrained_qp=int(iinfo[16]),
-            time_factorization=float(rinfo[7]))
+            time_factorization=float(rinfo[7]),
+            diagnostics=_diagnostics(iinfo, rinfo, diag_index, diag_value, report, problem_report))
+
+
+def _diagnostics(iinfo, rinfo, diag_index, diag_value, report, problem_report) -> dict | None:
+    """the diagnosis of a solve (``results%diagnosis``) as a dict, or ``None`` without diagnostics
+    (``diagnostic_level = 0``). Indices are 0-based; a constraint's index is its row among all the constraints."""
+    level = int(iinfo[17])
+    if level < 1:
+        return None
+
+    def text(s) -> str:
+        return (s.decode(errors='replace') if isinstance(s, bytes) else str(s)).rstrip()
+
+    def entries(k: int) -> list[tuple[int, float]]:
+        return [(int(i) - 1, float(v)) for i, v in zip(diag_index[5 * k:5 * k + 5], diag_value[5 * k:5 * k + 5])
+                if i > 0]
+
+    d = dict(
+        level=level, report=text(report),
+        violated_constraints=entries(0), stationarity_variables=entries(1), largest_multipliers=entries(2),
+        elastic_constraints=entries(3),
+        n_active_constraints=int(iinfo[18]), n_active_bounds=int(iinfo[19]), n_weakly_active=int(iinfo[20]),
+        n_wrong_sign=int(iinfo[21]), n_dependent=int(iinfo[22]))
+    if level >= 2:
+        d.update(
+            problem_report=text(problem_report),
+            convergence_rate=float(rinfo[8]), iterations_needed=int(iinfo[23]),
+            n_active_set_flips=int(iinfo[24]), objective_derivative_suspect=bool(iinfo[25]),
+            derivative_suspects=[i for i, _ in entries(4)],
+            slowest_iteration=int(iinfo[26]), slowest_iteration_time=float(rinfo[9]),
+            constraint_gradient_ratio=float(rinfo[10]), variable_gradient_ratio=float(rinfo[11]),
+            n_constant_constraints=int(iinfo[27]), n_single_variable_constraints=int(iinfo[28]),
+            n_dependent_equalities=int(iinfo[29]))
+    if level >= 3:
+        d['probe_not_finite'] = bool(iinfo[30])
+    return d
 
 
 def minimize(fun: Callable, x0, args=(), jac=None, hess=None, bounds=None, constraints: Sequence | Any = (),
              tol: float | None = None, callback: Callable | None = None,
-             options: dict | None = None, lambda0=None, output_file=None, max_step=None) -> OptimizeResult:
+             options: dict | None = None, lambda0=None, output_file=None, max_step=None,
+             diagnostics_file=None) -> OptimizeResult:
     """Minimize a function of several variables subject to bounds and constraints, with SQPOPT.
 
     The interface follows ``scipy.optimize.minimize``:
@@ -490,6 +529,11 @@ def minimize(fun: Callable, x0, args=(), jac=None, hess=None, bounds=None, const
     output_file : str or path, optional
         Write the printed output (see ``print_level``/``disp``) to this file (replacing it), instead of the
         process's standard output, which e.g. a Jupyter notebook doesn't show (not in scipy).
+    diagnostics_file : str or path, optional
+        With ``diagnostic_level >= 2``: write the history of the iterations to this file (replacing it), as
+        comma-separated values with a header line, one line per major iteration (not in scipy). It is
+        written whatever ``print_level`` is, and can be read with e.g. ``numpy.genfromtxt(path,
+        delimiter=',', names=True)``.
 
     Returns
     -------
@@ -506,6 +550,15 @@ def minimize(fun: Callable, x0, args=(), jac=None, hess=None, bounds=None, const
         sparse factorizations: ``inertia_control``, ``direct_qp``, and ``direct_least_squares``;
         ``time_factorization`` is the part of ``execution_time``, in seconds, spent in them). The multipliers are
         those of the Lagrangian ``f - v^T c - z^T x``: positive at a lower bound, negative at an upper one.
+        With ``diagnostic_level >= 1``, ``diagnostics`` is a dict with the diagnosis of the solve (else
+        ``None``): ``report`` (the text the solver prints with ``print_level >= 1``), the lists
+        ``violated_constraints``, ``stationarity_variables``, ``largest_multipliers``, and
+        ``elastic_constraints`` (``(index, value)`` pairs, the largest first, at most five), and the counts
+        ``n_active_constraints``, ``n_active_bounds``, ``n_weakly_active``, ``n_wrong_sign``, and
+        ``n_dependent``; from level 2 also ``problem_report``, ``convergence_rate``, ``iterations_needed``,
+        ``n_active_set_flips``, ``derivative_suspects``, ``objective_derivative_suspect``,
+        ``slowest_iteration``, and what the starting point showed; at level 3 ``probe_not_finite``. Indices
+        are 0-based, and a constraint's index is its row among all the constraints. See the user guide.
     """
     solve = _Solve(fun, x0, args, jac, hess, bounds, constraints, callback)
     opts = _resolve_options(options)
@@ -513,4 +566,5 @@ def minimize(fun: Callable, x0, args=(), jac=None, hess=None, bounds=None, const
         opts.setdefault('options%ktol', _option_value(schema.OPTIONS['options%ktol'], tol))
     if hess is not None:
         opts.setdefault('options%hessian_mode', _choice('options%hessian_mode', 'sqpopt_hessian_exact'))
-    return solve.run(opts, lambda0=lambda0, output_file=output_file, max_step=max_step)
+    return solve.run(opts, lambda0=lambda0, output_file=output_file, max_step=max_step,
+                     diagnostics_file=diagnostics_file)

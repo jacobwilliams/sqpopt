@@ -33,7 +33,11 @@ python3 - <<'PYTHON'
 import glob, re, sys
 found = 0
 for path in sorted(glob.glob('src/*.[fF]90')):
-    for i, line in enumerate(open(path), 1):
+    source = open(path).read()
+    # (the file's named constants: bounds made only of them and of numbers are constant)
+    constants = set(m.lower() for m in re.findall(r'^\s*integer\s*,\s*parameter[^:]*::\s*(\w+)\s*=', source,
+                                                  re.I | re.M))
+    for i, line in enumerate(source.split('\n'), 1):
         code = line.split('!')[0]
         if '::' not in code:
             continue
@@ -45,8 +49,10 @@ for path in sorted(glob.glob('src/*.[fF]90')):
         m = re.search(r'dimension\s*\((.*)\)', left, re.I)
         dims = [m.group(1)] if m else re.findall(r'\w+\s*\(([^()]*(?:\([^()]*\)[^()]*)*)\)', right.split('=')[0])
         for d in dims:
-            if re.fullmatch(r'[\s:,]+', d) or re.fullmatch(r'[\d\s,]+', d):
-                continue   # (deferred shape, or constant bounds)
+            if re.fullmatch(r'[\s:,]+', d):
+                continue   # (deferred shape)
+            if all(w.isdigit() or w.lower() in constants for w in re.findall(r'\w+', d)):
+                continue   # (constant bounds)
             found += 1
             print(f'  {path}:{i}: {line.strip()[:110]}')
 print(f'  {found} found')

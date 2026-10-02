@@ -88,6 +88,13 @@ program test_input_validation
     options%acceptable_obj_change_tol = -1.0_wp
     call expect_invalid('acceptable_obj_change_tol = -1', problem, options, [0.0_wp, 0.0_wp])
     options = sqpopt_options_type()
+    options%diagnostic_level = 4
+    call expect_invalid('diagnostic_level = 4', problem, options, [0.0_wp, 0.0_wp])
+    options = sqpopt_options_type()
+    options%diagnostic_level = 2
+    options%diagnostics_unit = 987   ! (not open)
+    call expect_invalid('diagnostics_unit not open', problem, options, [0.0_wp, 0.0_wp])
+    options = sqpopt_options_type()
     options%acceptable_iter = -1
     call expect_invalid('acceptable_iter = -1', problem, options, [0.0_wp, 0.0_wp])
     options = sqpopt_options_type()

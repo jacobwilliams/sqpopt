@@ -1247,6 +1247,141 @@ which is now double precision only.
   memory run takes 14 s, the default 0.7 s), which matters only on a
   problem of 50 to 200 variables that takes hundreds of iterations. Low
   priority.
+- **F19: diagnostics for a solve that doesn't converge** *(done
+  2026-10-02; see "What was implemented" at the end of this entry)*. The
+  log says what happened at each
+  iteration (its measures and flags, and the detail lines at
+  `print_level >= 3`), but not which variables and constraints are
+  responsible, or what to do about it. Where it would go: a "diagnosis"
+  block after the summary of the main output, when the status isn't a
+  success (and `print_level >= 1`); the same facts in the results type (indices and values), for
+  callers that don't print and for Python; and an optional separate file
+  (a `diagnostics_unit` option, off by default) for the bulky
+  per-iteration data. Its writes follow the rule of the printed output:
+  they never stop the solver.
+
+  *Opt-in, by level (decided 2026-10-02).* Everything is off by default,
+  and anything that calls the user's functions needs a further opt-in. A
+  new option `diagnostic_level` (default `0`). `print_level` overrides
+  it for the printing: with `print_level = 0` nothing is printed at any
+  diagnostic level, and the diagnostics are then only computed and
+  returned in the results type (a diagnostics file, if a unit is given,
+  is still written: it is asked for separately, and is a data export
+  for plotting and post-processing, like the results, not part of the
+  log; its contents depend only on `diagnostic_level`). The levels:
+  - `0`: none. No cost, nothing printed, the diagnostic results unset,
+    no diagnostics file.
+  - `1`: the end-of-solve diagnosis, from the final point (which `finish`
+    evaluates anyway): ideas 1, 2, 7, and 8. No state per iteration, so
+    nothing is written to the diagnostics file at this level.
+  - `2`: also the start-of-solve reports (3, and 4 without its probe of
+    the starting point), from the first iteration's evaluations, and the
+    tracking per iteration (5, 6, 9, 10; work of the order of `n + m` per
+    iteration, and the diagnostics file if a unit is given).
+  - `3`: also the diagnostics that evaluate the user's functions. So far
+    that is only the probe around the starting point of idea 4; an active
+    derivative check would belong here too if F8 is ever taken up.
+
+  Two guarantees, each with a test: levels `0` to `2` call `fc`, `gjac`,
+  and `hess` exactly as often as level `0` does; and no level changes the
+  iterates or the results (as `test_termination` checks for the level-3
+  log). The option needs a check in `validate_options`, a line in the
+  header, an entry in the Python schema, and a row in the guide.
+
+  The ideas, the most useful first:
+  1. *Name the offenders.* At the final point, the few constraints with
+     the largest violation, the variables with the largest stationarity
+     residual, and the largest multipliers, each with its index, value,
+     and bounds. Today only the sizes of the errors are reported.
+  2. *A verdict for each failure status*, with the evidence and a
+     suggested setting. Stalled with a multiplier that kept growing: the
+     constraint qualification probably fails there (name the constraint).
+     Infeasible: which constraints can't be satisfied together at the
+     stationary point of the violation, and whether a bound is involved.
+     Line-search failures with tiny steps and no decrease of the merit:
+     suspect the derivatives. Iteration limit while still making steady
+     progress: say so, with the rate. Many Hessian resets or a large
+     shift: the problem is nonconvex there (suggest inertia control or
+     the exact Hessian).
+  3. *A scaling report* before the solve: the range of the Jacobian's row
+     and column norms, the size of the gradient, variables whose values
+     or bounds differ by many orders of magnitude, the constraints that
+     reached `scaling_min_value`, and a note that only the objective and
+     the constraints are scaled, not the variables.
+  4. *Checks of the problem's structure* at the start: empty rows or
+     columns of the Jacobian, constraints that are really bounds (one
+     nonzero), duplicate or linearly dependent equality rows at the
+     starting point, more active equalities than variables, fixed
+     variables, a starting point near which `f` or `c` is not finite.
+  5. *Derivative consistency from data already there.* Along each accepted
+     step, compare the actual change of `f` and of each `c` with the
+     change the gradient and the Jacobian predicted; a constraint that is
+     consistently off points to a wrong derivative. No extra function
+     calls. This is a passive check, not the derivative checker of F8,
+     which was dropped.
+  6. *A summary of the convergence history*, for a run that ends at a
+     limit: the KKT and feasibility errors of the last iterations with a
+     fitted rate (and how many more iterations it would take), how the
+     step length behaved, and whether the active set was still changing
+     (constraints entering and leaving per iteration; an active set that
+     flips between two states is a recognizable cause of stalling).
+  7. *Active set and degeneracy at the final point*: active constraints
+     with a multiplier near zero, nearly dependent active gradients,
+     variables at a bound with a multiplier of the wrong sign. These
+     explain a solution the user doesn't trust even when the status is a
+     success.
+  8. *QP diagnostics* when the QP is the trouble: which rows were elastic
+     and by how much, the size of the working set against `n`, whether
+     the iteration limit was reached, and the smallest pivot or the
+     inertia that the factorization reported.
+  9. *Time per phase and per iteration* (the totals exist: `time_qp`,
+     `time_functions`, `time_factorization`), in the diagnostics file: it
+     would show, for example, one QP solve taking most of a run.
+  10. *A machine-readable history*: one line per iteration (CSV or JSON
+      lines) with everything in `sqpopt_iter_info`, for plotting; the
+      Python bindings could return it as arrays.
+
+  Suggested order: the option and level `1` (1 and 2 first, as the
+  end-of-solve block and results fields, then 7 and 8); then level `2`
+  (3 and 4 as the start-of-solve report, then 5 and 6, which need a
+  little state per iteration, then 9 and 10, which are what the separate
+  file is for); level `3` last.
+
+  *What was implemented (2026-10-02).* All ten, in the new
+  `sqpopt_diagnostics_module` (a `sqpopt_diagnostics_type` that lives for
+  one solve), with `options%diagnostic_level` and
+  `options%diagnostics_unit`, the results in `results%diagnosis` (a
+  `sqpopt_diagnosis_type`, whose `report` and `problem_report` are the
+  printed texts), the Python bindings (`diagnostics` in the result, and
+  `diagnostics_file`), the options dialog's schema, the guide's
+  "Diagnostics" section, and the test `test_diagnostics`. Measured on the
+  HS suite (`test_hs_suite --diagnostics=L`): the counts and the `fc` and
+  `gjac` totals are those of the baseline at levels 1 and 2, in the
+  default configuration and in five others (with MUMPS); level 3 adds two
+  `fc` calls per problem. The derivative check suspects 3 of the 305
+  problems, whose derivatives are right: TP214 and TP281 (objectives that
+  are roots, not differentiable at the solution) and TP332 (whose
+  derivatives are finite differences). Where it differs from the plan:
+  - The diagnosis is printed whenever it is asked for and
+    `print_level >= 1`, not only when the status isn't a success: at a
+    solution it is three lines, and says whether the point is degenerate.
+  - Idea 5 uses the trapezoid rule (the mean of the gradients at both
+    ends of a step), which is exact for a quadratic, instead of the
+    gradient at the start of the step; and only steps that change no
+    variable by more than 10%.
+  - Idea 8: MUMPS doesn't give the smallest pivot, so the last QP's line
+    has the Hessian's shift, negative curvature, and whether the last KKT
+    matrix was singular. The elastic constraints and their slacks needed
+    the active-set QP solvers to keep them (`keep_slacks`, set by the
+    solver from level 1).
+  - Idea 4's probe is the only thing at level 3: two points, each
+    variable moved by `1e-6` of its size.
+  - Idea 10: the history is the file; the Python bindings don't return it
+    as arrays (`numpy.genfromtxt` reads the file). The per-constraint
+    counts of the derivative check are not in the file.
+  - To make the per-iteration data available without evaluations,
+    `sqpopt_iterate` passes each iterate's values and derivatives to the
+    diagnostics; `sqpopt_iter_info` moved to `sqpopt_types_module`.
 - **F12: interoperability.** A `bind(c)` C API, then a thin Python
   wrapper. This is how SLSQP-style solvers get adopted.
   *(Python part done 2026-09-28, without a C API: `python/sqpopt`, a

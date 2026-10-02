@@ -39,11 +39,13 @@
     subroutine sqpopt_py_solve(fc, gjac, hess, report, use_hess, use_report, n, m, nnz, nnzh, nopt, &
                                x0, x_lb, x_ub, c_lb, c_ub, jac_irow, jac_icol, hess_irow, hess_icol, &
                                opt_id, opt_val, lambda0, use_lambda0, max_step, use_max_step, output_file, &
-                               x, lambda, z, c, iinfo, rinfo, message)
+                               diagnostics_file, x, lambda, z, c, iinfo, rinfo, message, diag_index, diag_value, &
+                               report_text, problem_report)
 
     use, intrinsic :: iso_fortran_env, only: real64, int32
     use sqpopt_python, only: sqpopt_python_solve, py_fc_func, py_gjac_func, py_hess_func, py_report_func, &
-                             sqpopt_python_n_iinfo, sqpopt_python_n_rinfo
+                             sqpopt_python_n_iinfo, sqpopt_python_n_rinfo, sqpopt_python_n_diag, &
+                             sqpopt_python_len_report
 
     implicit none
 
@@ -78,6 +80,8 @@
     integer(int32),                  intent(in)  :: use_max_step !! whether to limit the steps by `max_step`
     character(len=*),                intent(in)  :: output_file !! file for the printed output (replaced; blank:
                                                                 !! `options%output_unit`)
+    character(len=*),                intent(in)  :: diagnostics_file !! file for the history of the iterations
+                                                                !! (replaced; blank: none)
     real(real64),   dimension(n),    intent(out) :: x           !! solution
     real(real64),   dimension(m),    intent(out) :: lambda      !! constraint multipliers
     real(real64),   dimension(n),    intent(out) :: z           !! variable-bound multipliers
@@ -85,6 +89,12 @@
     integer(int32), dimension(sqpopt_python_n_iinfo), intent(out) :: iinfo !! integer results (see `sqpopt_python_solve`)
     real(real64),   dimension(sqpopt_python_n_rinfo), intent(out) :: rinfo !! real results (see `sqpopt_python_solve`)
     character(len=256),              intent(out) :: message     !! description of the status
+    integer(int32), dimension(sqpopt_python_n_diag), intent(out) :: diag_index !! the lists of the diagnosis: indices
+                                                                               !! (see `sqpopt_python_solve`)
+    real(real64),   dimension(sqpopt_python_n_diag), intent(out) :: diag_value !! the lists of the diagnosis: values
+    character(len=sqpopt_python_len_report), intent(out) :: report_text    !! the diagnosis of the solve
+    character(len=sqpopt_python_len_report), intent(out) :: problem_report !! the diagnostics' report on the
+                                                                           !! starting point
 
     x = x0
     lambda = 0.0_real64
@@ -92,8 +102,8 @@
     c = 0.0_real64
     call sqpopt_python_solve(fc, gjac, hess, report, use_hess, use_report, x0, x_lb, x_ub, c_lb, c_ub, &
                              jac_irow, jac_icol, hess_irow, hess_icol, opt_id, opt_val, &
-                             lambda0, use_lambda0, max_step, use_max_step, output_file, &
-                             x, lambda, z, c, iinfo, rinfo, message)
+                             lambda0, use_lambda0, max_step, use_max_step, output_file, diagnostics_file, &
+                             x, lambda, z, c, iinfo, rinfo, message, diag_index, diag_value, report_text, problem_report)
 
     end subroutine sqpopt_py_solve
 !*******************************************************************************

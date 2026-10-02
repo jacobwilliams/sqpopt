@@ -10,7 +10,7 @@
 !  function, filter and funnel, trust region, feasibility restoration,
 !  second-order correction, convergence checking, the optional sparse
 !  factorizations (inertia control, direct QP steps, and direct
-!  least-squares solves), and the detailed log)
+!  least-squares solves), the diagnostics, and the detailed log)
 !  are each implemented in their own module so that they may be
 !  developed, tested, and swapped out independently. Internally, sparse
 !  (COO) storage is used for the constraint Jacobian, and the Hessian of
@@ -27,7 +27,8 @@
                                          sqpopt_user_requested_stop, sqpopt_report_func, &
                                          sqpopt_invalid_input, sqpopt_status_message, sqpopt_sparse_matrix, &
                                          sqpopt_results_type, sqpopt_max_evals_reached, sqpopt_time_limit_reached, &
-                                         sqpopt_qp_solve_failed, sqpopt_infinity, sqpopt_all_finite
+                                         sqpopt_qp_solve_failed, sqpopt_infinity, sqpopt_all_finite, &
+                                         sqpopt_iter_info, sqpopt_iteration_flags
     use sqpopt_problem_module,    only: sqpopt_problem_type, sqpopt_derivatives_fast, sqpopt_derivatives_accurate
     use sqpopt_options_module,    only: sqpopt_options_type
     use sqpopt_hessian_module,    only: sqpopt_hessian_type, sqpopt_hessian_bfgs, sqpopt_hessian_sr1, sqpopt_hessian_exact
@@ -41,12 +42,13 @@
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
     use sqpopt_restoration_module,  only: sqpopt_restoration_type, sqpopt_restoration_phase, &
                                           sqpopt_restoration_gauss_newton
-    use sqpopt_iterate_module,    only: sqpopt_iterate, sqpopt_evaluate_point, sqpopt_iter_info
+    use sqpopt_iterate_module,    only: sqpopt_iterate, sqpopt_evaluate_point
     use sqpopt_log_module,        only: sqpopt_log_type, sqpopt_log_detail, fmt_e, fmt_i, plural
     use sqpopt_inertia_module,    only: sqpopt_inertia_type
     use sqpopt_kkt_module,        only: sqpopt_kkt_type
     use sqpopt_least_squares_module,    only: sqpopt_least_squares_type
     use sqpopt_symmetric_solver_module, only: sqpopt_has_mumps
+    use sqpopt_diagnostics_module,      only: sqpopt_diagnostics_type, sqpopt_diagnostics_write
 
     implicit none
 
@@ -176,6 +178,7 @@
     type(sqpopt_inertia_type) :: inertia !! inertia control of the exact Hessian (see `options%inertia_control`)
     type(sqpopt_least_squares_type) :: least_squares !! direct least-squares solver (see
                                                      !! `options%direct_least_squares`)
+    type(sqpopt_diagnostics_type) :: diagnostics !! the diagnostics of this solve (see `options%diagnostic_level`)
     logical :: started
 
     call system_clock(t_start, t_rate)
@@ -239,6 +242,12 @@
                                                             me%options%scaling_min_value)
     if (present(lambda0)) me%lambda = lambda0*me%problem%f_scale/me%problem%c_scale
 
+    ! the diagnostics (from level 2: the report on the starting point, from the
+    ! derivatives that the scaling, or else the first iteration, evaluates there):
+    call diagnostics%start(me%problem, me%options, me%x)
+    me%qp_solver%dense_qp%keep_slacks  = me%options%diagnostic_level >= 1
+    me%qp_solver%sparse_qp%keep_slacks = me%options%diagnostic_level >= 1
+
     call me%hessian%initialize(me%problem%n, &
                                 lbfgs_memory(me%options%lbfgs_memory, me%problem%n, me%options%direct_qp), &
                                 use_sr1=(me%options%hessian_mode == sqpopt_hessian_sr1), &
@@ -297,10 +306,12 @@
         n_fc0 = me%problem%n_eval_fc
         call sqpopt_iterate(me%problem, me%options, me%hessian, me%qp_solver, me%linesearch, me%trust_region, &
                              me%x, me%lambda, x_prev, gl_prev, f_prev, viol_prev, jac, n_acceptable, n_stalled, n_escape, &
-                             me%restoration, inertia, kkt, least_squares, iter, me%report, &
+                             me%restoration, inertia, kkt, least_squares, diagnostics, iter, me%report, &
                              done, iter_istat, info)
         info%n_fc = me%problem%n_eval_fc - n_fc0
         call count_events()
+        call diagnostics%record(iter, info, iter_istat, me%problem, me%qp_solver, me%options, &
+                                kkt%solver%time + least_squares%kkt%solver%time)
         if (me%options%print_level >= 1) call print_iteration(iter, info, iter_istat)
         if (me%options%print_level >= sqpopt_log_detail) call print_details()
         if (done) then
@@ -392,6 +403,8 @@
         me%results%n_unconstrained_qp = me%qp_solver%n_unconstrained
         me%results%n_factorizations   = kkt%solver%n_factor + least_squares%kkt%solver%n_factor
         me%results%time_factorization = kkt%solver%time + least_squares%kkt%solver%time
+        if (valid) call diagnostics%finish(me%problem, me%options, me%results, me%x, me%lambda, cs, jac, &
+                                           me%qp_solver, me%hessian%shift, kkt%enabled .and. kkt%singular)
         call kkt%destroy()
         call least_squares%destroy()
 
@@ -435,8 +448,9 @@
         subroutine print_header()
         !! the problem, the method, the scaling, the tolerances, and the
         !! iteration log's column headings (`print_level >= 1`; the legend is
-        !! printed with the summary, see `print_legend`), and at
-        !! `print_level >= 3` the smallest constraint scale factors
+        !! printed with the summary, see `print_legend`), at
+        !! `print_level >= 3` the smallest constraint scale factors, and with
+        !! `diagnostic_level >= 2` the diagnostics' report on the starting point
         integer :: u, n_eq
         integer :: ios
         u = me%options%output_unit
@@ -461,6 +475,7 @@
         write(u, '(A)', iostat=ios) '   tolerances: ktol '//fmt_e(me%options%ktol)//', ctol '//fmt_e(me%options%ctol)// &
                        ', dual_inf_tol '//fmt_e(me%options%dual_inf_tol)//', max_iter '//fmt_i(me%options%max_iter)
         if (me%options%print_level >= sqpopt_log_detail .and. me%problem%m > 0) call print_scale_factors()
+        call sqpopt_diagnostics_write(u, diagnostics%problem_report())
         write(u, '(A)', iostat=ios) ''
         if (me%options%print_level >= 2) then
             write(u, '(A6,A17,3A10,A8,A10,2A6,2A10,2A10,2X,A)', iostat=ios) 'iter', 'objective', 'infeas*', 'kkt*', 'alpha', &
@@ -665,20 +680,7 @@
         integer :: u
         integer :: ios
         u = me%options%output_unit
-        flags = ''
-        if (info%restoration .and. .not. info%phase) flags = trim(flags)//'R'
-        if (info%phase)       flags = trim(flags)//'P'
-        if (info%soc)         flags = trim(flags)//'S'
-        if (info%hess_reset)  flags = trim(flags)//'H'
-        if (info%elastic)     flags = trim(flags)//'E'
-        if (info%escape)      flags = trim(flags)//'X'
-        if (info%nonmonotone) flags = trim(flags)//'N'
-        if (info%relaxed)     flags = trim(flags)//'W'
-        if (info%derivatives) flags = trim(flags)//'D'
-        if (info%qp_istat == sqpopt_qp_solve_failed) flags = trim(flags)//'Q'
-        if (info%stepped .and. iter_istat /= sqpopt_success .and. iter_istat /= sqpopt_qp_solve_failed) then
-            flags = trim(flags)//'F'
-        end if
+        flags = sqpopt_iteration_flags(info, iter_istat)
         if (.not. info%stepped) then
             ! (the final point: no step was taken from it)
             if (me%options%print_level >= 2) then
@@ -711,7 +713,8 @@
         end subroutine print_iteration
 
         subroutine print_summary()
-        !! the final summary (and, at `print_level >= 3`, the solution)
+        !! the final summary (and, at `print_level >= 3`, the solution; and with
+        !! `diagnostic_level >= 1`, the diagnosis)
         integer :: u
         real(wp) :: t_other
         character(len=:), allocatable :: events
@@ -780,6 +783,10 @@
                                    ' s, other '//fmt_f(t_other)//' s)'
         end if
         if (me%options%print_level >= sqpopt_log_detail) call print_solution()
+        if (allocated(me%results%diagnosis%report)) then
+            write(u, '(A)', iostat=ios) ''
+            call sqpopt_diagnostics_write(u, me%results%diagnosis%report)
+        end if
         write(u, '(A)', iostat=ios) ''
         end subroutine print_summary
 
@@ -1045,6 +1052,17 @@
         inquire(unit=o%output_unit, opened=opened)
         if (.not. opened) then
             msg = 'options%output_unit is not an open unit'
+            return
+        end if
+    end if
+    if (o%diagnostic_level < 0 .or. o%diagnostic_level > 3) then
+        msg = 'options%diagnostic_level must be 0, 1, 2, or 3'
+        return
+    end if
+    if (o%diagnostic_level >= 2 .and. o%diagnostics_unit /= -1) then
+        inquire(unit=o%diagnostics_unit, opened=opened)
+        if (.not. opened) then
+            msg = 'options%diagnostics_unit is not an open unit'
             return
         end if
     end if

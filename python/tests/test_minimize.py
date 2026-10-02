@@ -237,6 +237,45 @@ class TestMinimize(unittest.TestCase):
             self.assertFalse(r.success)
             self.assertIn("can't be opened", r.message)
 
+    def test_diagnostics(self):
+        import tempfile
+        con = {'type': 'ineq', 'fun': lambda x: 1 - x[0] ** 2 - x[1] ** 2,
+               'jac': lambda x: np.array([[-2 * x[0], -2 * x[1]]])}
+        r0 = minimize(rosen, [-1.2, 1], jac=rosen_g, constraints=con)
+        self.assertIsNone(r0.diagnostics)
+        with tempfile.TemporaryDirectory() as d:
+            path = pathlib.Path(d) / 'history.csv'
+            r = minimize(rosen, [-1.2, 1], jac=rosen_g, constraints=con, options={'diagnostic_level': 2},
+                         diagnostics_file=path)
+            # (no evaluations, and the same iterates)
+            self.assertEqual((r.nit, r.nfev, r.njev), (r0.nit, r0.nfev, r0.njev))
+            np.testing.assert_array_equal(r.x, r0.x)
+            history = np.genfromtxt(path, delimiter=',', names=True)
+            self.assertEqual(history.size, r.nit)
+            self.assertEqual(history['iteration'][-1], r.nit)
+            self.assertAlmostEqual(history['objective'][-1], r.fun)
+        diag = r.diagnostics
+        self.assertEqual(diag['level'], 2)
+        self.assertIn('sqpopt diagnosis', diag['report'])
+        self.assertIn('diagnostics of the starting point', diag['problem_report'])
+        self.assertEqual((diag['n_active_constraints'], diag['n_dependent']), (1, 0))
+        self.assertEqual(diag['derivative_suspects'], [])
+        self.assertNotIn('probe_not_finite', diag)
+        # level 3 calls `fun` twice more
+        r3 = minimize(rosen, [-1.2, 1], jac=rosen_g, constraints=con, options={'diagnostic_level': 3})
+        self.assertEqual(r3.nfev, r0.nfev + 2)
+        self.assertFalse(r3.diagnostics['probe_not_finite'])
+        # constraints that can't both hold: the diagnosis names them (0-based rows)
+        cons = [{'type': 'ineq', 'fun': lambda x: x[0] + x[1] - 3, 'jac': lambda x: np.array([[1.0, 1.0]])},
+                {'type': 'ineq', 'fun': lambda x: 1 - x[0] - x[1], 'jac': lambda x: np.array([[-1.0, -1.0]])}]
+        r = minimize(lambda x: x @ x, [0.0, 0.0], jac=lambda x: 2 * x, constraints=cons,
+                     options={'diagnostic_level': 1})
+        self.assertFalse(r.success)
+        self.assertEqual(sorted(i for i, _ in r.diagnostics['violated_constraints']), [0, 1])
+        self.assertNotIn('problem_report', r.diagnostics)
+        with self.assertRaises(ValueError):
+            minimize(rosen, [-1.2, 1], jac=rosen_g, options={'diagnostic_level': 4})
+
     def test_invalid_input(self):
         # (caught by the Fortran input validation)
         r = minimize(rosen, [0, 0], jac=rosen_g, bounds=[(1, 0), (None, None)])

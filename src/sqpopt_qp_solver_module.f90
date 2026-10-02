@@ -131,6 +131,7 @@
         procedure, public :: mode_name
         procedure, public :: working_set
         procedure, public :: starting_working_set
+        procedure, public :: elastic_slacks
 
     end type sqpopt_qp_solver_type
 
@@ -374,6 +375,42 @@
     end if
 
     end subroutine working_set
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the elastic slacks of the last QP solve with `n` variables: the general
+!  row of each, and its value at the QP's solution (by how much the step
+!  violates that linearized constraint). They are only kept if the
+!  active-set solvers' `keep_slacks` is set (the solver sets it for its
+!  diagnostics); `row` and `slack` have size zero if there are none.
+
+    subroutine elastic_slacks(me, n, row, slack)
+
+    class(sqpopt_qp_solver_type),        intent(in)  :: me
+    integer,                             intent(in)  :: n     !! number of variables
+    integer,  dimension(:), allocatable, intent(out) :: row   !! the row of each elastic slack
+    real(wp), dimension(:), allocatable, intent(out) :: slack !! its value
+
+    if (me%n_slacks > 0) then
+        select case (resolved_mode(me, n))
+        case (sqpopt_qp_dense)
+            if (allocated(me%dense_qp%slack_row)) then
+                allocate(row(size(me%dense_qp%slack_row)), slack(size(me%dense_qp%slack_row)))
+                row   = me%dense_qp%slack_row
+                slack = me%dense_qp%slack_value
+            end if
+        case default
+            if (allocated(me%sparse_qp%slack_row)) then
+                allocate(row(size(me%sparse_qp%slack_row)), slack(size(me%sparse_qp%slack_row)))
+                row   = me%sparse_qp%slack_row
+                slack = me%sparse_qp%slack_value
+            end if
+        end select
+    end if
+    if (.not. allocated(row)) allocate(row(0), slack(0))
+
+    end subroutine elastic_slacks
 !*******************************************************************************
 
 !*******************************************************************************

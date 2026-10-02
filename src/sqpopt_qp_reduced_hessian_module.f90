@@ -136,6 +136,13 @@
         integer :: n_slacks  = 0 !! number of elastic slacks in the last solve (output; see the module docs)
         logical :: negative_curvature = .false. !! whether the last solve found a direction of negative curvature
                                                 !! of the Hessian in the variables (output; the QP was nonconvex)
+        logical :: keep_slacks = .false. !! whether to keep the elastic slacks of each solve in `slack_row` and
+                                         !! `slack_value` (internal input, set by the solver for its diagnostics:
+                                         !! see `options%diagnostic_level`)
+        integer,  dimension(:), allocatable :: slack_row   !! with `keep_slacks`: the general row of each elastic
+                                                           !! slack of the last solve (output)
+        real(wp), dimension(:), allocatable :: slack_value !! and its value at the solution: by how much the step
+                                                           !! violates that linearized constraint (output)
 
         ! internal state (the working set at the end of the previous solve, for warm starts):
         integer, dimension(:), allocatable :: warm_status !! side (-1/0/+1) of each general row and variable bound
@@ -436,6 +443,12 @@
     me%n_iter = min(it, maxit)
     me%n_working = count(status(1:m+n) /= 0)
     me%n_slacks  = nv
+    if (me%keep_slacks) then
+        if (allocated(me%slack_row)) deallocate(me%slack_row, me%slack_value)
+        allocate(me%slack_row(nv), me%slack_value(nv))
+        me%slack_row   = slack_row(1:nv)
+        me%slack_value = u(n+1:nt)
+    end if
     p = u(1:n)
     lambda = 0.0_wp
     do k = 1, size(coeff_idx)
@@ -1041,6 +1054,12 @@
         me%n_iter = min(iter, maxit_b)
         me%n_working = count(state(1:n) /= 0) + count(state(nt+1:nt+m) /= 0)
         me%n_slacks  = nv
+        if (me%keep_slacks) then
+            if (allocated(me%slack_row)) deallocate(me%slack_row, me%slack_value)
+            allocate(me%slack_row(nv), me%slack_value(nv))
+            me%slack_row   = slack_row(1:nv)
+            me%slack_value = v(n+1:nt)
+        end if
         u = v(1:nt)
         p = v(1:n)
         lambda = 0.0_wp

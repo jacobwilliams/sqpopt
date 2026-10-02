@@ -179,6 +179,12 @@ PRINT_LEVELS = (
     Choice(2, 'also more columns (step, QP, multipliers, globalization)'),
     Choice(3, 'also the details of each iteration, and the solution'),
 )
+DIAGNOSTIC_LEVELS = (
+    Choice(0, 'none'),
+    Choice(1, 'a diagnosis of the final point'),
+    Choice(2, 'also the starting point, and the history of the iterations'),
+    Choice(3, 'also the diagnostics that evaluate the functions (2 more calls)'),
+)
 FUNNEL_UPDATES = (
     Choice(1, 'max(βτ, κθₖ + (1−κ)θ) if the violation decreased, else βτ'),
     Choice(2, 'κτ + (1−κ)θ'),
@@ -420,6 +426,21 @@ TOPICS: tuple[Topic, ...] = (
             _o('options%output_unit', 'int', 6,
                'Fortran unit the output is written to. The Fortran default is output_unit from '
                'iso_fortran_env (standard output, unit 6 with gfortran).'),
+            _o('options%diagnostic_level', 'choice', 0,
+               'Diagnostics of the solve, to help when it doesn\'t converge. 0 = none (no cost). 1 = a diagnosis '
+               'of the final point: the constraints and variables with the largest errors and multipliers, the '
+               'active set and its degeneracy, the last QP, and what the final status most likely means. 2 = also '
+               'a report on the starting point (the problem\'s scaling and structure) and what the iterations '
+               'showed (the rate of convergence, constraints whose changes disagree with their derivatives, a '
+               'working set that keeps flipping, where the time went). 3 = also the diagnostics that call the '
+               'user\'s functions (two calls of fc next to the starting point). Levels 0 to 2 call the functions '
+               'exactly as often as level 0, and no level changes the iterates. The diagnostics are returned in '
+               'the results, and printed if print_level >= 1.',
+               choices=DIAGNOSTIC_LEVELS),
+            _o('options%diagnostics_unit', 'int', -1,
+               'With diagnostic_level >= 2: a Fortran unit, open for formatted writing, for the history of the '
+               'iterations (comma-separated values, one line per major iteration, with a header line). It is '
+               'written whatever print_level is.', special={-1: 'none'}),
         )),
     )),
 
