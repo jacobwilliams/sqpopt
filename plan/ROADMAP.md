@@ -1070,7 +1070,9 @@ which is now double precision only.
 
 - **Ideas from filterSD** *(not implemented; see
   [FILTERSD_COMPARISON.md](FILTERSD_COMPARISON.md), 2026-10-02)*: a
-  derivative checker for the user's `gjac` and `hess`; listing the
+  derivative checker for the user's `gjac` and `hess` (this is F8, which
+  was dropped earlier at the user's request: only reconsider it if that
+  has changed); listing the
   violated constraints when a solve ends as infeasible; starting a solve
   from the previous solve's L-BFGS pairs; and shrinking the trust region
   relative to the rejected step (tried in its simplest form: mixed results
@@ -1079,7 +1081,8 @@ which is now double precision only.
 - **Ideas from Yukon, GMAT's SQP optimizer** *(not implemented; see
   [YUKON_COMPARISON.md](YUKON_COMPARISON.md), 2026-10-02)*: a maximum step
   for each variable, as bounds on the QP's step *(done 2026-10-02:
-  `problem%set_max_step`)*; finite-difference
+  `problem%set_max_step`)*; finite-difference (also F8, dropped earlier
+  at the user's request)
   derivatives in the library, so that `fc` alone is enough; keeping the
   quasi-Newton pairs of the watchdog's best point *(tried 2026-10-02: no
   difference on the HS suite, where the watchdog goes back to its best
@@ -1169,6 +1172,35 @@ which is now double precision only.
 - **F11: linear constraints.** Flag rows as linear so the solver keeps
   them satisfied once feasible, skips SOC on them, and never
   re-linearizes them.
+- **F17: a reduced-Hessian factor kept between QPs, as in SNOPT** *(idea,
+  not started; noted 2026-10-02, and checked against the SNOPT 7 user's
+  guide, `references/sndoc7.pdf`, sections 2.4 and 7)*. What SNOPT does:
+  - *The quasi-Newton matrix.* Dense BFGS ("Hessian full memory", the
+    default for up to 75 nonlinear variables), or "Hessian limited
+    memory": a diagonal with a list of at most `Hessian updates` (10)
+    pairs, which are discarded "after Hr has been reset to their
+    diagonal". sqpopt keeps the newest pairs in a compact form instead. No
+    reason to change that.
+  - *The QP's reduced Hessian* (`QPSolver`). `Cholesky`: an upper
+    triangular `R` with `R'R = Z'HZ`, "computed from Z'HZ at the start of
+    phase 2 and then updated as the BSN sets change", for up to
+    `Reduced Hessian dimension` (2000) superbasics. `QN`: `R` is the
+    factor of a quasi-Newton approximation of the reduced Hessian, which
+    "does not require the computation of the R at the start of each QP
+    subproblem". `CG`: conjugate gradients, for more than about 2000
+    superbasics.
+  sqpopt's sparse QP has the `CG` method and a dense factor for few
+  superbasics (`dense_max_ns`) that is rebuilt for each face. What it
+  lacks is the *updating* of that factor as the working set changes, and
+  the `QN` variant that carries a factor from one QP to the next. That
+  could pay off on problems with a few hundred to a couple of thousand
+  degrees of freedom, where the QP time is in these solves; the
+  unconstrained step and the direct QP method already cover the two ends.
+  Low priority until a profile shows the reduced-Hessian solves dominating
+  a problem of that kind. (An earlier version of this entry said, from
+  memory of the SNOPT paper, that SNOPT keeps its matrix in a product
+  form; the user's guide doesn't describe that, so it is not relied on
+  here.)
 - **F12: interoperability.** A `bind(c)` C API, then a thin Python
   wrapper. This is how SLSQP-style solvers get adopted.
   *(Python part done 2026-09-28, without a C API: `python/sqpopt`, a
