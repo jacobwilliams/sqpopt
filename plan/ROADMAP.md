@@ -1061,6 +1061,14 @@ which is now double precision only.
 
 ## 5. Features toward state of the art
 
+- **Ideas from filterSD** *(not implemented; see
+  [FILTERSD_COMPARISON.md](FILTERSD_COMPARISON.md), 2026-10-02)*: a
+  derivative checker for the user's `gjac` and `hess`; listing the
+  violated constraints when a solve ends as infeasible; starting a solve
+  from the previous solve's L-BFGS pairs; and shrinking the trust region
+  relative to the rejected step (tried in its simplest form: mixed results
+  on the HS suite, not adopted).
+
 - **Ideas from Yukon, GMAT's SQP optimizer** *(not implemented; see
   [YUKON_COMPARISON.md](YUKON_COMPARISON.md), 2026-10-02)*: a maximum step
   for each variable, as bounds on the QP's step *(done 2026-10-02:
