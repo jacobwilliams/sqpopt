@@ -2,11 +2,12 @@ program benchmark_large
 
     !! Large sparse problems with analytic second derivatives, for measuring
     !! what the exact Hessian and the options that use a sparse factorization
-    !! (`options%inertia_control`, `direct_qp`, and `direct_least_squares`,
-    !! in a build with MUMPS) do to the run time, and where the time goes:
+    !! (`options%inertia_control`, `direct_qp`, and `direct_least_squares`)
+    !! do to the run time, and where the time goes:
     !!
     !!    fpm run --example benchmark_large --profile release -- [--scale=S] [--problem=NAME] [--config=NAME]
     !!        [--no-bfgs] [--no-active-set] [--least-squares] [--no-least-squares] [--memory=K] [--threads=T] [--print=L]
+    !!        [--linear-solver=qdldl|mumps]
     !!
     !! With MUMPS (see the README):
     !!
@@ -21,8 +22,10 @@ program benchmark_large
     !! `direct_least_squares` is on in the runs with `direct_qp`:
     !! `--least-squares` turns it on in every run, and `--no-least-squares`
     !! off in every run. `--memory=K` sets `options%lbfgs_memory`, `--threads=T`
-    !! sets `options%factorization_threads`, and `--print=L` sets
-    !! `options%print_level`.
+    !! sets `options%factorization_threads`, `--print=L` sets
+    !! `options%print_level`, and `--linear-solver=` sets
+    !! `options%linear_solver` (QDLDL by default; `mumps` needs a build with
+    !! MUMPS).
     !!
     !! Problems (sizes for `S = 1`):
     !!
@@ -76,7 +79,7 @@ program benchmark_large
     !!                  0.1 <= x <= 2
     !!
     !! Each is solved with L-BFGS (the default; configuration `bfgs`), with the
-    !! exact Hessian (`exact`), and, in a build with MUMPS, with L-BFGS and the
+    !! exact Hessian (`exact`), with L-BFGS and the
     !! direct QP method (`bfgs-direct`), with the exact Hessian and inertia
     !! control (`inertia`), and with those and the direct QP method (`direct`;
     !! the direct runs also use direct least-squares solves). The columns are
@@ -90,7 +93,7 @@ program benchmark_large
     use sqpopt_problem_module, only: sqpopt_problem_type
     use sqpopt_options_module, only: sqpopt_options_type
     use sqpopt_hessian_module, only: sqpopt_hessian_exact
-    use sqpopt_symmetric_solver_module, only: sqpopt_has_mumps
+    use sqpopt_symmetric_solver_module, only: sqpopt_linear_solver_mumps, sqpopt_linear_solver_qdldl
     use sqpopt_types_module,   only: sqpopt_results_type
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
 
@@ -105,6 +108,7 @@ program benchmark_large
     integer  :: print_level !! `--print`
     integer  :: memory      !! `--memory` (`0`: automatic)
     integer  :: threads     !! `--threads` (`0`: as the OpenMP environment says)
+    integer  :: linear_solver !! `--linear-solver`
     integer  :: i, ios
     character(len=64) :: arg
     character(len=:), allocatable :: only !! `--problem` (empty: all of them)
@@ -117,6 +121,7 @@ program benchmark_large
     print_level = 0
     memory = 0
     threads = 1
+    linear_solver = sqpopt_linear_solver_qdldl
     only = ''
     do i = 1, command_argument_count()
         call get_command_argument(i, arg)
@@ -147,6 +152,10 @@ program benchmark_large
         else if (arg(1:10) == '--threads=') then
             read(arg(11:), *, iostat=ios) threads
             if (ios /= 0 .or. threads < 0) error stop 'benchmark_large: bad --threads value'
+        else if (arg == '--linear-solver=mumps') then
+            linear_solver = sqpopt_linear_solver_mumps
+        else if (arg == '--linear-solver=qdldl') then
+            linear_solver = sqpopt_linear_solver_qdldl
         else if (arg(1:8) == '--print=') then
             read(arg(9:), *, iostat=ios) print_level
             if (ios /= 0) error stop 'benchmark_large: bad --print value'
@@ -173,11 +182,9 @@ program benchmark_large
     character(len=*), intent(in) :: name !! the problem
     if (with_bfgs .and. with_active_set .and. wanted('bfgs')) call run(name, 'L-BFGS', .false., .false., .false.)
     if (with_active_set .and. wanted('exact')) call run(name, 'exact Hessian', .true., .false., .false.)
-    if (sqpopt_has_mumps) then
-        if (with_bfgs .and. wanted('bfgs-direct')) call run(name, 'L-BFGS, direct', .false., .false., .true.)
-        if (with_active_set .and. wanted('inertia')) call run(name, 'exact, inertia', .true., .true., .false.)
-        if (wanted('direct')) call run(name, 'exact, inertia, direct', .true., .true., .true.)
-    end if
+    if (with_bfgs .and. wanted('bfgs-direct')) call run(name, 'L-BFGS, direct', .false., .false., .true.)
+    if (with_active_set .and. wanted('inertia')) call run(name, 'exact, inertia', .true., .true., .false.)
+    if (wanted('direct')) call run(name, 'exact, inertia, direct', .true., .true., .true.)
     write(*,'(A)') ''
     end subroutine run_all
 
@@ -218,7 +225,8 @@ program benchmark_large
     if (exact) options%hessian_mode = sqpopt_hessian_exact
     options%inertia_control      = inertia
     options%direct_qp            = direct
-    options%direct_least_squares = sqpopt_has_mumps .and. (least_squares == 1 .or. (direct .and. least_squares == 0))
+    options%direct_least_squares = least_squares == 1 .or. (direct .and. least_squares == 0)
+    options%linear_solver        = linear_solver
 
     call solver%initialize(problem=problem, options=options)
     call solver%solve(x0, istat)

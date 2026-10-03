@@ -3,8 +3,8 @@
 !  license: MIT
 !
 !  The KKT matrix of a QP subproblem's working set, factored by the sparse
-!  direct solver of [[sqpopt_symmetric_solver_module]] (so it is only
-!  available in a build with MUMPS):
+!  direct solver of [[sqpopt_symmetric_solver_module]] (MUMPS or QDLDL,
+!  see `options%linear_solver`):
 !
 !  $$ K = \begin{bmatrix} H & J_a^T \\ J_a & -\epsilon I \end{bmatrix} $$
 !
@@ -130,10 +130,13 @@
 !  pattern is `hess_irow`/`hess_icol` (each off-diagonal element once, as
 !  for [[set_hessian_sparsity]]); without it, the Hessian is diagonal. The
 !  pattern of \( K \) is its whole diagonal, then the Hessian's elements,
-!  then the Jacobian's. `ok` is false, and the matrix is left disabled, if
-!  the library was built without MUMPS or the solver couldn't be started.
+!  then the Jacobian's. `solver` is the sparse solver
+!  (`sqpopt_linear_solver_*`, default `auto`; with QDLDL, each constraint's
+!  row is ordered after its variables, see [[delay_negative_rows]]). `ok` is
+!  false, and the matrix is left disabled, if that solver isn't available
+!  in this build or couldn't be started.
 
-    subroutine kkt_initialize(me, n, m, jac_irow, jac_icol, ok, hess_irow, hess_icol, threads)
+    subroutine kkt_initialize(me, n, m, jac_irow, jac_icol, ok, hess_irow, hess_icol, threads, solver)
 
     class(sqpopt_kkt_type), intent(inout) :: me
     integer,               intent(in)  :: n         !! number of variables
@@ -145,8 +148,11 @@
     integer, dimension(:), intent(in), optional :: hess_icol !! column indices of the Hessian's nonzeros
     integer,               intent(in), optional :: threads   !! number of OpenMP threads of the sparse solver (see
                                                              !! [[symmetric_solver_initialize]])
+    integer,               intent(in), optional :: solver    !! the sparse solver (`sqpopt_linear_solver_*`)
 
     integer :: k, nh
+    integer, dimension(:), allocatable :: signs !! the expected sign of each row's pivot (the variables', then the
+                                                !! constraints')
     integer, dimension(:), allocatable :: irow, icol !! the pattern of \( K \) (its lower triangle)
     logical :: oom
 
@@ -170,7 +176,10 @@
     icol(n+m+1:n+m+nh) = min(me%h_irow, me%h_icol)
     irow(n+m+nh+1:) = n + jac_irow
     icol(n+m+nh+1:) = jac_icol
-    call me%solver%initialize(n + m, irow, icol, ok, threads=threads)
+    allocate(signs(n + m))
+    signs(1:n) = 1
+    signs(n+1:) = -1
+    call me%solver%initialize(n + m, irow, icol, ok, threads=threads, solver=solver, signs=signs)
     if (.not. ok) then
         ! (keep the reason, for the caller)
         oom = me%solver%out_of_memory

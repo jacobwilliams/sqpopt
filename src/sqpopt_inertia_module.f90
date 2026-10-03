@@ -6,7 +6,9 @@
 !  and SR1 (`options%inertia_control`): the shift \( \delta \) of
 !  \( H + \delta I \) is found from a sparse factorization of the KKT
 !  matrix of the QP subproblem's working set (see [[sqpopt_kkt_module]]),
-!  so it is only available in a build with MUMPS (see `sqpopt_has_mumps`).
+!  by the sparse solver of `options%linear_solver` (MUMPS or QDLDL; with
+!  the exact Hessian, MUMPS is the better one, see
+!  [[sqpopt_symmetric_solver_module]]).
 !
 !  The QP subproblem's step is only a minimizer if the Hessian is positive
 !  definite on the null space of the working set's constraints,

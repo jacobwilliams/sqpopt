@@ -1,7 +1,8 @@
 program test_kkt
 
-    !! Unit tests of the sparse factorizations and what is built on them (a
-    !! build with MUMPS, the `HAS_MUMPS` preprocessor directive; see
+    !! Unit tests of the sparse factorizations and what is built on them, with
+    !! each sparse solver of the build (QDLDL always, and MUMPS in a build with
+    !! the `HAS_MUMPS` preprocessor directive; see
     !! [[sqpopt_symmetric_solver_module]]):
     !!
     !! * the sparse symmetric solver: the inertia of small matrices, solves
@@ -14,11 +15,13 @@ program test_kkt
     !! * the direct least-squares solver ([[sqpopt_least_squares_module]]): the
     !!   minimum-norm solution, also for dependent rows.
     !!
-    !! In every build, it tests the small dense routines those use
+    !! It also tests the small dense routines those use
     !! (`dense_symmetric_inertia`, `dense_lu_factor`, and `dense_lu_solve`),
-    !! and without MUMPS, that the solver reports itself unavailable.
+    !! and without MUMPS, that MUMPS reports itself unavailable.
 
-    use sqpopt_symmetric_solver_module, only: sqpopt_symmetric_solver_type, sqpopt_has_mumps
+    use sqpopt_symmetric_solver_module, only: sqpopt_symmetric_solver_type, sqpopt_has_mumps, &
+                                              sqpopt_linear_solver_mumps, sqpopt_linear_solver_qdldl, &
+                                              sqpopt_linear_solver_name
     use sqpopt_kkt_module,              only: sqpopt_kkt_type
     use sqpopt_least_squares_module,    only: sqpopt_least_squares_type
     use sqpopt_hessian_module,          only: sqpopt_hessian_type
@@ -29,6 +32,8 @@ program test_kkt
     implicit none
 
     real(wp), parameter :: tol = 1.0e-9_wp !! tolerance on the residuals and on the differences from the references
+    integer :: k
+    integer, dimension(2), parameter :: solvers = [sqpopt_linear_solver_mumps, sqpopt_linear_solver_qdldl]
 
     write(*,*) '----------------------------'
     write(*,*) 'test_kkt'
@@ -36,15 +41,18 @@ program test_kkt
 
     call seed_rng()
     call test_dense()
-    if (sqpopt_has_mumps) then
-        call test_solver()
-        call test_kkt_matrix('exact')
-        call test_kkt_matrix('bfgs')
-        call test_kkt_matrix('sr1')
-        call test_least_squares()
-    else
-        call test_unavailable()
-    end if
+    do k = 1, size(solvers)
+        if (solvers(k) == sqpopt_linear_solver_mumps .and. .not. sqpopt_has_mumps) then
+            call test_unavailable()
+            cycle
+        end if
+        print '(2A)', 'sparse solver: ', sqpopt_linear_solver_name(solvers(k))
+        call test_solver(solvers(k))
+        call test_kkt_matrix('exact', solvers(k))
+        call test_kkt_matrix('bfgs', solvers(k))
+        call test_kkt_matrix('sr1', solvers(k))
+        call test_least_squares(solvers(k))
+    end do
 
     print '(A)', 'test_kkt PASSED'
 
@@ -132,16 +140,18 @@ program test_kkt
     print '(A)', 'test_kkt [dense routines] PASSED'
     end subroutine test_dense
 
-    subroutine test_solver()
+    subroutine test_solver(which)
     !! the sparse solver on `[2 0 1; 0 -1 0; 1 0 0]` (one triangle given, with a duplicate entry),
-    !! then on a singular matrix with the same pattern
+    !! then on a singular matrix with the same pattern. (The third row's zero diagonal is given the
+    !! sign `-1`, as QDLDL needs; MUMPS ignores it.)
+    integer, intent(in) :: which !! the sparse solver (`sqpopt_linear_solver_*`)
     type(sqpopt_symmetric_solver_type) :: solver
     real(wp) :: b(3), x(3), y(3)
     logical :: ok
     integer :: i
 
     ! (the element (1,1) is given twice: 1.5 + 0.5)
-    call solver%initialize(3, [1, 2, 3, 3, 1], [1, 2, 1, 3, 1], ok)
+    call solver%initialize(3, [1, 2, 3, 3, 1], [1, 2, 1, 3, 1], ok, solver=which, signs=[0, 0, -1])
     if (.not. (ok .and. solver%ready)) error stop 'test_kkt FAILED: the solver could not be started'
     call solver%factor([1.5_wp, -1.0_wp, 1.0_wp, 0.0_wp, 0.5_wp], ok)
     if (.not. ok) error stop 'test_kkt FAILED: factorization'
@@ -166,7 +176,7 @@ program test_kkt
 
     ! the same system on two OpenMP threads, and with the number left to the environment
     do i = 0, 2, 2
-        call solver%initialize(3, [1, 2, 3, 3, 1], [1, 2, 1, 3, 1], ok, threads=i)
+        call solver%initialize(3, [1, 2, 3, 3, 1], [1, 2, 1, 3, 1], ok, threads=i, solver=which, signs=[0, 0, -1])
         if (ok) call solver%factor([1.5_wp, -1.0_wp, 1.0_wp, 0.0_wp, 0.5_wp], ok)
         x = b
         if (ok) call solver%solve(x, ok)
@@ -177,10 +187,11 @@ program test_kkt
     print '(A)', 'test_kkt [sparse solver] PASSED'
     end subroutine test_solver
 
-    subroutine test_kkt_matrix(mode)
+    subroutine test_kkt_matrix(mode, which)
     !! the KKT matrix of random problems against a dense reference, for the
     !! Hessian mode `mode` (`exact`, `bfgs`, or `sr1`), and several working sets
-    character(len=*), intent(in) :: mode !! the Hessian mode
+    character(len=*), intent(in) :: mode  !! the Hessian mode
+    integer,          intent(in) :: which !! the sparse solver (`sqpopt_linear_solver_*`)
     integer, parameter :: n = 8, m = 3, n_trials = 20
     type(sqpopt_kkt_type)      :: kkt
     type(sqpopt_hessian_type)  :: h
@@ -206,9 +217,9 @@ program test_kkt
         end do
     end do
     if (mode == 'exact') then
-        call kkt%initialize(n, m, jac%irow, jac%icol, ok, hess_irow=irow, hess_icol=icol)
+        call kkt%initialize(n, m, jac%irow, jac%icol, ok, hess_irow=irow, hess_icol=icol, solver=which)
     else
-        call kkt%initialize(n, m, jac%irow, jac%icol, ok)
+        call kkt%initialize(n, m, jac%irow, jac%icol, ok, solver=which)
     end if
     if (.not. (ok .and. kkt%enabled)) error stop 'test_kkt FAILED: the KKT matrix could not be set up'
 
@@ -322,10 +333,11 @@ program test_kkt
     print '(3A,I0,A)', 'test_kkt [KKT matrix, ', mode, ' Hessian: ', n_checked, ' working sets] PASSED'
     end subroutine test_kkt_matrix
 
-    subroutine test_least_squares()
+    subroutine test_least_squares(which)
     !! the minimum-norm solution of `J_S d = r`, for independent rows, for a duplicated row, and
     !! for a Jacobian with small elements in the rows in use and large ones elsewhere, and the
     !! least-squares multipliers of that Jacobian
+    integer, intent(in) :: which !! the sparse solver (`sqpopt_linear_solver_*`)
     integer, parameter :: n = 5, m = 3
     real(wp), parameter :: small = 1.0e-6_wp              !! scale of the small Jacobian
     real(wp), parameter :: large = 1.0e6_wp               !! scale, relative to it, of its row and column not in use
@@ -347,7 +359,7 @@ program test_kkt
     jac%val   = [((jd(i,j), j=1,n), i=1,m)]
     r = [1.0_wp, -2.0_wp, 1.0_wp]
 
-    call ls%initialize(n, m, jac%irow, jac%icol, ok)
+    call ls%initialize(n, m, jac%irow, jac%icol, ok, solver=which)
     if (.not. (ok .and. ls%enabled)) error stop 'test_kkt FAILED: the least-squares solver could not be started'
 
     ! rows 1 and 2: d = J^T (J J^T)^{-1} r
@@ -394,16 +406,16 @@ program test_kkt
     end subroutine test_least_squares
 
     subroutine test_unavailable()
-    !! without MUMPS, nothing can be started
+    !! without MUMPS, nothing can be started with it
     type(sqpopt_symmetric_solver_type) :: solver
     type(sqpopt_kkt_type) :: kkt
     type(sqpopt_least_squares_type) :: ls
     logical :: ok
-    call solver%initialize(2, [1, 2], [1, 2], ok)
+    call solver%initialize(2, [1, 2], [1, 2], ok, solver=sqpopt_linear_solver_mumps)
     if (ok .or. solver%ready) error stop 'test_kkt FAILED: the solver started without MUMPS'
-    call kkt%initialize(2, 1, [1], [1], ok)
+    call kkt%initialize(2, 1, [1], [1], ok, solver=sqpopt_linear_solver_mumps)
     if (ok .or. kkt%enabled) error stop 'test_kkt FAILED: the KKT matrix was set up without MUMPS'
-    call ls%initialize(2, 1, [1], [1], ok)
+    call ls%initialize(2, 1, [1], [1], ok, solver=sqpopt_linear_solver_mumps)
     if (ok .or. ls%enabled) error stop 'test_kkt FAILED: the least-squares solver started without MUMPS'
     print '(A)', 'test_kkt [not built with MUMPS: unavailable] PASSED'
     end subroutine test_unavailable

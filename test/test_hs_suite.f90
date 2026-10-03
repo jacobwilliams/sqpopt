@@ -52,11 +52,12 @@ program test_hs_suite
     !!   and Jacobian, see [[hess_fd]], except on the problems that use
     !!   finite-difference first derivatives, which keep BFGS)
     !! * `--inertia` (`options%inertia_control = .true.`, for `--hessian=exact`
-    !!   or `--hessian=sr1`: it needs a build with MUMPS, see
-    !!   [[sqpopt_inertia_module]])
+    !!   or `--hessian=sr1`, see [[sqpopt_inertia_module]])
     !! * `--direct` (`options%direct_qp = .true.`, with any Hessian) and
-    !!   `--direct-ls` (`options%direct_least_squares = .true.`): both need a
-    !!   build with MUMPS too
+    !!   `--direct-ls` (`options%direct_least_squares = .true.`)
+    !! * `--linear-solver=qdldl|mumps` (`options%linear_solver`, the sparse
+    !!   solver of the three options above: QDLDL by default; `mumps` needs a
+    !!   build with MUMPS)
     !! * `--trust-region` (`trust_region%enabled = .true.`: the trust-region
     !!   globalization, with the filter or funnel test in those modes, else
     !!   the merit-function ratio test)
@@ -116,6 +117,7 @@ program test_hs_suite
                                      sqpopt_status_message
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
     use sqpopt_restoration_module,  only: sqpopt_restoration_phase, sqpopt_restoration_gauss_newton
+    use sqpopt_symmetric_solver_module, only: sqpopt_linear_solver_mumps, sqpopt_linear_solver_qdldl
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
 
     implicit none
@@ -179,6 +181,7 @@ program test_hs_suite
     logical :: cfg_inertia      = .false. !! `--inertia`
     logical :: cfg_direct       = .false. !! `--direct`
     logical :: cfg_direct_ls    = .false. !! `--direct-ls`
+    integer :: cfg_linear_solver = sqpopt_linear_solver_qdldl !! `--linear-solver=`
     integer :: cfg_restoration  = sqpopt_restoration_phase !! `--restoration=`
     integer :: cfg_hessian      = sqpopt_hessian_bfgs      !! `--hessian=`
     integer :: cfg_memory       = 0                        !! `--lbfgs-memory=N` (`0`: the default)
@@ -298,6 +301,8 @@ program test_hs_suite
         case ('--inertia');             cfg_inertia = .true.
         case ('--direct');              cfg_direct = .true.
         case ('--direct-ls');           cfg_direct_ls = .true.
+        case ('--linear-solver=mumps'); cfg_linear_solver = sqpopt_linear_solver_mumps
+        case ('--linear-solver=qdldl'); cfg_linear_solver = sqpopt_linear_solver_qdldl
         case ('--restoration=phase');   cfg_restoration = sqpopt_restoration_phase
         case ('--restoration=gauss-newton'); cfg_restoration = sqpopt_restoration_gauss_newton
         case ('--hessian=bfgs');        cfg_hessian = sqpopt_hessian_bfgs
@@ -415,6 +420,7 @@ program test_hs_suite
     options%inertia_control = cfg_inertia
     options%direct_qp       = cfg_direct
     options%direct_least_squares = cfg_direct_ls
+    options%linear_solver   = cfg_linear_solver
     qp_solver%sparse_qp%null_space = cfg_null_space
     linesearch%interpolate     = cfg_interpolate
     linesearch%nonmonotone_len = cfg_nonmonotone

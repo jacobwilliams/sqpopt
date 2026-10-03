@@ -44,10 +44,14 @@ The default precision is double. For single or quadruple precision, define
 pixi run fpm test --flag "-DREAL128"
 ```
 
-### Building with MUMPS (optional)
+### Sparse factorizations: QDLDL, and MUMPS (optional)
 
-Three options, meant for large problems, use the sparse LDLᵀ factorization
-of [MUMPS](https://mumps-solver.org):
+Three options, meant for large problems, use a sparse LDLᵀ factorization,
+by the solver of `options%linear_solver`: [QDLDL](https://github.com/jacobwilliams/qdldl-fortran)
+(the default: no pivoting, one thread, very little overhead; an fpm
+dependency, so always available) or [MUMPS](https://mumps-solver.org)
+(with pivoting and threads; optional, and chosen with
+`options%linear_solver = sqpopt_linear_solver_mumps`):
 
 | option | what it does | module |
 |---|---|---|
@@ -56,9 +60,16 @@ of [MUMPS](https://mumps-solver.org):
 | `options%direct_least_squares` | computes restoration steps and second-order corrections directly instead of with `LSQR` | `sqpopt_least_squares_module` |
 
 All three are built on `sqpopt_kkt_module` (the KKT matrix of a working
-set) and `sqpopt_symmetric_solver_module`, the only source file that refers
-to MUMPS, and only inside `#ifdef HAS_MUMPS`. So the default build still
-needs nothing but fpm. `options%factorization_threads` sets the number of
+set) and `sqpopt_symmetric_solver_module`, which holds both solvers, and is
+the only source file that refers to MUMPS, and only inside
+`#ifdef HAS_MUMPS`. So the default build still needs nothing but fpm, and
+has all three options, with QDLDL. QDLDL is exact for the least-squares
+systems and the quasi-Newton Hessians, and much faster than MUMPS on banded
+and chained problems. Choose MUMPS for the exact Hessian with inertia
+control, and for problems coupled in two or three dimensions (see the
+guide's "Sparse solver" section, which compares them;
+`example/sparse_solvers.f90` times the two solvers on grid matrices).
+`options%factorization_threads` sets the number of
 OpenMP threads MUMPS uses (1 by default; conda-forge's `mumps-seq` is built
 with OpenMP). With `HAS_MUMPS`, the library must be compiled in
 double precision (the default: `REAL32` and `REAL128` are a compile error
@@ -77,10 +88,14 @@ They run fpm with
 `--flag "-DHAS_MUMPS -I$CONDA_PREFIX/include" --link-flag "-ldmumps_seq"`:
 the include path is for MUMPS's `dmumps_struc.h`. A program that uses a
 library built this way must link with `-ldmumps_seq` too. Without
-`HAS_MUMPS`, `sqpopt_has_mumps` is false and each of the three options is
-rejected as invalid input. Changes to this code must be tested in both
-builds: `test_kkt`, `test_inertia`, `test_direct`, and `test_qp_fuzz` check
-the features in one, and the rejection (or nothing) in the other.
+`HAS_MUMPS`, `sqpopt_has_mumps` is false and only
+`linear_solver = sqpopt_linear_solver_mumps` is rejected as invalid input.
+Changes to this code must be tested in both builds: `test_kkt` checks each
+solver of the build, and `test_inertia`, `test_direct`, and `test_qp_fuzz`
+the features with each solver of the build (`test_qp_fuzz` with the default,
+QDLDL), and, without MUMPS, the rejection of MUMPS. The HS suite's,
+`test_scalable`'s, and `benchmark_large`'s `--linear-solver=qdldl|mumps`
+compare the two.
 
 ### Tests
 
@@ -91,14 +106,14 @@ The tests are in `test/`:
   of random convex, nonconvex, degenerate, and infeasible QPs, checked against
   the KKT conditions), `test_hessian_consistency`, `test_acceptance` (merit
   function, filter, funnel), `test_convergence`,
-  `test_independent_columns`, and, for the sparse factorizations of a build
-  with MUMPS, `test_kkt` (the sparse solver, the KKT matrix against a dense
+  `test_independent_columns`, and, for the sparse factorizations (with
+  each solver of the build), `test_kkt` (the sparse solver, the KKT matrix against a dense
   reference, and the least-squares solver) and `test_inertia` (the shift's
   search). `test_qp_fuzz` gives its QPs to the direct method too.
 - **Solver tests** on small problems with known solutions (`test_basic`,
   `test_hs71`, `test_medium`, `test_maratos`, `test_degenerate` (a
-  constraint tangent to a bound), `test_direct` (the options of a build
-  with MUMPS, with every Hessian mode), and `test_multipliers` (the
+  constraint tangent to a bound), `test_direct` (the options that factor
+  matrices, with every Hessian mode), and `test_multipliers` (the
   least-squares multiplier estimate, and a hanging chain that the exact
   Hessian only solves with it), larger sparse ones
   (`test_large_sparse`), a two-variable problem whose path is drawn in the
@@ -148,8 +163,8 @@ pixi run fpm run --example benchmark --profile release
 `example/benchmark_large.f90` solves larger problems with analytic second
 derivatives (those two, a nonconvex chain of double wells, and a chain of
 circle constraints that needs second-order corrections) with each
-Hessian mode and, in a build with MUMPS, with the options that use sparse
-factorizations. It reports where the time goes (the QP solver, the
+Hessian mode and with the options that use sparse factorizations (with
+`--linear-solver=` choosing their solver). It reports where the time goes (the QP solver, the
 factorizations) and how many QPs were solved directly. `--scale=S`
 multiplies the sizes (`S = 100` gives a million variables; see the header of
 the file for the other options):
@@ -204,7 +219,7 @@ architecture ([PLAN.md](plan/PLAN.md)), the backlog
 | `sqpopt_options_module` | the solver options |
 | `sqpopt_types_module` | status codes, the sparse matrix and results types, and small utilities |
 | `sqpopt_hessian_module` | the limited-memory BFGS/SR1 approximations, and the exact Hessian |
-| `sqpopt_symmetric_solver_module` | the sparse symmetric indefinite solver: the interface to MUMPS (only in a build with `HAS_MUMPS`) |
+| `sqpopt_symmetric_solver_module` | the sparse symmetric indefinite solver: QDLDL, or MUMPS (only in a build with `HAS_MUMPS`) |
 | `sqpopt_kkt_module` | the KKT matrix of a QP working set, factored with that solver (its inertia, and solves) |
 | `sqpopt_inertia_module` | inertia control of the exact and SR1 Hessians |
 | `sqpopt_qp_direct_module` | the direct QP method (a primal-dual active-set method on the KKT matrix) |
@@ -238,9 +253,10 @@ Fetched and built by fpm:
 - [LSQR](https://github.com/jacobwilliams/LSQR): iterative sparse least-squares solver
 - [lusol](https://github.com/jacobwilliams/lusol): sparse LU factorization (the sparse QP's basis factors and updates)
 - [fmin](https://github.com/jacobwilliams/fmin): derivative-free 1-D minimization (the exact line search)
+- [qdldl-fortran](https://github.com/jacobwilliams/qdldl-fortran): sparse LDLᵀ factorization without pivoting (the default sparse solver without MUMPS)
 - [slsqp](https://github.com/jacobwilliams/slsqp) (tests only): the SLSQP comparison
 
-Optional, from the pixi environment (see "Building with MUMPS"):
+Optional, from the pixi environment (see "Sparse factorizations"):
 
 - [MUMPS](https://mumps-solver.org): sparse symmetric indefinite factorization (inertia control, the direct QP method, and direct least-squares solves)
 

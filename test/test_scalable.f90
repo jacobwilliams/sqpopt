@@ -11,8 +11,8 @@ program test_scalable
     !!
     !! Then every function is solved from its starting point, for each number
     !! of variables, with the limited-memory BFGS Hessian, and, if it has a
-    !! sparse Hessian, with that; in a build with MUMPS, also with the exact
-    !! Hessian, inertia control, and the direct QP method. The solver must
+    !! sparse Hessian, with that, and with the exact Hessian, inertia control,
+    !! and the direct QP method. The solver must
     !! converge (`sqpopt_success`, `sqpopt_acceptable`, or `sqpopt_stalled`)
     !! to a point within the bounds, with a smaller objective than the
     !! starting point's, where the gradient, projected on the bounds, is small
@@ -47,8 +47,9 @@ program test_scalable
     !!   `powell_singular`)
     !! * `--function=NAME`: only that function
     !! * `--hessian=bfgs|exact|direct`: only that configuration (`direct` is
-    !!   the exact Hessian with inertia control and the direct QP method, and
-    !!   needs a build with MUMPS)
+    !!   the exact Hessian with inertia control and the direct QP method)
+    !! * `--linear-solver=qdldl|mumps`: `options%linear_solver`, the sparse
+    !!   solver of `direct` (QDLDL by default; `mumps` needs a build with MUMPS)
     !! * `--max-iter=K`: `options%max_iter` (default 10000)
     !! * `--print=L`: `options%print_level`
 
@@ -56,9 +57,9 @@ program test_scalable
     use sqpopt_problem_module,   only: sqpopt_problem_type
     use sqpopt_options_module,   only: sqpopt_options_type
     use sqpopt_hessian_module,   only: sqpopt_hessian_exact
-    use sqpopt_inertia_module,   only: sqpopt_has_mumps
     use sqpopt_types_module,     only: sqpopt_results_type, sqpopt_success, sqpopt_acceptable, sqpopt_stalled
     use sqpopt_kinds,            only: wp => sqpopt_module_wp
+    use sqpopt_symmetric_solver_module, only: sqpopt_linear_solver_qdldl, sqpopt_linear_solver_mumps
     use scalable_functions_module
 
     implicit none
@@ -84,6 +85,7 @@ program test_scalable
     integer, dimension(:), allocatable :: sizes
     character(len=:), allocatable :: only_function
     integer :: only_cfg, max_iter, print_level
+    integer :: linear_solver !! `--linear-solver` (`options%linear_solver`)
     logical :: default_run
     integer :: id, k, cfg, n_global, n_loose, n_local, n_failed, n_unexpected
     type(scalable_function_type) :: fun
@@ -113,7 +115,6 @@ program test_scalable
             do cfg = cfg_bfgs, cfg_direct
                 if (only_cfg /= 0 .and. cfg /= only_cfg) cycle
                 if (cfg /= cfg_bfgs .and. .not. fun%has_hessian) cycle
-                if (cfg == cfg_direct .and. .not. sqpopt_has_mumps) cycle
                 call solve(fun, cfg)
             end do
         end do
@@ -140,6 +141,7 @@ program test_scalable
     only_cfg    = 0
     max_iter    = 10000
     print_level = 0
+    linear_solver = sqpopt_linear_solver_qdldl
     default_run = command_argument_count() == 0
     do i = 1, command_argument_count()
         call get_command_argument(i, arg)
@@ -162,6 +164,10 @@ program test_scalable
             only_cfg = cfg_exact
         else if (arg == '--hessian=direct') then
             only_cfg = cfg_direct
+        else if (arg == '--linear-solver=qdldl') then
+            linear_solver = sqpopt_linear_solver_qdldl
+        else if (arg == '--linear-solver=mumps') then
+            linear_solver = sqpopt_linear_solver_mumps
         else if (arg(1:11) == '--max-iter=') then
             read(arg(12:), *, iostat=ios) max_iter
             if (ios /= 0) error stop 'test_scalable: bad --max-iter'
@@ -257,6 +263,7 @@ program test_scalable
     end if
     options%max_iter    = max_iter
     options%print_level = print_level
+    options%linear_solver = linear_solver
 
     f0 = fun%f(fun%x0)
     call fun%g(fun%x0, g)

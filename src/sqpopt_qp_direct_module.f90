@@ -4,7 +4,7 @@
 !
 !  A direct solution of the QP subproblem (`options%direct_qp`), by sparse
 !  factorizations of the KKT matrix of its working set (see
-!  [[sqpopt_kkt_module]]), so it is only available in a build with MUMPS.
+!  [[sqpopt_kkt_module]]; MUMPS or QDLDL, see `options%linear_solver`).
 !
 !  For a given working set (the general rows and variable bounds held at
 !  a bound), the QP is an equality-constrained one, and its solution is one

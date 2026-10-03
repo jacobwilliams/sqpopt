@@ -173,6 +173,10 @@ NULL_SPACE_METHODS = (
     Choice(1, 'sparse LU basis (SQOPT-style)', 'sqpopt_null_space_lu'),
     Choice(2, 'orthogonal projections with LSQR', 'sqpopt_null_space_lsqr'),
 )
+LINEAR_SOLVERS = (
+    Choice(2, 'QDLDL (no pivoting; always available)', 'sqpopt_linear_solver_qdldl'),
+    Choice(1, 'MUMPS (multifrontal, with pivoting and threads; a build with MUMPS)', 'sqpopt_linear_solver_mumps'),
+)
 PRINT_LEVELS = (
     Choice(0, 'none'),
     Choice(1, 'iteration log and summary'),
@@ -191,7 +195,7 @@ FUNNEL_UPDATES = (
 )
 
 ALL_CHOICES = (HESSIAN_MODES, QP_MODES, LINESEARCH_MODES, MERIT_MODES, PENALTY_UPDATES,
-               RESTORATION_MODES, NULL_SPACE_METHODS, DERIVATIVE_ACCURACIES)
+               RESTORATION_MODES, NULL_SPACE_METHODS, DERIVATIVE_ACCURACIES, LINEAR_SOLVERS)
 
 
 def _o(path: str, kind: str, default: Any, doc: str, **kw) -> Option:
@@ -458,13 +462,14 @@ TOPICS: tuple[Topic, ...] = (
                "positive definite while still using the new curvature information. If off, such updates are "
                "skipped instead."),
         ), relevance=_quasi_newton_used),
-        Section('Inertia control (a build with MUMPS)', (
+        Section('Inertia control', (
             _o('options%inertia_control', 'bool', False,
                'With the exact or the SR1 Hessian, which can be indefinite: find the shift δ of H + δI from the '
-               'inertia of the KKT matrix of the QP\'s working set, by a sparse LDLᵀ factorization (MUMPS): the '
-               'smallest shift tried that leaves no negative curvature. Without it, the exact Hessian is shifted '
-               'tenfold whenever a QP finds negative curvature, and SR1 is not corrected at all. It needs a '
-               'library built with MUMPS (the HAS_MUMPS preprocessor directive), and is invalid without it.'),
+               'inertia of the KKT matrix of the QP\'s working set, by a sparse LDLᵀ factorization (see '
+               'linear_solver): the smallest shift tried that leaves no negative curvature. Without it, the exact '
+               'Hessian is shifted tenfold whenever a QP finds negative curvature, and SR1 is not corrected at '
+               'all. With the exact Hessian, MUMPS is the better solver: QDLDL, which doesn\'t pivot, can\'t tell '
+               'the inertia when the Hessian has zeros on its diagonal, and then shifts it more than needed.'),
         ), relevance=_inertia_used),
         Section('Exact Hessian', (
             _positive('hessian%shift_min', 1e-4,
@@ -475,25 +480,36 @@ TOPICS: tuple[Topic, ...] = (
     )),
 
     Topic('QP solver', 'The QP subproblem solvers (qp_solver_mode is on the Algorithms page).', (
-        Section('Direct method (a build with MUMPS)', (
+        Section('Direct method', (
             _o('options%direct_qp', 'bool', False,
                'First try to solve each QP subproblem directly, by sparse factorizations of the KKT matrix of '
                'its working set, starting from the working set of the previous QP. The active-set QP solver is '
                'only run if that fails. Meant for large problems, where it can be orders of magnitude faster; '
                'with the exact Hessian, use it with inertia_control. With L-BFGS or SR1, the automatic memory '
-               '(lbfgs_memory = 0) is 10 pairs, which keeps it cheap. It needs a library built with MUMPS (the HAS_MUMPS preprocessor '
-               'directive), and is invalid without it.'),
+               '(lbfgs_memory = 0) is 10 pairs, which keeps it cheap. The factorizations are linear_solver\'s.'),
             _o('options%direct_least_squares', 'bool', False,
                'Compute the Gauss-Newton restoration steps and the second-order corrections by a sparse '
                'factorization instead of the iterative LSQR. It pays on large problems that take such steps and '
-               'whose constraints are coupled (a chain of 100,000 circle constraints: 88.7 s with LSQR, 1.1 s '
-               'with this). It needs a library built with MUMPS, and is invalid without it.'),
+               'whose constraints are coupled (a chain of 100,000 circle constraints: 88.7 s with LSQR, 0.16 s '
+               'with this). The factorizations are linear_solver\'s.'),
         )),
-        Section('Threads', (
+        Section('Sparse solver', (
+            _o('options%linear_solver', 'int', 2,
+               'The sparse solver of the factorizations (inertia_control, direct_qp, and direct_least_squares). '
+               'QDLDL (the default) is always available, single-threaded, without pivoting, and with very little '
+               'overhead: on banded and chained problems its factorizations took 7 to 30 times less time than '
+               'MUMPS\'s, with the same results, and it is exact for the least-squares systems and the '
+               'quasi-Newton Hessians. Choose MUMPS (a library built with it) for the exact Hessian with '
+               'inertia_control (QDLDL can\'t tell the inertia of a Hessian with zeros on its diagonal, and '
+               'shifts it more than needed: about 45% more evaluations on the HS problems), and for problems '
+               'coupled in two or three dimensions, whose factors are dense (MUMPS refactored 3-D grid matrices '
+               '9 to 34 times faster, and can use threads).',
+               choices=LINEAR_SOLVERS),
             _o('options%factorization_threads', 'int', 1,
                'Number of OpenMP threads the sparse factorizations use (inertia_control, direct_qp, and '
                'direct_least_squares). 1 uses none; 0 leaves it to the OpenMP environment (OMP_NUM_THREADS, or '
-               'every core). It needs MUMPS and its BLAS built with OpenMP (conda-forge\'s are). Threads only pay '
+               'every core). It needs MUMPS (QDLDL is single-threaded) and its BLAS built with OpenMP '
+               '(conda-forge\'s are). Threads only pay '
                'on large problems whose factors are dense enough (a 3-D grid: 2.3 times faster on 4 threads; '
                'banded problems: no gain), and cost a lot on small ones.',
                minimum=0, special={0: 'OpenMP environment'}),

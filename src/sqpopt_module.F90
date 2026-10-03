@@ -47,7 +47,8 @@
     use sqpopt_inertia_module,    only: sqpopt_inertia_type
     use sqpopt_kkt_module,        only: sqpopt_kkt_type
     use sqpopt_least_squares_module,    only: sqpopt_least_squares_type
-    use sqpopt_symmetric_solver_module, only: sqpopt_has_mumps
+    use sqpopt_symmetric_solver_module, only: sqpopt_linear_solver_available, sqpopt_linear_solver_name, &
+                                              sqpopt_linear_solver_mumps
     use sqpopt_diagnostics_module,      only: sqpopt_diagnostics_type, sqpopt_diagnostics_write
 
     implicit none
@@ -172,7 +173,8 @@
     integer(int64) :: t_start, t_now, t_rate
     character(len=:), allocatable :: msg
     type(sqpopt_restoration_type) :: fresh_restoration !! (default-initialized)
-    ! the optional sparse factorizations (a build with MUMPS). They live for one solve, and are freed by `finish`:
+    ! the optional sparse factorizations (see `options%linear_solver`). They live for one solve, and are freed by
+    ! `finish`:
     type(sqpopt_kkt_type)     :: kkt     !! the KKT matrix of the QP's working set (see `options%inertia_control`
                                          !! and `options%direct_qp`)
     type(sqpopt_inertia_type) :: inertia !! inertia control of the exact Hessian (see `options%inertia_control`)
@@ -261,19 +263,19 @@
         if (me%options%inertia_control .or. me%options%direct_qp) then
             call kkt%initialize(me%problem%n, me%problem%m, me%problem%jac_irow, me%problem%jac_icol, started, &
                                 hess_irow=me%problem%hess_irow, hess_icol=me%problem%hess_icol, &
-                                threads=me%options%factorization_threads)
+                                threads=me%options%factorization_threads, solver=me%options%linear_solver)
         end if
         inertia%enabled = me%options%inertia_control .and. kkt%enabled
     else if (me%options%direct_qp .or. (me%options%inertia_control .and. me%options%hessian_mode == sqpopt_hessian_sr1)) then
         ! (a quasi-Newton Hessian has no sparsity pattern: see [[sqpopt_kkt_module]])
         call kkt%initialize(me%problem%n, me%problem%m, me%problem%jac_irow, me%problem%jac_icol, started, &
-                            threads=me%options%factorization_threads)
+                            threads=me%options%factorization_threads, solver=me%options%linear_solver)
         ! (the BFGS matrix is positive definite: only SR1 needs the inertia control)
         inertia%enabled = me%options%inertia_control .and. me%options%hessian_mode == sqpopt_hessian_sr1 .and. kkt%enabled
     end if
     if (me%options%direct_least_squares .and. me%problem%m > 0) then
         call least_squares%initialize(me%problem%n, me%problem%m, me%problem%jac_irow, me%problem%jac_icol, started, &
-                                      threads=me%options%factorization_threads)
+                                      threads=me%options%factorization_threads, solver=me%options%linear_solver)
     end if
     me%qp_solver%mode        = me%options%qp_solver_mode
     me%qp_solver%direct      = me%options%direct_qp .and. kkt%enabled
@@ -603,7 +605,10 @@
             if (least_squares%enabled) str = str//', direct least squares'
         end if
         if (kkt%enabled .or. least_squares%enabled) then
-            if (me%options%factorization_threads == 0) then
+            str = str//', '//sqpopt_linear_solver_name(me%options%linear_solver)
+            if (sqpopt_linear_solver_name(me%options%linear_solver) /= 'MUMPS') then
+                continue   ! (QDLDL is single-threaded)
+            else if (me%options%factorization_threads == 0) then
                 str = str//', factorizations on the OpenMP threads'
             else if (me%options%factorization_threads > 1) then
                 str = str//', factorizations on '//fmt_i(me%options%factorization_threads)//' threads'
@@ -978,9 +983,13 @@
               'and its sparsity pattern (set_hessian_sparsity)'
         return
     end if
-    if ((o%inertia_control .or. o%direct_qp .or. o%direct_least_squares) .and. .not. sqpopt_has_mumps) then
-        msg = 'options%inertia_control, direct_qp, and direct_least_squares require a library built with MUMPS '// &
-              '(the HAS_MUMPS preprocessor directive)'
+    if (.not. sqpopt_linear_solver_available(o%linear_solver)) then
+        if (o%linear_solver == sqpopt_linear_solver_mumps) then
+            msg = 'options%linear_solver = sqpopt_linear_solver_mumps requires a library built with MUMPS '// &
+                  '(the HAS_MUMPS preprocessor directive)'
+        else
+            msg = 'options%linear_solver is not a valid sqpopt_linear_solver_* value'
+        end if
         return
     end if
     if (o%factorization_threads < 0) then

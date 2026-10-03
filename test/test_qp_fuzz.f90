@@ -24,8 +24,9 @@ program test_qp_fuzz
     !!   warm-started from the first solve's final working set, and both
     !!   solutions must pass the checks.
     !!
-    !! In a build with MUMPS, the same kinds of QPs are then given to the
-    !! direct method ([[direct_qp_step]], with the quasi-Newton Hessian's
+    !! The same kinds of QPs are then given to the
+    !! direct method (with the default sparse solver, QDLDL)
+    !! ([[direct_qp_step]], with the quasi-Newton Hessian's
     !! low-rank form in the KKT matrix). It may give up (it must, on the
     !! infeasible QPs, and on a nonconvex face), but whenever it reports a
     !! solution, that must pass the same checks; and it must solve most of the
@@ -39,7 +40,6 @@ program test_qp_fuzz
     use sqpopt_types_module,              only: sqpopt_sparse_matrix, sqpopt_success, sqpopt_infeasible, sqpopt_infinity
     use sqpopt_kkt_module,                only: sqpopt_kkt_type
     use sqpopt_qp_direct_module,          only: direct_qp_step, sqpopt_direct_solved
-    use sqpopt_symmetric_solver_module,   only: sqpopt_has_mumps
     use sqpopt_kinds,                     only: wp => sqpopt_module_wp
 
     implicit none
@@ -77,26 +77,24 @@ program test_qp_fuzz
     ! the direct method (after the others, so that they get the same QPs in both builds):
     n_direct_convex = 0
     n_direct_solved = 0
-    if (sqpopt_has_mumps) then
-        do trial = 1, n_trials
-            kind = 1 + mod(trial-1, 8)
-            n_run(solver_direct) = n_run(solver_direct) + 1
-            if (.not. run_trial(trial, kind, solver_direct)) n_fail(solver_direct) = n_fail(solver_direct) + 1
-            if (kind <= 6) then
-                n_direct_convex = n_direct_convex + 1
-                if (direct_solved) n_direct_solved = n_direct_solved + 1
-            end if
-        end do
-    end if
+    ! (the direct method, with the default sparse solver)
+    do trial = 1, n_trials
+        kind = 1 + mod(trial-1, 8)
+        n_run(solver_direct) = n_run(solver_direct) + 1
+        if (.not. run_trial(trial, kind, solver_direct)) n_fail(solver_direct) = n_fail(solver_direct) + 1
+        if (kind <= 6) then
+            n_direct_convex = n_direct_convex + 1
+            if (direct_solved) n_direct_solved = n_direct_solved + 1
+        end if
+    end do
 
     do solver = solver_dense, solver_direct
         if (n_run(solver) == 0) cycle
         print '(A,A,A,I0,A,I0)', 'solver ', trim(solver_name(solver)), ': failures = ', n_fail(solver), ' / ', n_run(solver)
     end do
-    if (sqpopt_has_mumps) print '(A,I0,A,I0,A)', 'the direct method solved ', n_direct_solved, ' of the ', n_direct_convex, &
-                                                 ' convex QPs'
+    print '(A,I0,A,I0,A)', 'the direct method solved ', n_direct_solved, ' of the ', n_direct_convex, ' convex QPs'
     if (any(n_fail > 0)) error stop 'test_qp_fuzz FAILED'
-    if (sqpopt_has_mumps .and. 2*n_direct_solved < n_direct_convex) then
+    if (2*n_direct_solved < n_direct_convex) then
         error stop 'test_qp_fuzz FAILED: the direct method solved fewer than half of the convex QPs'
     end if
     print '(A)', 'test_qp_fuzz PASSED'
