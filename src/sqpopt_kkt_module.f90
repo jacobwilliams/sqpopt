@@ -90,6 +90,10 @@
         logical, public :: singular = .false. !! of the last factorization: whether \( K \) is singular (the
                                               !! working set's rows are dependent, or the face has a direction
                                               !! of zero curvature)
+        logical, public :: inertia_known = .true. !! of the last factorization: whether the sparse solver could
+                                                  !! tell the inertia of \( K \) (if not, `n_negative` counts the
+                                                  !! directions it couldn't tell as negative curvature: see
+                                                  !! [[kkt_negatives]])
         type(sqpopt_symmetric_solver_type), public :: solver !! the sparse solver (with its counts and its time)
 
         integer :: n = 0   !! number of variables
@@ -337,8 +341,9 @@
         me%enabled = .false.
         return
     end if
-    me%n_negative = max(me%solver%n_negative - m, 0)
-    me%singular   = me%solver%n_null > 0
+    me%inertia_known = me%solver%inertia_known
+    me%n_negative = max(kkt_negatives(me) - m, 0)
+    me%singular   = me%solver%inertia_known .and. me%solver%n_null > 0
     me%current    = .true.
     me%in_set     = status /= 0
     me%diag       = diag
@@ -401,7 +406,7 @@
     if (sigma > 0.0_wp) then
         call dense_symmetric_inertia(sm, pos_m, n_neg, n_zero)
         call dense_symmetric_inertia(t, pos_t, n_neg, n_zero)
-        me%n_negative = max(me%solver%n_negative + pos_t - pos_m - me%m, 0)
+        me%n_negative = max(kkt_negatives(me) + pos_t - pos_m - me%m, 0)
     end if
 
     if (allocated(me%t_lu)) deallocate(me%t_lu, me%t_piv)
@@ -480,6 +485,7 @@
     me%enabled    = .false.
     me%n_negative = 0
     me%singular   = .false.
+    me%inertia_known = .true.
     me%n          = 0
     me%m          = 0
     me%current    = .false.
@@ -487,6 +493,28 @@
     me%reg        = 0.0_wp
 
     end subroutine kkt_destroy
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the number of negative eigenvalues of the matrix the sparse solver
+!  factored last, as this module counts them. If the solver could tell the
+!  inertia, it is its count. If it couldn't (a solver without pivoting met
+!  a zero pivot that isn't a zero eigenvalue, see
+!  [[sqpopt_qdldl_ldl_module]]), each of its null pivots is counted as a
+!  negative eigenvalue: the conservative answer, by which the inertia
+!  control shifts the Hessian rather than miss negative curvature, and the
+!  direct QP method treats the face as nonconvex (and the matrix is not
+!  reported singular).
+
+    pure integer function kkt_negatives(me) result(n_neg)
+
+    class(sqpopt_kkt_type), intent(in) :: me
+
+    n_neg = me%solver%n_negative
+    if (.not. me%solver%inertia_known) n_neg = n_neg + me%solver%n_null
+
+    end function kkt_negatives
 !*******************************************************************************
 
     end module sqpopt_kkt_module

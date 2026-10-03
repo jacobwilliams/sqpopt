@@ -606,7 +606,7 @@
         end if
         if (kkt%enabled .or. least_squares%enabled) then
             str = str//', '//sqpopt_linear_solver_name(me%options%linear_solver)
-            if (sqpopt_linear_solver_name(me%options%linear_solver) /= 'MUMPS') then
+            if (me%options%linear_solver /= sqpopt_linear_solver_mumps) then
                 continue   ! (QDLDL is single-threaded)
             else if (me%options%factorization_threads == 0) then
                 str = str//', factorizations on the OpenMP threads'

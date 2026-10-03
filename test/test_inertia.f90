@@ -17,8 +17,8 @@ program test_inertia
     use sqpopt_problem_module,   only: sqpopt_problem_type
     use sqpopt_options_module,   only: sqpopt_options_type
     use sqpopt_hessian_module,   only: sqpopt_hessian_type, sqpopt_hessian_exact
-    use sqpopt_inertia_module,   only: sqpopt_inertia_type, sqpopt_has_mumps
-    use sqpopt_symmetric_solver_module, only: sqpopt_linear_solver_mumps, sqpopt_linear_solver_qdldl, &
+    use sqpopt_inertia_module,   only: sqpopt_inertia_type
+    use sqpopt_symmetric_solver_module, only: sqpopt_has_mumps, sqpopt_linear_solver_mumps, sqpopt_linear_solver_qdldl, &
                                               sqpopt_linear_solver_name
     use sqpopt_kkt_module,       only: sqpopt_kkt_type
     use sqpopt_qp_solver_module, only: sqpopt_qp_dense, sqpopt_qp_reduced_hessian

@@ -34,13 +34,11 @@
     use sqpopt_types_module,   only: sqpopt_sparse_matrix
     use sqpopt_hessian_module, only: sqpopt_hessian_type
     use sqpopt_kkt_module,     only: sqpopt_kkt_type
-    use sqpopt_symmetric_solver_module, only: sqpopt_has_mumps
 
     implicit none
 
     private
 
-    public :: sqpopt_has_mumps ! (from [[sqpopt_symmetric_solver_module]])
 
     type, public :: sqpopt_inertia_type
         !! the inertia control of one solve: the state of the shift's search

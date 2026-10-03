@@ -10,8 +10,7 @@ program test_input_validation
     use sqpopt_problem_module, only: sqpopt_problem_type
     use sqpopt_options_module, only: sqpopt_options_type
     use sqpopt_hessian_module, only: sqpopt_hessian_exact
-    use sqpopt_inertia_module, only: sqpopt_has_mumps
-    use sqpopt_symmetric_solver_module, only: sqpopt_linear_solver_mumps
+    use sqpopt_symmetric_solver_module, only: sqpopt_has_mumps, sqpopt_linear_solver_mumps
     use sqpopt_types_module,   only: sqpopt_invalid_input, sqpopt_success
     use sqpopt_linesearch_module,   only: sqpopt_linesearch_type
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
