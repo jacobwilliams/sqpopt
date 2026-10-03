@@ -29,13 +29,20 @@
 !    as a negative eigenvalue (see [[symmetric_solver_factor]]), so that the
 !    inertia control shifts the Hessian, by more than MUMPS would need.
 !
-!  `sqpopt_linear_solver_auto` (the default) is MUMPS in a library built
-!  with it, else QDLDL. Measured (`example/benchmark_large.f90`, problems
-!  with 5,000 to 100,000 variables, every configuration that factors): the
-!  same iterates with both, and 7 to 30 times less time in QDLDL's
-!  factorizations; on the Hock-Schittkowski problems, the same results with
-!  the quasi-Newton Hessians (and 1.1 to 3.9 times faster), but about 45%
-!  more evaluations with the exact Hessian and inertia control.
+!  QDLDL is the default, in every build. Measured (release; see the user
+!  guide's "Sparse solver" section): on the banded and chained problems of
+!  `example/benchmark_large.f90` (5,000 to 1,000,000 variables) both take
+!  the same iterations, and QDLDL's factorizations take 7 to 30 times less
+!  time; on the Hock-Schittkowski problems the quasi-Newton Hessians give
+!  the same results with both (QDLDL's faster), but the exact Hessian with
+!  inertia control needs about 45% more evaluations with QDLDL. On grids
+!  (`example/sparse_solvers.f90`), MUMPS refactors 2 to 10 times faster in
+!  2-D and 9 to 34 times in 3-D, where the factors have large dense blocks
+!  (and its threads help), though its first factorization, with its
+!  analysis, can cost much more (72 s against 4.5 s for a 2-D KKT matrix of
+!  order 735,000). So MUMPS is the better choice for the exact Hessian with
+!  inertia control, and for problems coupled in two or three dimensions that
+!  refactor many times.
 !
 !  How it is used:
 !
@@ -112,11 +119,9 @@
 #endif
 
     ! the sparse solvers (`options%linear_solver`):
-    integer, parameter, public :: sqpopt_linear_solver_auto  = 0 !! (default) MUMPS if the library was built with
-                                                                 !! it, else QDLDL
     integer, parameter, public :: sqpopt_linear_solver_mumps = 1 !! MUMPS (needs a library built with it)
-    integer, parameter, public :: sqpopt_linear_solver_qdldl = 2 !! QDLDL (always available; see the module
-                                                                 !! documentation)
+    integer, parameter, public :: sqpopt_linear_solver_qdldl = 2 !! (default) QDLDL (always available; see the
+                                                                 !! module documentation)
 
     integer, parameter :: kind_check = 1/merge(1, 0, qdldl_wp == wp) !! (a compile-time error if QDLDL was built
                                                                      !! with another real kind)
@@ -144,7 +149,7 @@
                                                     !! memory (it stays set)
         integer :: n = 0                            !! order of the matrix
         logical :: analysed = .false.               !! whether the sparsity pattern has been analysed
-        integer, public :: backend = sqpopt_linear_solver_auto !! the solver in use, once initialized
+        integer, public :: backend = 0              !! the solver in use, once initialized (`0`: none)
                                                     !! (`sqpopt_linear_solver_mumps` or `sqpopt_linear_solver_qdldl`)
 #ifdef HAS_MUMPS
         type(dmumps_struc), pointer :: id => null() !! the MUMPS instance (with the pattern and the values)
@@ -167,15 +172,14 @@
 !*******************************************************************************
 !>
 !  whether the sparse solver `solver` (a `sqpopt_linear_solver_*` value)
-!  can be used in this build: QDLDL always, MUMPS only in a build with it
-!  (`auto` always, since it falls back on QDLDL).
+!  can be used in this build: QDLDL always, MUMPS only in a build with it.
 
     pure logical function sqpopt_linear_solver_available(solver) result(available)
 
     integer, intent(in) :: solver !! the solver (`sqpopt_linear_solver_*`)
 
     select case (solver)
-    case (sqpopt_linear_solver_auto, sqpopt_linear_solver_qdldl)
+    case (sqpopt_linear_solver_qdldl)
         available = .true.
     case (sqpopt_linear_solver_mumps)
         available = sqpopt_has_mumps
@@ -188,15 +192,15 @@
 
 !*******************************************************************************
 !>
-!  the name of the sparse solver that `solver` (a `sqpopt_linear_solver_*`
-!  value) stands for in this build (`auto` resolved).
+!  the name of the sparse solver `solver` (a `sqpopt_linear_solver_*`
+!  value).
 
     pure function sqpopt_linear_solver_name(solver) result(name)
 
     integer, intent(in) :: solver !! the solver (`sqpopt_linear_solver_*`)
     character(len=:), allocatable :: name
 
-    select case (resolved(solver))
+    select case (solver)
     case (sqpopt_linear_solver_mumps)
         name = 'MUMPS'
     case default
@@ -208,30 +212,13 @@
 
 !*******************************************************************************
 !>
-!  the solver that `solver` stands for: `auto` is MUMPS in a build with it,
-!  else QDLDL.
-
-    pure integer function resolved(solver)
-
-    integer, intent(in) :: solver !! the solver (`sqpopt_linear_solver_*`)
-
-    resolved = solver
-    if (solver == sqpopt_linear_solver_auto) then
-        resolved = merge(sqpopt_linear_solver_mumps, sqpopt_linear_solver_qdldl, sqpopt_has_mumps)
-    end if
-
-    end function resolved
-!*******************************************************************************
-
-!*******************************************************************************
-!>
 !  start the solver for symmetric matrices of order `n` with the sparsity
 !  pattern `irow`/`icol`: each entry stands for itself and (off the
 !  diagonal) its mirror image, so give each off-diagonal element in one
 !  triangle only; entries given more than once are added together.
 !  `threads` is the number of OpenMP threads to factor and solve with (see
 !  the module documentation; default 1; MUMPS only). `solver` is the
-!  sparse solver (a `sqpopt_linear_solver_*` value; default `auto`).
+!  sparse solver (a `sqpopt_linear_solver_*` value; default QDLDL).
 !  `signs` (QDLDL only) is the expected sign of each row's pivot: `-1` for
 !  the rows of a block that should be negative definite (the constraints of
 !  a KKT matrix), else `+1` or `0`; each row with `-1` is ordered after all
@@ -247,7 +234,7 @@
     logical,               intent(out) :: ok   !! whether the solver is ready
     integer, optional,     intent(in)  :: threads !! number of OpenMP threads (default `1`; `0`: as the OpenMP
                                                   !! environment says)
-    integer, optional,     intent(in)  :: solver  !! the sparse solver (`sqpopt_linear_solver_*`, default `auto`)
+    integer, optional,     intent(in)  :: solver  !! the sparse solver (`sqpopt_linear_solver_*`, default QDLDL)
     integer, dimension(:), optional, intent(in) :: signs !! QDLDL: the expected sign of each row's pivot
                                                          !! `dimension(n)` (see above)
 
@@ -258,10 +245,9 @@
 
     call me%destroy()
     ok = .false.
-    which = sqpopt_linear_solver_auto
+    which = sqpopt_linear_solver_qdldl
     if (present(solver)) which = solver
     if (.not. sqpopt_linear_solver_available(which)) return
-    which = resolved(which)
 
     if (which == sqpopt_linear_solver_qdldl) then
         call qdldl_start()
@@ -728,7 +714,7 @@
     me%ready      = .false.
     me%factored   = .false.
     me%analysed   = .false.
-    me%backend    = sqpopt_linear_solver_auto
+    me%backend    = 0
     me%n          = 0
     me%n_negative = 0
     me%n_null     = 0

@@ -1869,6 +1869,58 @@ which is now double precision only.
     dense blocks (3-D grids), where MUMPS's multifrontal method and threads
     should win.
 
+- **F27: QDLDL the default in every build** *(done 2026-10-03)*.
+  `sqpopt_linear_solver_auto` was removed: `options%linear_solver` is
+  `sqpopt_linear_solver_qdldl` (default) or `sqpopt_linear_solver_mumps`.
+  Done: the code, the option's docs, the Python schema (extension rebuilt),
+  `--linear-solver=qdldl|mumps` in `test_hs_suite`, `test_scalable`, and
+  `benchmark_large`; `test_kkt`, `test_direct`, and `test_inertia` run with
+  each solver of the build (both builds pass); `tools/hs_performance_table.sh`
+  (factorization rows with QDLDL, plus MUMPS rows with `--mumps`); a new
+  `example/sparse_solvers.f90` (both solvers on grid matrices); the
+  module header, README, and CLAUDE.md (baselines); the guide's options
+  table and the default sentence. Measurements (release, M-series laptop):
+  - **HS table** (`hs_performance_table.sh --mumps`; QDLDL / MUMPS):
+    exact + inertia 273/29/3, 13,654 / 274/29/2, 9,400; + direct
+    274/29/2, 13,706 / 274/29/2, 9,474; SR1 + inertia 274/27/4, 10,454
+    (both); L-BFGS + direct 279/26/0, 9,716 / 9,750; other rows unchanged.
+    Suite times: exact+inertia 1.57 / 1.53 s, +direct 1.31 / 1.46 s, SR1
+    inertia 4.2 / 13.2 s, L-BFGS direct 0.15 / 0.58 s (defaults 0.64 s).
+    IPOPT-like (exact, inertia, direct, direct-ls): 273/30/2, 13,815, 1.30 s
+    / 271/30/4, 9,445, 1.76 s.
+  - **Footnote configs** (exact Hessian: none / +inertia QDLDL / +inertia
+    MUMPS): funnel 270/31/4 10,870 / 272/29/4 14,527 / 273/29/3 10,174;
+    Armijo 268/34/3 19,227 / 268/29/8 12,702 / 271/28/6 9,136; Armijo
+    no-interp 271/31/3 28,493 / 269/28/8 12,604 / 273/27/5 10,950; sparse QP
+    271/31/3 11,894 / 273/30/2 13,281 / 273/31/1 10,097; trust region
+    265/34/6 10,690 / 264/34/7 9,823 / 266/33/6 5,370. SR1 + trust region:
+    265/27/13 24,731 (52 s) / 259/37/9 15,440 (8.1 s) / 255/40/10 14,446
+    (15.4 s).
+  - **benchmark_large** (total s; same iterations with both): direct
+    (exact, inertia, direct QP + LS), QDLDL / MUMPS: 10k: control 0.020 /
+    0.117, rosenbrock 0.007 / 0.037, wells 0.023 / 0.204, circles 0.011 /
+    0.079; 100k: 0.24 / 1.27, 0.080 / 0.45, 0.26 / 1.79, 0.16 / 1.07; 1M:
+    2.60 / 12.73, 0.99 / 5.43 (500k), 2.74 / 19.39, 1.51 / 9.80. Inertia
+    only (active-set QP), QDLDL: 10k: 0.35, 0.83, 0.16, 0.95; 100k: 21.6,
+    77.9, wells > 750 s (stopped). L-BFGS + direct, QDLDL: 10k: 1.21,
+    0.060, 0.124, 0.038; 100k: 34.7, 0.82, 2.51, 0.43 (MUMPS 120.4, 4.4,
+    11.6, 2.1); with 100 pairs at 10k: 8.35, 0.41, 0.27.
+  - **sparse_solvers** (refactor time; QDLDL / MUMPS / MUMPS 4 threads):
+    2-D grid 90k 0.092 / 0.045 / 0.042, 490k 1.25 / 0.32 / 0.28; 2-D KKT
+    135k 0.34 / 0.054 / 0.053, 735k 4.35 / 0.44 / 0.40 (but MUMPS's first
+    factorization, with its analysis, 72 s against 4.5 s); 3-D grid 27k
+    0.89 / 0.10 / 0.071, 125k 39.0 / 1.73 / 0.67; 3-D KKT 40.5k 4.86 /
+    0.14 / 0.085.
+  - **Pages updated** with these numbers: the guide's "Sparse solver"
+    section (which one to choose, and the comparison table), its
+    inertia-control and direct-least-squares numbers; `web/performance.html`
+    (HS rows from the script, the footnotes, the large-problem table with a
+    MUMPS column, its bullets, and the scalable tables, rerun with QDLDL:
+    the same iterations, 2 to 20 times faster than with MUMPS, e.g. `qing`
+    at 100,000 variables 0.33 s instead of 7.4 s, `rosenbrock` at 10,000
+    9.0 s instead of 51 s); `web/choosing_settings.html`. Both test suites
+    and the Python tests pass.
+
 ## 6. Testing and infrastructure
 
 - **CUTEst benchmark: performance profiles and false infeasibility**

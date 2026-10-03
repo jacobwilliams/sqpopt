@@ -14,11 +14,12 @@
 #
 #    pixi run tools/hs_performance_table.sh [--markdown] [--mumps]
 #
-# With --mumps, the library is built with MUMPS (the HAS_MUMPS preprocessor
-# directive, which needs the sequential MUMPS library of the pixi
-# environment), and the table gets rows for the options that use it
-# (options%inertia_control and options%direct_qp). The other rows don't
-# depend on MUMPS.
+# The rows of the options that factor matrices (options%inertia_control and
+# options%direct_qp) use the default sparse solver, QDLDL. With --mumps, the
+# library is built with MUMPS too (the HAS_MUMPS preprocessor directive, which
+# needs the sequential MUMPS library of the pixi environment), and the table
+# gets the same rows with options%linear_solver = MUMPS, for comparison. The
+# other rows don't depend on the sparse solver.
 #
 # Each run takes about a second (release build). The per-run Markdown
 # reports are left in a temporary directory, printed at the end.
@@ -57,20 +58,28 @@ rows=(
   "trust region / filter|trust region / filter|--trust-region"
   "trust region / funnel|trust region / funnel|--trust-region --linesearch=funnel"
 )
-if [[ $mumps == 1 ]]; then
-    # (after the exact-Hessian row)
-    with_inertia=()
-    for row in "${rows[@]}"; do
-        with_inertia+=("$row")
-        if [[ "$row" == *"|--hessian=exact" ]]; then
-            with_inertia+=("filter, exact Hessian with inertia control (MUMPS)|filter, exact Hessian with inertia control (MUMPS)|--hessian=exact --inertia")
-            with_inertia+=("filter, exact Hessian with inertia control and direct QP (MUMPS)|filter, exact Hessian with inertia control and direct QP (MUMPS)|--hessian=exact --inertia --direct")
-            with_inertia+=("filter, L-SR1 with inertia control (MUMPS)|filter, L-SR1 with inertia control (MUMPS)|--hessian=sr1 --inertia")
-            with_inertia+=("filter, L-BFGS with direct QP (MUMPS)|filter, L-BFGS with direct QP (MUMPS)|--direct")
-        fi
-    done
-    rows=("${with_inertia[@]}")
-fi
+# the rows of the options that factor matrices (after the exact-Hessian row),
+# with QDLDL, and with MUMPS too if it is built in
+factored=(
+  "exact Hessian with inertia control|--hessian=exact --inertia"
+  "exact Hessian with inertia control and direct QP|--hessian=exact --inertia --direct"
+  "L-SR1 with inertia control|--hessian=sr1 --inertia"
+  "L-BFGS with direct QP|--direct"
+)
+with_factored=()
+for row in "${rows[@]}"; do
+    with_factored+=("$row")
+    if [[ "$row" == *"|--hessian=exact" ]]; then
+        for f in "${factored[@]}"; do
+            IFS='|' read -r label opts <<< "$f"
+            with_factored+=("filter, $label|filter, $label|$opts")
+            if [[ $mumps == 1 ]]; then
+                with_factored+=("filter, $label (MUMPS)|filter, $label (MUMPS)|$opts --linear-solver=mumps")
+            fi
+        done
+    fi
+done
+rows=("${with_factored[@]}")
 # (and the footnote's "Armijo / l1 / multipliers, with interpolation" figures)
 extra="--linesearch=armijo"
 

@@ -2,9 +2,9 @@ program test_direct
 
     !! Test of the options that solve by sparse factorizations
     !! (`options%direct_qp` and `options%direct_least_squares`, with and
-    !! without `options%inertia_control`), with the default sparse solver
-    !! (MUMPS in a build with it, the `HAS_MUMPS` preprocessor directive, else
-    !! QDLDL):
+    !! without `options%inertia_control`), with each sparse solver of the
+    !! build (QDLDL, the default, and MUMPS in a build with the `HAS_MUMPS`
+    !! preprocessor directive):
     !!
     !!    fpm test test_direct --flag "-DHAS_MUMPS -I$CONDA_PREFIX/include" --link-flag "-ldmumps_seq"
     !!
@@ -45,7 +45,8 @@ program test_direct
                                        sqpopt_direct_singular, sqpopt_direct_max_changes
     use sqpopt_qp_solver_module, only: sqpopt_qp_auto, sqpopt_qp_reduced_hessian
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
-    use sqpopt_symmetric_solver_module, only: sqpopt_has_mumps, sqpopt_linear_solver_mumps
+    use sqpopt_symmetric_solver_module, only: sqpopt_has_mumps, sqpopt_linear_solver_mumps, &
+                                              sqpopt_linear_solver_qdldl, sqpopt_linear_solver_name
     use sqpopt_types_module,     only: sqpopt_success, sqpopt_acceptable, sqpopt_stalled, sqpopt_invalid_input, &
                                        sqpopt_results_type, sqpopt_sparse_matrix, sqpopt_out_of_memory
     use sqpopt_kinds,            only: wp => sqpopt_module_wp
@@ -83,18 +84,23 @@ program test_direct
         config_type(name='exact, all three, 2 threads', hessian_mode=sqpopt_hessian_exact, inertia=.true., &
                     direct=.true., direct_ls=.true., threads=2) ]
 
-    integer :: i
+    integer :: i, k
+    integer :: linear_solver !! the sparse solver of the runs (`options%linear_solver`)
 
     write(*,*) '----------------------------'
     write(*,*) 'test_direct'
     write(*,*) '----------------------------'
 
-    ! (with the default sparse solver: MUMPS in a build with it, else QDLDL)
     call test_direct_step()
-    do i = 1, size(configs)
-        call run('hs71', configs(i))
-        call run('maratos', configs(i))
-        call run('circles', configs(i))
+    ! (with each sparse solver of the build: QDLDL, the default, and MUMPS)
+    do k = 1, merge(2, 1, sqpopt_has_mumps)
+        linear_solver = merge(sqpopt_linear_solver_qdldl, sqpopt_linear_solver_mumps, k == 1)
+        print '(2A)', 'sparse solver: ', sqpopt_linear_solver_name(linear_solver)
+        do i = 1, size(configs)
+            call run('hs71', configs(i))
+            call run('maratos', configs(i))
+            call run('circles', configs(i))
+        end do
     end do
     if (sqpopt_has_mumps) then
         call test_workspace()
@@ -266,6 +272,7 @@ program test_direct
     options%direct_least_squares = cfg%direct_ls
     options%factorization_threads = cfg%threads
     options%qp_solver_mode       = cfg%qp_mode
+    options%linear_solver        = linear_solver
     trust_region%enabled         = cfg%trust_region
 
     call solver%initialize(problem=problem, options=options, trust_region=trust_region)
@@ -347,6 +354,7 @@ program test_direct
 
     options%hessian_mode    = sqpopt_hessian_exact
     options%inertia_control = .true.
+    options%linear_solver   = sqpopt_linear_solver_mumps
     call solver%initialize(problem=problem, options=options)
     call solver%solve(x0, istat)
     call solver%get_results(r)

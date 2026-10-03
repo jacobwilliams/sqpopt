@@ -1,9 +1,9 @@
 program test_inertia
 
     !! Test of the inertia control of the exact Hessian
-    !! (`options%inertia_control`, see [[sqpopt_inertia_module]]), with the
-    !! default sparse solver (MUMPS in a build with it, the `HAS_MUMPS`
-    !! preprocessor directive, else QDLDL):
+    !! (`options%inertia_control`, see [[sqpopt_inertia_module]]), with each
+    !! sparse solver of the build (QDLDL, the default, and MUMPS in a build
+    !! with the `HAS_MUMPS` preprocessor directive):
     !!
     !!    fpm test test_inertia --flag "-DHAS_MUMPS -I$CONDA_PREFIX/include" --link-flag "-ldmumps_seq"
     !!
@@ -18,7 +18,8 @@ program test_inertia
     use sqpopt_options_module,   only: sqpopt_options_type
     use sqpopt_hessian_module,   only: sqpopt_hessian_type, sqpopt_hessian_exact
     use sqpopt_inertia_module,   only: sqpopt_inertia_type, sqpopt_has_mumps
-    use sqpopt_symmetric_solver_module, only: sqpopt_linear_solver_mumps
+    use sqpopt_symmetric_solver_module, only: sqpopt_linear_solver_mumps, sqpopt_linear_solver_qdldl, &
+                                              sqpopt_linear_solver_name
     use sqpopt_kkt_module,       only: sqpopt_kkt_type
     use sqpopt_qp_solver_module, only: sqpopt_qp_dense, sqpopt_qp_reduced_hessian
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
@@ -28,16 +29,22 @@ program test_inertia
     implicit none
 
     real(wp), parameter :: big = 1.0e20_wp !! sentinel value used for "unbounded" sides
+    integer :: k
+    integer :: linear_solver !! the sparse solver (`options%linear_solver`)
 
     write(*,*) '----------------------------'
     write(*,*) 'test_inertia'
     write(*,*) '----------------------------'
 
-    ! (with the default sparse solver: MUMPS in a build with it, else QDLDL)
-    call test_correction()
-    call test_solve('dense QP',     sqpopt_qp_dense,           .false.)
-    call test_solve('sparse QP',    sqpopt_qp_reduced_hessian, .false.)
-    call test_solve('trust region', sqpopt_qp_dense,           .true.)
+    ! (with each sparse solver of the build: QDLDL, the default, and MUMPS)
+    do k = 1, merge(2, 1, sqpopt_has_mumps)
+        linear_solver = merge(sqpopt_linear_solver_qdldl, sqpopt_linear_solver_mumps, k == 1)
+        print '(2A)', 'sparse solver: ', sqpopt_linear_solver_name(linear_solver)
+        call test_correction()
+        call test_solve('dense QP',     sqpopt_qp_dense,           .false.)
+        call test_solve('sparse QP',    sqpopt_qp_reduced_hessian, .false.)
+        call test_solve('trust region', sqpopt_qp_dense,           .true.)
+    end do
     if (.not. sqpopt_has_mumps) call test_unavailable()
 
     print '(A)', 'test_inertia PASSED'
@@ -66,7 +73,7 @@ program test_inertia
     jac%icol  = [1]
     jac%val   = [1.0_wp]
 
-    call kkt%initialize(2, 1, jac%irow, jac%icol, ok, hess_irow=h%h_irow, hess_icol=h%h_icol)
+    call kkt%initialize(2, 1, jac%irow, jac%icol, ok, hess_irow=h%h_irow, hess_icol=h%h_icol, solver=linear_solver)
     if (.not. (ok .and. kkt%enabled)) error stop 'test_inertia FAILED: the sparse solver could not be started'
     inertia%enabled = .true.
 
@@ -157,6 +164,7 @@ program test_inertia
     options%hessian_mode    = sqpopt_hessian_exact
     options%inertia_control = .true.
     options%qp_solver_mode  = qp_mode
+    options%linear_solver   = linear_solver
     trust_region%enabled    = use_trust_region
 
     call solver%initialize(problem=problem, options=options, trust_region=trust_region)

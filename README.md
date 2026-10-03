@@ -48,9 +48,10 @@ pixi run fpm test --flag "-DREAL128"
 
 Three options, meant for large problems, use a sparse LDLᵀ factorization,
 by the solver of `options%linear_solver`: [QDLDL](https://github.com/jacobwilliams/qdldl-fortran)
-(no pivoting; an fpm dependency, so always available) or
-[MUMPS](https://mumps-solver.org) (with pivoting and threads; optional).
-The default is MUMPS in a build with it, else QDLDL:
+(the default: no pivoting, one thread, very little overhead; an fpm
+dependency, so always available) or [MUMPS](https://mumps-solver.org)
+(with pivoting and threads; optional, and chosen with
+`options%linear_solver = sqpopt_linear_solver_mumps`):
 
 | option | what it does | module |
 |---|---|---|
@@ -63,8 +64,11 @@ set) and `sqpopt_symmetric_solver_module`, which holds both solvers, and is
 the only source file that refers to MUMPS, and only inside
 `#ifdef HAS_MUMPS`. So the default build still needs nothing but fpm, and
 has all three options, with QDLDL. QDLDL is exact for the least-squares
-systems and the quasi-Newton Hessians; with the exact Hessian, MUMPS is the
-better one (see the guide's "Sparse solver" section, which compares them).
+systems and the quasi-Newton Hessians, and much faster than MUMPS on banded
+and chained problems. Choose MUMPS for the exact Hessian with inertia
+control, and for problems coupled in two or three dimensions (see the
+guide's "Sparse solver" section, which compares them;
+`example/sparse_solvers.f90` times the two solvers on grid matrices).
 `options%factorization_threads` sets the number of
 OpenMP threads MUMPS uses (1 by default; conda-forge's `mumps-seq` is built
 with OpenMP). With `HAS_MUMPS`, the library must be compiled in
@@ -88,9 +92,10 @@ library built this way must link with `-ldmumps_seq` too. Without
 `linear_solver = sqpopt_linear_solver_mumps` is rejected as invalid input.
 Changes to this code must be tested in both builds: `test_kkt` checks each
 solver of the build, and `test_inertia`, `test_direct`, and `test_qp_fuzz`
-the features with the default one (and, without MUMPS, the rejection of
-MUMPS). The HS suite's `--linear-solver=auto|mumps|qdldl` and
-`benchmark_large`'s `--linear-solver=` compare the two.
+the features with each solver of the build (`test_qp_fuzz` with the default,
+QDLDL), and, without MUMPS, the rejection of MUMPS. The HS suite's,
+`test_scalable`'s, and `benchmark_large`'s `--linear-solver=qdldl|mumps`
+compare the two.
 
 ### Tests
 

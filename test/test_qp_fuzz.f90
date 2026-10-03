@@ -25,8 +25,8 @@ program test_qp_fuzz
     !!   solutions must pass the checks.
     !!
     !! The same kinds of QPs are then given to the
-    !! direct method (with the default sparse solver: MUMPS in a build with
-    !! it, else QDLDL) ([[direct_qp_step]], with the quasi-Newton Hessian's
+    !! direct method (with the default sparse solver, QDLDL)
+    !! ([[direct_qp_step]], with the quasi-Newton Hessian's
     !! low-rank form in the KKT matrix). It may give up (it must, on the
     !! infeasible QPs, and on a nonconvex face), but whenever it reports a
     !! solution, that must pass the same checks; and it must solve most of the

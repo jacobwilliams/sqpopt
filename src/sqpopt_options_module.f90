@@ -13,7 +13,7 @@
     use sqpopt_types_module,      only: sqpopt_infinity
     use sqpopt_hessian_module,    only: sqpopt_hessian_bfgs
     use sqpopt_problem_module,    only: sqpopt_derivatives_accurate
-    use sqpopt_symmetric_solver_module, only: sqpopt_linear_solver_auto
+    use sqpopt_symmetric_solver_module, only: sqpopt_linear_solver_qdldl
     use, intrinsic :: iso_fortran_env, only: output_unit
 
     implicit none
@@ -92,7 +92,7 @@
                                                    !! pays on large problems that take such steps and whose
                                                    !! constraints are coupled, where `LSQR` needs many iterations
                                                    !! (a chain of 100,000 circle constraints: 88.7 s with `LSQR`,
-                                                   !! 1.1 s with this); on small problems it changes little. The
+                                                   !! 0.16 s with this); on small problems it changes little. The
                                                    !! factorizations are `linear_solver`'s
         integer  :: factorization_threads = 1     !! number of OpenMP threads the sparse factorizations use
                                                    !! (`inertia_control`, `direct_qp`, and `direct_least_squares`):
@@ -105,15 +105,15 @@
                                                    !! faster on 4 threads, but banded problems and a 2-D grid
                                                    !! gained nothing, and on small problems threads cost a lot
                                                    !! (see [[sqpopt_symmetric_solver_module]])
-        integer  :: linear_solver = sqpopt_linear_solver_auto !! the sparse solver of the factorizations
+        integer  :: linear_solver = sqpopt_linear_solver_qdldl !! the sparse solver of the factorizations
                                                    !! (`inertia_control`, `direct_qp`, and
-                                                   !! `direct_least_squares`): `sqpopt_linear_solver_auto` (the
-                                                   !! default: MUMPS in a library built with it, else QDLDL),
-                                                   !! `sqpopt_linear_solver_mumps`, or `sqpopt_linear_solver_qdldl`
-                                                   !! (see [[sqpopt_symmetric_solver_module]]). QDLDL is always
-                                                   !! available, but doesn't pivot: it is exact for the least-squares
-                                                   !! systems and for positive definite Hessians, and only as
-                                                   !! reliable as its pivots for indefinite ones
+                                                   !! `direct_least_squares`): `sqpopt_linear_solver_qdldl` (the
+                                                   !! default; always available, no pivoting, very little overhead)
+                                                   !! or `sqpopt_linear_solver_mumps` (with pivoting and threads; a
+                                                   !! library built with MUMPS). QDLDL is exact for the least-squares
+                                                   !! systems and the quasi-Newton Hessians; prefer MUMPS for the
+                                                   !! exact Hessian with inertia control, and for problems whose
+                                                   !! factors are dense (see [[sqpopt_symmetric_solver_module]])
         integer  :: lbfgs_memory      = 0         !! number of `(s,y)` vector pairs retained by the limited-memory
                                                    !! Hessian approximation. `0` (the default) picks it from the problem
                                                    !! size `n`: \( \max(10, \min(n, 100)) \) -- more pairs help the

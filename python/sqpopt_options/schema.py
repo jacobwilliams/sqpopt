@@ -174,9 +174,8 @@ NULL_SPACE_METHODS = (
     Choice(2, 'orthogonal projections with LSQR', 'sqpopt_null_space_lsqr'),
 )
 LINEAR_SOLVERS = (
-    Choice(0, 'automatic (MUMPS in a library built with it, else QDLDL)', 'sqpopt_linear_solver_auto'),
-    Choice(1, 'MUMPS (multifrontal, with pivoting; a build with MUMPS)', 'sqpopt_linear_solver_mumps'),
     Choice(2, 'QDLDL (no pivoting; always available)', 'sqpopt_linear_solver_qdldl'),
+    Choice(1, 'MUMPS (multifrontal, with pivoting and threads; a build with MUMPS)', 'sqpopt_linear_solver_mumps'),
 )
 PRINT_LEVELS = (
     Choice(0, 'none'),
@@ -463,7 +462,7 @@ TOPICS: tuple[Topic, ...] = (
                "positive definite while still using the new curvature information. If off, such updates are "
                "skipped instead."),
         ), relevance=_quasi_newton_used),
-        Section('Inertia control (a build with MUMPS)', (
+        Section('Inertia control', (
             _o('options%inertia_control', 'bool', False,
                'With the exact or the SR1 Hessian, which can be indefinite: find the shift δ of H + δI from the '
                'inertia of the KKT matrix of the QP\'s working set, by a sparse LDLᵀ factorization (see '
@@ -491,18 +490,20 @@ TOPICS: tuple[Topic, ...] = (
             _o('options%direct_least_squares', 'bool', False,
                'Compute the Gauss-Newton restoration steps and the second-order corrections by a sparse '
                'factorization instead of the iterative LSQR. It pays on large problems that take such steps and '
-               'whose constraints are coupled (a chain of 100,000 circle constraints: 88.7 s with LSQR, 1.1 s '
+               'whose constraints are coupled (a chain of 100,000 circle constraints: 88.7 s with LSQR, 0.16 s '
                'with this). The factorizations are linear_solver\'s.'),
         )),
         Section('Sparse solver', (
-            _o('options%linear_solver', 'int', 0,
+            _o('options%linear_solver', 'int', 2,
                'The sparse solver of the factorizations (inertia_control, direct_qp, and direct_least_squares). '
-               'Automatic is MUMPS in a library built with it (the HAS_MUMPS preprocessor directive), else QDLDL. '
-               'QDLDL is always available and has little overhead: on the large benchmark problems its '
-               'factorizations took 7 to 30 times less time than MUMPS\'s, with the same results. It doesn\'t '
-               'pivot, so it is exact for the least-squares systems and the quasi-Newton Hessians, but with an '
-               'exact Hessian that has zeros on its diagonal it can\'t tell the inertia, and shifts the Hessian '
-               'more than needed. MUMPS needs a library built with it, and is invalid without it.',
+               'QDLDL (the default) is always available, single-threaded, without pivoting, and with very little '
+               'overhead: on banded and chained problems its factorizations took 7 to 30 times less time than '
+               'MUMPS\'s, with the same results, and it is exact for the least-squares systems and the '
+               'quasi-Newton Hessians. Choose MUMPS (a library built with it) for the exact Hessian with '
+               'inertia_control (QDLDL can\'t tell the inertia of a Hessian with zeros on its diagonal, and '
+               'shifts it more than needed: about 45% more evaluations on the HS problems), and for problems '
+               'coupled in two or three dimensions, whose factors are dense (MUMPS refactored 3-D grid matrices '
+               '9 to 34 times faster, and can use threads).',
                choices=LINEAR_SOLVERS),
             _o('options%factorization_threads', 'int', 1,
                'Number of OpenMP threads the sparse factorizations use (inertia_control, direct_qp, and '

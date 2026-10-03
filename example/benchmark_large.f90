@@ -7,7 +7,7 @@ program benchmark_large
     !!
     !!    fpm run --example benchmark_large --profile release -- [--scale=S] [--problem=NAME] [--config=NAME]
     !!        [--no-bfgs] [--no-active-set] [--least-squares] [--no-least-squares] [--memory=K] [--threads=T] [--print=L]
-    !!        [--linear-solver=auto|mumps|qdldl]
+    !!        [--linear-solver=qdldl|mumps]
     !!
     !! With MUMPS (see the README):
     !!
@@ -24,7 +24,8 @@ program benchmark_large
     !! off in every run. `--memory=K` sets `options%lbfgs_memory`, `--threads=T`
     !! sets `options%factorization_threads`, `--print=L` sets
     !! `options%print_level`, and `--linear-solver=` sets
-    !! `options%linear_solver` (`auto`: MUMPS in a build with it, else QDLDL).
+    !! `options%linear_solver` (QDLDL by default; `mumps` needs a build with
+    !! MUMPS).
     !!
     !! Problems (sizes for `S = 1`):
     !!
@@ -92,8 +93,7 @@ program benchmark_large
     use sqpopt_problem_module, only: sqpopt_problem_type
     use sqpopt_options_module, only: sqpopt_options_type
     use sqpopt_hessian_module, only: sqpopt_hessian_exact
-    use sqpopt_symmetric_solver_module, only: sqpopt_linear_solver_auto, sqpopt_linear_solver_mumps, &
-                                              sqpopt_linear_solver_qdldl
+    use sqpopt_symmetric_solver_module, only: sqpopt_linear_solver_mumps, sqpopt_linear_solver_qdldl
     use sqpopt_types_module,   only: sqpopt_results_type
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
 
@@ -121,7 +121,7 @@ program benchmark_large
     print_level = 0
     memory = 0
     threads = 1
-    linear_solver = sqpopt_linear_solver_auto
+    linear_solver = sqpopt_linear_solver_qdldl
     only = ''
     do i = 1, command_argument_count()
         call get_command_argument(i, arg)
@@ -152,8 +152,6 @@ program benchmark_large
         else if (arg(1:10) == '--threads=') then
             read(arg(11:), *, iostat=ios) threads
             if (ios /= 0 .or. threads < 0) error stop 'benchmark_large: bad --threads value'
-        else if (arg == '--linear-solver=auto') then
-            linear_solver = sqpopt_linear_solver_auto
         else if (arg == '--linear-solver=mumps') then
             linear_solver = sqpopt_linear_solver_mumps
         else if (arg == '--linear-solver=qdldl') then
