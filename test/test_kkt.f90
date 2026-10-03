@@ -21,7 +21,7 @@ program test_kkt
 
     use sqpopt_symmetric_solver_module, only: sqpopt_symmetric_solver_type, sqpopt_has_mumps, &
                                               sqpopt_linear_solver_mumps, sqpopt_linear_solver_qdldl, &
-                                              sqpopt_linear_solver_name
+                                              sqpopt_linear_solver_dense, sqpopt_linear_solver_name
     use sqpopt_kkt_module,              only: sqpopt_kkt_type
     use sqpopt_least_squares_module,    only: sqpopt_least_squares_type
     use sqpopt_hessian_module,          only: sqpopt_hessian_type
@@ -33,7 +33,8 @@ program test_kkt
 
     real(wp), parameter :: tol = 1.0e-9_wp !! tolerance on the residuals and on the differences from the references
     integer :: k
-    integer, dimension(2), parameter :: solvers = [sqpopt_linear_solver_mumps, sqpopt_linear_solver_qdldl]
+    integer, dimension(3), parameter :: solvers = [sqpopt_linear_solver_mumps, sqpopt_linear_solver_qdldl, &
+                                                   sqpopt_linear_solver_dense]
 
     write(*,*) '----------------------------'
     write(*,*) 'test_kkt'
@@ -53,6 +54,7 @@ program test_kkt
         call test_kkt_matrix('sr1', solvers(k))
         call test_least_squares(solvers(k))
     end do
+    call test_dense_limit()
 
     print '(A)', 'test_kkt PASSED'
 
@@ -404,6 +406,22 @@ program test_kkt
 
     print '(A)', 'test_kkt [least squares] PASSED'
     end subroutine test_least_squares
+
+    subroutine test_dense_limit()
+    !! the dense solver refuses a matrix above its largest order (the options then
+    !! fall back on the matrix-free methods)
+    type(sqpopt_symmetric_solver_type) :: solver
+    integer, dimension(:), allocatable :: idx
+    logical :: ok
+    integer :: i
+    idx = [(i, i = 1, 2001)]
+    call solver%initialize(2001, idx, idx, ok, solver=sqpopt_linear_solver_dense)
+    if (ok .or. solver%ready) error stop 'test_kkt FAILED: the dense solver accepted an order above its limit'
+    call solver%initialize(2000, idx(1:2000), idx(1:2000), ok, solver=sqpopt_linear_solver_dense)
+    if (.not. ok) error stop 'test_kkt FAILED: the dense solver refused an order within its limit'
+    call solver%destroy()
+    print '(A)', 'test_kkt [dense solver: order limit] PASSED'
+    end subroutine test_dense_limit
 
     subroutine test_unavailable()
     !! without MUMPS, nothing can be started with it

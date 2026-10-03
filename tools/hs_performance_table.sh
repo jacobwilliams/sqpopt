@@ -15,11 +15,12 @@
 #    pixi run tools/hs_performance_table.sh [--markdown] [--mumps]
 #
 # The rows of the options that factor matrices (options%inertia_control and
-# options%direct_qp) use the default sparse solver, QDLDL. With --mumps, the
-# library is built with MUMPS too (the HAS_MUMPS preprocessor directive, which
-# needs the sequential MUMPS library of the pixi environment), and the table
-# gets the same rows with options%linear_solver = MUMPS, for comparison. The
-# other rows don't depend on the sparse solver.
+# options%direct_qp) use the default sparse solver, QDLDL, and are repeated
+# with the dense solver (options%linear_solver = dense, which always works on
+# these small problems). With --mumps, the library is built with MUMPS too
+# (the HAS_MUMPS preprocessor directive, which needs the sequential MUMPS
+# library of the pixi environment), and the table gets the same rows with
+# MUMPS, for comparison. The other rows don't depend on the sparse solver.
 #
 # Each run takes about a second (release build). The per-run Markdown
 # reports are left in a temporary directory, printed at the end.
@@ -73,6 +74,7 @@ for row in "${rows[@]}"; do
         for f in "${factored[@]}"; do
             IFS='|' read -r label opts <<< "$f"
             with_factored+=("filter, $label|filter, $label|$opts")
+            with_factored+=("filter, $label (dense)|filter, $label (dense)|$opts --linear-solver=dense")
             if [[ $mumps == 1 ]]; then
                 with_factored+=("filter, $label (MUMPS)|filter, $label (MUMPS)|$opts --linear-solver=mumps")
             fi

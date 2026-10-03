@@ -176,6 +176,7 @@ NULL_SPACE_METHODS = (
 LINEAR_SOLVERS = (
     Choice(2, 'QDLDL (no pivoting; always available)', 'sqpopt_linear_solver_qdldl'),
     Choice(1, 'MUMPS (multifrontal, with pivoting and threads; a build with MUMPS)', 'sqpopt_linear_solver_mumps'),
+    Choice(3, 'dense (pivoting, exact inertia; for small problems)', 'sqpopt_linear_solver_dense'),
 )
 PRINT_LEVELS = (
     Choice(0, 'none'),
@@ -503,7 +504,9 @@ TOPICS: tuple[Topic, ...] = (
                'inertia_control (QDLDL can\'t tell the inertia of a Hessian with zeros on its diagonal, and '
                'shifts it more than needed: about 45% more evaluations on the HS problems), and for problems '
                'coupled in two or three dimensions, whose factors are dense (MUMPS refactored 3-D grid matrices '
-               '9 to 34 times faster, and can use threads).',
+               '9 to 34 times faster, and can use threads). Dense (opt-in) forms the KKT matrix as a dense array, of '
+               'order n+m, so it is for small problems only (it refuses an order above 2,000): there, with the exact '
+               'Hessian and inertia_control, it gives MUMPS\'s results at QDLDL\'s speed.',
                choices=LINEAR_SOLVERS),
             _o('options%factorization_threads', 'int', 1,
                'Number of OpenMP threads the sparse factorizations use (inertia_control, direct_qp, and '

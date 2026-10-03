@@ -2,8 +2,8 @@
 !> author: Jacob Williams
 !  license: MIT
 !
-!  A sparse direct solver for symmetric indefinite linear systems
-!  \( A x = b \), by an \( LDL^T \) factorization, with one of two backends
+!  A direct solver for symmetric indefinite linear systems
+!  \( A x = b \), with one of three backends
 !  (`options%linear_solver`), each in a module of its own, behind the
 !  interface of [[sqpopt_sparse_ldl_module]]:
 !
@@ -11,7 +11,11 @@
 !    ([[sqpopt_qdldl_ldl_module]]), without pivoting, single-threaded, with
 !    very little overhead, always available;
 !  * `sqpopt_linear_solver_mumps`: MUMPS ([[sqpopt_mumps_ldl_module]]), with
-!    pivoting and threads, in a library built with it (`sqpopt_has_mumps`).
+!    pivoting and threads, in a library built with it (`sqpopt_has_mumps`);
+!  * `sqpopt_linear_solver_dense` (opt-in): the matrix as a dense array
+!    ([[sqpopt_dense_ldl_module]]), with pivoting and the exact inertia, for
+!    small matrices only (\( O(n^3) \) per factorization; it refuses an
+!    order above `dense_max_order`).
 !
 !  This module chooses the backend, and does what is the same for both:
 !  the iterative refinement of the solves, the counts, and the timing.
@@ -30,7 +34,10 @@
 !  first factorization, with its analysis, can cost much more (72 s against
 !  4.5 s for a 2-D KKT matrix of order 735,000). So MUMPS is the better
 !  choice for the exact Hessian with inertia control, and for problems
-!  coupled in two or three dimensions that refactor many times.
+!  coupled in two or three dimensions that refactor many times. For a small
+!  problem with the exact Hessian and inertia control, the dense backend
+!  gives MUMPS's results (on the Hock-Schittkowski problems, 9,452
+!  evaluations against MUMPS's 9,400 and QDLDL's 13,654) at QDLDL's speed.
 !
 !  How it is used:
 !
@@ -60,6 +67,7 @@
     use sqpopt_sparse_ldl_module, only: sqpopt_sparse_ldl_type
     use sqpopt_qdldl_ldl_module, only: sqpopt_qdldl_ldl_type
     use sqpopt_mumps_ldl_module, only: sqpopt_mumps_ldl_type, sqpopt_has_mumps
+    use sqpopt_dense_ldl_module, only: sqpopt_dense_ldl_type
 
     implicit none
 
@@ -71,6 +79,8 @@
     integer, parameter, public :: sqpopt_linear_solver_mumps = 1 !! MUMPS (needs a library built with it)
     integer, parameter, public :: sqpopt_linear_solver_qdldl = 2 !! (default) QDLDL (always available; see the
                                                                  !! module documentation)
+    integer, parameter, public :: sqpopt_linear_solver_dense = 3 !! dense, for small matrices (always available;
+                                                                 !! see [[sqpopt_dense_ldl_module]])
 
     public :: sqpopt_linear_solver_available, sqpopt_linear_solver_name
 
@@ -122,7 +132,7 @@
     integer, intent(in) :: solver !! the solver (`sqpopt_linear_solver_*`)
 
     select case (solver)
-    case (sqpopt_linear_solver_qdldl)
+    case (sqpopt_linear_solver_qdldl, sqpopt_linear_solver_dense)
         available = .true.
     case (sqpopt_linear_solver_mumps)
         available = sqpopt_has_mumps
@@ -146,6 +156,8 @@
     select case (solver)
     case (sqpopt_linear_solver_mumps)
         name = 'MUMPS'
+    case (sqpopt_linear_solver_dense)
+        name = 'dense'
     case default
         name = 'QDLDL'
     end select
@@ -191,6 +203,8 @@
     select case (which)
     case (sqpopt_linear_solver_mumps)
         allocate(sqpopt_mumps_ldl_type :: me%ldl, stat=alloc_stat)
+    case (sqpopt_linear_solver_dense)
+        allocate(sqpopt_dense_ldl_type :: me%ldl, stat=alloc_stat)
     case default
         allocate(sqpopt_qdldl_ldl_type :: me%ldl, stat=alloc_stat)
     end select

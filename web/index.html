@@ -57,6 +57,7 @@
     <a href="#python">Python</a>
     <p class="toc-group"><svg class="toc-icon" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="15" cy="6" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="17" cy="18" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>Configuration</p>
     <a href="#configuration">How configuration works</a>
+    <a href="#dense-matrices" class="toc-sub">Dense matrices</a>
     <a href="choosing_settings.html">Choosing settings &#8599;</a>
     <a href="#problem-definition">Problem definition</a>
     <a href="#max-step" class="toc-sub">Step limits</a>
@@ -762,6 +763,21 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <p>So set these through <code>options</code>. Everything else in the tables below (tolerances, step limits, and so on) has no <code>options</code> field and must be set on the sub-component directly.</p>
 </div>
 
+<h3 id="dense-matrices">Options that form dense matrices</h3>
+
+<p>SQPOPT keeps the Jacobian and the Hessian sparse, and never forms a dense \( n \times n \) or \( m \times n \) matrix, except in the settings below. Each costs memory and time that grow with the square (or more) of the problem's size, so each is meant for small problems, or for small parts of a problem:</p>
+
+<div class="table-wrap"><table class="compact">
+<thead><tr><th>setting</th><th>dense matrices</th><th>when it is used</th></tr></thead>
+<tbody>
+<tr><td><code>options%qp_solver_mode = sqpopt_qp_dense</code> (the <a href="#dense-qp">dense QP solver</a>)</td><td>the Hessian (\( n \times n \)), the Jacobian (\( m \times n \)), and the working set's null space, formed for every QP</td><td>by default (<code>sqpopt_qp_auto</code>) for up to <code>qp_solver%auto_dense_max_n</code> = 200 variables; always, if you choose it</td></tr>
+<tr><td><code>options%linear_solver = sqpopt_linear_solver_dense</code> (the <a href="#linear-solver">dense solver</a>)</td><td>the KKT matrix and its LU factors, two arrays of order \( n + m \)</td><td>only if you choose it, and only with <code>inertia_control</code>, <code>direct_qp</code>, or <code>direct_least_squares</code>; it refuses an order above 2,000</td></tr>
+<tr><td><code>qp_solver%sparse_qp%dense_max_ns</code> (the <a href="#sparse-qp">sparse QP</a>)</td><td>the reduced Hessian of a face, of order the number of superbasic variables</td><td>for faces with at most <code>dense_max_ns</code> = 50 superbasics (more are solved by conjugate gradients)</td></tr>
+</tbody>
+</table></div>
+
+<p class="small">The limited-memory Hessians also hold small dense matrices, of the order of their number of stored pairs (<code>lbfgs_memory</code>), not of the problem's size, and their \( n \times \) <code>lbfgs_memory</code> vectors.</p>
+
 <p>Every setting of every component is checked when <code>solve</code> starts. An invalid value gives <code>sqpopt_invalid_input</code>, and <code>status_message()</code> names the setting.</p>
 
 <div class="callout note"><strong>Which settings to use?</strong> <a href="choosing_settings.html">Choosing settings</a> recommends settings for small and large, dense and sparse problems, and for problems with many or few degrees of freedom, with measurements of each.</div>
@@ -830,7 +846,7 @@ call problem%set_max_step([0.1_wp, 0.1_wp, sqpopt_infinity, 5.0_wp])   ! (no lim
 <tr><td><code>inertia_control</code></td><td><code>.false.</code></td><td>with the exact or the SR1 Hessian: find the shift of an indefinite Hessian from a sparse factorization (see <a href="#inertia-control">Inertia control</a>)</td></tr>
 <tr><td><code>direct_qp</code></td><td><code>.false.</code></td><td>first try to solve each QP subproblem directly, by sparse factorizations; the active-set QP solver is only run if that fails (see <a href="#direct-qp">Direct method</a>). For large problems</td></tr>
 <tr><td><code>direct_least_squares</code></td><td><code>.false.</code></td><td>compute the Gauss-Newton restoration steps and the second-order corrections by a sparse factorization instead of <code>LSQR</code> (see <a href="#direct-least-squares">Direct least squares</a>)</td></tr>
-<tr><td><code>linear_solver</code></td><td><code>sqpopt_linear_solver_qdldl</code></td><td>the sparse solver of the three options above: <code>sqpopt_linear_solver_qdldl</code> (the default) or <code>sqpopt_linear_solver_mumps</code> (invalid input without MUMPS). See <a href="#linear-solver">Sparse solver</a></td></tr>
+<tr><td><code>linear_solver</code></td><td><code>sqpopt_linear_solver_qdldl</code></td><td>the solver of the factorizations of the three options above: <code>sqpopt_linear_solver_qdldl</code> (the default), <code>sqpopt_linear_solver_mumps</code> (invalid input without MUMPS), or <code>sqpopt_linear_solver_dense</code> (forms dense matrices: small problems only). See <a href="#linear-solver">Sparse solver</a></td></tr>
 <tr><td><code>factorization_threads</code></td><td><code>1</code></td><td>number of OpenMP threads the sparse factorizations use (the three options above), with MUMPS: <code>1</code> for none, a larger number for that many, or <code>0</code> to leave it to the OpenMP environment (<code>OMP_NUM_THREADS</code>, or every core). See <a href="#factorization-threads">Threads</a></td></tr>
 <tr><td><code>lbfgs_memory</code></td><td><code>0</code></td><td>number of <code>(s,y)</code> vector pairs retained by the limited-memory Hessian; <code>0</code> (automatic) picks \( \max(10, \min(n, 100)) \) (see <a href="#hessian">Hessian approximation</a>). With <code>direct_qp</code>, automatic means 10</td></tr>
 <tr><td><code>qp_solver_mode</code></td><td><code>sqpopt_qp_auto</code></td><td>QP subproblem algorithm (see <a href="#qp-solver">QP subproblem solver</a>)</td></tr>
@@ -988,47 +1004,48 @@ call problem%set_max_step([0.1_wp, 0.1_wp, sqpopt_infinity, 5.0_wp])   ! (no lim
 
 <h3 id="linear-solver">Sparse solver <span class="h-note"><code>options%linear_solver</code></span></h3>
 
-<p>The <a href="#inertia-control">inertia control</a>, the <a href="#direct-qp">direct method</a>, and <a href="#direct-least-squares">direct least squares</a> factor sparse symmetric matrices with one of two solvers:</p>
+<p>The <a href="#inertia-control">inertia control</a>, the <a href="#direct-qp">direct method</a>, and <a href="#direct-least-squares">direct least squares</a> factor symmetric matrices with one of three solvers:</p>
 
 <ul>
   <li><strong>QDLDL</strong> (<code>sqpopt_linear_solver_qdldl</code>, the default): a Fortran port of the \( LDL^T \) solver of the OSQP QP solver (<a href="https://github.com/jacobwilliams/qdldl-fortran">qdldl-fortran</a>), which FPM fetches, so it is always available, in any precision. It orders the matrix for sparsity (approximate minimum degree, with dense rows last and each constraint's row after its variables), and factors it <em>without pivoting</em>, on one thread, with very little overhead.</li>
   <li><strong>MUMPS</strong> (<code>sqpopt_linear_solver_mumps</code>): a multifrontal solver with pivoting and threads (<code>options%factorization_threads</code>), in a library built with it (see <a href="#installation">Installation</a>); invalid input otherwise.</li>
+  <li><strong>Dense</strong> (<code>sqpopt_linear_solver_dense</code>): <strong>forms the matrix as a dense array</strong>, of order \( n + m \), and factors it with pivoting (LU), counting its inertia exactly (as MUMPS does, also with zeros on the Hessian's diagonal) from SQPOPT's own dense routines. Each factorization costs \( O((n+m)^3) \) operations and \( 2(n+m)^2 \) numbers of memory, so it is <strong>only for small problems</strong>: up to a few hundred variables and constraints. Above an order of 2,000 it refuses to start, and the three options then fall back on the matrix-free methods. Always available; opt-in only (see <a href="#dense-matrices">Options that form dense matrices</a>).</li>
 </ul>
 
-<p>QDLDL is the default in every build; MUMPS is used only when you choose it. The log's header names the solver in use.</p>
+<p>QDLDL is the default in every build; MUMPS and the dense solver are used only when you choose them. The log's header names the solver in use.</p>
 
 <p><strong>Which one to choose.</strong></p>
 <ul>
   <li><strong>QDLDL</strong> for problems whose coupling is banded or along a chain (discretized time, chains of constraints), for the quasi-Newton Hessians (BFGS and SR1), and for direct least squares. Its matrices there are exact for a solver without pivoting, both solvers give the same iterates, and QDLDL's factorizations are several times faster.</li>
-  <li><strong>MUMPS</strong> for the exact Hessian with inertia control: with a Hessian that has zeros on its diagonal, a solver without pivoting can't tell the inertia (it would need the 2-by-2 pivots MUMPS has), so QDLDL reports negative curvature rather than miss it, and the shift is larger than needed, which costs evaluations.</li>
+  <li><strong>MUMPS</strong>, or for a small problem <strong>dense</strong>, for the exact Hessian with inertia control: with a Hessian that has zeros on its diagonal, a solver without pivoting can't tell the inertia (it would need the 2-by-2 pivots MUMPS has), so QDLDL reports negative curvature rather than miss it, and the shift is larger than needed, which costs evaluations. The dense solver gives MUMPS's results there, at QDLDL's speed and without MUMPS, but only while the problem is small.</li>
   <li><strong>MUMPS</strong> for problems coupled in two or three dimensions (a PDE on a grid, a mesh), whose factors have large dense blocks: there its multifrontal method, and its threads, are many times faster. But its first factorization of a KKT matrix, which includes its analysis, can cost much more than QDLDL's, so for a solve that factors only a few times, try both.</li>
 </ul>
 
 <p>Measured (release build, one core of an Apple M-series laptop unless noted):</p>
 
 <div class="table-wrap"><table class="bench">
-<thead><tr><th>test</th><th>configuration</th><th class="num">QDLDL (default)</th><th class="num">MUMPS</th></tr></thead>
+<thead><tr><th>test</th><th>configuration</th><th class="num">QDLDL (default)</th><th class="num">MUMPS</th><th class="num">dense</th></tr></thead>
 <tbody>
-<tr><td rowspan="5">305 Hock&ndash;Schittkowski problems<br><span class="small">(solved / local / failed, <code>fc</code> calls; time of the suite)</span></td><td>L-BFGS, <code>direct_qp</code></td><td class="num">279 / 26 / 0, 9,716; 0.15 s</td><td class="num">279 / 26 / 0, 9,750; 0.58 s</td></tr>
-<tr><td>L-BFGS, <code>direct_least_squares</code></td><td class="num">278 / 26 / 1, 8,988; 0.67 s</td><td class="num">278 / 26 / 1, 9,073; 0.73 s</td></tr>
-<tr><td>SR1, inertia control</td><td class="num">274 / 27 / 4, 10,454; 4.2 s</td><td class="num">274 / 27 / 4, 10,454; 13.2 s</td></tr>
-<tr><td>exact, inertia control</td><td class="num">273 / 29 / 3, 13,654; 1.6 s</td><td class="num"><strong>274 / 29 / 2, 9,400</strong>; 1.5 s</td></tr>
-<tr><td>exact, inertia control, <code>direct_qp</code></td><td class="num">274 / 29 / 2, 13,706; 1.3 s</td><td class="num"><strong>274 / 29 / 2, 9,474</strong>; 1.5 s</td></tr>
-<tr><td rowspan="4"><a href="performance.html#large-problems">Large problems</a> (banded and chained), exact Hessian, inertia control, direct QP and least squares<br><span class="small">(whole solve; the same iterations with both)</span></td><td><code>control</code>, 1,000,001 variables</td><td class="num"><strong>2.6 s</strong></td><td class="num">12.7 s</td></tr>
-<tr><td><code>rosenbrock</code>, 500,000</td><td class="num"><strong>0.99 s</strong></td><td class="num">5.4 s</td></tr>
-<tr><td><code>wells</code>, 1,000,000</td><td class="num"><strong>2.7 s</strong></td><td class="num">19.4 s</td></tr>
-<tr><td><code>circles</code>, 1,000,000</td><td class="num"><strong>1.5 s</strong></td><td class="num">9.8 s</td></tr>
-<tr><td rowspan="7">Grid matrices alone (<code>example/sparse_solvers.f90</code>)<br><span class="small">(each refactorization; MUMPS on 1 thread / on 4)</span></td><td>2-D grid, order 90,000</td><td class="num">0.092 s</td><td class="num"><strong>0.045 / 0.042 s</strong></td></tr>
-<tr><td>2-D grid, order 490,000</td><td class="num">1.25 s</td><td class="num"><strong>0.32 / 0.28 s</strong></td></tr>
-<tr><td>2-D KKT, order 135,000</td><td class="num">0.34 s</td><td class="num"><strong>0.054 / 0.053 s</strong></td></tr>
-<tr><td>2-D KKT, order 735,000 (first factorization)</td><td class="num">4.3 s (<strong>4.5 s</strong>)</td><td class="num"><strong>0.44</strong> / 0.40 s (72 s)</td></tr>
-<tr><td>3-D grid, order 27,000</td><td class="num">0.89 s</td><td class="num"><strong>0.10 / 0.071 s</strong></td></tr>
-<tr><td>3-D grid, order 125,000</td><td class="num">39 s</td><td class="num"><strong>1.7 / 0.67 s</strong></td></tr>
-<tr><td>3-D KKT, order 40,500</td><td class="num">4.9 s</td><td class="num"><strong>0.14 / 0.085 s</strong></td></tr>
+<tr><td rowspan="5">305 Hock&ndash;Schittkowski problems<br><span class="small">(solved / local / failed, <code>fc</code> calls; time of the suite)</span></td><td>L-BFGS, <code>direct_qp</code></td><td class="num">279 / 26 / 0, 9,716; 0.15 s</td><td class="num">279 / 26 / 0, 9,750; 0.58 s</td><td class="num">281 / 24 / 0, 10,705; 0.18 s</td></tr>
+<tr><td>L-BFGS, <code>direct_least_squares</code></td><td class="num">278 / 26 / 1, 8,988; 0.67 s</td><td class="num">278 / 26 / 1, 9,073; 0.73 s</td><td class="num">278 / 26 / 1, 8,992; 0.65 s</td></tr>
+<tr><td>SR1, inertia control</td><td class="num">274 / 27 / 4, 10,454; 4.2 s</td><td class="num">274 / 27 / 4, 10,454; 13.2 s</td><td class="num">273 / 29 / 3, 12,868; 6.1 s</td></tr>
+<tr><td>exact, inertia control</td><td class="num">273 / 29 / 3, 13,654; 1.6 s</td><td class="num"><strong>274 / 29 / 2, 9,400</strong>; 1.5 s</td><td class="num"><strong>273 / 30 / 2, 9,452</strong>; 1.7 s</td></tr>
+<tr><td>exact, inertia control, <code>direct_qp</code></td><td class="num">274 / 29 / 2, 13,706; 1.3 s</td><td class="num">274 / 29 / 2, 9,474; 1.5 s</td><td class="num"><strong>274 / 29 / 2, 9,317</strong>; 1.3 s</td></tr>
+<tr><td rowspan="4"><a href="performance.html#large-problems">Large problems</a> (banded and chained), exact Hessian, inertia control, direct QP and least squares<br><span class="small">(whole solve; the same iterations with both)</span></td><td><code>control</code>, 1,000,001 variables</td><td class="num"><strong>2.6 s</strong></td><td class="num">12.7 s</td><td class="num">&ndash;</td></tr>
+<tr><td><code>rosenbrock</code>, 500,000</td><td class="num"><strong>0.99 s</strong></td><td class="num">5.4 s</td><td class="num">&ndash;</td></tr>
+<tr><td><code>wells</code>, 1,000,000</td><td class="num"><strong>2.7 s</strong></td><td class="num">19.4 s</td><td class="num">&ndash;</td></tr>
+<tr><td><code>circles</code>, 1,000,000</td><td class="num"><strong>1.5 s</strong></td><td class="num">9.8 s</td><td class="num">&ndash;</td></tr>
+<tr><td rowspan="7">Grid matrices alone (<code>example/sparse_solvers.f90</code>)<br><span class="small">(each refactorization; MUMPS on 1 thread / on 4)</span></td><td>2-D grid, order 90,000</td><td class="num">0.092 s</td><td class="num"><strong>0.045 / 0.042 s</strong></td><td class="num">&ndash;</td></tr>
+<tr><td>2-D grid, order 490,000</td><td class="num">1.25 s</td><td class="num"><strong>0.32 / 0.28 s</strong></td><td class="num">&ndash;</td></tr>
+<tr><td>2-D KKT, order 135,000</td><td class="num">0.34 s</td><td class="num"><strong>0.054 / 0.053 s</strong></td><td class="num">&ndash;</td></tr>
+<tr><td>2-D KKT, order 735,000 (first factorization)</td><td class="num">4.3 s (<strong>4.5 s</strong>)</td><td class="num"><strong>0.44</strong> / 0.40 s (72 s)</td><td class="num">&ndash;</td></tr>
+<tr><td>3-D grid, order 27,000</td><td class="num">0.89 s</td><td class="num"><strong>0.10 / 0.071 s</strong></td><td class="num">&ndash;</td></tr>
+<tr><td>3-D grid, order 125,000</td><td class="num">39 s</td><td class="num"><strong>1.7 / 0.67 s</strong></td><td class="num">&ndash;</td></tr>
+<tr><td>3-D KKT, order 40,500</td><td class="num">4.9 s</td><td class="num"><strong>0.14 / 0.085 s</strong></td><td class="num">&ndash;</td></tr>
 </tbody>
 </table></div>
 
-<p class="small">The grid matrices are the Laplacian of a 5-point (2-D) or 7-point (3-D) grid plus the identity, and their KKT matrices with a constraint coupling each second point with its neighbour (see the program's header). Run them with <code>pixi run run-mumps --example sparse_solvers --profile release -- --threads=4</code> (the 3-D grid of order 216,000 is in the program too, but takes QDLDL minutes: <code>--max-n</code> skips it). The HS suite and <code>benchmark_large</code> take <code>--linear-solver=qdldl|mumps</code>.</p>
+<p class="small">A dash: too large for the dense solver (its limit is an order of 2,000). The grid matrices are the Laplacian of a 5-point (2-D) or 7-point (3-D) grid plus the identity, and their KKT matrices with a constraint coupling each second point with its neighbour (see the program's header). Run them with <code>pixi run run-mumps --example sparse_solvers --profile release -- --threads=4</code> (the 3-D grid of order 216,000 is in the program too, but takes QDLDL minutes: <code>--max-n</code> skips it). The HS suite and <code>benchmark_large</code> take <code>--linear-solver=qdldl|mumps</code>.</p>
 
 <h3 id="factorization-threads">Threads <span class="h-note"><code>options%factorization_threads</code></span></h3>
 

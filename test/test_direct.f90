@@ -3,8 +3,8 @@ program test_direct
     !! Test of the options that solve by sparse factorizations
     !! (`options%direct_qp` and `options%direct_least_squares`, with and
     !! without `options%inertia_control`), with each sparse solver of the
-    !! build (QDLDL, the default, and MUMPS in a build with the `HAS_MUMPS`
-    !! preprocessor directive):
+    !! build (QDLDL, the default, dense, and MUMPS in a build with the
+    !! `HAS_MUMPS` preprocessor directive):
     !!
     !!    fpm test test_direct --flag "-DHAS_MUMPS -I$CONDA_PREFIX/include" --link-flag "-ldmumps_seq"
     !!
@@ -46,7 +46,8 @@ program test_direct
     use sqpopt_qp_solver_module, only: sqpopt_qp_auto, sqpopt_qp_reduced_hessian
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
     use sqpopt_symmetric_solver_module, only: sqpopt_has_mumps, sqpopt_linear_solver_mumps, &
-                                              sqpopt_linear_solver_qdldl, sqpopt_linear_solver_name
+                                              sqpopt_linear_solver_qdldl, sqpopt_linear_solver_dense, &
+                                              sqpopt_linear_solver_name
     use sqpopt_types_module,     only: sqpopt_success, sqpopt_acceptable, sqpopt_stalled, sqpopt_invalid_input, &
                                        sqpopt_results_type, sqpopt_sparse_matrix, sqpopt_out_of_memory
     use sqpopt_kinds,            only: wp => sqpopt_module_wp
@@ -86,20 +87,25 @@ program test_direct
 
     integer :: i, k
     integer :: linear_solver !! the sparse solver of the runs (`options%linear_solver`)
+    integer, dimension(3), parameter :: solver_order = [sqpopt_linear_solver_qdldl, sqpopt_linear_solver_dense, &
+                                                        sqpopt_linear_solver_mumps] !! (MUMPS last: only in a build with it)
 
     write(*,*) '----------------------------'
     write(*,*) 'test_direct'
     write(*,*) '----------------------------'
 
     call test_direct_step()
-    ! (with each sparse solver of the build: QDLDL, the default, and MUMPS)
-    do k = 1, merge(2, 1, sqpopt_has_mumps)
-        linear_solver = merge(sqpopt_linear_solver_qdldl, sqpopt_linear_solver_mumps, k == 1)
+    ! (with each sparse solver of the build: QDLDL, the default, dense, and MUMPS)
+    do k = 1, merge(3, 2, sqpopt_has_mumps)
+        linear_solver = solver_order(k)
         print '(2A)', 'sparse solver: ', sqpopt_linear_solver_name(linear_solver)
         do i = 1, size(configs)
             call run('hs71', configs(i))
             call run('maratos', configs(i))
-            call run('circles', configs(i))
+            ! (not with the dense solver: the KKT matrix of `circles` has order 3,999,
+            ! above the dense solver's limit, so the options would fall back on the
+            ! matrix-free methods)
+            if (linear_solver /= sqpopt_linear_solver_dense) call run('circles', configs(i))
         end do
     end do
     if (sqpopt_has_mumps) then

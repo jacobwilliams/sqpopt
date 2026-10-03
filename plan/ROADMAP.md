@@ -1930,6 +1930,27 @@ which is now double precision only.
     matrices with a dense row (e.g. a constraint on every variable), where
     AMD would otherwise take \( O(n^2) \) time.
 
+- **F28: a dense backend for the sparse solver** *(done 2026-10-03)*.
+  `options%linear_solver = sqpopt_linear_solver_dense` (opt-in only):
+  `sqpopt_dense_ldl_module` forms the KKT matrix as a dense array (order
+  `n+m`, two arrays), counts its inertia exactly with
+  `dense_symmetric_inertia` (now with an optional `zero_tol`; the backend
+  uses `1e-5*epsilon`, the null-pivot threshold of QDLDL and MUMPS: `1e-12`
+  counted genuine eigenvalues of a KKT matrix with a large Hessian shift
+  as zero), and solves by LU with partial pivoting (a null column gets a
+  large pivot, so a singular consistent system still has a solution). It
+  refuses an order above 2,000 (the options then fall back on the
+  matrix-free methods). HS suite (solved/local/failed, `fc`; dense / QDLDL
+  / MUMPS): exact + inertia 273/30/2 9,452 / 273/29/3 13,654 / 274/29/2
+  9,400; + direct 274/29/2 9,317 / 274/29/2 13,706 / 274/29/2 9,474; SR1 +
+  inertia 273/29/3 12,868 / 274/27/4 10,454 / 274/27/4 10,454; L-BFGS +
+  direct 281/24/0 10,705 / 279/26/0 9,716 / 279/26/0 9,750; direct-ls
+  278/26/1 8,992 / 8,988 / 9,073. So for small problems with the exact
+  Hessian it gives MUMPS's results at QDLDL's speed; with the quasi-Newton
+  Hessians it adds nothing (their matrices are quasi-definite, so QDLDL is
+  exact; the differences come from singular faces). The guide's "Options
+  that form dense matrices" lists it with the dense QP and `dense_max_ns`.
+
 ## 6. Testing and infrastructure
 
 - **CUTEst benchmark: performance profiles and false infeasibility**

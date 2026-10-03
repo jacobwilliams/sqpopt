@@ -296,21 +296,24 @@
 !  pivots of that form's \( LDL^T \) factorization (its Sturm sequence at
 !  zero; Golub & Van Loan, *Matrix Computations*, 8.3 and 8.4), which has
 !  the same inertia as the matrix (Sylvester's law). A pivot counts as zero
-!  if it is below `zero_tol` times the matrix's largest element. A zero
+!  if it is below `zero_tol` (default \( 10^{-12} \)) times the matrix's
+!  largest element. A zero
 !  pivot that is coupled to the next row is not a zero eigenvalue (the
 !  matrix \( [0, 1; 1, 0] \) has the eigenvalues \( \pm 1 \)): it is taken
 !  with that row as a 2 by 2 pivot, as in the Bunch-Kaufman factorization,
 !  and the block's two eigenvalues are counted. Costs \( O(n^3) \): meant
 !  for small matrices.
 
-    pure subroutine dense_symmetric_inertia(a, n_positive, n_negative, n_zero)
+    pure subroutine dense_symmetric_inertia(a, n_positive, n_negative, n_zero, zero_tol)
 
     real(wp), dimension(:,:), intent(in)  :: a          !! the symmetric matrix `dimension(n,n)`
     integer,                  intent(out) :: n_positive !! number of positive eigenvalues
     integer,                  intent(out) :: n_negative !! number of negative eigenvalues
     integer,                  intent(out) :: n_zero     !! number of zero eigenvalues
+    real(wp), optional,       intent(in)  :: zero_tol   !! relative tolerance of a zero pivot (default `1e-12`)
 
-    real(wp), parameter :: zero_tol = 1.0e-12_wp
+    real(wp), parameter :: default_zero_tol = 1.0e-12_wp
+    real(wp) :: tol
     real(wp), dimension(:,:), allocatable :: b
     real(wp), dimension(:), allocatable :: v, p, w
     real(wp) :: alpha, vnorm, q, small, e, d, det, mean, radius
@@ -324,7 +327,9 @@
     n_zero     = 0
     if (n == 0) return
     b = 0.5_wp*(a + transpose(a))
-    small = zero_tol*max(maxval(abs(b)), tiny(1.0_wp))
+    tol = default_zero_tol
+    if (present(zero_tol)) tol = zero_tol
+    small = tol*max(maxval(abs(b)), tiny(1.0_wp))
 
     ! Householder reduction to tridiagonal form:
     do k = 1, n-2

@@ -51,7 +51,10 @@ by the solver of `options%linear_solver`: [QDLDL](https://github.com/jacobwillia
 (the default: no pivoting, one thread, very little overhead; an fpm
 dependency, so always available) or [MUMPS](https://mumps-solver.org)
 (with pivoting and threads; optional, and chosen with
-`options%linear_solver = sqpopt_linear_solver_mumps`):
+`options%linear_solver = sqpopt_linear_solver_mumps`), or a dense solver
+(`sqpopt_linear_solver_dense`; opt-in, it forms the matrix as a dense array,
+so for small problems only, where with the exact Hessian it gives MUMPS's
+results without MUMPS):
 
 | option | what it does | module |
 |---|---|---|
@@ -223,6 +226,7 @@ architecture ([PLAN.md](plan/PLAN.md)), the backlog
 | `sqpopt_sparse_ldl_module` | the abstract interface of a sparse LDLᵀ backend |
 | `sqpopt_qdldl_ldl_module` | the QDLDL backend (the default; no pivoting) |
 | `sqpopt_mumps_ldl_module` | the MUMPS backend (only in a build with `HAS_MUMPS`) |
+| `sqpopt_dense_ldl_module` | the dense backend (opt-in; forms the matrix as a dense array, for small problems) |
 | `sqpopt_kkt_module` | the KKT matrix of a QP working set, factored with that solver (its inertia, and solves) |
 | `sqpopt_inertia_module` | inertia control of the exact and SR1 Hessians |
 | `sqpopt_qp_direct_module` | the direct QP method (a primal-dual active-set method on the KKT matrix) |

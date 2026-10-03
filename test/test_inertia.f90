@@ -2,8 +2,8 @@ program test_inertia
 
     !! Test of the inertia control of the exact Hessian
     !! (`options%inertia_control`, see [[sqpopt_inertia_module]]), with each
-    !! sparse solver of the build (QDLDL, the default, and MUMPS in a build
-    !! with the `HAS_MUMPS` preprocessor directive):
+    !! sparse solver of the build (QDLDL, the default, dense, and MUMPS in a
+    !! build with the `HAS_MUMPS` preprocessor directive):
     !!
     !!    fpm test test_inertia --flag "-DHAS_MUMPS -I$CONDA_PREFIX/include" --link-flag "-ldmumps_seq"
     !!
@@ -19,6 +19,7 @@ program test_inertia
     use sqpopt_hessian_module,   only: sqpopt_hessian_type, sqpopt_hessian_exact
     use sqpopt_inertia_module,   only: sqpopt_inertia_type
     use sqpopt_symmetric_solver_module, only: sqpopt_has_mumps, sqpopt_linear_solver_mumps, sqpopt_linear_solver_qdldl, &
+                                              sqpopt_linear_solver_dense, &
                                               sqpopt_linear_solver_name
     use sqpopt_kkt_module,       only: sqpopt_kkt_type
     use sqpopt_qp_solver_module, only: sqpopt_qp_dense, sqpopt_qp_reduced_hessian
@@ -31,14 +32,16 @@ program test_inertia
     real(wp), parameter :: big = 1.0e20_wp !! sentinel value used for "unbounded" sides
     integer :: k
     integer :: linear_solver !! the sparse solver (`options%linear_solver`)
+    integer, dimension(3), parameter :: solver_order = [sqpopt_linear_solver_qdldl, sqpopt_linear_solver_dense, &
+                                                        sqpopt_linear_solver_mumps] !! (MUMPS last: only in a build with it)
 
     write(*,*) '----------------------------'
     write(*,*) 'test_inertia'
     write(*,*) '----------------------------'
 
-    ! (with each sparse solver of the build: QDLDL, the default, and MUMPS)
-    do k = 1, merge(2, 1, sqpopt_has_mumps)
-        linear_solver = merge(sqpopt_linear_solver_qdldl, sqpopt_linear_solver_mumps, k == 1)
+    ! (with each sparse solver of the build: QDLDL, the default, dense, and MUMPS)
+    do k = 1, merge(3, 2, sqpopt_has_mumps)
+        linear_solver = solver_order(k)
         print '(2A)', 'sparse solver: ', sqpopt_linear_solver_name(linear_solver)
         call test_correction()
         call test_solve('dense QP',     sqpopt_qp_dense,           .false.)
