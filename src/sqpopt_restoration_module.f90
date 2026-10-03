@@ -62,7 +62,7 @@
 
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
     use sqpopt_types_module,   only: sqpopt_sparse_matrix, sqpopt_success, sqpopt_line_search_failed, sqpopt_all_finite, &
-                                     sqpopt_infeasible, sqpopt_qp_solve_failed
+                                     sqpopt_infeasible, sqpopt_qp_solve_failed, sqpopt_out_of_memory
     use sqpopt_problem_module, only: sqpopt_problem_type
     use sqpopt_hessian_module, only: sqpopt_hessian_type
     use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type
@@ -356,7 +356,9 @@
 !  where \( \text{pred} = \theta(c) - \theta(c+Jp) \) is the decrease
 !  predicted by the linearization. If the QP predicts no decrease, or no
 !  step length is accepted, `x_new=x` and
-!  `istat=sqpopt_line_search_failed`.
+!  `istat=sqpopt_line_search_failed`. If the QP solver couldn't allocate its
+!  matrices, `x_new=x` and `istat=sqpopt_out_of_memory` (and `me%qp`'s
+!  `out_of_memory` is set, for [[sqpopt_iterate]] to stop the solve).
 
     subroutine restoration_phase_step(me, problem, jac, x, c, x_new, alpha, istat)
 
@@ -390,6 +392,10 @@
     call problem%step_bounds(x, lb, ub)
     call me%qp%solve(me%hess, jac, x, g_r, c, lb, ub, problem%c_lb, problem%c_ub, &
                      p, lambda_r, qp_istat)
+    if (qp_istat == sqpopt_out_of_memory) then
+        istat = sqpopt_out_of_memory
+        return
+    end if
     if (qp_istat /= sqpopt_success .and. qp_istat /= sqpopt_infeasible .and. qp_istat /= sqpopt_qp_solve_failed) return
 
     ! the decrease in the violation predicted by the linearization:

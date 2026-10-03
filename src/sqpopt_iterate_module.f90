@@ -661,7 +661,8 @@
     ! a QP solve of the step (any of them: a re-solve, or one of the trust
     ! region's or the restoration phase's) couldn't allocate its matrices, or
     ! a factorization ran out of memory (the point is left unchanged):
-    if (qp_solver%out_of_memory .or. kkt%solver%out_of_memory .or. least_squares%kkt%solver%out_of_memory) then
+    if (qp_solver%out_of_memory .or. restoration%qp%out_of_memory .or. &
+        kkt%solver%out_of_memory .or. least_squares%kkt%solver%out_of_memory) then
         istat = sqpopt_out_of_memory
         done  = .true.
         return
@@ -979,6 +980,8 @@
         !! is good enough (see [[restoration_phase_done]]). If both steps
         !! fail, the phase also ends, so that the next iteration tries the
         !! optimality QP again instead of retrying the phase from the same point.
+        !! If the feasibility QP ran out of memory, nothing else is tried (the
+        !! out-of-memory test after the step stops the solve).
         real(wp) :: f_new, theta0, theta_new
         real(wp), dimension(:), allocatable :: c_new
         logical :: ended
@@ -987,6 +990,7 @@
         theta0 = l1_violation(c, problem%c_lb, problem%c_ub)
         how = 'feasibility QP'
         call restoration%step(problem, jac, x, c, x_new, alpha, step_istat)
+        if (step_istat == sqpopt_out_of_memory) return
         if (step_istat /= sqpopt_success) then
             how = 'Gauss-Newton fallback'
             call restoration_step(problem, jac, x, c, qp_solver%max_step*qp_solver%step_scale, x_new, alpha, step_istat, &
