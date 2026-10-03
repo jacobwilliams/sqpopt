@@ -12,6 +12,8 @@ docmark_alt:
 docmark: !
 display: public
          private
+html_template_dir: ./ford/templates
+css: ./ford/user.css
 source: true
 graph: true
 extra_mods: fmin_module:https://github.com/jacobwilliams/fmin
