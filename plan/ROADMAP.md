@@ -1920,6 +1920,15 @@ which is now double precision only.
     at 100,000 variables 0.33 s instead of 7.4 s, `rosenbrock` at 10,000
     9.0 s instead of 51 s); `web/choosing_settings.html`. Both test suites
     and the Python tests pass.
+  - **qdldl-fortran 0.2.0** (AMD now orders dense rows, of more than
+    \( \max(16, 10\sqrt{n}) \) entries, last, as SuiteSparse's C AMD does):
+    everything above rerun on 2026-10-03 (both test suites, the HS table
+    and footnote configurations, `benchmark_large` at every size,
+    `sparse_solvers`, `test_scalable`, `test_qp_fuzz`). No result changed
+    (the same iterations and evaluations everywhere; times within run-to-run
+    noise), so the pages keep their numbers. The change matters for KKT
+    matrices with a dense row (e.g. a constraint on every variable), where
+    AMD would otherwise take \( O(n^2) \) time.
 
 ## 6. Testing and infrastructure
 
