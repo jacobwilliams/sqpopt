@@ -2,12 +2,13 @@ program test_direct
 
     !! Test of the options that solve by sparse factorizations
     !! (`options%direct_qp` and `options%direct_least_squares`, with and
-    !! without `options%inertia_control`), which need a library built with
-    !! MUMPS (the `HAS_MUMPS` preprocessor directive):
+    !! without `options%inertia_control`), with the default sparse solver
+    !! (MUMPS in a build with it, the `HAS_MUMPS` preprocessor directive, else
+    !! QDLDL):
     !!
     !!    fpm test test_direct --flag "-DHAS_MUMPS -I$CONDA_PREFIX/include" --link-flag "-ldmumps_seq"
     !!
-    !! With MUMPS, two small problems are solved with each Hessian mode and
+    !! Two small problems are solved with each Hessian mode and
     !! several combinations of those options, with both QP solvers, with the
     !! trust region, and on two OpenMP threads
     !! (`options%factorization_threads`). Each run must converge to the known solution, solve
@@ -21,9 +22,9 @@ program test_direct
     !!   Maratos example's objective (see `example/benchmark_large.f90`),
     !!   whose corrections are ill-conditioned least-squares problems.
     !!
-    !! A hanging chain of 200 links is solved with inertia control: its very
-    !! indefinite KKT matrices need many times the workspace MUMPS estimates,
-    !! which once ended the solve as out of memory.
+    !! With MUMPS, a hanging chain of 200 links is solved with inertia control:
+    !! its very indefinite KKT matrices need many times the workspace MUMPS
+    !! estimates, which once ended the solve as out of memory.
     !!
     !! It also gives [[direct_qp_step]] small QPs that take each of its special
     !! paths: a nonconvex face (which ends it without inertia control, and
@@ -31,7 +32,8 @@ program test_direct
     !! singular (which is regularized), an infeasible QP, and the limit on
     !! the changes of the working set.
     !!
-    !! Without MUMPS, it checks that each option is rejected as invalid input.
+    !! Without MUMPS, it checks that asking for MUMPS is rejected as invalid
+    !! input.
 
     use sqpopt_module,           only: sqpopt_type
     use sqpopt_problem_module,   only: sqpopt_problem_type
@@ -43,7 +45,7 @@ program test_direct
                                        sqpopt_direct_singular, sqpopt_direct_max_changes
     use sqpopt_qp_solver_module, only: sqpopt_qp_auto, sqpopt_qp_reduced_hessian
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
-    use sqpopt_symmetric_solver_module, only: sqpopt_has_mumps
+    use sqpopt_symmetric_solver_module, only: sqpopt_has_mumps, sqpopt_linear_solver_mumps
     use sqpopt_types_module,     only: sqpopt_success, sqpopt_acceptable, sqpopt_stalled, sqpopt_invalid_input, &
                                        sqpopt_results_type, sqpopt_sparse_matrix, sqpopt_out_of_memory
     use sqpopt_kinds,            only: wp => sqpopt_module_wp
@@ -87,13 +89,14 @@ program test_direct
     write(*,*) 'test_direct'
     write(*,*) '----------------------------'
 
+    ! (with the default sparse solver: MUMPS in a build with it, else QDLDL)
+    call test_direct_step()
+    do i = 1, size(configs)
+        call run('hs71', configs(i))
+        call run('maratos', configs(i))
+        call run('circles', configs(i))
+    end do
     if (sqpopt_has_mumps) then
-        call test_direct_step()
-        do i = 1, size(configs)
-            call run('hs71', configs(i))
-            call run('maratos', configs(i))
-            call run('circles', configs(i))
-        end do
         call test_workspace()
     else
         call test_unavailable()
@@ -356,7 +359,7 @@ program test_direct
     end subroutine test_workspace
 
     subroutine test_unavailable()
-    !! without MUMPS, the options are invalid input
+    !! without MUMPS, the options are invalid input with `linear_solver = sqpopt_linear_solver_mumps`
     type(sqpopt_type)         :: solver
     type(sqpopt_problem_type) :: problem
     type(sqpopt_options_type) :: options
@@ -369,6 +372,7 @@ program test_direct
         options = sqpopt_options_type()
         options%direct_qp            = k == 1
         options%direct_least_squares = k == 2
+        options%linear_solver        = sqpopt_linear_solver_mumps
         call solver%initialize(problem=problem, options=options)
         call solver%solve(x0, istat)
         call solver%get_results(r)

@@ -6,8 +6,8 @@ program test_multipliers
     !!
     !! * the estimate for a small Jacobian, against the solution of its normal
     !!   equations: for all the rows and variables, for a subset of the rows,
-    !!   and with a variable at a bound; by `LSQR`, and, in a build with MUMPS,
-    !!   by the direct solver too;
+    !!   and with a variable at a bound; by `LSQR`, and by the direct solver
+    !!   too;
     !! * a hanging chain of 200 links of length 0.01 between (0,0) and (1,0):
     !!   minimize the sum of the joints' heights, with the links' lengths as
     !!   equality constraints. The objective is linear, so the exact Hessian
@@ -16,15 +16,13 @@ program test_multipliers
     !!   next Hessians more indefinite still, until the solver stopped as
     !!   stalled far from the solution (objective -65.2). It must now converge
     !!   to the catenary (objective -91.12), with multipliers of the right
-    !!   size; in a build with MUMPS, also with inertia control and the direct
-    !!   QP method.
+    !!   size; also with inertia control and the direct QP method.
 
     use sqpopt_module,           only: sqpopt_type
     use sqpopt_problem_module,   only: sqpopt_problem_type
     use sqpopt_options_module,   only: sqpopt_options_type
     use sqpopt_hessian_module,   only: sqpopt_hessian_exact
     use sqpopt_least_squares_module, only: sqpopt_least_squares_type, multiplier_estimate
-    use sqpopt_symmetric_solver_module, only: sqpopt_has_mumps
     use sqpopt_types_module,     only: sqpopt_success, sqpopt_results_type, sqpopt_sparse_matrix
     use sqpopt_kinds,            only: wp => sqpopt_module_wp
 
@@ -38,10 +36,8 @@ program test_multipliers
 
     call test_estimate()
     call test_chain('exact Hessian', .false., .false.)
-    if (sqpopt_has_mumps) then
-        call test_chain('exact, inertia control', .true., .false.)
-        call test_chain('exact, inertia control, direct', .true., .true.)
-    end if
+    call test_chain('exact, inertia control', .true., .false.)
+    call test_chain('exact, inertia control, direct', .true., .true.)
 
     print '(A)', 'test_multipliers PASSED'
 
@@ -63,8 +59,8 @@ program test_multipliers
     jac%val   = [1.0_wp, 2.0_wp, 1.0_wp, 1.0_wp]
     g = [1.0_wp, 2.0_wp, 3.0_wp]
 
-    ! (pass 1: LSQR, since the direct solver `ls` isn't started; pass 2, with MUMPS: the direct solver)
-    do pass = 1, merge(2, 1, sqpopt_has_mumps)
+    ! (pass 1: LSQR, since the direct solver `ls` isn't started; pass 2: the direct solver)
+    do pass = 1, 2
         if (pass == 2) then
             call ls%initialize(3, 2, jac%irow, jac%icol, ok)
             if (.not. ok) error stop 'test_multipliers FAILED: the least-squares solver could not be started'

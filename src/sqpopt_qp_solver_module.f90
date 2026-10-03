@@ -34,7 +34,7 @@
 !  Hessian of order `n`). When the step isn't feasible, the attempt costs
 !  one such product.
 !
-!  With `direct` (`options%direct_qp`, in a build with MUMPS), the
+!  With `direct` (`options%direct_qp`), the
 !  subproblem is then tried directly, by factoring the KKT matrix of the
 !  working set that the active-set solver would start from (see
 !  [[sqpopt_qp_direct_module]]); the active-set solver is only run if that

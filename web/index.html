@@ -66,6 +66,7 @@
     <a href="#qp-solver">QP subproblem solver</a>
     <a href="#unconstrained-step" class="toc-sub">Unconstrained step</a>
     <a href="#direct-qp" class="toc-sub">Direct method</a>
+    <a href="#linear-solver" class="toc-sub">Sparse solver</a>
     <a href="#dense-qp" class="toc-sub">Dense QP options</a>
     <a href="#sparse-qp" class="toc-sub">Sparse QP options</a>
     <a href="#linesearch">Line search &amp; merit</a>
@@ -148,11 +149,11 @@ fpm build --profile release --flag "-DREAL128"   # quadruple precision</code></p
   <li>your own code. An array sized by the problem that is a local variable of the program or of <code>fc</code>/<code>gjac</code>, or an array expression given as an argument (<code>spread(...)</code>, an array constructor), is placed as your compiler decides. Make such arrays allocatable, or raise the stack limit (<code>ulimit -s</code>, and <code>OMP_STACKSIZE</code> for the threads of an OpenMP program).</li>
 </ul></div>
 
-<p>Three options, meant for large problems, are optional, because they need a library that FPM can't fetch: <a href="#inertia-control">inertia control</a>, the <a href="#direct-qp">direct QP method</a>, and <a href="#direct-least-squares">direct least squares</a> use the sparse factorizations of the <a href="https://mumps-solver.org">MUMPS</a> solver. To enable them, define <code>HAS_MUMPS</code>, put MUMPS's <code>dmumps_struc.h</code> on the include path, and link with its sequential, double precision library. With conda-forge's <code>mumps-seq</code> package:</p>
+<p>Three options, meant for large problems, use sparse factorizations: <a href="#inertia-control">inertia control</a>, the <a href="#direct-qp">direct QP method</a>, and <a href="#direct-least-squares">direct least squares</a>. Their sparse solver is <code>options%linear_solver</code> (see <a href="#linear-solver">Sparse solver</a>): <a href="https://github.com/jacobwilliams/qdldl-fortran">QDLDL</a>, which FPM fetches, so it is always available, or the <a href="https://mumps-solver.org">MUMPS</a> solver, which is optional, because FPM can't fetch it. To build with MUMPS, define <code>HAS_MUMPS</code>, put MUMPS's <code>dmumps_struc.h</code> on the include path, and link with its sequential, double precision library. With conda-forge's <code>mumps-seq</code> package:</p>
 
 <pre><code class="language-bash">fpm build --profile release --flag "-DHAS_MUMPS -I$CONDA_PREFIX/include" --link-flag "-ldmumps_seq"</code></pre>
 
-<p>The constant <code>sqpopt_has_mumps</code> (from <code>sqpopt_symmetric_solver_module</code>) says whether the library was built this way. Without it, everything else works as usual, and those three options are reported as invalid input. A build with MUMPS must use double precision (the default): <code>REAL32</code> and <code>REAL128</code> don't compile with it. Your own program must be linked with <code>-ldmumps_seq</code> too.</p>
+<p>The constant <code>sqpopt_has_mumps</code> (from <code>sqpopt_symmetric_solver_module</code>) says whether the library was built this way. Without it, everything works as usual, the three options use QDLDL, and only <code>linear_solver = sqpopt_linear_solver_mumps</code> is reported as invalid input. A build with MUMPS must use double precision (the default): <code>REAL32</code> and <code>REAL128</code> don't compile with it. Your own program must be linked with <code>-ldmumps_seq</code> too.</p>
 
 <!-- ============================================================ -->
 <h2 id="quick-start">Quick start</h2>
@@ -693,7 +694,7 @@ print(res.x, res.fun, res.message)</code></pre>
   <li><strong>Arguments:</strong> <code>fun</code>, <code>x0</code>, <code>args</code>, <code>jac</code>, <code>hess</code>, <code>bounds</code>, <code>constraints</code>, <code>tol</code>, <code>callback</code>, and <code>options</code>, as in scipy.</li>
   <li><strong>Constraints:</strong> SLSQP-style dicts, <code>NonlinearConstraint</code>, and <code>LinearConstraint</code>. The package's own classes and scipy's are both accepted. Jacobians may be dense or sparse.</li>
   <li><strong>Derivatives are required:</strong> the gradient (<code>jac</code>) and each nonlinear constraint's Jacobian. Unlike scipy, there are no finite differences.</li>
-  <li><strong>Exact Hessian:</strong> <code>hess</code> selects the exact Hessian of the Lagrangian. The options <code>inertia_control</code>, <code>direct_qp</code>, and <code>direct_least_squares</code> need an extension built with MUMPS (<code>pixi run build-python-mumps</code>).</li>
+  <li><strong>Exact Hessian:</strong> <code>hess</code> selects the exact Hessian of the Lagrangian. The options <code>inertia_control</code>, <code>direct_qp</code>, and <code>direct_least_squares</code> use QDLDL in the default extension, and MUMPS in an extension built with it (<code>pixi run build-python-mumps</code>; see <a href="#linear-solver">Sparse solver</a>).</li>
   <li><strong>Options:</strong> <code>options</code> takes any setting in this guide, by name (<code>{'ktol': 1e-8, 'hessian_mode': 'sr1'}</code>), by Fortran reference (<code>'linesearch%filter%delta'</code>), or as the dict returned by the options dialog.</li>
   <li><strong>Step limits:</strong> <code>max_step</code> gives the largest change of each variable in one major iteration, as one value or an array (see <a href="#max-step">Step limits</a>).</li>
   <li><strong>Warm start:</strong> <code>lambda0</code> gives the starting multipliers, so <code>minimize(..., x0=res.x, lambda0=res.v)</code> restarts from a previous result.</li>
@@ -825,10 +826,11 @@ call problem%set_max_step([0.1_wp, 0.1_wp, sqpopt_infinity, 5.0_wp])   ! (no lim
 <thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>hessian_mode</code></td><td><code>sqpopt_hessian_bfgs</code></td><td>Hessian approximation strategy (see <a href="#hessian">Hessian approximation</a>)</td></tr>
-<tr><td><code>inertia_control</code></td><td><code>.false.</code></td><td>with the exact or the SR1 Hessian: find the shift of an indefinite Hessian from a sparse factorization (see <a href="#inertia-control">Inertia control</a>). It needs a build with MUMPS, and is invalid input without it</td></tr>
-<tr><td><code>direct_qp</code></td><td><code>.false.</code></td><td>first try to solve each QP subproblem directly, by sparse factorizations; the active-set QP solver is only run if that fails (see <a href="#direct-qp">Direct method</a>). For large problems. It needs a build with MUMPS, and is invalid input without it</td></tr>
-<tr><td><code>direct_least_squares</code></td><td><code>.false.</code></td><td>compute the Gauss-Newton restoration steps and the second-order corrections by a sparse factorization instead of <code>LSQR</code> (see <a href="#direct-least-squares">Direct least squares</a>). It needs a build with MUMPS, and is invalid input without it</td></tr>
-<tr><td><code>factorization_threads</code></td><td><code>1</code></td><td>number of OpenMP threads the sparse factorizations use (the three options above): <code>1</code> for none, a larger number for that many, or <code>0</code> to leave it to the OpenMP environment (<code>OMP_NUM_THREADS</code>, or every core). See <a href="#factorization-threads">Threads</a></td></tr>
+<tr><td><code>inertia_control</code></td><td><code>.false.</code></td><td>with the exact or the SR1 Hessian: find the shift of an indefinite Hessian from a sparse factorization (see <a href="#inertia-control">Inertia control</a>)</td></tr>
+<tr><td><code>direct_qp</code></td><td><code>.false.</code></td><td>first try to solve each QP subproblem directly, by sparse factorizations; the active-set QP solver is only run if that fails (see <a href="#direct-qp">Direct method</a>). For large problems</td></tr>
+<tr><td><code>direct_least_squares</code></td><td><code>.false.</code></td><td>compute the Gauss-Newton restoration steps and the second-order corrections by a sparse factorization instead of <code>LSQR</code> (see <a href="#direct-least-squares">Direct least squares</a>)</td></tr>
+<tr><td><code>linear_solver</code></td><td><code>sqpopt_linear_solver_auto</code></td><td>the sparse solver of the three options above: <code>sqpopt_linear_solver_auto</code> (MUMPS in a build with it, else QDLDL), <code>sqpopt_linear_solver_mumps</code> (invalid input without MUMPS), or <code>sqpopt_linear_solver_qdldl</code>. See <a href="#linear-solver">Sparse solver</a></td></tr>
+<tr><td><code>factorization_threads</code></td><td><code>1</code></td><td>number of OpenMP threads the sparse factorizations use (the three options above), with MUMPS: <code>1</code> for none, a larger number for that many, or <code>0</code> to leave it to the OpenMP environment (<code>OMP_NUM_THREADS</code>, or every core). See <a href="#factorization-threads">Threads</a></td></tr>
 <tr><td><code>lbfgs_memory</code></td><td><code>0</code></td><td>number of <code>(s,y)</code> vector pairs retained by the limited-memory Hessian; <code>0</code> (automatic) picks \( \max(10, \min(n, 100)) \) (see <a href="#hessian">Hessian approximation</a>). With <code>direct_qp</code>, automatic means 10</td></tr>
 <tr><td><code>qp_solver_mode</code></td><td><code>sqpopt_qp_auto</code></td><td>QP subproblem algorithm (see <a href="#qp-solver">QP subproblem solver</a>)</td></tr>
 <tr><td><code>linesearch_mode</code></td><td><code>sqpopt_linesearch_filter</code></td><td>line search strategy (see <a href="#linesearch">Line search &amp; merit function</a>)</td></tr>
@@ -878,7 +880,7 @@ call problem%set_max_step([0.1_wp, 0.1_wp, sqpopt_infinity, 5.0_wp])   ! (no lim
 
 <p><strong>Multipliers after a large shift.</strong> The exact Hessian is evaluated with the multipliers, and those come from the QP, where they satisfy \( g + (H + \delta I)p = J^T\lambda \). When the shift's term \( \delta p \) is larger than the gradient (\( \delta\lVert p\rVert_\infty \ge \max(1, \lVert g\rVert_\infty) \)), the multipliers mostly balance the shift, and can be orders of magnitude too large. The next Hessian would then be more indefinite and need a larger shift still. So after such a step, the multipliers are replaced by their least-squares estimate at the new point, \( \min_\lambda \lVert g - J^T\lambda \rVert \) over the active constraints and the variables not at a bound, which doesn't depend on the shift. (On a hanging-chain problem, without this, the multipliers grew to \( 10^{13} \) and the solver stopped as stalled far from the solution.) This applies with and without inertia control.</p>
 
-<h3 id="inertia-control">Inertia control (optional, with MUMPS)</h3>
+<h3 id="inertia-control">Inertia control</h3>
 
 <p>The tests above (for the exact Hessian) only see negative curvature along the directions that the QP solver happens to explore, each correction costs a whole QP solve, and tenfold steps overshoot the shift that is needed. With <code>options%inertia_control = .true.</code>, the shift is instead found from a sparse \( LDL^T \) factorization of the KKT matrix</p>
 
@@ -895,14 +897,14 @@ call problem%set_max_step([0.1_wp, 0.1_wp, sqpopt_infinity, 5.0_wp])   ! (no lim
 
 <p><strong>SR1.</strong> The limited-memory SR1 matrix can be indefinite too, and without inertia control nothing corrects it. It is a multiple of the identity plus a matrix of low rank, so the same test applies: the sparse part of \( K \) is factored, and the low-rank part is accounted for with a small dense matrix (one solve per stored pair). On the Hock&ndash;Schittkowski problems, SR1 then solves 274 problems and fails on 4, instead of 244 and 30, with less than a quarter of the function evaluations (10,455 instead of 47,454). The shift isn't carried over between iterations with SR1.</p>
 
-<p>This needs a library built with MUMPS (see <a href="#installation">Installation</a>): without it, <code>inertia_control = .true.</code> is reported as invalid input. It is used with <code>sqpopt_hessian_exact</code> and <code>sqpopt_hessian_sr1</code> (the BFGS matrix is positive definite, and needs no correction). MUMPS runs on one thread unless <code>options%factorization_threads</code> says otherwise (see <a href="#factorization-threads">Threads</a>). <code>results%n_factorizations</code> counts the factorizations. On the Hock&ndash;Schittkowski problems, the exact Hessian with it solves 4 more problems than without it, with 16% fewer function evaluations (see <a href="performance.html">Performance</a>). With <code>options%direct_qp</code>, the factorizations are also used to solve the QP (see <a href="#direct-qp">Direct method</a>).</p>
+<p>It is used with <code>sqpopt_hessian_exact</code> and <code>sqpopt_hessian_sr1</code> (the BFGS matrix is positive definite, and needs no correction). The factorizations are those of <code>options%linear_solver</code> (see <a href="#linear-solver">Sparse solver</a>). With SR1 both solvers give the same results; with the exact Hessian, MUMPS is the better one, since QDLDL can't tell the inertia of a Hessian with zeros on its diagonal, and then shifts it more than needed. MUMPS runs on one thread unless <code>options%factorization_threads</code> says otherwise (see <a href="#factorization-threads">Threads</a>). <code>results%n_factorizations</code> counts the factorizations. On the Hock&ndash;Schittkowski problems, the exact Hessian with it solves 4 more problems than without it, with 16% fewer function evaluations (see <a href="performance.html">Performance</a>). With <code>options%direct_qp</code>, the factorizations are also used to solve the QP (see <a href="#direct-qp">Direct method</a>).</p>
 
 <div class="table-wrap"><table class="opt-table">
 <thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
 <tbody>
 <tr><td><code>options%hessian_mode</code></td><td><code>sqpopt_hessian_bfgs</code></td><td><code>sqpopt_hessian_bfgs</code> (limited-memory Powell-damped BFGS), <code>sqpopt_hessian_sr1</code> (limited-memory symmetric rank-1), or <code>sqpopt_hessian_exact</code> (the user's sparse Hessian of the Lagrangian, see <a href="#exact-hessian">Exact Hessian</a>)</td></tr>
 <tr><td><code>options%lbfgs_memory</code></td><td><code>0</code></td><td>number of <code>(s,y)</code> vector pairs retained. <code>0</code> (automatic) picks \( \max(10, \min(n, 100)) \) from the number of variables <code>n</code>: larger problems benefit from more pairs (on a quadratic, BFGS with <code>n</code> pairs converges in about <code>n</code> iterations; with 10, TP302, <code>n</code>&nbsp;=&nbsp;100, needs 491 instead of 143), while keeping more pairs than variables retains stale curvature and slows small problems down. With <code>options%direct_qp</code>, the automatic value is 10 instead, because the <a href="#direct-qp">direct method</a>'s cost grows with the square of the number of pairs. Any positive value is used as given.</td></tr>
-<tr><td><code>options%inertia_control</code></td><td><code>.false.</code></td><td>exact Hessian and SR1: find the shift from the inertia of the KKT matrix, by a sparse factorization (see <a href="#inertia-control">Inertia control</a>; needs a build with MUMPS)</td></tr>
+<tr><td><code>options%inertia_control</code></td><td><code>.false.</code></td><td>exact Hessian and SR1: find the shift from the inertia of the KKT matrix, by a sparse factorization (see <a href="#inertia-control">Inertia control</a>)</td></tr>
 <tr><td><code>damping</code></td><td><code>.true.</code></td><td>Powell's damped BFGS update: when \( s^Ty &lt; 0.2\,s^TBs \), <code>y</code> is blended with <code>Bs</code> so the update keeps <code>B</code> positive definite while still using the new curvature information. If <code>.false.</code>, such updates are skipped instead.</td></tr>
 <tr><td><code>shift_min</code>, <code>shift_max</code></td><td><code>1e-4</code>, <code>1e10</code></td><td>exact Hessian: the smallest nonzero and the largest shift \( \delta \), relative to \( \max(1, \max_{ij}|H_{ij}|) \)</td></tr>
 </tbody>
@@ -953,13 +955,13 @@ call problem%set_max_step([0.1_wp, 0.1_wp, sqpopt_infinity, 5.0_wp])   ! (no lim
   <li><strong>Tested.</strong> Both are checked against the KKT conditions on thousands of random convex, nonconvex, degenerate, and infeasible QPs (<code>test/test_qp_fuzz.f90</code>).</li>
 </ul>
 
-<h3 id="direct-qp">Direct method (optional, with MUMPS) <span class="h-note"><code>options%direct_qp</code></span></h3>
+<h3 id="direct-qp">Direct method <span class="h-note"><code>options%direct_qp</code></span></h3>
 
 <p>On large problems, nearly all of a solve's time is in the active-set QP solvers: each of their iterations changes one constraint and solves with the reduced Hessian. With <code>options%direct_qp = .true.</code>, each QP is first tried directly. For a given working set, the QP is an equality-constrained one, and its solution is one linear solve with the KKT matrix</p>
 
 \[ \begin{bmatrix} H &amp; J_a^T \\ J_a &amp; 0 \end{bmatrix} \begin{bmatrix} p \\ -\lambda \end{bmatrix} = \begin{bmatrix} -g \\ b_a - c_a \end{bmatrix} \]
 
-<p>which is factored by MUMPS (the same factorization as the <a href="#inertia-control">inertia control</a>'s, which is reused). The method is a <em>primal-dual active-set method</em>:</p>
+<p>which is factored by the sparse solver of <code>options%linear_solver</code> (the same factorization as the <a href="#inertia-control">inertia control</a>'s, which is reused). The method is a <em>primal-dual active-set method</em>:</p>
 
 <ol>
   <li>Start from the working set of the previous QP (or, for the first one, the equality constraints and fixed variables). Near a solution of the nonlinear problem that is already the right one.</li>
@@ -981,11 +983,41 @@ call problem%set_max_step([0.1_wp, 0.1_wp, sqpopt_infinity, 5.0_wp])   ! (no lim
   <li><strong>L-BFGS and SR1:</strong> the quasi-Newton matrix is a multiple of the identity plus a matrix of low rank, which is handled by the Sherman&ndash;Morrison&ndash;Woodbury formula. That costs two more solves per stored pair for each factorization, and work that grows with the square of the number of pairs. So with <code>direct_qp</code> the automatic memory (<code>options%lbfgs_memory = 0</code>) is 10 pairs, not up to 100. A larger memory can be set, but it didn't pay in the <a href="performance.html#large-problems">large-problem benchmark</a>.</li>
 </ul>
 
-<p>It is used by the line searches and by the trust region, but not for the feasibility QPs of a restoration phase, nor for an elastic re-solve. <code>results%n_direct_qp</code> and <code>results%n_qp_solves</code> tell how many QPs it solved, and <code>results%time_factorization</code> what the factorizations cost. At <code>print_level = 3</code>, each QP's line says whether it was solved directly, and if not, why the direct method gave up. This needs a library built with MUMPS (see <a href="#installation">Installation</a>).</p>
+<p>It is used by the line searches and by the trust region, but not for the feasibility QPs of a restoration phase, nor for an elastic re-solve. <code>results%n_direct_qp</code> and <code>results%n_qp_solves</code> tell how many QPs it solved, and <code>results%time_factorization</code> what the factorizations cost. At <code>print_level = 3</code>, each QP's line says whether it was solved directly, and if not, why the direct method gave up.</p>
+
+<h3 id="linear-solver">Sparse solver <span class="h-note"><code>options%linear_solver</code></span></h3>
+
+<p>The <a href="#inertia-control">inertia control</a>, the <a href="#direct-qp">direct method</a>, and <a href="#direct-least-squares">direct least squares</a> factor sparse symmetric matrices with one of two solvers:</p>
+
+<ul>
+  <li><strong>QDLDL</strong> (<code>sqpopt_linear_solver_qdldl</code>): a Fortran port of the \( LDL^T \) solver of the OSQP QP solver (<a href="https://github.com/jacobwilliams/qdldl-fortran">qdldl-fortran</a>), which FPM fetches, so it is always available, in any precision. It orders the matrix for sparsity (approximate minimum degree, with each constraint's row after its variables), and factors it <em>without pivoting</em>, on one thread, with very little overhead.</li>
+  <li><strong>MUMPS</strong> (<code>sqpopt_linear_solver_mumps</code>): a multifrontal solver with pivoting and threads, in a library built with it (see <a href="#installation">Installation</a>); invalid input otherwise.</li>
+</ul>
+
+<p>The default, <code>sqpopt_linear_solver_auto</code>, is MUMPS in a library built with it, else QDLDL. The log's header names the solver in use.</p>
+
+<p>Without pivoting, QDLDL is exact for the matrices of direct least squares, and for those of the quasi-Newton Hessians (BFGS and SR1, whose sparse part is a multiple of the identity): there, both solvers give the same results. With the exact Hessian, a zero pivot that isn't a zero eigenvalue (from a Hessian with zeros on its diagonal, which needs the 2-by-2 pivots that MUMPS has) leaves the inertia unknown. QDLDL then reports negative curvature, so that the inertia control shifts the Hessian rather than miss it, but by more than needed, which costs evaluations. Measured (release build):</p>
+
+<div class="table-wrap"><table class="bench">
+<thead><tr><th>test</th><th>configuration</th><th class="num">MUMPS</th><th class="num">QDLDL</th></tr></thead>
+<tbody>
+<tr><td rowspan="5">305 Hock&ndash;Schittkowski problems<br><span class="small">(solved / local / failed, <code>fc</code> calls; time of the suite)</span></td><td>L-BFGS, <code>direct_qp</code></td><td class="num">279 / 26 / 0, 9,750; 0.58 s</td><td class="num">279 / 26 / 0, 9,716; 0.15 s</td></tr>
+<tr><td>L-BFGS, <code>direct_least_squares</code></td><td class="num">278 / 26 / 1, 9,073; 0.73 s</td><td class="num">278 / 26 / 1, 8,988; 0.67 s</td></tr>
+<tr><td>SR1, inertia control</td><td class="num">274 / 27 / 4, 10,454; 13.2 s</td><td class="num">274 / 27 / 4, 10,454; 4.2 s</td></tr>
+<tr><td>exact, inertia control</td><td class="num">274 / 29 / 2, 9,400; 1.5 s</td><td class="num">273 / 29 / 3, 13,654; 1.6 s</td></tr>
+<tr><td>exact, inertia control, <code>direct_qp</code></td><td class="num">274 / 29 / 2, 9,474; 1.5 s</td><td class="num">274 / 29 / 2, 13,706; 1.3 s</td></tr>
+<tr><td rowspan="4"><a href="performance.html#large-problems">Large problems</a>, 50,000 to 100,000 variables<br><span class="small">(time in the factorizations / whole solve)</span></td><td><code>control</code>, L-BFGS, direct</td><td class="num">101.1 s / 120.4 s</td><td class="num">13.8 s / 35.5 s</td></tr>
+<tr><td><code>control</code>, exact, inertia, direct</td><td class="num">1.17 s / 1.26 s</td><td class="num">0.12 s / 0.24 s</td></tr>
+<tr><td><code>wells</code>, L-BFGS, direct</td><td class="num">9.51 s / 11.6 s</td><td class="num">0.50 s / 2.63 s</td></tr>
+<tr><td><code>circles</code>, exact, inertia, direct</td><td class="num">1.00 s / 1.06 s</td><td class="num">0.06 s / 0.16 s</td></tr>
+</tbody>
+</table></div>
+
+<p class="small">On the large problems, the two solvers took the same iterations, except <code>control</code> with L-BFGS (127 iterations with QDLDL, 114 with MUMPS, to the same objective). Their matrices are banded or chained, so their factors stay sparse; MUMPS can be the faster one when the factors have large dense blocks (problems coupled in two or three dimensions), where its multifrontal method and its threads pay. So: QDLDL is the choice without MUMPS, and a fast one with the quasi-Newton Hessians and for direct least squares; with the exact Hessian and inertia control, prefer MUMPS.</p>
 
 <h3 id="factorization-threads">Threads <span class="h-note"><code>options%factorization_threads</code></span></h3>
 
-<p>MUMPS, and the BLAS library under it, can use OpenMP threads if they were built with OpenMP. conda-forge's <code>mumps-seq</code> package is (its "seq" means without MPI), with an OpenMP build of OpenBLAS. <code>options%factorization_threads</code> sets how many threads the factorizations and their solves use: <code>1</code> (the default) for none, a larger number for that many, or <code>0</code> to use whatever the OpenMP environment gives (<code>OMP_NUM_THREADS</code>, or every core). The setting only applies inside MUMPS: the rest of your program keeps its own number of threads.</p>
+<p>MUMPS, and the BLAS library under it, can use OpenMP threads if they were built with OpenMP (QDLDL is single-threaded). conda-forge's <code>mumps-seq</code> package is (its "seq" means without MPI), with an OpenMP build of OpenBLAS. <code>options%factorization_threads</code> sets how many threads the factorizations and their solves use: <code>1</code> (the default) for none, a larger number for that many, or <code>0</code> to use whatever the OpenMP environment gives (<code>OMP_NUM_THREADS</code>, or every core). The setting only applies inside MUMPS: the rest of your program keeps its own number of threads.</p>
 
 <p>The default is one thread, because threads only pay when the factorization has large dense blocks to work on, and they cost a lot otherwise:</p>
 
@@ -1001,7 +1033,7 @@ call problem%set_max_step([0.1_wp, 0.1_wp, sqpopt_infinity, 5.0_wp])   ! (no lim
 
 <p class="small">The grid rows time the sparse solver alone (the analysis, two factorizations, and a solve). So: leave it at 1 for small problems and for problems with a banded or otherwise very sparse structure (discretized time, chains), and try 4 or so when the constraints or the Hessian couple the variables in two or three dimensions and the factorization time (<code>results%time_factorization</code>) dominates.</p>
 
-<h3 id="direct-least-squares">Direct least squares (optional, with MUMPS) <span class="h-note"><code>options%direct_least_squares</code></span></h3>
+<h3 id="direct-least-squares">Direct least squares <span class="h-note"><code>options%direct_least_squares</code></span></h3>
 
 <p>The Gauss-Newton <a href="#restoration">restoration step</a> and the second-order correction both need the minimum-norm solution of \( J_S\,d = r \) for some rows of the Jacobian. They use the iterative solver <code>LSQR</code>, and take no step if it stops at its iteration limit. With <code>options%direct_least_squares = .true.</code>, the solution comes from one sparse factorization of \( \begin{bmatrix} I &amp; J_S^T \\ J_S &amp; -\epsilon I \end{bmatrix} \) instead (with a small \( \epsilon \), so that dependent rows are no problem), with any Hessian mode.</p>
 
@@ -1268,6 +1300,7 @@ fpm test --profile release</code></pre>
   <li><a href="https://github.com/jacobwilliams/LSQR">LSQR</a>: iterative solver for sparse linear systems and least-squares problems</li>
   <li><a href="https://github.com/jacobwilliams/lusol">lusol</a>: sparse LU factorization (the sparse QP's basis factors and updates, and its rank-revealing basis choice)</li>
   <li><a href="https://github.com/jacobwilliams/fmin">fmin</a>: derivative-free minimization routine used by the exact line search</li>
+  <li><a href="https://github.com/jacobwilliams/qdldl-fortran">qdldl-fortran</a>: sparse \( LDL^T \) factorization without pivoting (a Fortran port of OSQP's QDLDL), the default <a href="#linear-solver">sparse solver</a> without MUMPS</li>
 </ul>
 
 <p>Optional, and not fetched by FPM (see <a href="#installation">Installation</a>):</p>

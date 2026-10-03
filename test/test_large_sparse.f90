@@ -9,8 +9,7 @@ program test_large_sparse
     !! is solved with the dense QP (`sqpopt_qp_dense`) and with the sparse
     !! QP. Finally, the large problems are solved with the user's exact
     !! (sparse) Hessian of the Lagrangian (`sqpopt_hessian_exact`) instead of
-    !! the quasi-Newton approximation, and, if the library was built with
-    !! MUMPS, also with its inertia control (`options%inertia_control`, see
+    !! the quasi-Newton approximation, and also with its inertia control (`options%inertia_control`, see
     !! [[sqpopt_inertia_module]]), and with that and the direct QP method
     !! (`options%direct_qp`, see [[sqpopt_qp_direct_module]]), which must
     !! solve most of the QPs. Every solve must converge to the known optimum:
@@ -39,7 +38,6 @@ program test_large_sparse
     use sqpopt_problem_module,   only: sqpopt_problem_type
     use sqpopt_options_module,   only: sqpopt_options_type
     use sqpopt_hessian_module,  only: sqpopt_hessian_exact
-    use sqpopt_inertia_module,  only: sqpopt_has_mumps
     use sqpopt_qp_solver_module, only: sqpopt_qp_solver_type, sqpopt_qp_auto, sqpopt_qp_reduced_hessian, &
                                        sqpopt_qp_dense
     use sqpopt_types_module,     only: sqpopt_results_type, sqpopt_success, sqpopt_acceptable, sqpopt_stalled
@@ -79,16 +77,14 @@ program test_large_sparse
     ! one than the quasi-Newton ones)
     call run_rosenbrock(2000, sqpopt_qp_auto, 1.97826254e3_wp, exact=.true.)
 
-    ! and with the inertia control of the exact Hessian (a build with MUMPS):
-    if (sqpopt_has_mumps) then
-        call run_control(500, sqpopt_qp_auto, 3.30614092e-1_wp, exact=.true., inertia=.true.)
-        call run_rosenbrock(2000, sqpopt_qp_auto, 1.97826254e3_wp, exact=.true., inertia=.true.)
-        ! and with the direct QP method too:
-        call run_control(500, sqpopt_qp_auto, 3.30614092e-1_wp, exact=.true., inertia=.true., direct=.true.)
-        call run_rosenbrock(2000, sqpopt_qp_auto, 1.97826254e3_wp, exact=.true., inertia=.true., direct=.true.)
-        ! and the direct QP method with L-BFGS, whose automatic memory is then 10 pairs:
-        call run_control(500, sqpopt_qp_auto, 3.30614092e-1_wp, direct=.true.)
-    end if
+    ! and with the inertia control of the exact Hessian (with the default sparse solver):
+    call run_control(500, sqpopt_qp_auto, 3.30614092e-1_wp, exact=.true., inertia=.true.)
+    call run_rosenbrock(2000, sqpopt_qp_auto, 1.97826254e3_wp, exact=.true., inertia=.true.)
+    ! and with the direct QP method too:
+    call run_control(500, sqpopt_qp_auto, 3.30614092e-1_wp, exact=.true., inertia=.true., direct=.true.)
+    call run_rosenbrock(2000, sqpopt_qp_auto, 1.97826254e3_wp, exact=.true., inertia=.true., direct=.true.)
+    ! and the direct QP method with L-BFGS, whose automatic memory is then 10 pairs:
+    call run_control(500, sqpopt_qp_auto, 3.30614092e-1_wp, direct=.true.)
 
     print '(A)', 'test_large_sparse PASSED'
 

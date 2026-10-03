@@ -1766,6 +1766,108 @@ which is now double precision only.
   control as its safeguards) for the fast local convergence. Also Byrd et
   al., and Gould & Robinson (an EQP phase after a convex QP). A new Hessian
   mode, so the largest of these three.
+- **F25: SPRAL SSIDS as a second sparse solver, besides MUMPS** *(to
+  investigate; noted 2026-10-03)*. [SPRAL](https://github.com/ralna/spral)'s
+  SSIDS (STFC, BSD licence) is a modern Fortran sparse symmetric indefinite
+  \( LDL^T \) solver that reports the inertia, uses threads (and optionally a
+  GPU), and is one of IPOPT's `linear_solver` choices. It covers everything
+  `sqpopt_symmetric_solver_type` needs: analyse a pattern once, factor new
+  values and return the inertia (`n_negative`, `n_null`), solve any number
+  of right-hand sides, and free. Since inertia control, the direct QP
+  method, and direct least squares all go through that one type (via
+  `sqpopt_kkt_type`), a backend is one more implementation of its four
+  routines (about the size of the MUMPS part, a couple of hundred lines),
+  chosen at build time (`HAS_SPRAL`, as `HAS_MUMPS`) or at run time among
+  the compiled ones (an option like IPOPT's `linear_solver`).
+  - **Measure first.** Use the solver's own timings (the symmetric
+    solver's `time`, `results%time_qp`) on `benchmark_large`,
+    `test_scalable`, and the large CUTEst problems: if the factorizations
+    are a small part of the time, a faster solver can't help much.
+  - **What it might gain.** Less overhead per factorization on small and
+    medium KKT matrices, where MUMPS's per-call cost dominates (IPOPT users
+    find the HSL solvers faster than MUMPS there; how SSIDS compares here is
+    to be measured), and better use of threads on large ones (MUMPS's
+    threads helped only one of the matrices measured in
+    `sqpopt_symmetric_solver_module`'s notes). Also a second open-source
+    option where MUMPS is hard to get.
+  - **Questions.** Is it on conda-forge (for a pixi task like
+    `test-mumps`), or does it need its own build (Meson, with METIS)? Does
+    it detect zero pivots as MUMPS does with `icntl(24)`, so that a
+    singular KKT matrix gives `n_null` rather than a failure? How does it
+    report running out of memory (for `out_of_memory`)? Its thread
+    settings, and whether its results on nearly singular matrices differ
+    enough from MUMPS's to change the HS results.
+  - **Cost.** Another build to test (every test must pass in each, as for
+    MUMPS now), and its own baselines for the `--inertia` and `--direct`
+    configurations of the HS suite, since pivoting and inertia decisions
+    on nearly singular matrices differ between solvers.
+  - **Related, not part of this.** HSL MA57/MA97 (fast, but under an HSL
+    licence, so only for users who have one), Pardiso (MKL's is x86 only),
+    QDLDL (done: F26), and
+    qr_mumps for the least-squares module's minimum-norm solves (a QR of
+    \( J_S^T \), without the regularization \( \epsilon \); a different kind of
+    solve, so a separate backend).
+
+- **F26: QDLDL as a second sparse solver** *(done 2026-10-03; see
+  [QDLDL_PLAN.md](QDLDL_PLAN.md) for the package,
+  [qdldl-fortran](https://github.com/jacobwilliams/qdldl-fortran), an fpm
+  dependency)*. `options%linear_solver` (`sqpopt_linear_solver_auto`, the
+  default: MUMPS in a build with it, else QDLDL; `_mumps`; `_qdldl`) picks
+  the solver of `sqpopt_symmetric_solver_type`, so the three
+  factorization-based options now work in the default build. How QDLDL sits
+  behind the interface (`sqpopt_symmetric_solver_module`):
+  - **Ordering.** AMD, then each row with the expected sign `-1` (the
+    constraints, passed by `kkt_initialize`) moved after all of its
+    neighbours (`delay_negative_rows`): with \( H \) positive definite, a
+    constraint's pivot is then an element of \( -J H^{-1} J^T \), zero only
+    for dependent rows. Without it, a constraint's row eliminated before its
+    variables has a zero pivot in a nonsingular matrix.
+  - **Null pivots.** A first factorization without replacement stops at the
+    first null pivot (\( |d| \le 10^{-5}\epsilon \max|a_{ij}| \); 1000
+    \( \epsilon \) was too coarse, and took tiny but genuine pivots of a
+    small Jacobian for null ones); then the matrix is factored again with
+    null pivots replaced by a large one (their rows and columns of the
+    factors become negligible, as MUMPS's null-pivot handling). A
+    *faithfulness* check follows: for a fixed `x`, `b = A x`, is
+    `A (solve b) = b`? It is if the matrix is singular (a null pivot's row
+    is then zero too): `n_null` is then genuine. If not, the zero pivot was
+    an artifact of the order (a Hessian with a zero diagonal, which needs a
+    2x2 pivot), the inertia is unknown, and it is reported as negative
+    (inertia control shifts; the direct QP sees a nonconvex face). Counting
+    it as null instead hid negative curvature (TP41 stopped at a
+    non-minimizer, f = 2 against 1.926); counting every null pivot in a
+    variable's row as negative broke `test_inertia`'s zero-curvature case.
+  - **Measured** (release; HS: solved/local/failed, `fc`; the same in both
+    builds with `--linear-solver=qdldl`):
+
+    | configuration | MUMPS | QDLDL |
+    |---|---|---|
+    | `--direct` | 279/26/0, 9,750; 0.58 s | 279/26/0, 9,716; 0.15 s |
+    | `--direct-ls` | 278/26/1, 9,073; 0.73 s | 278/26/1, 8,988; 0.67 s |
+    | `--hessian=sr1 --inertia` | 274/27/4, 10,454; 13.2 s | identical; 4.2 s |
+    | `--hessian=exact --inertia` | 274/29/2, 9,400 | 273/29/3, 13,654 |
+    | `--hessian=exact --inertia --direct` | 274/29/2, 9,474 | 274/29/2, 13,706 |
+
+    `benchmark_large` (`--no-active-set`, scales 1 and 10): the same
+    iterates in every configuration (except `control` with L-BFGS at scale
+    10: 127 iterations against 114, same objective), and 7 to 30 times less
+    factorization time (e.g. `control`, L-BFGS direct, scale 10: 101.1 s to
+    13.8 s; `wells`, exact: 1.64 s to 0.15 s). `test_scalable`: identical.
+    `test_qp_fuzz`: the direct method solved 258 of 300 convex QPs (MUMPS:
+    276); it gives up more often, never wrongly.
+  - **What's left.** The exact Hessian with inertia control costs about 45%
+    more evaluations with QDLDL (zero or tiny diagonal pivots, which QDLDL
+    can't pivot around, force larger shifts; TP376 newly fails, TP87, 109,
+    114, 372, 373 run to the iteration limit or near it), so the guide
+    recommends MUMPS there. Possible improvements: a better test than "count
+    it negative" when the factorization isn't faithful (e.g. fall back to the
+    QP solver's own curvature test for that face, or, in a build with MUMPS,
+    to MUMPS for that factorization); or a 2x2-pivot variant of QDLDL. Also
+    worth trying: making `auto` choose QDLDL for the quasi-Newton Hessians
+    and direct least squares even with MUMPS (same results, faster on every
+    problem measured), after measuring problems whose factors have large
+    dense blocks (3-D grids), where MUMPS's multifrontal method and threads
+    should win.
 
 ## 6. Testing and infrastructure
 

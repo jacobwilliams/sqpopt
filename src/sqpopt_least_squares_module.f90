@@ -4,7 +4,7 @@
 !
 !  Direct minimum-norm solves with rows of the constraint Jacobian
 !  (`options%direct_least_squares`), by a sparse factorization (see
-!  [[sqpopt_kkt_module]]), so it is only available in a build with MUMPS.
+!  [[sqpopt_kkt_module]]; MUMPS or QDLDL, see `options%linear_solver`).
 !
 !  The Gauss-Newton restoration step ([[restoration_step]]) and the
 !  second-order correction ([[soc_step]]) both need the minimum-norm
@@ -81,11 +81,12 @@
 !*******************************************************************************
 !>
 !  start the solver for a problem with `n` variables, `m` constraints, and
-!  the Jacobian sparsity pattern `jac_irow`/`jac_icol`. `ok` is false, and
-!  the solver is left disabled, if the library was built without MUMPS or
-!  the sparse solver couldn't be started.
+!  the Jacobian sparsity pattern `jac_irow`/`jac_icol`, with the sparse
+!  solver `solver` (see [[kkt_initialize]]). `ok` is false, and the solver
+!  is left disabled, if that sparse solver isn't available in this build or
+!  couldn't be started.
 
-    subroutine least_squares_initialize(me, n, m, jac_irow, jac_icol, ok, threads)
+    subroutine least_squares_initialize(me, n, m, jac_irow, jac_icol, ok, threads, solver)
 
     class(sqpopt_least_squares_type), intent(inout) :: me
     integer,               intent(in)  :: n        !! number of variables
@@ -95,10 +96,11 @@
     logical,               intent(out) :: ok       !! whether the solver is now enabled
     integer, optional,     intent(in)  :: threads  !! number of OpenMP threads of the sparse solver (see
                                                    !! [[symmetric_solver_initialize]])
+    integer, optional,     intent(in)  :: solver   !! the sparse solver (`sqpopt_linear_solver_*`, default `auto`)
 
     me%n = n
     me%m = m
-    call me%kkt%initialize(n, m, jac_irow, jac_icol, ok, threads=threads)
+    call me%kkt%initialize(n, m, jac_irow, jac_icol, ok, threads=threads, solver=solver)
     me%enabled = ok
 
     end subroutine least_squares_initialize

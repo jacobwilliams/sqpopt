@@ -13,6 +13,7 @@
     use sqpopt_types_module,      only: sqpopt_infinity
     use sqpopt_hessian_module,    only: sqpopt_hessian_bfgs
     use sqpopt_problem_module,    only: sqpopt_derivatives_accurate
+    use sqpopt_symmetric_solver_module, only: sqpopt_linear_solver_auto
     use, intrinsic :: iso_fortran_env, only: output_unit
 
     implicit none
@@ -67,10 +68,11 @@
                                                    !! matrix, by a sparse factorization (see
                                                    !! [[sqpopt_inertia_module]]). Without it, the exact Hessian's
                                                    !! shift comes from the QP solver's tests alone, and SR1 is not
-                                                   !! corrected. It needs a library built with MUMPS (the
-                                                   !! `HAS_MUMPS` preprocessor directive, see `sqpopt_has_mumps`),
-                                                   !! and is invalid without it. It is not used with BFGS, which is
-                                                   !! positive definite
+                                                   !! corrected. The factorizations are `linear_solver`'s (with the
+                                                   !! exact Hessian, MUMPS is the better one: QDLDL can't tell the
+                                                   !! inertia of a Hessian with zeros on its diagonal, and then
+                                                   !! shifts it more than needed). It is not used with BFGS, which
+                                                   !! is positive definite
         logical  :: direct_qp         = .false.   !! first try to solve each QP subproblem directly, by sparse
                                                    !! factorizations of the KKT matrix of its working set, starting
                                                    !! from the working set of the previous QP (see
@@ -81,8 +83,8 @@
                                                    !! most of the time. With the exact Hessian, use it with
                                                    !! `inertia_control`. With a quasi-Newton Hessian, each
                                                    !! factorization costs two more solves per stored pair, so the
-                                                   !! automatic memory is short with it (see `lbfgs_memory`). It
-                                                   !! needs a library built with MUMPS, and is invalid without it
+                                                   !! automatic memory is short with it (see `lbfgs_memory`). The
+                                                   !! factorizations are `linear_solver`'s
         logical  :: direct_least_squares = .false. !! compute the Gauss-Newton restoration steps and the
                                                    !! second-order corrections by a sparse factorization instead
                                                    !! of the iterative `LSQR` (see
@@ -90,19 +92,28 @@
                                                    !! pays on large problems that take such steps and whose
                                                    !! constraints are coupled, where `LSQR` needs many iterations
                                                    !! (a chain of 100,000 circle constraints: 88.7 s with `LSQR`,
-                                                   !! 1.1 s with this); on small problems it changes little. It
-                                                   !! needs a library built with MUMPS, and is invalid without it
+                                                   !! 1.1 s with this); on small problems it changes little. The
+                                                   !! factorizations are `linear_solver`'s
         integer  :: factorization_threads = 1     !! number of OpenMP threads the sparse factorizations use
                                                    !! (`inertia_control`, `direct_qp`, and `direct_least_squares`):
                                                    !! `1` (the default) for none, a larger number for that many,
                                                    !! or `0` to leave it to the OpenMP environment
-                                                   !! (`OMP_NUM_THREADS`, or every core). It needs MUMPS and its
-                                                   !! BLAS to be built with OpenMP (conda-forge's are). It only
+                                                   !! (`OMP_NUM_THREADS`, or every core). It needs MUMPS (QDLDL is
+                                                   !! single-threaded) and its BLAS to be built with OpenMP (conda-forge's are). It only
                                                    !! pays on large problems whose factors are dense enough: a
                                                    !! 3-D grid matrix of order 216,000 was factored 2.3 times
                                                    !! faster on 4 threads, but banded problems and a 2-D grid
                                                    !! gained nothing, and on small problems threads cost a lot
                                                    !! (see [[sqpopt_symmetric_solver_module]])
+        integer  :: linear_solver = sqpopt_linear_solver_auto !! the sparse solver of the factorizations
+                                                   !! (`inertia_control`, `direct_qp`, and
+                                                   !! `direct_least_squares`): `sqpopt_linear_solver_auto` (the
+                                                   !! default: MUMPS in a library built with it, else QDLDL),
+                                                   !! `sqpopt_linear_solver_mumps`, or `sqpopt_linear_solver_qdldl`
+                                                   !! (see [[sqpopt_symmetric_solver_module]]). QDLDL is always
+                                                   !! available, but doesn't pivot: it is exact for the least-squares
+                                                   !! systems and for positive definite Hessians, and only as
+                                                   !! reliable as its pivots for indefinite ones
         integer  :: lbfgs_memory      = 0         !! number of `(s,y)` vector pairs retained by the limited-memory
                                                    !! Hessian approximation. `0` (the default) picks it from the problem
                                                    !! size `n`: \( \max(10, \min(n, 100)) \) -- more pairs help the

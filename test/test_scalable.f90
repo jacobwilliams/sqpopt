@@ -11,8 +11,8 @@ program test_scalable
     !!
     !! Then every function is solved from its starting point, for each number
     !! of variables, with the limited-memory BFGS Hessian, and, if it has a
-    !! sparse Hessian, with that; in a build with MUMPS, also with the exact
-    !! Hessian, inertia control, and the direct QP method. The solver must
+    !! sparse Hessian, with that, and with the exact Hessian, inertia control,
+    !! and the direct QP method. The solver must
     !! converge (`sqpopt_success`, `sqpopt_acceptable`, or `sqpopt_stalled`)
     !! to a point within the bounds, with a smaller objective than the
     !! starting point's, where the gradient, projected on the bounds, is small
@@ -47,8 +47,8 @@ program test_scalable
     !!   `powell_singular`)
     !! * `--function=NAME`: only that function
     !! * `--hessian=bfgs|exact|direct`: only that configuration (`direct` is
-    !!   the exact Hessian with inertia control and the direct QP method, and
-    !!   needs a build with MUMPS)
+    !!   the exact Hessian with inertia control and the direct QP method, with
+    !!   the default sparse solver: MUMPS in a build with it, else QDLDL)
     !! * `--max-iter=K`: `options%max_iter` (default 10000)
     !! * `--print=L`: `options%print_level`
 
@@ -56,7 +56,6 @@ program test_scalable
     use sqpopt_problem_module,   only: sqpopt_problem_type
     use sqpopt_options_module,   only: sqpopt_options_type
     use sqpopt_hessian_module,   only: sqpopt_hessian_exact
-    use sqpopt_inertia_module,   only: sqpopt_has_mumps
     use sqpopt_types_module,     only: sqpopt_results_type, sqpopt_success, sqpopt_acceptable, sqpopt_stalled
     use sqpopt_kinds,            only: wp => sqpopt_module_wp
     use scalable_functions_module
@@ -113,7 +112,6 @@ program test_scalable
             do cfg = cfg_bfgs, cfg_direct
                 if (only_cfg /= 0 .and. cfg /= only_cfg) cycle
                 if (cfg /= cfg_bfgs .and. .not. fun%has_hessian) cycle
-                if (cfg == cfg_direct .and. .not. sqpopt_has_mumps) cycle
                 call solve(fun, cfg)
             end do
         end do

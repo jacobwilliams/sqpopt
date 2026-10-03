@@ -11,6 +11,7 @@ program test_input_validation
     use sqpopt_options_module, only: sqpopt_options_type
     use sqpopt_hessian_module, only: sqpopt_hessian_exact
     use sqpopt_inertia_module, only: sqpopt_has_mumps
+    use sqpopt_symmetric_solver_module, only: sqpopt_linear_solver_mumps
     use sqpopt_types_module,   only: sqpopt_invalid_input, sqpopt_success
     use sqpopt_linesearch_module,   only: sqpopt_linesearch_type
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
@@ -108,17 +109,14 @@ program test_input_validation
     options%hessian_mode = sqpopt_hessian_exact   ! (the problem has no hess function)
     call expect_invalid('exact Hessian without hess', problem, options, [0.0_wp, 0.0_wp])
     if (.not. sqpopt_has_mumps) then
-        ! (the options that factor a matrix need a library built with MUMPS: see `test_inertia` and `test_direct`)
+        ! (MUMPS needs a library built with it: see `test_inertia` and `test_direct`)
         options = sqpopt_options_type()
-        options%inertia_control = .true.
-        call expect_invalid('inertia_control without MUMPS', problem, options, [0.0_wp, 0.0_wp])
-        options = sqpopt_options_type()
-        options%direct_qp = .true.
-        call expect_invalid('direct_qp without MUMPS', problem, options, [0.0_wp, 0.0_wp])
-        options = sqpopt_options_type()
-        options%direct_least_squares = .true.
-        call expect_invalid('direct_least_squares without MUMPS', problem, options, [0.0_wp, 0.0_wp])
+        options%linear_solver = sqpopt_linear_solver_mumps
+        call expect_invalid('linear_solver = MUMPS without MUMPS', problem, options, [0.0_wp, 0.0_wp])
     end if
+    options = sqpopt_options_type()
+    options%linear_solver = 99
+    call expect_invalid('linear_solver', problem, options, [0.0_wp, 0.0_wp])
     block
         type(sqpopt_problem_type) :: p2
         call valid_problem(p2)
