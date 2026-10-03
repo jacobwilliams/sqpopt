@@ -66,7 +66,9 @@
   var tocLinks = Array.prototype.slice.call(document.querySelectorAll('.toc a[href^="#"]'));
   var targets = tocLinks
     .map(function (a) { return document.getElementById(a.getAttribute('href').slice(1)); })
-    .filter(Boolean);
+    .filter(Boolean)
+    // (in the order of the page, which the sidebar's groups needn't follow)
+    .sort(function (a, b) { return a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1; });
   function updateActive() {
     var offset = 90, current = targets[0];
     for (var i = 0; i < targets.length; i++) {
