@@ -1612,6 +1612,15 @@ which is now double precision only.
   does well on the HS suite (0 failures with the default options), so
   compare solved/local/failed and `fc` on every configuration of the
   guide's Performance table, plus `test_infeasible` and `test_degenerate`.
+- **F21: one function vector `[f; c]`, one derivative matrix with `∇f`
+  as its first row, and constant elements** *(planned 2026-10-02, not
+  started; see `plan/STRUCTURE_PLAN.md`)*. SNOPT's `snOptA` layout. Stages
+  1–4 change the interface and derive the structure without changing any
+  result (linear rows, linear variables, the Hessian's structural pattern).
+  Stage 5 uses it: no SOC on linear rows, a starting point that satisfies
+  the linear constraints, no elastic relaxation of linear rows, curvature
+  only on the nonlinear variables, and a finite-difference Hessian with
+  colouring. Subsumes F11 (linear constraints).
 
 ## 6. Testing and infrastructure
 
