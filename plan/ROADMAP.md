@@ -1209,7 +1209,10 @@ which is now double precision only.
   (unboundedness).
 - **F11: linear constraints.** Flag rows as linear so the solver keeps
   them satisfied once feasible, skips SOC on them, and never
-  re-linearizes them.
+  re-linearizes them. (SNOPT finds a point feasible for the linear constraints
+  before it evaluates any function, so the functions are only evaluated
+  where those hold, which is often where they are well defined; Gill,
+  Saunders & Wong, `references/mopta.pdf`, section 3.4.)
 - **F17: a reduced-Hessian factor kept between QPs, as in SNOPT** *(idea,
   not started; noted 2026-10-02, and checked against the SNOPT 7 user's
   guide, `references/sndoc7.pdf`, sections 2.4 and 7)*. What SNOPT does:
@@ -1621,9 +1624,166 @@ which is now double precision only.
   the linear constraints, no elastic relaxation of linear rows, curvature
   only on the nonlinear variables, and a finite-difference Hessian with
   colouring. Subsumes F11 (linear constraints).
+- **F22: post-convexification of an exact-Hessian step** *(idea, from
+  Gill, Saunders & Wong, "On the Performance of SQP Methods for Nonlinear
+  Optimization", `references/mopta.pdf`, section 4.5; noted 2026-10-02)*.
+  With the exact Hessian, a QP step that is not a descent direction (or a
+  nonconvex QP) makes `sqpopt_iterate` raise the Hessian's shift
+  \( \sigma I \) and re-solve the QP, up to 15 times; each re-solve is a full
+  QP, and the shifted step drifts toward a gradient step. Their Result 4.1:
+  if \( J_w \) (the rows of the final working set) is second-order
+  consistent, \( H + \bar\sigma J_w^T J_w \) is positive definite for some
+  \( \bar\sigma \ge 0 \), and the QP with it has the *same* step \( p \) and the
+  multipliers \( \bar y_w = \hat y_w - \bar\sigma c_w(x_k) \). So when
+  \( p^T H p < \bar\gamma p^T p \), keep `p` and shift the multipliers with
+  \( \bar\sigma = (\bar\gamma p^T p - p^T H p)/\lVert c_w \rVert^2 \) (if
+  \( c_w = 0 \), `p` is already a descent direction for the objective). No
+  QP is re-solved.
+
+  *Tried 2026-10-02, not adopted* (a prototype in the descent loop of
+  `sqpopt_iterate`, reverted). When the step was usable except for
+  `dphi0 >= 0` (QP not failed, no negative curvature, or the inertia
+  right), the multipliers of the active rows (\( c_w \) = their residuals)
+  were shifted, the penalty updated with them, and `dphi0` recomputed;
+  the shift-and-re-solve ran only if that still failed. V1 used the shifted
+  multipliers only for the penalty and the descent test; V2 also made them
+  the iterate's. HS suite, release:
+
+  | configuration | baseline | V1 | V2 |
+  |---|---|---|---|
+  | `--hessian=exact` (l1) | 270/32/3, 11,197 | 270/32/3, 11,466 | 270/32/3, 11,306 |
+  | `--hessian=exact --merit=al` | 270/32/3, 10,966 | 270/32/3, 11,012 | 270/32/3, 11,048 |
+  | `--hessian=exact --inertia` (l1) | 274/29/2, 9,400 | 274/29/2, 9,400 | 274/29/2, 9,400 |
+  | `--hessian=exact --inertia --merit=al` | 274/29/2, 9,407 | 274/29/2, 9,394 | 274/29/2, 9,402 |
+
+  (solved/local/failed, `fc`; \( \bar\gamma \) from 1e-8 to 1 made no
+  difference.) Why it does little here:
+  - With the \( \ell_1 \) merit (the default), \( D\phi = g^Tp + \mu\,
+    \text{rate} \): the multipliers enter only through \( \mu \), which only
+    helps on violated rows. It made a descent direction in 1 of 23 cases
+    without inertia control, and 0 of 10 with it. The paper's argument
+    assumes a merit function with the multipliers in it (SNOPT's
+    augmented Lagrangian); with `--merit=al` it rescued 50 of 73 steps
+    (31 of 42 with inertia control, where the re-solves fell from 306 to
+    254), but the evaluations hardly changed.
+  - The case it addresses is rare. Without inertia control, the loop ran
+    about 3,000 times on the suite: about 1,700 for negative curvature
+    met by the QP, about 1,500 for a failed QP (its iteration limit), and
+    only 94 for a step that was fine except for not being a descent
+    direction. Most of the latter (64) had \( p^THp > 0 \) and tiny
+    \( c_w \), where the step can't be fixed by multipliers at all.
+  Revisit only with the augmented Lagrangian as the default merit, or on
+  large problems where a QP re-solve is expensive. The ~1,700 negative
+  curvature re-solves are F23's case, and the ~1,500 failed exact-Hessian
+  QPs deserve a look of their own.
+- **F23: concurrent convexification inside the active-set QP solvers**
+  *(idea, same paper, section 4.3, after Gill & Wong's method in SQIC; noted
+  2026-10-02)*. When the constraint `s` released by the QP gives a
+  direction `p_j` with \( p_j^T H p_j \le 0 \), add \( \sigma a_s a_s^T \) to `H`
+  implicitly: the direction is unchanged, and only the multiplier of `s`
+  moves (by \( -\sigma b_s \)), so the current iterate stays a subspace
+  minimizer. The paper gives the choice of \( \sigma \) for \( b_s < 0 \) (make
+  the multiplier optimal, at least \( 2\sigma_{min} \)) and \( b_s \ge 0 \) (cap
+  the step at `d_max`). The QP then ends with a convex model
+  \( H + A^T \Sigma A \) in one solve, instead of flagging
+  `negative_curvature` for the outer shift loop. Applies to the dense and
+  reduced-Hessian solvers; more invasive than F22. This is the larger
+  target: in the F22 measurements, about 1,700 of the ~3,000 QP re-solves
+  of `--hessian=exact` on the HS suite (without inertia control) were for
+  negative curvature met by the QP.
+
+  *Prototyped 2026-10-02 in the dense QP only (reverted; not adopted
+  yet).* The dense solver is a null-space method, not Gill & Wong's
+  inertia-controlling one, but the case is the same: after it drops the
+  row `s` with the most wrongly signed multiplier, the reduced Hessian
+  \( M = Z^THZ \) of the larger face may not be positive definite. Then
+  (only if the curvature along the Cholesky direction `d` is really
+  negative, by the same test as `negative_curvature`, and `d` has a
+  component along \( v = Z^Ta_s \)) `H` (which the dense solver holds
+  explicitly) gets \( \sigma a_s a_s^T \), and the iteration restarts on the
+  same face. From any \( \sigma_0 \) that makes \( M + \sigma_0 vv^T \) positive
+  definite, with \( t = v^T(M+\sigma_0 vv^T)^{-1}v \) (Sherman–Morrison), the
+  curvature along the paper's \( p_j \) is \( 1/t - \sigma_0 \), and
+  \( p_j = Z(M+\sigma_0 vv^T)^{-1}v/t \); \( \sigma \) then follows the paper:
+  for \( b_s < 0 \) the multiplier is made optimal (at least
+  \( 2\sigma_{min} \)) and `s` is put back in the working set; for
+  \( b_s \ge 0 \) the step along \( p_j \) is capped at
+  \( d_{max} = \max(1, \lVert x \rVert_\infty) \) (10x and 100x that were
+  worse). Without it, the instrumented suite showed **50,694** such
+  drops into a nonconvex face under `--hessian=exact` (the QP cycling
+  drop / follow negative curvature / add, which is most of its ~1,500
+  failures at the iteration limit); with it, 171 modifications. HS suite,
+  release (solved/local/failed, `fc`):
+
+  | configuration | baseline | F23 (paper's \( \sigma \)) |
+  |---|---|---|
+  | `--hessian=exact` | 270/32/3, 11,197 | 271/31/3, **9,399** (-16%) |
+  | `--hessian=sr1` | 244/31/30, 44,905 | **249/30/26**, 42,396 (-6%) |
+  | default (BFGS) | 281/24/0, 9,121 | unchanged (never applies) |
+  | `--direct` (MUMPS) | 279/26/0, 9,750 | unchanged |
+  | `--hessian=exact --inertia` (MUMPS) | 274/29/2, 9,400 | 272/30/3, 9,394 |
+  | `--hessian=exact --inertia --direct` | 274/29/2, 9,474 | 273/30/2, 9,414 |
+  | `--hessian=sr1 --inertia` | 274/27/4, 10,454 | 273/28/4, 10,142 |
+
+  Simpler choices of \( \sigma \) (2, 10, 100, 1000 times
+  \( -\kappa/(v^Td)^2 \)) gave 9,550 to 10,028 `fc` with the exact Hessian,
+  and moved problems between solved and local; a first version that also
+  convexified ill-conditioned but positive faces changed a BFGS result.
+  Where it helps: the matrix-free exact and SR1 Hessians; with inertia
+  control (which already fixes the final working set's inertia) it is
+  neutral to slightly worse.
+
+  Problems whose status changed: exact: TP104 failed → solved, TP97 and
+  TP98 local → solved, TP105 solved → local (1151.5 vs 1138.4, in 13
+  `fc` instead of 966), TP93 solved → failed. SR1: 9 fixed (TP64, 68,
+  103, 109, 332, 355, 386, 387, 389), 4 newly failed (TP93, 102, 116,
+  284), TP106 solved → local. Exact with inertia: TP374 local → failed,
+  TP236 and TP239 solved → local. SR1 with inertia: TP109 fixed, TP87
+  newly failed, TP372 solved → local.
+
+  TP93 (exact), investigated: the QP's *starting* face is already
+  nonconvex (no row was dropped, so F23 doesn't apply, and the QP still
+  reports `negative_curvature`), so the outer loop shifts the Hessian.
+  At shift 1.425 the baseline's QP reports negative curvature again and
+  is shifted to 14.25 (a step of 0.27); with F23 that QP convexifies
+  itself, and its step of 9.9 goes to \( x_1 = x_6 = 0 \), where HS93's
+  first constraint (a product of all six variables) and its gradient
+  vanish: a genuine stationary point of the violation, reported
+  infeasible. The paper's preconvexification of the starting face
+  (section 4.4) is the missing piece for this case.
+
+  To adopt it: an option (on by default only if the defaults' results
+  allow), the same in the reduced-Hessian solver (`projected_cg`'s
+  negative-curvature exit is the analogue), preconvexification of the
+  starting face, the new failures above investigated, and a test with an
+  indefinite QP. The prototype is a patch of
+  `src/sqpopt_qp_dense_module.f90` (`f23_dense_convexify.patch`, kept
+  outside the repository).
+- **F24: a quasi-Newton QP to find the active set, then the exact
+  Hessian** *(idea, same paper, section 4; noted 2026-10-02)*. The convex
+  QP with the quasi-Newton Hessian identifies the working set reliably; the
+  exact Hessian then starts from that working set (with F22/F23 or inertia
+  control as its safeguards) for the fast local convergence. Also Byrd et
+  al., and Gould & Robinson (an EQP phase after a convex QP). A new Hessian
+  mode, so the largest of these three.
 
 ## 6. Testing and infrastructure
 
+- **CUTEst benchmark: performance profiles and false infeasibility**
+  *(idea, from Gill, Saunders & Wong, `references/mopta.pdf`, section 3;
+  noted 2026-10-02)*. (1) Dolan–Moré performance profiles of the time and
+  the function evaluations of each solver in `tools/cutest_benchmark.py
+  report` (a failure gets a ratio above every success's; times under
+  1 ms count as 1 ms), for the Performance page. (2) Report "false
+  infeasibility" (infeasible on a problem known to be feasible) apart
+  from correct infeasibility, with the paper's lists: infeasible linear
+  constraints (a2nndnil, a5nndnil, arglale, arglble, arglcle, flosp2hh,
+  flosp2hl, flosp2hm, ktmodel, lincont, model, nash, synpop24, toysarah,
+  woodsne), infeasible (burkehan), and no known feasible point (argauss,
+  arwhdne, cont6-qq, drcavty3, eigenb, growth, himmelbd, junkturn,
+  lewispol, lubrif, lubrifc, nuffield, nystrom5, tro41x9). (3) Compare at
+  matched optimality tolerances (they ran SNOPT at 1.22e-4 to match
+  IPOPT).
 - **Scalable bound-constrained functions** *(done 2026-10-02)*:
   `test_scalable`, with 17 functions converted from the Julia package
   NonlinearOptimizationTestFunctions.jl (`test/scalable_functions.f90`:
