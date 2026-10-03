@@ -16,6 +16,29 @@
     try { localStorage.setItem('sqpopt-theme', next); } catch (e) {}
   });
 
+  // ---------- latest release tag (on the guide's front page) ----------
+  // (from GitHub's API; the button keeps its "Tags" text if that fails)
+  var tagLabel = document.getElementById('latest-tag');
+  if (tagLabel && window.fetch) {
+    fetch('https://api.github.com/repos/jacobwilliams/sqpopt/tags?per_page=100')
+      .then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (tags) {
+        // (the API doesn't sort tags by version, so compare their numbers: 0.10.0 > 0.9.0)
+        function parts(name) { return name.replace(/^v/, '').split('.').map(function (x) { return parseInt(x, 10) || 0; }); }
+        function newer(a, b) {
+          var pa = parts(a), pb = parts(b);
+          for (var i = 0; i < Math.max(pa.length, pb.length); i++) {
+            if ((pa[i] || 0) !== (pb[i] || 0)) return (pa[i] || 0) > (pb[i] || 0);
+          }
+          return false;
+        }
+        var latest = null;
+        (tags || []).forEach(function (t) { if (t && t.name && (latest === null || newer(t.name, latest))) latest = t.name; });
+        if (latest) tagLabel.textContent = (/^v/.test(latest) ? '' : 'v') + latest;
+      })
+      .catch(function () {});
+  }
+
   // ---------- mobile navigation ----------
   var navToggle = document.querySelector('.nav-toggle');
   function setNav(open) {
