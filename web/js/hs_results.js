@@ -5,20 +5,9 @@
 (function () {
   'use strict';
 
-  var root = document.documentElement;
   var SVGNS = 'http://www.w3.org/2000/svg';
 
-  // ---------- theme toggle (as in the guide) ----------
-  function currentTheme() {
-    var t = root.getAttribute('data-theme');
-    if (t) return t;
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  }
-  document.querySelector('.theme-toggle').addEventListener('click', function () {
-    var next = currentTheme() === 'dark' ? 'light' : 'dark';
-    root.setAttribute('data-theme', next);
-    try { localStorage.setItem('sqpopt-theme', next); } catch (e) {}
-  });
+  // (the theme toggle is main.js's, which the page also loads)
 
   var data = window.SQPOPT_HS_RESULTS;
   if (!data || !data.problems) {
