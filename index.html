@@ -1,0 +1,1359 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SQPOPT User Guide</title>
+<meta name="description" content="User guide for SQPOPT, a modern Fortran Sequential Quadratic Programming optimizer for large-scale nonlinear optimization.">
+<link rel="icon" type="image/png" href="media/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<link rel="stylesheet" href="css/style.css">
+<script>
+  // apply the saved theme before first paint
+  try { var t = localStorage.getItem('sqpopt-theme'); if (t) document.documentElement.setAttribute('data-theme', t); } catch (e) {}
+</script>
+</head>
+<body>
+
+<header class="topbar">
+  <button class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  </button>
+  <a class="brand" href="#top">
+    <img src="media/logo.png" alt="" width="32" height="32">
+    <span>SQPOPT</span>
+    <span class="brand-sub">User Guide</span>
+  </a>
+  <nav class="top-links">
+    <a href="api/index.html">API docs</a>
+    <a href="https://github.com/jacobwilliams/sqpopt">GitHub</a>
+    <button class="theme-toggle" aria-label="Toggle dark mode" title="Toggle dark mode">
+      <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg>
+      <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+  </nav>
+</header>
+
+<div class="layout">
+
+<aside class="sidebar" id="sidebar">
+  <nav class="toc" aria-label="Contents">
+    <p class="toc-group"><svg class="toc-icon" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M2 5.5C4.5 4 8 4 12 6c4-2 7.5-2 10-.5V19c-2.5-1.5-6-1.5-10 .5-4-2-7.5-2-10-.5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 6v13.5" stroke="currentColor" stroke-width="1.8"/></svg>Guide</p>
+    <a href="#overview">Overview</a>
+    <a href="#installation">Installation</a>
+    <a href="#quick-start">Quick start</a>
+    <a href="#user-functions">User functions</a>
+    <a href="#fast-derivatives" class="toc-sub">Fast derivatives</a>
+    <a href="#exact-hessian" class="toc-sub">Exact Hessian</a>
+    <a href="#example">Worked example</a>
+    <a href="#results">Results</a>
+    <a href="#status-codes">Status codes</a>
+    <a href="#diagnostics">Diagnostics</a>
+    <a href="#scaling">Scaling</a>
+    <a href="#least-squares">Least squares</a>
+    <a href="#python">Python</a>
+    <p class="toc-group"><svg class="toc-icon" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="15" cy="6" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="17" cy="18" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>Configuration</p>
+    <a href="#configuration">How configuration works</a>
+    <a href="#dense-matrices" class="toc-sub">Dense matrices</a>
+    <a href="choosing_settings.html">Choosing settings &#8599;</a>
+    <a href="#problem-definition">Problem definition</a>
+    <a href="#max-step" class="toc-sub">Step limits</a>
+    <a href="#solver-options">Solver options</a>
+    <a href="#hessian">Hessian approximation</a>
+    <a href="#inertia-control" class="toc-sub">Inertia control</a>
+    <a href="#qp-solver">QP subproblem solver</a>
+    <a href="#unconstrained-step" class="toc-sub">Unconstrained step</a>
+    <a href="#direct-qp" class="toc-sub">Direct method</a>
+    <a href="#linear-solver" class="toc-sub">Sparse solver</a>
+    <a href="#dense-qp" class="toc-sub">Dense QP options</a>
+    <a href="#sparse-qp" class="toc-sub">Sparse QP options</a>
+    <a href="#linesearch">Line search &amp; merit</a>
+    <a href="#trust-region">Trust region</a>
+    <a href="#restoration">Feasibility restoration</a>
+    <p class="toc-group"><svg class="toc-icon" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>More</p>
+    <a href="performance.html">Performance &#8599;</a>
+    <a href="#related">Related solvers</a>
+    <a href="#other-solvers">Other solvers</a>
+    <a href="#references">References</a>
+    <p class="toc-group"><svg class="toc-icon" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 4.5l-3 15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Dev</p>
+    <a href="#developing">Developing</a>
+    <a href="#dependencies">Dependencies</a>
+    <a href="api/index.html">API reference &#8599;</a>
+    <a href="coverage/index.html">Coverage &#8599;</a>
+  </nav>
+</aside>
+
+<main class="content" id="top">
+
+<!-- ============================================================ -->
+<section class="hero" id="overview">
+  <div class="hero-text">
+    <p class="eyebrow">Modern Fortran SQP OPTimizer</p>
+    <h1>SQPOPT</h1>
+    <p class="lede">A modular, extensible Sequential Quadratic Programming solver for large-scale, sparse, nonlinearly constrained optimization problems.</p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="#quick-start">Get started</a>
+      <a class="btn" href="#solver-options">Options reference</a>
+      <a class="btn" href="api/index.html">API docs</a>
+      <a class="btn btn-tag" href="https://github.com/jacobwilliams/sqpopt/tags" title="Tags on GitHub"><svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M3 12.2V4a1 1 0 0 1 1-1h8.2a1 1 0 0 1 .7.3l8 8a1 1 0 0 1 0 1.4l-8.2 8.2a1 1 0 0 1-1.4 0l-8-8a1 1 0 0 1-.3-.7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="7.5" cy="7.5" r="1.5" fill="currentColor"/></svg><span id="latest-tag">Tags</span></a>
+    </div>
+  </div>
+  <img class="hero-logo" src="media/logo.png" alt="SQPOPT logo" width="220" height="220">
+</section>
+
+<p>SQPOPT solves problems of the form</p>
+
+<div class="math-block">\[
+\begin{aligned}
+\min_{x}\quad & f(x) \\
+\text{subject to}\quad & c_{lb} \le c(x) \le c_{ub} && \text{(nonlinear, possibly two-sided, constraints)}\\
+& x_{lb} \le x \le x_{ub} && \text{(variable bounds)}
+\end{aligned}
+\]</div>
+
+<p>where an equality constraint is written as <code>c_lb(i) = c_ub(i)</code>. The objective, the constraints, and their first derivatives are supplied as callbacks. The constraint Jacobian is stored in sparse coordinate (COO) format, and the Hessian of the Lagrangian is approximated by a matrix-free, limited-memory quasi-Newton operator, or <a href="#exact-hessian">supplied exactly</a> by the user, also in sparse form. No dense <code>n&times;n</code> or <code>m&times;n</code> array is ever formed, so the library scales to large, sparse problems.</p>
+
+<div class="feature-grid">
+  <div class="feature"><h3>SQP method</h3><p>Nonlinear objective, nonlinear equality and inequality constraints, and bounds.</p></div>
+  <div class="feature"><h3>Sparse throughout</h3><p>COO constraint Jacobian, matrix-free L-BFGS / L-SR1 Hessian, sparse LU-based QP solver.</p></div>
+  <div class="feature"><h3>Modular</h3><p>Problem, options, Hessian, QP solver, line search and convergence are separate modules you can swap independently.</p></div>
+  <div class="feature"><h3>Robust globalization</h3><p>Filter line search (default), funnel, Armijo, watchdog, or exact line search, or a trust region; second-order corrections.</p></div>
+  <div class="feature"><h3>Selectable precision</h3><p>Single, double, or quadruple precision reals.</p></div>
+  <div class="feature"><h3>FPM-native</h3><p>Add it to any project as a Fortran Package Manager dependency.</p></div>
+</div>
+
+<div class="callout note"><strong>Work in progress.</strong> The API is still evolving. The <a href="api/index.html">API reference</a> generated by FORD from the source code always matches the current code.</div>
+
+<div class="callout"><strong>Python interface.</strong> SQPOPT can also be called from Python, through a <code>minimize</code> function modeled on <code>scipy.optimize.minimize</code>. See <a href="#python">Python</a>. The Python interface is also a work in progress, and may change.</div>
+
+<!-- ============================================================ -->
+<h2 id="installation">Installation</h2>
+
+<p>SQPOPT is built with the <a href="https://fpm.fortran-lang.org">Fortran Package Manager</a>. To use it in your own project, add it to your <code>fpm.toml</code>:</p>
+
+<pre><code class="language-toml">[dependencies]
+sqpopt = { git = "https://github.com/jacobwilliams/sqpopt" }</code></pre>
+
+<p>FPM fetches and builds its <a href="#dependencies">dependencies</a> for you. SQPOPT uses double precision (<code>real64</code>) unless you choose another kind with a preprocessor flag:</p>
+
+<pre><code class="language-bash">fpm build --profile release --flag "-DREAL32"    # single precision
+fpm build --profile release --flag "-DREAL128"   # quadruple precision</code></pre>
+
+<p>The working kind is exported as <code>sqpopt_module_wp</code> from <code>sqpopt_kinds</code>. The examples below import it as <code>wp</code>.</p>
+
+<div class="callout note"><p><strong>Large problems and the stack.</strong> Some compilers and flags put local arrays whose size is only known at run time, and the temporary arrays of expressions, on the stack: gfortran with <code>-fstack-arrays</code> (which <code>-Ofast</code> turns on), and the Intel compilers unless <code>-heap-arrays</code> is given. A large problem then overflows the stack (usually 8 MB), and the program crashes without a message. The library doesn't depend on this: every array of its own whose size grows with the problem is allocated on the heap. Built with gfortran's <code>-fstack-arrays</code>, it solves problems with a million variables in an 8 MB stack. Two things are not covered:</p>
+<ul>
+  <li>the dense QP solver (<code>sqpopt_qp_dense</code>), which is meant for small problems and works with dense temporary matrices: with such flags, use it for a few hundred variables at most;</li>
+  <li>your own code. An array sized by the problem that is a local variable of the program or of <code>fc</code>/<code>gjac</code>, or an array expression given as an argument (<code>spread(...)</code>, an array constructor), is placed as your compiler decides. Make such arrays allocatable, or raise the stack limit (<code>ulimit -s</code>, and <code>OMP_STACKSIZE</code> for the threads of an OpenMP program).</li>
+</ul></div>
+
+<p>Three options, meant for large problems, use sparse factorizations: <a href="#inertia-control">inertia control</a>, the <a href="#direct-qp">direct QP method</a>, and <a href="#direct-least-squares">direct least squares</a>. Their sparse solver is <code>options%linear_solver</code> (see <a href="#linear-solver">Sparse solver</a>): <a href="https://github.com/jacobwilliams/qdldl-fortran">QDLDL</a>, which FPM fetches, so it is always available, or the <a href="https://mumps-solver.org">MUMPS</a> solver, which is optional, because FPM can't fetch it. To build with MUMPS, define <code>HAS_MUMPS</code>, put MUMPS's <code>dmumps_struc.h</code> on the include path, and link with its sequential, double precision library. With conda-forge's <code>mumps-seq</code> package:</p>
+
+<pre><code class="language-bash">fpm build --profile release --flag "-DHAS_MUMPS -I$CONDA_PREFIX/include" --link-flag "-ldmumps_seq"</code></pre>
+
+<p>The constant <code>sqpopt_has_mumps</code> (from <code>sqpopt_symmetric_solver_module</code>) says whether the library was built this way. Without it, everything works as usual, the three options use QDLDL, and only <code>linear_solver = sqpopt_linear_solver_mumps</code> is reported as invalid input. A build with MUMPS must use double precision (the default): <code>REAL32</code> and <code>REAL128</code> don't compile with it. Your own program must be linked with <code>-ldmumps_seq</code> too.</p>
+
+<!-- ============================================================ -->
+<h2 id="quick-start">Quick start</h2>
+
+<p>You need three objects: a <strong>problem</strong> (sizes, bounds, sparsity, and callbacks), some <strong>options</strong>, and the <strong>solver</strong>.</p>
+
+<pre><code class="language-fortran">use sqpopt_module,         only: sqpopt_type
+use sqpopt_problem_module, only: sqpopt_problem_type
+use sqpopt_options_module, only: sqpopt_options_type
+use sqpopt_kinds,          only: wp =&gt; sqpopt_module_wp
+
+type(sqpopt_type)         :: solver
+type(sqpopt_problem_type) :: problem
+type(sqpopt_options_type) :: options
+real(wp) :: x(n), lambda(m)
+integer  :: istat
+
+call problem%set_problem_size(n, m)
+call problem%set_bounds(x_lb, x_ub, c_lb, c_ub)
+call problem%set_jacobian_sparsity(nnz, irow, icol)          ! fixed sparsity pattern
+call problem%set_functions(fc=fc, gjac=gjac)                 ! optionally also data=...
+
+call solver%initialize(problem=problem, options=options)
+call solver%solve(x0, istat)            ! optionally also lambda0=...
+call solver%get_solution(x, lambda)     ! optionally also z (bound multipliers)
+print *, solver%status_message()        ! e.g. 'converged successfully'</code></pre>
+
+<p>Before iterating, <code>solve</code> checks the problem definition and every option. If anything is wrong it returns <code>istat = sqpopt_invalid_input</code>, and <code>status_message()</code> gives the reason. It also moves <code>x0</code> inside the variable bounds, so <strong>your functions are never evaluated outside the bounds</strong>.</p>
+
+<p>Every call to <code>solve</code> starts from the configuration given to <code>initialize</code>. No state (penalty parameter, filter, Hessian, &hellip;) carries over from a previous solve.</p>
+
+<!-- ============================================================ -->
+<h2 id="user-functions">User functions</h2>
+
+<p>The problem is defined by two routines: <code>fc</code> evaluates the objective \( f(x) \) and the constraints \( c(x) \) together, and <code>gjac</code> evaluates the objective gradient and the constraint Jacobian together. (They usually share intermediate results, which each routine can compute once.)</p>
+
+<pre><code class="language-fortran">subroutine fc(x, f, c, status, data)
+    real(wp), dimension(:), intent(in)    :: x
+    real(wp),               intent(out)   :: f
+    real(wp), dimension(:), intent(out)   :: c        ! dimension(m); m may be 0
+    integer,                intent(inout) :: status   ! 0 on entry
+    class(*), optional,     intent(inout) :: data
+    f = ...
+    c = ...
+end subroutine fc
+
+subroutine gjac(x, g, jac_val, accuracy, status, data)
+    real(wp), dimension(:), intent(in)    :: x
+    real(wp), dimension(:), intent(out)   :: g        ! dimension(n)
+    real(wp), dimension(:), intent(out)   :: jac_val  ! dimension(nnz); nnz may be 0
+    integer,                intent(in)    :: accuracy ! sqpopt_derivatives_fast or _accurate
+    integer,                intent(inout) :: status   ! 0 on entry
+    class(*), optional,     intent(inout) :: data
+    g = ...
+    jac_val = ...
+end subroutine gjac</code></pre>
+
+<p>The Jacobian values must be in the order of the <code>irow</code>/<code>icol</code> pattern given to <code>set_jacobian_sparsity</code>. The solver keeps a small cache of recent evaluations, so asking for <code>c</code> at a point where it just evaluated <code>f</code> (or for the Jacobian where it just evaluated the gradient) doesn't call your routine again.</p>
+
+<dl class="defs">
+  <dt><code>accuracy</code></dt>
+  <dd>The accuracy the solver asks for: <code>sqpopt_derivatives_accurate</code>, or, with <code>options%derivative_accuracy = sqpopt_derivatives_fast</code>, <code>sqpopt_derivatives_fast</code> while it is far from a solution (see <a href="#fast-derivatives">Fast derivatives</a>). With analytic derivatives, ignore it.</dd>
+  <dt><code>status</code></dt>
+  <dd>Leave it <code>0</code> on success. Set it <code>&gt; 0</code> if the function can't be evaluated at <code>x</code> (for example, a domain error). The solver treats that point like one where the function returned NaN (all of its outputs, e.g. both <code>f</code> and <code>c</code>), and backs off from it. Set it <code>&lt; 0</code> to stop the solver (<code>sqpopt_user_requested_stop</code>). No user function is called again after that.</dd>
+  <dt><code>data</code></dt>
+  <dd>The object passed as <code>set_functions(..., data=my_data)</code> (absent if none was given). Use it to pass any context to the functions without module variables, and access it with <code>select type</code>. It is <em>pointed to</em>, not copied, so the caller's object needs the <code>target</code> attribute, and any changes the functions make to it are seen by the caller. It is also passed to the <code>report</code> callback.</dd>
+</dl>
+
+<h3 id="fast-derivatives">Fast derivatives (optional)</h3>
+
+<p>If your derivatives are approximations whose accuracy has a cost (finite differences, most often: a forward difference costs \( n \) function evaluations, a central one \( 2n \) and is far more accurate), set <code>options%derivative_accuracy = sqpopt_derivatives_fast</code>. Then the solver asks <code>gjac</code> for fast derivatives (<code>accuracy = sqpopt_derivatives_fast</code>) far from a solution, where rough derivatives give about as good a step, and switches to accurate ones (<code>sqpopt_derivatives_accurate</code>) for the rest of the solve (as SNOPT switches from forward to central differences). It switches as soon as either of these holds:</p>
+<ul>
+  <li>it is near a solution: the KKT and feasibility errors are below <code>derivative_switch_tol</code>;</li>
+  <li>it would stop at this point (converged, acceptable, stalled, or infeasible): the gradient and Jacobian are re-evaluated accurately and the tests redone, so it never stops on the strength of fast derivatives;</li>
+  <li>progress stalls, or a step fails: both can be caused by derivatives that are too rough.</li>
+</ul>
+<p>Because of the last two rules, <code>derivative_switch_tol</code> is only a shortcut, and a small one works best: on the Hock&ndash;Schittkowski problems with finite-difference derivatives for all of them, switching from forward to central differences took about 40% fewer function evaluations than central differences throughout, and solved the same problems, for any <code>derivative_switch_tol</code> from \( 10^{-5} \) (the default, \( 10 \times \) <code>ktol</code>) down; switching earlier (\( 10^{-3} \)) saved only 9%. Forward differences throughout were cheaper still, but failed on 2 problems. The iteration of the switch is in <code>results%derivative_switch_iteration</code>, and flagged <code>D</code> in the log.</p>
+
+<pre><code class="language-fortran">subroutine gjac(x, g, jac_val, accuracy, status, data)
+    ...
+    if (accuracy == sqpopt_derivatives_fast) then
+        ! forward differences of fc
+    else
+        ! central differences of fc
+    end if
+end subroutine gjac</code></pre>
+
+<h3 id="exact-hessian">Exact Hessian (optional)</h3>
+
+<p>With <code>options%hessian_mode = sqpopt_hessian_exact</code>, the solver uses your Hessian of the Lagrangian instead of a quasi-Newton approximation. Supply a third routine, <code>hess</code>, and its fixed sparsity pattern:</p>
+
+<pre><code class="language-fortran">subroutine hess(x, lambda, hess_val, status, data)
+    real(wp), dimension(:), intent(in)    :: x
+    real(wp), dimension(:), intent(in)    :: lambda    ! dimension(m): the constraint multipliers
+    real(wp), dimension(:), intent(out)   :: hess_val  ! dimension(hess_nnz)
+    integer,                intent(inout) :: status    ! 0 on entry
+    class(*), optional,     intent(inout) :: data
+    hess_val = ...  ! the nonzeros of  grad^2 f(x) - sum_i lambda(i) * grad^2 c_i(x)
+end subroutine hess
+
+call problem%set_hessian_sparsity(hess_nnz, hrow, hcol)
+call problem%set_functions(fc, gjac, hess=hess)
+options%hessian_mode = sqpopt_hessian_exact</code></pre>
+
+<p>Give each off-diagonal element only once, in either triangle (for example, the lower triangle): an entry \( (i,j) \), \( i\ne j \), stands for both \( (i,j) \) and \( (j,i) \). The values must be in the order of the pattern. <code>hess</code> is called once per major iteration, with the current multipliers (for the original, unscaled problem). The Hessian may be indefinite: when the QP subproblem finds negative curvature, fails, or doesn't give a descent direction, the solver re-solves it with the Hessian shifted by a multiple of the identity, increasing the shift as needed (see <a href="#hessian">Hessian</a>). In a build with MUMPS, <code>options%inertia_control</code> finds the shift from a factorization instead (see <a href="#inertia-control">Inertia control</a>), and <code>options%direct_qp</code> solves the QP subproblems with it (see <a href="#direct-qp">Direct method</a>), which is much faster on large problems.</p>
+
+<h3 id="report-callback">Progress callback</h3>
+
+<p>Pass <code>report=my_report</code> to <code>initialize</code> to be called once per major iteration. Set <code>user_stop = .true.</code> to stop after the current iteration. All values are for the original (unscaled) problem.</p>
+
+<pre><code class="language-fortran">subroutine my_report(iter, x, f, c, lambda, user_stop, data)
+    integer,                intent(in)    :: iter       ! major iteration (starts at 1)
+    real(wp), dimension(:), intent(in)    :: x, c, lambda
+    real(wp),               intent(in)    :: f
+    logical,                intent(out)   :: user_stop
+    class(*), optional,     intent(inout) :: data
+    user_stop = .false.
+end subroutine my_report</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="example">Worked example: Hock&ndash;Schittkowski 71</h2>
+
+<div class="math-block">\[
+\begin{aligned}
+\min_{x}\quad & x_1 x_4 (x_1 + x_2 + x_3) + x_3 \\
+\text{subject to}\quad & x_1^2 + x_2^2 + x_3^2 + x_4^2 = 40 \\
+& x_1 x_2 x_3 x_4 \ge 25 \\
+& 1 \le x_i \le 5
+\end{aligned}
+\]</div>
+
+<p>Starting from \( x_0 = (1, 5, 5, 1) \), the solution is \( x^* \approx (1,\ 4.743,\ 3.821,\ 1.379) \) with \( f^* \approx 17.014 \). Both constraints are active there.</p>
+
+<pre><code class="language-fortran">program hs71
+
+use sqpopt_module,         only: sqpopt_type
+use sqpopt_problem_module, only: sqpopt_problem_type
+use sqpopt_options_module, only: sqpopt_options_type
+use sqpopt_kinds,          only: wp =&gt; sqpopt_module_wp
+
+implicit none
+
+real(wp), parameter :: big = 1.0e20_wp  !! "no bound"
+type(sqpopt_type)         :: solver
+type(sqpopt_problem_type) :: problem
+type(sqpopt_options_type) :: options
+real(wp) :: x(4), lambda(2)
+integer  :: istat
+
+! equality constraint (index 1) first, then the inequality (index 2)
+call problem%set_problem_size(n=4, m=2)
+call problem%set_bounds(x_lb=[1.0_wp,1.0_wp,1.0_wp,1.0_wp], &
+                        x_ub=[5.0_wp,5.0_wp,5.0_wp,5.0_wp], &
+                        c_lb=[40.0_wp, 25.0_wp], c_ub=[40.0_wp, big])
+call problem%set_jacobian_sparsity(nnz=8, irow=[1,1,1,1,2,2,2,2], &
+                                          icol=[1,2,3,4,1,2,3,4])
+call problem%set_functions(fc=fc, gjac=gjac)
+
+options%print_level = 1 ! set verbosity level
+
+call solver%initialize(problem=problem, options=options)
+call solver%solve([1.0_wp, 5.0_wp, 5.0_wp, 1.0_wp], istat)
+call solver%get_solution(x, lambda)
+print *, solver%status_message()
+print *, 'x = ', x
+
+contains
+
+    subroutine fc(x, f, c, status, data)
+    !! evaluate the objective and constraints at the current point `x`
+    real(wp), dimension(:), intent(in)    :: x !! current point `dimension(n)`
+    real(wp),               intent(out)   :: f !! objective value at `x`
+    real(wp), dimension(:), intent(out)   :: c !! constraint values at `x`
+    integer,                intent(inout) :: status !! status flag (input/output)
+    class(*), optional,     intent(inout) :: data !! user-provided data (optional)
+    f = x(1)*x(4)*(x(1)+x(2)+x(3)) + x(3)
+    c = [sum(x**2), product(x)]
+    end subroutine fc
+
+    subroutine gjac(x, g, jac_val, accuracy, status, data)
+    !! evaluate the gradient of the objective and the Jacobian of the constraints at the current point `x`
+    real(wp), dimension(:), intent(in)    :: x !! current point `dimension(n)`
+    real(wp), dimension(:), intent(out)   :: g !! gradient of the objective at `x`
+    real(wp), dimension(:), intent(out)   :: jac_val !! nonzero entries of the Jacobian at `x`
+    integer,                intent(in)    :: accuracy !! requested accuracy: `sqpopt_derivatives_fast` or `sqpopt_derivatives_accurate`
+    integer,                intent(inout) :: status !! status flag (input/output)
+    class(*), optional,     intent(inout) :: data !! user-provided data (optional)
+    g = [x(4)*(2.0_wp*x(1)+x(2)+x(3)), x(1)*x(4), x(1)*x(4) + &
+         1.0_wp, x(1)*(x(1)+x(2)+x(3))]
+    jac_val(1:4) = 2.0_wp*x                           ! row 1: d(sum x^2)/dx
+    jac_val(5:8) = [x(2)*x(3)*x(4), x(1)*x(3)*x(4), & ! row 2: d(prod x)/dx
+                    x(1)*x(2)*x(4), x(1)*x(2)*x(3)]
+    end subroutine gjac
+
+end program hs71</code></pre>
+
+<p>For more complete examples, see <a href="https://github.com/jacobwilliams/sqpopt/blob/master/test/test_basic.f90"><code>test/test_basic.f90</code></a>, <a href="https://github.com/jacobwilliams/sqpopt/blob/master/test/test_hs71.f90"><code>test/test_hs71.f90</code></a> (which solves this problem eleven different ways), and <a href="https://github.com/jacobwilliams/sqpopt/blob/master/test/test_medium.f90"><code>test/test_medium.f90</code></a>.</p>
+
+<!-- ============================================================ -->
+<h2 id="results">Results</h2>
+
+<p>After a solve, <code>solver%get_results(results)</code> returns a <code>sqpopt_results_type</code> (from <code>sqpopt_types_module</code>):</p>
+
+<div class="table-wrap"><table>
+<thead><tr><th>field</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>istat</code>, <code>message</code></td><td>status code and its description</td></tr>
+<tr><td><code>iterations</code></td><td>number of major iterations performed</td></tr>
+<tr><td><code>n_eval_fc</code>, <code>n_eval_gjac</code>, <code>n_eval_hess</code></td><td>number of calls of the user functions <code>fc</code>, <code>gjac</code>, and <code>hess</code></td></tr>
+<tr><td><code>time</code>, <code>time_functions</code>, <code>time_qp</code>, <code>time_factorization</code></td><td>wall-clock time of the solve, and of it, the time in the user functions, in the QP subproblem solver, and in the sparse factorizations and their solves (seconds)</td></tr>
+<tr><td><code>x</code>, <code>f</code>, <code>c</code></td><td>final point, and the objective and constraint values there</td></tr>
+<tr><td><code>lambda</code></td><td>constraint multipliers, <code>dimension(m)</code></td></tr>
+<tr><td><code>z</code></td><td>variable-bound multipliers, <code>dimension(n)</code> (zero for a variable not at a bound)</td></tr>
+<tr><td><code>kkt_error</code></td><td>KKT (stationarity/complementarity) error, of the scaled problem used by the convergence test</td></tr>
+<tr><td><code>stationarity_error</code></td><td>stationarity error of the original (unscaled) problem (see <code>dual_inf_tol</code>)</td></tr>
+<tr><td><code>n_qp_iterations</code></td><td>total active-set iterations of the QP subproblem solves, and, for those solved by the <a href="#direct-qp">direct method</a>, changes of the working set</td></tr>
+<tr><td><code>n_unconstrained_qp</code></td><td>QP subproblems solved by the <a href="#unconstrained-step">unconstrained step</a> of the L-BFGS Hessian, without a QP solver</td></tr>
+<tr><td><code>n_qp_solves</code>, <code>n_direct_qp</code></td><td>QP subproblems solved (without those of restoration phases), and how many of them the <a href="#direct-qp">direct method</a> solved</td></tr>
+<tr><td><code>n_factorizations</code></td><td>sparse factorizations, by the <a href="#inertia-control">inertia control</a>, the <a href="#direct-qp">direct QP method</a>, and the <a href="#direct-least-squares">direct least-squares solves</a> (<code>0</code> without them)</td></tr>
+<tr><td><code>n_soc</code>, <code>n_hessian_resets</code>, <code>n_restoration_steps</code>, <code>n_restoration_phases</code>, <code>n_elastic</code>, <code>n_escape</code></td><td>counts of the solve's events: accepted second-order corrections, Hessian resets (or shift increases), iterations with a restoration step, restoration phases entered, elastic QP re-solves, and escape steps</td></tr>
+<tr><td><code>feasibility_error</code></td><td>largest violation of a constraint or variable bound</td></tr>
+<tr><td><code>derivative_switch_iteration</code></td><td>the iteration at which the solver switched from fast to accurate derivatives (<code>0</code> if it didn't; see <a href="#fast-derivatives">Fast derivatives</a>)</td></tr>
+<tr><td><code>diagnosis</code></td><td>the diagnostics of the solve, if <code>diagnostic_level &ge; 1</code> (see <a href="#diagnostics">Diagnostics</a>)</td></tr>
+</tbody>
+</table></div>
+
+<p>All of these are for the original problem, even when automatic scaling is on. The Lagrangian is \( L = f - \lambda^T c - z^T x \), so a multiplier is \( \ge 0 \) at a lower bound and \( \le 0 \) at an upper bound.</p>
+
+<p>If no acceptable step can be found along a search direction, no step is taken: the point is never moved to one that makes the merit function worse. The Hessian approximation is reset instead, so the next iteration tries a different direction.</p>
+
+<!-- ============================================================ -->
+<h2 id="status-codes">Status codes</h2>
+
+<p>The <code>istat</code> returned by <code>solve</code>. The named constants are in <code>sqpopt_types_module</code>; test against them rather than the numbers. The codes are grouped: 0&ndash;2 a solution was found, 10&ndash;19 the solve was stopped by a limit or by you, and 20 and above it failed.</p>
+
+<div class="table-wrap"><table class="status-table">
+<thead><tr><th>constant</th><th class="num">value</th><th>meaning</th></tr></thead>
+<tbody>
+<tr class="ok"><td><code>sqpopt_success</code></td><td class="num">0</td><td>the KKT conditions are satisfied to within <code>ktol</code>/<code>ctol</code></td></tr>
+<tr class="ok"><td><code>sqpopt_acceptable</code></td><td class="num">1</td><td>the looser <code>acceptable_ktol</code>/<code>acceptable_ctol</code> tests held for <code>acceptable_iter</code> consecutive iterations (as in IPOPT), but the normal ones did not</td></tr>
+<tr class="ok"><td><code>sqpopt_stalled</code></td><td class="num">2</td><td>feasible, but the objective and variables have stopped changing (see <code>ftol</code>/<code>xtol</code>) before the KKT test was satisfied; usually an acceptable, if less precise, solution</td></tr>
+<tr class="warn"><td><code>sqpopt_max_iter_reached</code></td><td class="num">10</td><td><code>max_iter</code> major iterations were performed</td></tr>
+<tr class="warn"><td><code>sqpopt_user_requested_stop</code></td><td class="num">11</td><td>the <code>report</code> callback, or a user function (<code>status &lt; 0</code>), asked the solver to stop</td></tr>
+<tr class="warn"><td><code>sqpopt_max_evals_reached</code></td><td class="num">12</td><td><code>max_evals</code> calls of <code>fc</code> were performed</td></tr>
+<tr class="warn"><td><code>sqpopt_time_limit_reached</code></td><td class="num">13</td><td>the <code>max_time</code> limit was reached</td></tr>
+<tr class="bad"><td><code>sqpopt_infeasible</code></td><td class="num">21</td><td>the constraints are violated at a point that is stationary for the constraint violation: the problem appears to be (locally) infeasible</td></tr>
+<tr class="bad"><td><code>sqpopt_line_search_failed</code></td><td class="num">22</td><td><code>max_consecutive_failures</code> consecutive iterations failed to find an acceptable step</td></tr>
+<tr class="bad"><td><code>sqpopt_qp_solve_failed</code></td><td class="num">23</td><td><code>max_consecutive_failures</code> consecutive QP subproblem solves failed</td></tr>
+<tr class="bad"><td><code>sqpopt_invalid_input</code></td><td class="num">24</td><td>the problem definition or options are invalid (see <code>status_message()</code>)</td></tr>
+<tr class="bad"><td><code>sqpopt_function_error</code></td><td class="num">25</td><td>a problem function returned a non-finite value (NaN or Inf), or <code>status &gt; 0</code>, at the current point. At a <em>trial</em> point, that only makes the line search or trust region reject the point and back off.</td></tr>
+<tr class="bad"><td><code>sqpopt_unbounded</code></td><td class="num">26</td><td>the objective fell below <code>obj_lower_limit</code> at a feasible point</td></tr>
+<tr class="bad"><td><code>sqpopt_out_of_memory</code></td><td class="num">27</td><td>the dense QP solver could not allocate its matrices (of the order of \( n^2 \) and \( mn \) elements): use the sparse QP solver (<code>qp_solver_mode</code>) for a problem of this size. The point is the last iterate.</td></tr>
+</tbody>
+</table></div>
+<p class="legend"><span><span class="dot ok"></span>solution found</span> <span><span class="dot warn"></span>stopped by a limit or by you</span> <span><span class="dot bad"></span>failure</span></p>
+
+<!-- ============================================================ -->
+<h2 id="diagnostics">Diagnostics</h2>
+
+<p>The iteration log (<code>print_level</code>) says what happened at each iteration. The diagnostics say which constraints and variables are responsible, and what the final status most likely means. They are off by default, and turned on by <code>options%diagnostic_level</code>:</p>
+
+<div class="table-wrap"><table>
+<thead><tr><th>level</th><th>what it adds</th><th>cost</th></tr></thead>
+<tbody>
+<tr><td><code>0</code></td><td>nothing (the default)</td><td>none</td></tr>
+<tr><td><code>1</code></td><td>a diagnosis of the final point: a verdict for the final status; the constraints with the largest violations and multipliers; the variables with the largest stationarity residuals; the active set and its degeneracy (multipliers that are zero or have the wrong sign, active gradients that are linearly dependent); and the last QP subproblem, with the constraints it had to relax</td><td>one sparse factorization of the active constraints' gradients at the end; nothing per iteration</td></tr>
+<tr><td><code>2</code></td><td>a report on the starting point: the sizes of the gradients (how the problem is scaled), constraints that are constant, depend on one variable, or are linearly dependent equalities. And what the iterations showed: the rate of convergence and the iterations still needed, shortened steps, a working set that flips between two states, derivatives that disagree with the functions' changes, and the iteration that took the most time. Optionally, the history of the iterations in a file</td><td>work of the order of \( n + m \) and the Jacobian's nonzeros per iteration</td></tr>
+<tr><td><code>3</code></td><td>the diagnostics that evaluate your functions: <code>f</code> and <code>c</code> at two points next to the starting point, to see whether it is at the edge of their domain</td><td>two more calls of <code>fc</code></td></tr>
+</tbody>
+</table></div>
+
+<p>Two things are guaranteed, and tested. Levels <code>0</code> to <code>2</code> call <code>fc</code>, <code>gjac</code>, and <code>hess</code> exactly as often as a solve without diagnostics. And no level changes the iterates or the solution.</p>
+
+<p><strong>Where they go.</strong> The diagnostics are returned in <code>results%diagnosis</code> (see below). They are printed to <code>output_unit</code> only if <code>print_level &ge; 1</code>: the report on the starting point after the header, and the diagnosis after the summary. With <code>print_level = 0</code> nothing is printed at any diagnostic level. This is the diagnosis of a solve that was stopped by <code>max_iter</code>:</p>
+
+<pre><code> sqpopt diagnosis (diagnostic_level = 2):
+   the limit was reached while the solver was still converging: raise it
+   largest violations: c(1) by 2.728E-03 (value 1.003E+00, bounds [-inf, 1.000E+00])
+   largest stationarity residuals: x(2) 2.006E-01; x(1) 1.062E-01
+   largest multipliers: c(1) -9.574E-04
+   active set: 0 of 1 constraint and 0 of 2 variable bounds active, 2 free variables
+   last QP: dense QP (auto), 2 iterations, working set 1 (of 2 variables)
+   convergence: the error is 2.274E+05 times its tolerance, and changed by a factor 3.503E-01 per iteration
+     over the last 9: about 12 more iterations at this rate</code></pre>
+
+<p>And the report on the starting point of a problem with two proportional equality constraints and a variable of a very different size:</p>
+
+<pre><code>   diagnostics of the starting point:
+     objective gradient: largest element 2.000E+00
+     constraint gradients: largest element from 1.000E-07 (c(3)) to 2.000E+00 (c(2)), a ratio of 2.000E+07
+       the constraints differ widely in scale: the automatic scaling only scales down those above
+         scaling_max_gradient, so consider scaling the small ones up
+     variables: largest gradient or Jacobian element from 2.000E-07 (x(3)) to 2.000E+00 (x(1)), a ratio of
+       1.000E+07
+       the variables differ widely in scale: only the objective and the constraints are scaled automatically,
+         so consider rescaling the variables
+     structure: 1 constraint depends on a single variable (if linear, a bound on the variable is cheaper):
+       c(3)
+     equalities: the gradient of c(2) is linearly dependent on those of the other equality constraints at the
+       starting point (a redundant or inconsistent constraint)</code></pre>
+
+<p><strong>The derivative check</strong> of level <code>2</code> needs no evaluations. Between two consecutive iterates \( x \) and \( x^+ = x + s \), the change of a function is \( \tfrac12 (\nabla c(x) + \nabla c(x^+))^T s \) up to a term of the third order in \( s \), and the solver has the values and the derivatives at both points. A constraint (or the objective) whose changes differ from that by more than 20% in most of the steps has derivatives that don't match its values, or isn't smooth along the way. Only steps that change no variable by more than 10% of its size are used. On the 305 Hock&ndash;Schittkowski problems, whose derivatives are right, it suspects three: two whose objective is a root that isn't differentiable at the solution, and one whose derivatives are finite differences.</p>
+
+<p><strong>The history file.</strong> With <code>diagnostic_level &ge; 2</code> and <code>options%diagnostics_unit</code> set to a unit that is open for formatted writing, one line per major iteration is written to it, as comma-separated values under a header line: <code>iteration</code>, <code>objective</code>, <code>infeasibility</code>, <code>kkt_error</code>, <code>stationarity</code>, <code>alpha</code>, <code>step_norm</code>, <code>fc</code> (calls so far), <code>fc_iteration</code>, <code>qp_iterations</code>, <code>qp_status</code>, <code>largest_multiplier</code>, <code>globalization</code> and <code>hessian</code> (the last two columns of the log at <code>print_level = 2</code>), <code>working_set_changes</code>, <code>time</code>, <code>time_functions</code>, <code>time_qp</code>, <code>time_factorization</code> (seconds, of that iteration), and <code>flags</code>. A field that doesn't apply is empty (the last line is the final point, from which no step was taken). The file is data for plotting, not part of the log, so it is written whatever <code>print_level</code> is.</p>
+
+<p><strong>In the results.</strong> <code>results%diagnosis</code> is a <code>sqpopt_diagnosis_type</code>. Its <code>level</code> is the level it was computed at (<code>0</code>: nothing below is set). Values are for the original problem, and each list has at most five entries, the largest first.</p>
+
+<div class="table-wrap"><table>
+<thead><tr><th>field</th><th>level</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>report</code></td><td class="num">1</td><td>the diagnosis, as printed (its lines, each ended by a newline character)</td></tr>
+<tr><td><code>violated_constraints</code>, <code>violations</code></td><td class="num">1</td><td>the constraints with the largest violation of their bounds, and the violations</td></tr>
+<tr><td><code>stationarity_variables</code>, <code>stationarity_residuals</code></td><td class="num">1</td><td>the variables with the largest stationarity residual (the gradient of the Lagrangian, projected onto the bounds), and the residuals</td></tr>
+<tr><td><code>multiplier_constraints</code>, <code>multipliers</code></td><td class="num">1</td><td>the constraints with the largest multipliers, and the multipliers</td></tr>
+<tr><td><code>n_active_constraints</code>, <code>n_active_bounds</code></td><td class="num">1</td><td>constraints and variables at one of their bounds (including equalities and fixed variables)</td></tr>
+<tr><td><code>n_weakly_active</code>, <code>n_wrong_sign</code></td><td class="num">1</td><td>active inequality constraints and bounds whose multiplier is nearly zero, or has the wrong sign for the bound they are at</td></tr>
+<tr><td><code>n_dependent</code></td><td class="num">1</td><td>active constraints whose gradients are linearly dependent on those of the others, in the variables that are not at a bound (<code>-1</code>: not computed)</td></tr>
+<tr><td><code>elastic_constraints</code>, <code>elastic_slacks</code></td><td class="num">1</td><td>the constraints the last QP subproblem had to relax, and by how much its step violates each linearized constraint</td></tr>
+<tr><td><code>convergence_rate</code>, <code>iterations_needed</code></td><td class="num">2</td><td>the factor by which the error (the larger of the KKT error over <code>ktol</code> and the feasibility error over <code>ctol</code>) changed per iteration, fitted over the last iterations (at most 20; <code>0</code>: too few to tell), and the further iterations it would take to reach the tolerances at that rate (<code>-1</code>: unknown, or not converging)</td></tr>
+<tr><td><code>n_active_set_flips</code></td><td class="num">2</td><td>the consecutive iterations, up to the last, in which the QP's working set went back to what it was two iterations before</td></tr>
+<tr><td><code>derivative_suspects</code>, <code>objective_derivative_suspect</code></td><td class="num">2</td><td>the constraints whose changes along the steps disagreed with their Jacobian rows, and whether the objective's did with its gradient</td></tr>
+<tr><td><code>slowest_iteration</code>, <code>slowest_iteration_time</code></td><td class="num">2</td><td>the iteration that took the most time, and its time (seconds)</td></tr>
+<tr><td><code>problem_report</code></td><td class="num">2</td><td>the report on the starting point, as printed</td></tr>
+<tr><td><code>constraint_gradient_ratio</code>, <code>variable_gradient_ratio</code></td><td class="num">2</td><td>at the starting point: the largest over the smallest size of a constraint's gradient, and of a variable's column of the objective gradient and the Jacobian (above <code>1e6</code>, the report calls it poorly scaled)</td></tr>
+<tr><td><code>n_constant_constraints</code>, <code>n_single_variable_constraints</code>, <code>n_dependent_equalities</code></td><td class="num">2</td><td>constraints with no entry, and with one entry, in the Jacobian's pattern; and equality constraints whose gradients at the starting point are linearly dependent on those of the others (<code>-1</code>: not computed)</td></tr>
+<tr><td><code>probe_not_finite</code></td><td class="num">3</td><td>whether <code>f</code> or <code>c</code> is not finite at one of the two points probed next to the starting point</td></tr>
+</tbody>
+</table></div>
+
+<!-- ============================================================ -->
+<h2 id="scaling">Scaling</h2>
+
+<p>SQPOPT works best when the variables are of order 1 and of similar magnitude, and when the objective and each constraint change by comparable amounts for a unit change in the variables. It scales the objective and the constraints for you, but not the variables: choosing their units is up to you.</p>
+
+<h3>What is scaled automatically</h3>
+
+<p>With <code>options%scaling</code> (on by default), the objective and each constraint are scaled down at the starting point, so that no element of their gradients is larger than <code>scaling_max_gradient</code> (100); see <a href="#solver-options">Solver options</a>. <code>ktol</code> and <code>ctol</code> then apply to the scaled problem, and all results are reported for the original one. The factors are computed once, at <code>x0</code>, and only ever scale <em>down</em>: a function with tiny gradients isn't scaled up. So that a poor starting point, where the objective is scaled far down, can't make <code>ktol</code> meaninglessly loose, the stationarity residual of the <em>unscaled</em> problem must also be below <code>dual_inf_tol</code>, as in IPOPT.</p>
+
+<p>The factors come from one point, which may not represent the problem. If the gradient at <code>x0</code> is many orders of magnitude larger than it is near the solution, the scaled problem's tolerances mean little in the original units, and the solver can stop, with <code>sqpopt_acceptable</code>, far from the solution. Two things limit that. No factor is smaller than <code>scaling_min_value</code> (\( 10^{-8} \)): the Zakharov function with 1,000 variables, whose gradient at its starting point is \( 3 \times 10^{19} \), stopped at an objective of \( 5 \times 10^{6} \) without that limit, and reaches \( 8 \times 10^{-7} \) with it (the minimum is 0). And if a solve ends with a large <em>stationarity error (original problem)</em> in its summary, turn the scaling off (<code>options%scaling = .false.</code>), scale the problem yourself, or start from a better point. Also, the solver doesn't stop at the acceptable level while the objective is still changing by more than <code>acceptable_obj_change_tol</code> per iteration. Schwefel's function 1.2 with 1,000 variables, whose starting gradient of \( 5 \times 10^{7} \) is within the limit on the factors, stopped at an objective of 593 before that test was added, and now stops at 0.56; without the scaling it reaches \( 10^{-17} \), in 7 iterations.</p>
+
+<h3>Why the size of the variables matters</h3>
+
+<p>Several parts of the algorithm assume that a unit change means much the same for every variable:</p>
+
+<div class="table-wrap"><table>
+<thead><tr><th>part</th><th>its dependence on the size of the variables</th></tr></thead>
+<tbody>
+<tr><td>KKT test (<code>ktol</code>)</td><td>stationarity is judged by the size of the gradient of the Lagrangian, and multiplying a variable by \( s \) divides its gradient element by \( s \): the same <code>ktol</code> is looser or tighter depending on the variable's units</td></tr>
+<tr><td>stalled-progress test (<code>xtol</code>)</td><td>the change in \( x \) is measured relative to \( \max(1, \lVert x \rVert) \), so large variables mask changes in small ones</td></tr>
+<tr><td>Hessian approximation</td><td>the limited-memory BFGS/SR1 approximation starts from a single multiple of the identity. Variables of very different sizes make it badly conditioned, and it takes many iterations to learn their relative scales.</td></tr>
+<tr><td>step limits</td><td>the QP step cap starts at \( \max(\) <code>qp_solver%max_step</code>\(, \lVert x_0 \rVert_\infty) \), the size of the <em>largest</em> variable. <code>linesearch%major_step_limit</code> is relative to \( \max(1, |x_j|) \), so for variables much smaller than 1 it is an absolute limit. <a href="#max-step"><code>problem%set_max_step</code></a> sets a limit for each variable.</td></tr>
+<tr><td>trust region</td><td>the radius is in the units of \( x \): <code>radius0</code> = 1, <code>radius_max</code> = 1e3</td></tr>
+<tr><td>feasibility restoration</td><td>its proximal term (stay close to where the phase started) treats all the variables alike</td></tr>
+<tr><td>bounds</td><td>a bound of magnitude \( \ge \) <code>sqpopt_infinity</code> (1e20) is treated as absent</td></tr>
+</tbody>
+</table></div>
+
+<p>(The QP solvers' own tolerances are relative, so the QP subproblems are less sensitive.)</p>
+
+<h3>Scaling the variables yourself</h3>
+
+<p>Choose a typical magnitude \( d_j > 0 \) for each variable, and solve for \( y = x/d \) instead of \( x \). In the user functions, evaluate at \( x = d\,y \), and multiply the objective gradient and each column of the Jacobian by \( d \) (the chain rule, \( \partial f/\partial y_j = d_j\,\partial f/\partial x_j \)). The sparsity pattern doesn't change:</p>
+
+<pre><code class="language-fortran">real(wp), dimension(n) :: d   ! typical magnitude of each variable (e.g. 1e6, 1e-3, 1, ...)
+
+subroutine fc_y(y, f, c, status, data)   ! the problem in y = x/d
+    real(wp), dimension(:), intent(in)    :: y
+    real(wp),               intent(out)   :: f
+    real(wp), dimension(:), intent(out)   :: c
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
+    call fc(d*y, f, c, status, data)
+end subroutine fc_y
+
+subroutine gjac_y(y, g, jac_val, accuracy, status, data)
+    real(wp), dimension(:), intent(in)    :: y
+    real(wp), dimension(:), intent(out)   :: g, jac_val
+    integer,                intent(in)    :: accuracy
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
+    call gjac(d*y, g, jac_val, accuracy, status, data)
+    ! (icol: the column indices of the Jacobian's sparsity pattern)
+    g       = d*g                 ! df/dy_j   = d_j df/dx_j
+    jac_val = d(icol)*jac_val     ! dc_i/dy_j = d_j dc_i/dx_j
+end subroutine gjac_y</code></pre>
+
+<p>Then divide the variable bounds and the starting point by \( d \) (<code>x_lb/d</code>, <code>x_ub/d</code>, <code>x0/d</code>; leave infinite bounds as they are), solve, and map the results back: \( x = d\,y \). The objective, the constraint values, and their multipliers \( \lambda \) are unchanged, and the variable-bound multipliers are \( z_x = z_y/d \). With an exact Hessian, scale its elements too: \( H^y_{ij} = d_i\,d_j\,H^x_{ij} \).</p>
+
+<h3>Other things to check</h3>
+
+<ul>
+  <li><strong>Constraint units.</strong> The automatic scaling reduces large gradients but doesn't enlarge small ones. A constraint whose values are of order \( 10^{-6} \) is effectively ignored by <code>ctol</code> = 1e-8, so express it in larger units, or multiply it by a constant. (Its multiplier is then divided by the same constant.)</li>
+  <li><strong>The starting point.</strong> The objective and constraint scale factors are computed there, and never updated. At a poor starting point where a gradient is huge, a function can be scaled far down, which makes the tolerances very loose in its original units. (<code>dual_inf_tol</code> limits that for the objective's stationarity test.)</li>
+  <li><strong>Unscaled large variables.</strong> If you do solve with large variables, also enlarge <code>trust_region%radius0</code> and <code>radius_max</code> (when using the trust region), and read <code>ktol</code> and <code>xtol</code> in your variables' units.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="least-squares">Least-squares problems <code class="h-type">sqpopt_nlls_type</code></h2>
+
+<div class="callout note"><strong>Experimental.</strong> This interface is new and may change. It has been tested on few problems, and on plain fits it finds the best fit less often than a solver written for least squares (see <em>What to expect</em> below).</div>
+
+<p>An optional interface, for problems whose objective is a sum of squares:</p>
+\[ \min_x \; \tfrac12 \sum_{i=1}^{l} r_i(x)^2 \quad \text{s.t.} \quad c_l \le c(x) \le c_u, \quad x_l \le x \le x_u \]
+<p>The \( r_i \) are the <em>residuals</em>: in a data-fitting problem, the differences between a model and the data. Use it for those, and for a system of equations that can't all hold (more equations than unknowns). Given to the solver as equality constraints, such a system makes every QP subproblem inconsistent, and the solve ends as <code>sqpopt_infeasible</code> at best, after many <a href="#restoration">restoration steps</a>.</p>
+
+<p><strong>How it works.</strong> The module <code>sqpopt_nlls_module</code> is a layer on top of the solver, which is not changed by it and has no least-squares mode of its own. It gives the solver the problem in the form Schittkowski proposed for his code DFNLP, with a new variable \( z_i \) for each residual:</p>
+\[ \min_{x,z} \; \tfrac12 z^T z \quad \text{s.t.} \quad r(x) - z = 0, \quad c_l \le c(x) \le c_u, \quad x_l \le x \le x_u \]
+<p>This is an ordinary nonlinear program in \( n + l \) variables and \( l + m \) constraints. Its QP subproblems are consistent as far as the residuals go (any step in \( x \) has a \( z \) to go with it), and their step is a Gauss-Newton step with a correction from the Hessian approximation, as in the codes written for least squares.</p>
+
+<p><strong>Fortran.</strong> You give the residuals and the constraints in one routine, and the nonzeros of their two Jacobians in another, as <code>fc</code> and <code>gjac</code> do for an ordinary problem (see <a href="#user-functions">User functions</a>; <code>status</code>, <code>accuracy</code>, and <code>data</code> mean the same). This is <code>example/nlls_bard.f90</code>, which fits the model \( y = x_1 + u/(v x_2 + w x_3) \) to 15 points:</p>
+
+<pre><code class="language-fortran">subroutine residuals(x, r, c, status, data)
+    real(wp), dimension(:), intent(in)    :: x      ! variables
+    real(wp), dimension(:), intent(out)   :: r      ! residuals
+    real(wp), dimension(:), intent(out)   :: c      ! constraints (none here)
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
+    integer :: i
+    do i = 1, l
+        r(i) = y(i) - (x(1) + i/((16 - i)*x(2) + min(i, 16 - i)*x(3)))
+    end do
+end subroutine residuals
+
+subroutine jacobian(x, rjac_val, cjac_val, accuracy, status, data)
+    real(wp), dimension(:), intent(in)    :: x
+    real(wp), dimension(:), intent(out)   :: rjac_val ! nonzeros of the residuals' Jacobian
+    real(wp), dimension(:), intent(out)   :: cjac_val ! nonzeros of the constraints' Jacobian (none here)
+    integer,                intent(in)    :: accuracy
+    integer,                intent(inout) :: status
+    class(*), optional,     intent(inout) :: data
+    integer :: i
+    real(wp) :: d
+    do i = 1, l
+        d = ((16 - i)*x(2) + min(i, 16 - i)*x(3))**2
+        rjac_val(3*i-2) = -1.0_wp
+        rjac_val(3*i-1) = i*(16 - i)/d
+        rjac_val(3*i)   = i*min(i, 16 - i)/d
+    end do
+end subroutine jacobian</code></pre>
+
+<pre><code class="language-fortran">use sqpopt_nlls_module, only: sqpopt_nlls_type
+
+type(sqpopt_nlls_type) :: nlls
+
+! irow, icol: the pattern of the residuals' Jacobian (here dense, by rows)
+call nlls%initialize(n=n, n_residuals=l, residuals=residuals, jacobian=jacobian, &
+                     rjac_irow=irow, rjac_icol=icol, x_lb=[0.0_wp, 0.0_wp, 0.0_wp])
+call nlls%solve([1.0_wp, 1.0_wp, 1.0_wp], istat)
+call nlls%get_solution(x, residuals=r, sum_of_squares=sum_of_squares)
+call nlls%destroy()</code></pre>
+
+<div class="table-wrap"><table>
+<thead><tr><th>argument of <code>initialize</code></th><th>meaning</th></tr></thead>
+<tbody>
+<tr><td><code>n</code>, <code>n_residuals</code></td><td>the numbers of variables and of residuals</td></tr>
+<tr><td><code>residuals</code>, <code>jacobian</code></td><td>the two routines above</td></tr>
+<tr><td><code>rjac_irow</code>, <code>rjac_icol</code></td><td>the sparsity pattern of the residuals' Jacobian: the row (residual) and column (variable) of each nonzero, 1-based</td></tr>
+<tr><td><code>x_lb</code>, <code>x_ub</code></td><td>bounds on the variables (optional)</td></tr>
+<tr><td><code>c_lb</code>, <code>c_ub</code>, <code>cjac_irow</code>, <code>cjac_icol</code></td><td>the bounds of the constraints and the pattern of their Jacobian (optional: give all four, or none)</td></tr>
+<tr><td><code>options</code>, <code>hessian</code>, <code>qp_solver</code>, <code>linesearch</code>, <code>trust_region</code></td><td>the solver's settings, as for <code>solver%initialize</code> (see <a href="#configuration">How configuration works</a>)</td></tr>
+<tr><td><code>data</code></td><td>user data, passed to the two routines</td></tr>
+</tbody>
+</table></div>
+
+<p><code>solve</code> returns the solver's <a href="#status-codes">status code</a>: <code>sqpopt_success</code> at a least-squares solution, whether or not the residuals are zero there. <code>get_solution</code> returns the variables and, optionally, the residuals, the sum of their squares, and the multipliers of the constraints. <code>get_results</code> returns the solver's <a href="#results">results</a>, which are those of the transformed problem: <code>x</code> is the variables followed by \( z \), and <code>c</code> and <code>lambda</code> are those of the \( l \) residual equations followed by the constraints.</p>
+
+<p><strong>The Hessian.</strong> By default the solver approximates the Hessian of the transformed problem as it does any other (L-BFGS). With <code>options%hessian_mode = sqpopt_hessian_exact</code>, the module supplies the <em>Gauss-Newton</em> Hessian instead: the identity on \( z \) and zero on \( x \), which neglects the second derivatives of the residuals and of the constraints. The solver's <a href="#hessian">Hessian shift</a> then acts as the damping of the Levenberg&ndash;Marquardt method. It usually takes fewer iterations, mostly so when the residuals are small at the solution (6 against 18 on the example), but it fails more often.</p>
+
+<p><strong>Python.</strong> <code>sqpopt.least_squares</code> does the same on top of <code>minimize</code>:</p>
+
+<pre><code class="language-python">import numpy as np
+from sqpopt import least_squares
+
+y = np.array([0.14, 0.18, 0.22, 0.25, 0.29, 0.32, 0.35, 0.39, 0.37, 0.58, 0.73, 0.96, 1.34, 2.10, 4.39])
+u = np.arange(1, 16.0); v = 16 - u; w = np.minimum(u, v)
+
+def residuals(x):
+    return y - (x[0] + u/(v*x[1] + w*x[2]))
+
+def jacobian(x):
+    d = (v*x[1] + w*x[2])**2
+    return np.column_stack([-np.ones(15), u*v/d, u*w/d])
+
+res = least_squares(residuals, [1, 1, 1], jacobian, bounds=[(0, None)] * 3)
+print(res.x, res.cost, res.message)</code></pre>
+
+<p>Its <code>bounds</code>, <code>constraints</code>, <code>options</code>, <code>max_step</code>, and output files are those of <code>minimize</code> (see <a href="#python">Python</a>), <code>jac_sparsity</code> gives the pattern of a sparse Jacobian, and <code>gauss_newton=True</code> selects the Gauss-Newton Hessian (as a dense matrix in Python, so for small problems). The result has <code>x</code>, <code>fun</code> (the residuals), <code>cost</code> (half the sum of their squares), the multipliers, and <code>nlp</code>, the result of <code>minimize</code> for the transformed problem.</p>
+
+<p><strong>What to expect.</strong> For a fit with no constraints other than bounds, a solver written for least squares (scipy's <code>least_squares</code>, MINPACK's <code>lmder</code>) is the better choice. Use this interface when the fit also has general constraints, which those solvers don't take, or when the equations would otherwise be given to SQPOPT as equality constraints.</p>
+
+<p>The numbers behind that: 94 test problems from <a href="performance.html#cutest">CUTEst</a>, each a system with more equations than unknowns and no other constraints, solved four ways with at most 250 iterations. A method counts as having found the best fit on a problem if its sum of squares is as small as the smallest that any of the four reached.</p>
+
+<div class="table-wrap"><table>
+<thead><tr><th>method</th><th>problems where it found<br>the best fit (of 94)</th><th>residual evaluations,<br>all 94 problems</th></tr></thead>
+<tbody>
+<tr><td>SQPOPT, the equations given as equality constraints</td><td>52</td><td>52,958</td></tr>
+<tr><td>SQPOPT, this interface with L-BFGS (the default)</td><td>59</td><td>6,842</td></tr>
+<tr><td>SQPOPT, this interface with the Gauss-Newton Hessian</td><td>68</td><td>13,154</td></tr>
+<tr><td>scipy's <code>least_squares</code></td><td>87</td><td>10,326</td></tr>
+</tbody>
+</table></div>
+
+<ul>
+  <li><strong>Against equality constraints, the interface is much cheaper.</strong> It needs an eighth of the evaluations with L-BFGS, a quarter with the Gauss-Newton Hessian, and finds the best fit somewhat more often.</li>
+  <li><strong>Against scipy, it finds the best fit less often</strong>: 59 or 68 problems against 87. These problems are the kind scipy's solver is written for.</li>
+  <li><strong>A success status doesn't mean the best fit.</strong> With L-BFGS, 92 of the 94 solves end with a success status, but only 59 are at the best fit. The others stopped at a point where the sum of squares is larger: a different local minimum, or a point that only met the looser tests (<code>sqpopt_acceptable</code>, <code>sqpopt_stalled</code>).</li>
+  <li><strong>If a fit looks poor, try the other Hessian.</strong> At least one of the two finds the best fit on 79 of the 94.</li>
+</ul>
+
+<p><strong>Limits.</strong> The QP subproblem has \( n + l \) variables (DFNLP eliminates \( z \) from it, SQPOPT doesn't), so with many residuals the <a href="#qp-modes">sparse QP solver</a> is the one to use, which <code>sqpopt_qp_auto</code> chooses by the problem's size. Only the sum of squares is offered: the same device gives the \( l_1 \) and maximum norms, which are not implemented.</p>
+
+<!-- ============================================================ -->
+<h2 id="python">Python</h2>
+
+<p>The <code>python/sqpopt</code> package calls the solver from Python, with an interface like <code>scipy.optimize.minimize</code>. Its native extension is built with NumPy's <a href="https://numpy.org/doc/stable/f2py/">f2py</a>. Build it with <code>pixi run build-python</code>.</p>
+
+<pre><code class="language-python">import numpy as np
+from sqpopt import minimize, NonlinearConstraint
+
+# HS71 (see the worked example):
+def f(x):
+    return x[0]*x[3]*(x[0]+x[1]+x[2]) + x[2]
+
+def grad(x):
+    return [x[3]*(2*x[0]+x[1]+x[2]), x[0]*x[3], x[0]*x[3] + 1, x[0]*(x[0]+x[1]+x[2])]
+
+def cons(x):
+    return [np.sum(x**2), np.prod(x)]
+
+def cons_jac(x):
+    return [2*x, [x[1]*x[2]*x[3], x[0]*x[2]*x[3], x[0]*x[1]*x[3], x[0]*x[1]*x[2]]]
+
+res = minimize(f, [1, 5, 5, 1], jac=grad, bounds=[(1, 5)] * 4,
+               constraints=[NonlinearConstraint(cons, [40, 25], [40, np.inf], jac=cons_jac)])
+print(res.x, res.fun, res.message)</code></pre>
+
+<ul>
+  <li><strong>Arguments:</strong> <code>fun</code>, <code>x0</code>, <code>args</code>, <code>jac</code>, <code>hess</code>, <code>bounds</code>, <code>constraints</code>, <code>tol</code>, <code>callback</code>, and <code>options</code>, as in scipy.</li>
+  <li><strong>Constraints:</strong> SLSQP-style dicts, <code>NonlinearConstraint</code>, and <code>LinearConstraint</code>. The package's own classes and scipy's are both accepted. Jacobians may be dense or sparse.</li>
+  <li><strong>Derivatives are required:</strong> the gradient (<code>jac</code>) and each nonlinear constraint's Jacobian. Unlike scipy, there are no finite differences.</li>
+  <li><strong>Exact Hessian:</strong> <code>hess</code> selects the exact Hessian of the Lagrangian. The options <code>inertia_control</code>, <code>direct_qp</code>, and <code>direct_least_squares</code> use QDLDL, or MUMPS with <code>'linear_solver': 'mumps'</code> in an extension built with it (<code>pixi run build-python-mumps</code>; see <a href="#linear-solver">Sparse solver</a>).</li>
+  <li><strong>Options:</strong> <code>options</code> takes any setting in this guide, by name (<code>{'ktol': 1e-8, 'hessian_mode': 'sr1'}</code>), by Fortran reference (<code>'linesearch%filter%delta'</code>), or as the dict returned by the options dialog.</li>
+  <li><strong>Step limits:</strong> <code>max_step</code> gives the largest change of each variable in one major iteration, as one value or an array (see <a href="#max-step">Step limits</a>).</li>
+  <li><strong>Warm start:</strong> <code>lambda0</code> gives the starting multipliers, so <code>minimize(..., x0=res.x, lambda0=res.v)</code> restarts from a previous result.</li>
+  <li><strong>Printed output:</strong> <code>output_file</code> writes the solver's printed output to a file instead of the process's standard output, which a Jupyter notebook doesn't show.</li>
+  <li><strong>Diagnostics:</strong> with <code>options={'diagnostic_level': 1}</code> (or more), the result's <code>diagnostics</code> is a dict with the <a href="#diagnostics">diagnosis</a> (its indices are 0-based). <code>diagnostics_file</code> writes the history of the iterations to a file, from level 2.</li>
+  <li><strong>Result:</strong> an <code>OptimizeResult</code>, which also has the multipliers, the KKT and feasibility errors, and the counts.</li>
+  <li><strong>Least squares:</strong> <code>least_squares(fun, x0, jac)</code> minimizes \( \tfrac12 \sum r_i(x)^2 \) for residuals <code>fun</code> with the Jacobian <code>jac</code>, with the same bounds, constraints, and options (see <a href="#least-squares">Least-squares problems</a>).</li>
+</ul>
+
+<p>See <a href="https://github.com/jacobwilliams/sqpopt/blob/master/python/README.md"><code>python/README.md</code></a> for the details.</p>
+
+<!-- ============================================================ -->
+<h2 id="configuration">How configuration works</h2>
+
+<p><code>solver%initialize</code> accepts one instance of each sub-component. All are optional, and defaults are used for anything you leave out:</p>
+
+<pre><code class="language-fortran">call solver%initialize(problem=..., options=..., hessian=..., qp_solver=..., &amp;
+                       linesearch=..., trust_region=..., report=...)</code></pre>
+
+<div class="component-diagram" aria-label="Solver components">
+  <div class="comp comp-main"><code>sqpopt_type</code><span>the solver</span></div>
+  <div class="comp-row">
+    <a class="comp" href="#problem-definition"><code>sqpopt_problem_type</code><span>sizes, bounds, callbacks</span></a>
+    <a class="comp comp-accent" href="#solver-options"><code>sqpopt_options_type</code><span>common settings &amp; mode selectors, including the sparse solver</span></a>
+    <a class="comp" href="#hessian"><code>sqpopt_hessian_type</code><span>quasi-Newton or exact Hessian</span></a>
+    <div class="comp">
+      <a href="#qp-solver"><code>sqpopt_qp_solver_type</code></a><span>QP subproblem</span>
+      <div class="comp-subs"><a class="comp-sub" href="#dense-qp">%dense_qp</a><a class="comp-sub" href="#sparse-qp">%sparse_qp</a></div>
+    </div>
+    <div class="comp">
+      <a href="#linesearch"><code>sqpopt_linesearch_type</code></a><span>line search &amp; acceptance tests</span>
+      <div class="comp-subs"><a class="comp-sub" href="#merit-options">%merit</a><a class="comp-sub" href="#filter-options">%filter</a><a class="comp-sub" href="#funnel-options">%funnel</a></div>
+    </div>
+    <a class="comp" href="#trust-region"><code>sqpopt_trust_region_type</code><span>trust region (opt-in; uses the line search&rsquo;s acceptance tests)</span></a>
+  </div>
+</div>
+
+<p><code>sqpopt_options_type</code> holds the most commonly tuned settings, including the ones that <em>select</em> an algorithm. The other types expose further tuning parameters for each algorithm. You set those by constructing the component yourself and passing it in.</p>
+
+<p>Two of the components contain components of their own, each with its own options: the QP solver holds the dense and sparse QP solvers (<code>qp_solver%dense_qp</code>, <code>qp_solver%sparse_qp</code>), and the line search holds the acceptance tests (<code>linesearch%merit</code>, the merit function and its penalty parameter; <code>linesearch%filter</code>; <code>linesearch%funnel</code>). The trust region judges its steps with those same acceptance tests, so the filter, funnel, and merit-function settings are made on <code>linesearch</code> even when the trust region is enabled.</p>
+
+<pre><code class="language-fortran">type(sqpopt_qp_solver_type)  :: qp_solver
+type(sqpopt_linesearch_type) :: linesearch
+
+qp_solver%max_step             = 5.0_wp
+qp_solver%sparse_qp%lsqr_atol  = 5.0e-10_wp
+linesearch%major_step_limit    = 1.0_wp
+linesearch%filter%gamma_theta  = 1.0e-6_wp
+
+call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, linesearch=linesearch)</code></pre>
+
+<div class="callout">
+<p><strong>Mode selectors are copied down on every solve.</strong> At the start of every <code>solve()</code>, these <code>options</code> fields overwrite the corresponding sub-component fields:</p>
+<div class="table-wrap"><table class="compact">
+<thead><tr><th><code>options%&hellip;</code></th><th>overwrites</th></tr></thead>
+<tbody>
+<tr><td><code>hessian_mode</code>, <code>lbfgs_memory</code></td><td><code>hessian</code> (re-initialized)</td></tr>
+<tr><td><code>qp_solver_mode</code></td><td><code>qp_solver%mode</code></td></tr>
+<tr><td><code>direct_qp</code></td><td><code>qp_solver%direct</code> (true only if the sparse factorization could be started)</td></tr>
+<tr><td><code>linesearch_mode</code></td><td><code>linesearch%mode</code></td></tr>
+<tr><td><code>merit_mode</code></td><td><code>linesearch%merit%mode</code></td></tr>
+<tr><td><code>penalty_update</code></td><td><code>linesearch%merit%penalty_update</code></td></tr>
+</tbody>
+</table></div>
+<p>So set these through <code>options</code>. Everything else in the tables below (tolerances, step limits, and so on) has no <code>options</code> field and must be set on the sub-component directly.</p>
+</div>
+
+<h3 id="dense-matrices">Options that form dense matrices</h3>
+
+<p>SQPOPT keeps the Jacobian and the Hessian sparse, and never forms a dense \( n \times n \) or \( m \times n \) matrix, except in the settings below. Each costs memory and time that grow with the square (or more) of the problem's size, so each is meant for small problems, or for small parts of a problem:</p>
+
+<div class="table-wrap"><table class="compact">
+<thead><tr><th>setting</th><th>dense matrices</th><th>when it is used</th></tr></thead>
+<tbody>
+<tr><td><code>options%qp_solver_mode = sqpopt_qp_dense</code> (the <a href="#dense-qp">dense QP solver</a>)</td><td>the Hessian (\( n \times n \)), the Jacobian (\( m \times n \)), and the working set's null space, formed for every QP</td><td>by default (<code>sqpopt_qp_auto</code>) for up to <code>qp_solver%auto_dense_max_n</code> = 200 variables; always, if you choose it</td></tr>
+<tr><td><code>options%linear_solver = sqpopt_linear_solver_dense</code> (the <a href="#linear-solver">dense solver</a>)</td><td>the KKT matrix and its LU factors, two arrays of order \( n + m \)</td><td>only if you choose it, and only with <code>inertia_control</code>, <code>direct_qp</code>, or <code>direct_least_squares</code>; it refuses an order above 2,000</td></tr>
+<tr><td><code>qp_solver%sparse_qp%dense_max_ns</code> (the <a href="#sparse-qp">sparse QP</a>)</td><td>the reduced Hessian of a face, of order the number of superbasic variables</td><td>for faces with at most <code>dense_max_ns</code> = 50 superbasics (more are solved by conjugate gradients)</td></tr>
+</tbody>
+</table></div>
+
+<p class="small">The limited-memory Hessians also hold small dense matrices, of the order of their number of stored pairs (<code>lbfgs_memory</code>), not of the problem's size, and their \( n \times \) <code>lbfgs_memory</code> vectors.</p>
+
+<p>Every setting of every component is checked when <code>solve</code> starts. An invalid value gives <code>sqpopt_invalid_input</code>, and <code>status_message()</code> names the setting.</p>
+
+<div class="callout note"><strong>Which settings to use?</strong> <a href="choosing_settings.html">Choosing settings</a> recommends settings for small and large, dense and sparse problems, and for problems with many or few degrees of freedom, with measurements of each.</div>
+
+<div class="reference">
+<div class="filter-bar" id="options-filter">
+  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15.5 15.5 21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  <input type="search" id="opt-filter" placeholder="Filter all option tables (e.g. tol, elastic, gamma)" aria-label="Filter option tables" autocomplete="off">
+  <span class="filter-count" id="opt-filter-count"></span>
+</div>
+
+<h2 id="problem-definition">Problem definition <code class="h-type">sqpopt_problem_type</code></h2>
+
+<div class="table-wrap"><table class="opt-table">
+<thead><tr><th>method</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>set_problem_size(n, m)</code></td><td>number of variables <code>n</code> and constraints <code>m</code>. Which constraints are equalities is given by their bounds (<code>c_lb(i) == c_ub(i)</code>, see <code>set_bounds</code>), so equalities and inequalities may come in any order.</td></tr>
+<tr><td><code>set_bounds(x_lb, x_ub, c_lb, c_ub)</code></td><td>variable bounds and constraint bounds. Use <code>c_lb(i) == c_ub(i)</code> for an equality constraint. Any value with magnitude <code>&gt;= sqpopt_infinity</code> (<code>1e20</code>; <code>huge(1.0_wp)</code> is fine) means a one-sided or absent bound.</td></tr>
+<tr><td><code>set_max_step(max_step)</code></td><td>optional: the largest change of each variable in one major iteration, \( |x_{k+1} - x_k|_j \le \) <code>max_step(j)</code> (each <code>&gt; 0</code>; <code>&gt;= sqpopt_infinity</code> for no limit). See <a href="#max-step">Step limits</a> below</td></tr>
+<tr><td><code>set_jacobian_sparsity(nnz, irow, icol)</code></td><td>fixed, 1-based COO sparsity pattern of the constraint Jacobian</td></tr>
+<tr><td><code>set_hessian_sparsity(nnz, irow, icol)</code></td><td>fixed, 1-based COO sparsity pattern of the Lagrangian Hessian, each off-diagonal element given once (only needed for <code>sqpopt_hessian_exact</code>)</td></tr>
+<tr><td><code>set_functions(fc, gjac, hess, data)</code></td><td>attach the user callbacks: <code>fc</code> evaluates the objective and the constraints; <code>gjac</code> evaluates the objective gradient and the Jacobian's nonzero values; <code>hess</code> (optional) evaluates the Hessian's nonzero values (only used by <code>sqpopt_hessian_exact</code>); <code>data</code> (optional) is passed through to every callback</td></tr>
+</tbody>
+</table></div>
+
+<h3 id="max-step">Step limits <span class="h-note"><code>problem%set_max_step</code></span></h3>
+
+<p>When the variables have different units or sensitivities (a velocity change in km/s next to an epoch in days), you often know how far each can move before the problem's linearization stops being useful. <code>set_max_step</code> gives the solver that: a limit on the change of each variable in one major iteration.</p>
+
+<pre><code class="language-fortran">call problem%set_bounds(x_lb, x_ub, c_lb, c_ub)
+call problem%set_max_step([0.1_wp, 0.1_wp, sqpopt_infinity, 5.0_wp])   ! (no limit on the third variable)</code></pre>
+
+<p>The limits are bounds on the steps the solver computes: the QP subproblem is solved with \( |p_j| \le \) <code>max_step(j)</code> next to the variables' own bounds, so its step is the best one within the limits, not a longer one cut short. The second-order correction, the restoration steps, and the trust region respect them too. They are in addition to the solver's own cap on the length of the whole step (<code>qp_solver%max_step</code>, which treats the variables alike and adapts as the solve goes). The printed header reports how many variables are limited.</p>
+
+<p>Limits usually cost iterations (the Rosenbrock function on the unit disk of the <a href="performance.html#example">Performance page</a> takes 39 steps with limits of 0.2 and 0.05, instead of 12), so set them where they prevent steps into regions where the functions can't be evaluated or the model is meaningless, not everywhere. With the Python bindings: <code>minimize(..., max_step=...)</code>.</p>
+
+<!-- ============================================================ -->
+<h2 id="solver-options">Solver options <code class="h-type">sqpopt_options_type</code></h2>
+
+<p class="set-on">Set as <code>options%&lt;name&gt;</code>.</p>
+
+<h3 class="opt-group">Stopping criteria</h3>
+<div class="table-wrap"><table class="opt-table">
+<thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>ktol</code></td><td><code>1e-6</code></td><td>tolerance on the KKT optimality test: stationarity of the projected Lagrangian gradient, plus the sign and complementarity of the constraint multipliers (scaled up only when the average multiplier magnitude exceeds 100, as in IPOPT)</td></tr>
+<tr><td><code>ctol</code></td><td><code>1e-8</code></td><td>feasibility tolerance on the constraint violation</td></tr>
+<tr><td><code>dual_inf_tol</code></td><td><code>1</code></td><td>tolerance on the stationarity residual of the <em>unscaled</em> problem (as IPOPT's <code>dual_inf_tol</code>). <code>ktol</code> applies to the scaled problem (see <a href="#scaling">Scaling</a>), so an objective scaled far down, e.g. at a poor starting point, would make it very loose in the original units; convergence also requires this.</td></tr>
+<tr><td><code>ftol</code>, <code>xtol</code></td><td><code>1e-8</code></td><td>once feasible, also stop (with <code>sqpopt_stalled</code>) if the relative change in both the objective and the variables from the previous iterate is below these tolerances for <code>stall_iter</code> consecutive iterations. This guards against looping to <code>max_iter</code> on marginal steps when the KKT test never quite converges.</td></tr>
+<tr><td><code>stall_iter</code></td><td><code>3</code></td><td>number of consecutive iterations the <code>ftol</code>/<code>xtol</code> stalled-progress test must hold before stopping. A single negligible step (e.g. a short line-search step on a badly scaled problem) is not treated as a stall.</td></tr>
+<tr><td><code>acceptable_ktol</code>, <code>acceptable_ctol</code>, <code>acceptable_iter</code></td><td><code>1e-4</code>, <code>1e-6</code>, <code>15</code></td><td>if the KKT test with these looser tolerances holds for <code>acceptable_iter</code> consecutive iterations, stop with <code>sqpopt_acceptable</code> (<code>acceptable_iter = 0</code> disables this)</td></tr>
+<tr><td><code>acceptable_obj_change_tol</code></td><td><code>1e-3</code></td><td>an iteration only counts toward <code>acceptable_iter</code> if the objective changed by at most this from the previous one, relative to \( \max(1, |f|) \) of the original problem. So the solver doesn't stop as <code>sqpopt_acceptable</code> while the objective is still changing fast, which can happen when the <a href="#scaling">scaling</a> makes <code>acceptable_ktol</code> loose. As IPOPT's option of that name, which is off by default there; <code>1e20</code> turns it off here</td></tr>
+<tr><td><code>max_iter</code></td><td><code>100</code></td><td>maximum number of major SQP iterations</td></tr>
+<tr><td><code>max_evals</code></td><td><code>0</code></td><td>stop after this many calls of <code>fc</code> (the objective and constraints; <code>0</code> = no limit)</td></tr>
+<tr><td><code>max_time</code></td><td><code>0</code></td><td>stop after this much wall-clock time, in seconds (<code>0</code> = no limit)</td></tr>
+<tr><td><code>obj_lower_limit</code></td><td><code>-sqpopt_infinity</code></td><td>stop (<code>sqpopt_unbounded</code>) if the objective falls below this at a feasible point</td></tr>
+<tr><td><code>max_consecutive_failures</code></td><td><code>5</code></td><td>stop (with <code>sqpopt_line_search_failed</code> or <code>sqpopt_qp_solve_failed</code>) after this many consecutive major iterations whose QP solve or line search/trust-region step failed</td></tr>
+</tbody>
+</table></div>
+
+<h3 class="opt-group">Algorithm selection</h3>
+<div class="table-wrap"><table class="opt-table">
+<thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>hessian_mode</code></td><td><code>sqpopt_hessian_bfgs</code></td><td>Hessian approximation strategy (see <a href="#hessian">Hessian approximation</a>)</td></tr>
+<tr><td><code>inertia_control</code></td><td><code>.false.</code></td><td>with the exact or the SR1 Hessian: find the shift of an indefinite Hessian from a sparse factorization (see <a href="#inertia-control">Inertia control</a>)</td></tr>
+<tr><td><code>direct_qp</code></td><td><code>.false.</code></td><td>first try to solve each QP subproblem directly, by sparse factorizations; the active-set QP solver is only run if that fails (see <a href="#direct-qp">Direct method</a>). For large problems</td></tr>
+<tr><td><code>direct_least_squares</code></td><td><code>.false.</code></td><td>compute the Gauss-Newton restoration steps and the second-order corrections by a sparse factorization instead of <code>LSQR</code> (see <a href="#direct-least-squares">Direct least squares</a>)</td></tr>
+<tr><td><code>linear_solver</code></td><td><code>sqpopt_linear_solver_qdldl</code></td><td>the solver of the factorizations of the three options above: <code>sqpopt_linear_solver_qdldl</code> (the default), <code>sqpopt_linear_solver_mumps</code> (invalid input without MUMPS), or <code>sqpopt_linear_solver_dense</code> (forms dense matrices: small problems only). See <a href="#linear-solver">Sparse solver</a></td></tr>
+<tr><td><code>factorization_threads</code></td><td><code>1</code></td><td>number of OpenMP threads the sparse factorizations use (the three options above), with MUMPS: <code>1</code> for none, a larger number for that many, or <code>0</code> to leave it to the OpenMP environment (<code>OMP_NUM_THREADS</code>, or every core). See <a href="#factorization-threads">Threads</a></td></tr>
+<tr><td><code>lbfgs_memory</code></td><td><code>0</code></td><td>number of <code>(s,y)</code> vector pairs retained by the limited-memory Hessian; <code>0</code> (automatic) picks \( \max(10, \min(n, 100)) \) (see <a href="#hessian">Hessian approximation</a>). With <code>direct_qp</code>, automatic means 10</td></tr>
+<tr><td><code>qp_solver_mode</code></td><td><code>sqpopt_qp_auto</code></td><td>QP subproblem algorithm (see <a href="#qp-solver">QP subproblem solver</a>)</td></tr>
+<tr><td><code>linesearch_mode</code></td><td><code>sqpopt_linesearch_filter</code></td><td>line search strategy (see <a href="#linesearch">Line search &amp; merit function</a>)</td></tr>
+<tr><td><code>merit_mode</code></td><td><code>sqpopt_merit_l1</code></td><td>merit function, for the merit-function line searches (see <a href="#merit-modes">merit functions</a>)</td></tr>
+<tr><td><code>penalty_update</code></td><td><code>sqpopt_penalty_multipliers</code></td><td>how the merit function's penalty parameter is updated (see <a href="#penalty-modes">penalty updates</a>)</td></tr>
+<tr><td><code>restoration_mode</code></td><td><code>sqpopt_restoration_phase</code></td><td>feasibility restoration strategy (see <a href="#restoration">Feasibility restoration</a>): a restoration phase, or <code>sqpopt_restoration_gauss_newton</code> for a single Gauss-Newton step each time</td></tr>
+<tr><td><code>restoration_exit_factor</code></td><td><code>0.9</code></td><td>a restoration phase ends once the \( \ell_1 \) violation is below this factor times its value where the phase started and the point is acceptable to the filter or funnel</td></tr>
+<tr><td><code>restoration_max_iter</code></td><td><code>50</code></td><td>maximum number of iterations of a restoration phase</td></tr>
+<tr><td><code>derivative_accuracy</code></td><td><code>sqpopt_derivatives_accurate</code></td><td>the accuracy of the derivatives asked of <code>gjac</code>: <code>sqpopt_derivatives_fast</code> asks for fast ones until near a solution, then accurate ones (see <a href="#fast-derivatives">Fast derivatives</a>)</td></tr>
+<tr><td><code>derivative_switch_tol</code></td><td><code>1e-5</code></td><td>with fast derivatives: the KKT and feasibility errors (of the scaled problem) below which the solver switches to accurate ones (it also switches when a step fails, progress stalls, or before stopping)</td></tr>
+<tr><td><code>elastic_multiplier_limit</code></td><td><code>30</code></td><td>guards against converging to a point where the constraint qualification fails (e.g. a constraint tangent to a bound), which the iterates can creep toward with a multiplier that grows every iteration. When a constraint's push \( |\lambda_i|\,\lVert\nabla c_i\rVert_\infty \) exceeds this times \( \max(1,\lVert g\rVert_\infty) \) at two successive iterates and is still growing, the QP is re-solved with that constraint <em>elastic</em> (an \( \ell_1 \) penalty with a bounded weight, as in SNOPT), which caps its multiplier and lets the step leave. At most 3 times per solve. <code>0</code> disables it.</td></tr>
+</tbody>
+</table></div>
+
+<h3 class="opt-group">Scaling</h3>
+<div class="table-wrap"><table class="opt-table">
+<thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>scaling</code>, <code>scaling_max_gradient</code></td><td><code>.true.</code>, <code>100</code></td><td>gradient-based scaling (as in IPOPT): at the starting point, the objective and each constraint whose gradient has an element larger than <code>scaling_max_gradient</code> is scaled down so that its largest element equals it. <code>ktol</code>/<code>ctol</code> then apply to the scaled problem; all results are for the original one.</td></tr>
+<tr><td><code>scaling_min_value</code></td><td><code>1.0e-8</code></td><td>the smallest scale factor of <code>scaling</code> (as IPOPT's <code>nlp_scaling_min_value</code>): a function is never scaled down by more than this, however large its gradient at the starting point (<code>0</code> = no limit). See <a href="#scaling">Scaling</a></td></tr>
+<tr><td><code>hessian_scale0</code></td><td><code>1</code></td><td>the initial Hessian approximation is <code>hessian_scale0</code> times the identity</td></tr>
+</tbody>
+</table></div>
+
+<h3 class="opt-group">Output</h3>
+<div class="table-wrap"><table class="opt-table">
+<thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>print_level</code></td><td><code>0</code></td><td>
+  <code>0</code>: no output.
+  <code>1</code>: the problem (sizes), the method (globalization, QP solver, Hessian and whether it has inertia control and the direct QP method, restoration, direct least squares), the scaling and the tolerances; one line per major iteration (objective, infeasibility and KKT error of the scaled problem, step length, <code>fc</code> calls so far, and flags for the iteration's events: <code>R</code> restoration step, <code>P</code> restoration phase, <code>S</code> second-order correction, <code>H</code> Hessian reset, <code>E</code> elastic QP re-solve, <code>X</code> escape step, <code>N</code> non-monotone step, <code>W</code> watchdog relaxed step, <code>D</code> switched to accurate derivatives, <code>Q</code> QP failed, <code>F</code> no acceptable step); and a summary (status, objective, feasibility, KKT and unscaled stationarity errors, largest multiplier, active constraints and bounds, evaluations, QP iterations and how many QPs were solved directly, sparse factorizations, counts of the events, and the time split between the user functions, the QP, the factorizations, and the rest).
+  <code>2</code>: also, per iteration, the step norm, QP iterations, <code>fc</code> calls, largest multiplier, unscaled stationarity error, the globalization's state (merit penalty, filter entries, funnel width, or trust-region radius), and the Hessian's (stored quasi-Newton pairs, or the exact Hessian's shift).
+  <code>3</code>: also indented detail lines under each iteration: every QP solve (solver, iterations, working-set size, elastic slacks, status, negative curvature; for the direct method, its changes of the working set, or why it gave up), every line-search or trust-region trial (step length or radius, violation and objective or merit value, and why it was accepted or rejected), second-order corrections, restoration phases (start, iterations, end and why), elastic re-solves, escape steps, Hessian resets (and why), multipliers re-estimated by least squares, and the shifts of the inertia control (for which working set, the number of directions of negative curvature, and the factorizations it took); the smallest constraint scale factors; and the solution: the variables and constraints with their bounds, multipliers, and which are active (up to 100 of each).
+</td></tr>
+<tr><td><code>output_unit</code></td><td>standard output</td><td>Fortran unit the output is written to</td></tr>
+<tr><td><code>diagnostic_level</code></td><td><code>0</code></td><td>diagnostics of the solve, to help when it doesn't converge (see <a href="#diagnostics">Diagnostics</a>). <code>0</code>: none. <code>1</code>: a diagnosis of the final point. <code>2</code>: also a report on the starting point, and what the iterations showed. <code>3</code>: also the diagnostics that call the user's functions (two calls of <code>fc</code>). Levels <code>0</code> to <code>2</code> cost no function evaluations, and no level changes the iterates. They are returned in <code>results%diagnosis</code>, and printed if <code>print_level &ge; 1</code></td></tr>
+<tr><td><code>diagnostics_unit</code></td><td><code>-1</code></td><td>with <code>diagnostic_level &ge; 2</code>: a Fortran unit, open for formatted writing, for the history of the iterations as comma-separated values (<code>-1</code>: none). It is written whatever <code>print_level</code> is</td></tr>
+</tbody>
+</table></div>
+
+<!-- ============================================================ -->
+<h2 id="hessian">Hessian approximation <code class="h-type">sqpopt_hessian_type</code></h2>
+
+<p>A limited-memory quasi-Newton approximation (never a dense <code>n&times;n</code> matrix), or the user's exact sparse Hessian (<code>sqpopt_hessian_exact</code>, see <a href="#exact-hessian">Exact Hessian</a>). <code>solve()</code> always re-initializes it from <code>options%lbfgs_memory</code> and <code>options%hessian_mode</code>. Apart from those two <code>options</code> fields and <code>options%inertia_control</code>, only <code>damping</code>, <code>shift_min</code>, and <code>shift_max</code> are configurable, on a <code>sqpopt_hessian_type</code> you construct yourself.</p>
+
+<p>With the exact Hessian, the QP subproblems use \( H + \delta I \). The shift \( \delta \) starts at 0. Whenever a QP subproblem finds negative curvature (it was nonconvex), fails, or doesn't give a descent direction, \( \delta \) is increased tenfold (starting from <code>shift_min</code> times the Hessian's largest element) and the QP is re-solved; it also increases after a failed step or a run of very short ones. After each good step it is divided by 3, down to 0. This is a simple form of the <em>inertia correction</em> used by IPOPT and Uno, without a factorization.</p>
+
+<p><strong>Multipliers after a large shift.</strong> The exact Hessian is evaluated with the multipliers, and those come from the QP, where they satisfy \( g + (H + \delta I)p = J^T\lambda \). When the shift's term \( \delta p \) is larger than the gradient (\( \delta\lVert p\rVert_\infty \ge \max(1, \lVert g\rVert_\infty) \)), the multipliers mostly balance the shift, and can be orders of magnitude too large. The next Hessian would then be more indefinite and need a larger shift still. So after such a step, the multipliers are replaced by their least-squares estimate at the new point, \( \min_\lambda \lVert g - J^T\lambda \rVert \) over the active constraints and the variables not at a bound, which doesn't depend on the shift. (On a hanging-chain problem, without this, the multipliers grew to \( 10^{13} \) and the solver stopped as stalled far from the solution.) This applies with and without inertia control.</p>
+
+<h3 id="inertia-control">Inertia control</h3>
+
+<p>The tests above (for the exact Hessian) only see negative curvature along the directions that the QP solver happens to explore, each correction costs a whole QP solve, and tenfold steps overshoot the shift that is needed. With <code>options%inertia_control = .true.</code>, the shift is instead found from a sparse \( LDL^T \) factorization of the KKT matrix</p>
+
+\[ K = \begin{bmatrix} H + \delta I &amp; J_a^T \\ J_a &amp; 0 \end{bmatrix} \]
+
+<p>where \( J_a \) holds the Jacobian rows of the QP's working set, in the variables that are not at a bound. The numbers of positive and negative pivots of the factorization (the <em>inertia</em> of \( K \)) tell exactly whether \( H + \delta I \) has negative curvature on the null space of the working set, which is what makes the QP nonconvex there. Each major iteration:</p>
+
+<ol>
+  <li>Before the QP is solved, \( K \) is factored for the working set that the QP starts from (the one the previous QP ended with). If it has negative curvature, \( \delta \) is raised and \( K \) refactored until none is left: first to <code>shift_min</code> times the Hessian's largest element (or a third of the last shift that was needed, if that is larger), then 8 times as much at each attempt, much as IPOPT does. Each attempt costs a factorization, not a QP solve.</li>
+  <li>After the QP is solved, the same test is made for the working set it ended with, if that is a different one. Only if it fails is \( \delta \) raised further and the QP re-solved. (With the trust region, this second test is not made.)</li>
+</ol>
+
+<p>The shift starts from 0 again at every iteration, so it disappears as soon as it isn't needed, and the Newton steps near a solution are not damped. A QP that fails or doesn't give a descent direction still raises the shift, as does a failed step or a run of very short ones (those increases are carried over, and decay as above). The QP subproblems themselves are solved by the same solvers as before.</p>
+
+<p><strong>SR1.</strong> The limited-memory SR1 matrix can be indefinite too, and without inertia control nothing corrects it. It is a multiple of the identity plus a matrix of low rank, so the same test applies: the sparse part of \( K \) is factored, and the low-rank part is accounted for with a small dense matrix (one solve per stored pair). On the Hock&ndash;Schittkowski problems, SR1 then solves 274 problems and fails on 4, instead of 244 and 30, with less than a quarter of the function evaluations (10,454 instead of 44,905), the same with both solvers. The shift isn't carried over between iterations with SR1.</p>
+
+<p>It is used with <code>sqpopt_hessian_exact</code> and <code>sqpopt_hessian_sr1</code> (the BFGS matrix is positive definite, and needs no correction). The factorizations are those of <code>options%linear_solver</code> (see <a href="#linear-solver">Sparse solver</a>). With SR1 both solvers give the same results; with the exact Hessian, MUMPS is the better one, since QDLDL can't tell the inertia of a Hessian with zeros on its diagonal, and then shifts it more than needed. MUMPS runs on one thread unless <code>options%factorization_threads</code> says otherwise (see <a href="#factorization-threads">Threads</a>). <code>results%n_factorizations</code> counts the factorizations. On the Hock&ndash;Schittkowski problems, the exact Hessian with it solves 4 more problems than without it with MUMPS (274 instead of 270), with 16% fewer function evaluations, and 3 more with QDLDL, but with 22% more evaluations (see <a href="performance.html">Performance</a>). With <code>options%direct_qp</code>, the factorizations are also used to solve the QP (see <a href="#direct-qp">Direct method</a>).</p>
+
+<div class="table-wrap"><table class="opt-table">
+<thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>options%hessian_mode</code></td><td><code>sqpopt_hessian_bfgs</code></td><td><code>sqpopt_hessian_bfgs</code> (limited-memory Powell-damped BFGS), <code>sqpopt_hessian_sr1</code> (limited-memory symmetric rank-1), or <code>sqpopt_hessian_exact</code> (the user's sparse Hessian of the Lagrangian, see <a href="#exact-hessian">Exact Hessian</a>)</td></tr>
+<tr><td><code>options%lbfgs_memory</code></td><td><code>0</code></td><td>number of <code>(s,y)</code> vector pairs retained. <code>0</code> (automatic) picks \( \max(10, \min(n, 100)) \) from the number of variables <code>n</code>: larger problems benefit from more pairs (on a quadratic, BFGS with <code>n</code> pairs converges in about <code>n</code> iterations; with 10, TP302, <code>n</code>&nbsp;=&nbsp;100, needs 491 instead of 143), while keeping more pairs than variables retains stale curvature and slows small problems down. With <code>options%direct_qp</code>, the automatic value is 10 instead, because the <a href="#direct-qp">direct method</a>'s cost grows with the square of the number of pairs. Any positive value is used as given.</td></tr>
+<tr><td><code>options%inertia_control</code></td><td><code>.false.</code></td><td>exact Hessian and SR1: find the shift from the inertia of the KKT matrix, by a sparse factorization (see <a href="#inertia-control">Inertia control</a>)</td></tr>
+<tr><td><code>damping</code></td><td><code>.true.</code></td><td>Powell's damped BFGS update: when \( s^Ty &lt; 0.2\,s^TBs \), <code>y</code> is blended with <code>Bs</code> so the update keeps <code>B</code> positive definite while still using the new curvature information. If <code>.false.</code>, such updates are skipped instead.</td></tr>
+<tr><td><code>shift_min</code>, <code>shift_max</code></td><td><code>1e-4</code>, <code>1e10</code></td><td>exact Hessian: the smallest nonzero and the largest shift \( \delta \), relative to \( \max(1, \max_{ij}|H_{ij}|) \)</td></tr>
+</tbody>
+</table></div>
+
+<!-- ============================================================ -->
+<h2 id="qp-solver">QP subproblem solver <code class="h-type">sqpopt_qp_solver_type</code></h2>
+
+<p class="set-on">Set as <code>qp_solver%&lt;name&gt;</code>.</p>
+
+<div class="table-wrap"><table class="opt-table">
+<thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>mode</code></td><td><code>sqpopt_qp_auto</code></td><td>which QP algorithm to use (overwritten from <code>options%qp_solver_mode</code>); see <a href="#qp-modes">modes</a> below</td></tr>
+<tr><td><code>auto_dense_max_n</code></td><td><code>200</code></td><td><code>mode = sqpopt_qp_auto</code> uses <code>sqpopt_qp_dense</code> for problems with at most this many variables, else <code>sqpopt_qp_reduced_hessian</code></td></tr>
+<tr><td><code>max_step</code></td><td><code>2.0</code></td><td>trust-region-style cap on \( \lVert p\rVert_2 \), applied after every QP solve regardless of <code>mode</code>. The cap starts at \( \max(\) <code>max_step</code>\(,\ \lVert x_0\rVert_\infty) \), relative to the size of the variables, and adapts like a trust radius: it doubles after a capped step that the line search accepts in full, and halves back toward <code>max_step</code> after a shortened one, so solutions far from the start are still reached in a few iterations.</td></tr>
+<tr><td><code>unconstrained_step</code></td><td><code>.true.</code></td><td>with the L-BFGS Hessian, first try the <a href="#unconstrained-step">unconstrained step</a> \( -H^{-1}g \): if it satisfies the bounds and the linearized constraints, it is the QP's solution, and no QP solver is run</td></tr>
+<tr><td><code>direct_max_changes</code></td><td><code>10</code></td><td>with <code>options%direct_qp</code>: the <a href="#direct-qp">direct method</a> gives up, and the active-set solver is run, after this many changes of the working set (each is a factorization) without reaching the QP's solution</td></tr>
+<tr><td><code>direct_tol</code></td><td><code>1e-8</code></td><td>the direct method's relative tolerance for a violated row or bound, and for the sign of a multiplier</td></tr>
+<tr><td><code>dense_qp</code></td><td>&mdash;</td><td>the dense QP solver's own options (used only when <code>mode == sqpopt_qp_dense</code>); see <a href="#dense-qp">below</a></td></tr>
+<tr><td><code>sparse_qp</code></td><td>&mdash;</td><td>the sparse QP solver's own options (used only when <code>mode == sqpopt_qp_reduced_hessian</code>); see <a href="#sparse-qp">below</a></td></tr>
+</tbody>
+</table></div>
+
+<h3 id="unconstrained-step">The unconstrained step <span class="h-note"><code>qp_solver%unconstrained_step</code></span></h3>
+
+<p>The L-BFGS matrix \( H \) is positive definite, so the QP's objective alone has the minimizer \( p = -H^{-1} g \), which the two-loop recursion gives at the cost of a few vector operations per stored pair. Before a QP solver is run, that step is tried: if \( x + p \) is within the bounds and the linearized constraints, it is the solution of the QP, with zero multipliers. So a problem without constraints is solved as a plain L-BFGS method wherever its bounds aren't active, and an iteration of a constrained problem at which nothing is active costs no QP solve either. When the step isn't feasible, the QP solver runs as before, and the attempt has cost one product.</p>
+
+<p>This matters for large problems. The active-set solvers handle a QP with every variable free too, but the sparse one does it by conjugate gradients on a matrix of the order of the problem. With 1,000 variables, the chained Rosenbrock function (4,946 iterations) takes 7.8 seconds with the step and 78 without it, and the same iterations. <code>results%n_unconstrained_qp</code> counts the QPs solved this way. The step isn't used with the exact Hessian or SR1 (which can be indefinite, and have no such inverse), nor in an elastic re-solve. On the Hock&ndash;Schittkowski problems it changes little: 9,067 <code>fc</code> calls instead of 9,173, with the same problems solved.</p>
+
+<h3 id="qp-modes">QP modes <span class="h-note"><code>options%qp_solver_mode</code></span></h3>
+<div class="table-wrap"><table class="opt-table modes">
+<thead><tr><th>value</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>sqpopt_qp_auto</code> <span class="badge">default</span></td><td><code>sqpopt_qp_dense</code> if <code>n &lt;= auto_dense_max_n</code>, else <code>sqpopt_qp_reduced_hessian</code></td></tr>
+<tr><td><code>sqpopt_qp_dense</code></td><td>dense active-set QP (Householder QR null space, Cholesky factorization of the reduced Hessian). It forms <code>O(n²)</code>/<code>O(mn)</code> dense arrays on each call, so it is best for small-to-moderate problems. If they can't be allocated, the solve stops with <code>sqpopt_out_of_memory</code>.</td></tr>
+<tr><td><code>sqpopt_qp_reduced_hessian</code></td><td>sparse active-set QP (SQOPT-style basis partition of the working set with sparse <code>LUSOL</code> factors, conjugate gradients on the reduced Hessian, active bounds handled by fixing variables). It never forms a dense array, so it scales to larger problems.</td></tr>
+</tbody>
+</table></div>
+
+<p>Both active-set solvers enforce the linearized constraints and bounds exactly, and share the same robustness features:</p>
+
+<ul class="features-list">
+  <li><strong>Elastic mode.</strong> Each linearized constraint violated at <code>p = 0</code> gets a nonnegative slack with an \( \ell_1 \) penalty (SNOPT's elastic mode). This gives a feasible starting point with no separate phase-1 problem. If slacks remain positive at the solution, the penalty weight is raised (up to <code>elastic_weight_max</code>). If they are still positive then, the linearized constraints are inconsistent: the QP returns <code>sqpopt_infeasible</code>, and the major iteration takes a feasibility-restoration step instead.</li>
+  <li><strong>Dependent constraints.</strong> Rows join the working set only if they are linearly independent of it. The sparse solver picks its initial basis and working set with one rank-revealing <code>LUSOL</code> factorization, preferring to keep equality constraints, then bounds, then inequalities, so duplicated or dependent constraints are handled.</li>
+  <li><strong>Negative curvature.</strong> Directions of zero or negative curvature (an indefinite SR1 Hessian, or along an elastic slack) are followed to the nearest blocking constraint rather than producing a huge Newton step. All tolerances are relative to the problem's scale.</li>
+  <li><strong>Crash and warm starts.</strong> Iterations start from the minimum-norm step satisfying an initial working-set guess, rather than from <code>p = 0</code>, so only the constraints the guess leaves violated need elastic slacks. The guess is the previous QP's final working set (<code>warm_start</code>, on by default; near a solution the active set settles and the QP finishes in one or two iterations), or else the equality constraints and fixed variables.</li>
+  <li><strong>Tested.</strong> Both are checked against the KKT conditions on thousands of random convex, nonconvex, degenerate, and infeasible QPs (<code>test/test_qp_fuzz.f90</code>).</li>
+</ul>
+
+<h3 id="direct-qp">Direct method <span class="h-note"><code>options%direct_qp</code></span></h3>
+
+<p>On large problems, nearly all of a solve's time is in the active-set QP solvers: each of their iterations changes one constraint and solves with the reduced Hessian. With <code>options%direct_qp = .true.</code>, each QP is first tried directly. For a given working set, the QP is an equality-constrained one, and its solution is one linear solve with the KKT matrix</p>
+
+\[ \begin{bmatrix} H &amp; J_a^T \\ J_a &amp; 0 \end{bmatrix} \begin{bmatrix} p \\ -\lambda \end{bmatrix} = \begin{bmatrix} -g \\ b_a - c_a \end{bmatrix} \]
+
+<p>which is factored by the sparse solver of <code>options%linear_solver</code> (the same factorization as the <a href="#inertia-control">inertia control</a>'s, which is reused). The method is a <em>primal-dual active-set method</em>:</p>
+
+<ol>
+  <li>Start from the working set of the previous QP (or, for the first one, the equality constraints and fixed variables). Near a solution of the nonlinear problem that is already the right one.</li>
+  <li>Factor and solve. If the step satisfies every row and bound outside the working set, and every multiplier has the right sign, it is the QP's solution.</li>
+  <li>Otherwise add every row and bound the step violates, drop every one whose multiplier has the wrong sign, and go back to 2.</li>
+</ol>
+
+<p>If that hasn't found the solution after <code>qp_solver%direct_max_changes</code> changes, the QP is solved by the active-set solver as usual, so nothing is lost but the factorizations. A step is only accepted if it satisfies the QP's optimality conditions, so the result is the same QP solution either way. Two refinements keep it going where it would otherwise give up:</p>
+
+<ul>
+  <li><strong>A nonconvex face.</strong> With inertia control, the Hessian's shift is raised until the face is convex, and the method continues.</li>
+  <li><strong>A singular KKT matrix</strong> (adding every violated bound at once can leave a row with no free variable): the face is factored again with a small regularization, which gives the over-determined rows large multipliers, so the bounds responsible are dropped at the next change. (If the step of a regularized face fails only because its rows aren't quite satisfied, it is solved once more with a much smaller regularization.)</li>
+</ul>
+
+<p><strong>Which Hessian.</strong> It works with every Hessian mode:</p>
+
+<ul>
+  <li><strong>Exact Hessian</strong> (use it with <code>inertia_control</code>): the sparse Hessian goes into the KKT matrix as it is. This is where it pays most: in the <a href="performance.html#large-problems">large-problem benchmark</a>, every QP was solved directly, and the solves were 2 to 200 times faster than with the active-set QP, the more so the larger the problem.</li>
+  <li><strong>L-BFGS and SR1:</strong> the quasi-Newton matrix is a multiple of the identity plus a matrix of low rank, which is handled by the Sherman&ndash;Morrison&ndash;Woodbury formula. That costs two more solves per stored pair for each factorization, and work that grows with the square of the number of pairs. So with <code>direct_qp</code> the automatic memory (<code>options%lbfgs_memory = 0</code>) is 10 pairs, not up to 100. A larger memory can be set, but it didn't pay in the <a href="performance.html#large-problems">large-problem benchmark</a>.</li>
+</ul>
+
+<p>It is used by the line searches and by the trust region, but not for the feasibility QPs of a restoration phase, nor for an elastic re-solve. <code>results%n_direct_qp</code> and <code>results%n_qp_solves</code> tell how many QPs it solved, and <code>results%time_factorization</code> what the factorizations cost. At <code>print_level = 3</code>, each QP's line says whether it was solved directly, and if not, why the direct method gave up.</p>
+
+<h3 id="linear-solver">Sparse solver <span class="h-note"><code>options%linear_solver</code></span></h3>
+
+<p>The <a href="#inertia-control">inertia control</a>, the <a href="#direct-qp">direct method</a>, and <a href="#direct-least-squares">direct least squares</a> factor symmetric matrices with one of three solvers:</p>
+
+<ul>
+  <li><strong>QDLDL</strong> (<code>sqpopt_linear_solver_qdldl</code>, the default): a Fortran port of the \( LDL^T \) solver of the OSQP QP solver (<a href="https://github.com/jacobwilliams/qdldl-fortran">qdldl-fortran</a>), which FPM fetches, so it is always available, in any precision. It orders the matrix for sparsity (approximate minimum degree, with dense rows last and each constraint's row after its variables), and factors it <em>without pivoting</em>, on one thread, with very little overhead.</li>
+  <li><strong>MUMPS</strong> (<code>sqpopt_linear_solver_mumps</code>): a multifrontal solver with pivoting and threads (<code>options%factorization_threads</code>), in a library built with it (see <a href="#installation">Installation</a>); invalid input otherwise.</li>
+  <li><strong>Dense</strong> (<code>sqpopt_linear_solver_dense</code>): <strong>forms the matrix as a dense array</strong>, of order \( n + m \), and factors it with pivoting (LU), counting its inertia exactly (as MUMPS does, also with zeros on the Hessian's diagonal) from SQPOPT's own dense routines. Each factorization costs \( O((n+m)^3) \) operations and \( 2(n+m)^2 \) numbers of memory, so it is <strong>only for small problems</strong>: up to a few hundred variables and constraints. Above an order of 2,000 it refuses to start, and the three options then fall back on the matrix-free methods. Always available; opt-in only (see <a href="#dense-matrices">Options that form dense matrices</a>).</li>
+</ul>
+
+<p>QDLDL is the default in every build; MUMPS and the dense solver are used only when you choose them. The log's header names the solver in use.</p>
+
+<p><strong>Which one to choose.</strong></p>
+<ul>
+  <li><strong>QDLDL</strong> for problems whose coupling is banded or along a chain (discretized time, chains of constraints), for the quasi-Newton Hessians (BFGS and SR1), and for direct least squares. Its matrices there are exact for a solver without pivoting, both solvers give the same iterates, and QDLDL's factorizations are several times faster.</li>
+  <li><strong>MUMPS</strong>, or for a small problem <strong>dense</strong>, for the exact Hessian with inertia control: with a Hessian that has zeros on its diagonal, a solver without pivoting can't tell the inertia (it would need the 2-by-2 pivots MUMPS has), so QDLDL reports negative curvature rather than miss it, and the shift is larger than needed, which costs evaluations. The dense solver gives MUMPS's results there, at QDLDL's speed and without MUMPS, but only while the problem is small.</li>
+  <li><strong>MUMPS</strong> for problems coupled in two or three dimensions (a PDE on a grid, a mesh), whose factors have large dense blocks: there its multifrontal method, and its threads, are many times faster. But its first factorization of a KKT matrix, which includes its analysis, can cost much more than QDLDL's, so for a solve that factors only a few times, try both.</li>
+</ul>
+
+<p>Measured (release build, one core of an Apple M-series laptop unless noted):</p>
+
+<div class="table-wrap"><table class="bench">
+<thead><tr><th>test</th><th>configuration</th><th class="num">QDLDL (default)</th><th class="num">MUMPS</th><th class="num">dense</th></tr></thead>
+<tbody>
+<tr><td rowspan="5">305 Hock&ndash;Schittkowski problems<br><span class="small">(solved / local / failed, <code>fc</code> calls; time of the suite)</span></td><td>L-BFGS, <code>direct_qp</code></td><td class="num">279 / 26 / 0, 9,716; 0.15 s</td><td class="num">279 / 26 / 0, 9,750; 0.58 s</td><td class="num">281 / 24 / 0, 10,705; 0.18 s</td></tr>
+<tr><td>L-BFGS, <code>direct_least_squares</code></td><td class="num">278 / 26 / 1, 8,988; 0.67 s</td><td class="num">278 / 26 / 1, 9,073; 0.73 s</td><td class="num">278 / 26 / 1, 8,992; 0.65 s</td></tr>
+<tr><td>SR1, inertia control</td><td class="num">274 / 27 / 4, 10,454; 4.2 s</td><td class="num">274 / 27 / 4, 10,454; 13.2 s</td><td class="num">273 / 29 / 3, 12,868; 6.1 s</td></tr>
+<tr><td>exact, inertia control</td><td class="num">273 / 29 / 3, 13,654; 1.6 s</td><td class="num"><strong>274 / 29 / 2, 9,400</strong>; 1.5 s</td><td class="num"><strong>273 / 30 / 2, 9,452</strong>; 1.7 s</td></tr>
+<tr><td>exact, inertia control, <code>direct_qp</code></td><td class="num">274 / 29 / 2, 13,706; 1.3 s</td><td class="num">274 / 29 / 2, 9,474; 1.5 s</td><td class="num"><strong>274 / 29 / 2, 9,317</strong>; 1.3 s</td></tr>
+<tr><td rowspan="4"><a href="performance.html#large-problems">Large problems</a> (banded and chained), exact Hessian, inertia control, direct QP and least squares<br><span class="small">(whole solve; the same iterations with both)</span></td><td><code>control</code>, 1,000,001 variables</td><td class="num"><strong>2.6 s</strong></td><td class="num">12.7 s</td><td class="num">&ndash;</td></tr>
+<tr><td><code>rosenbrock</code>, 500,000</td><td class="num"><strong>0.99 s</strong></td><td class="num">5.4 s</td><td class="num">&ndash;</td></tr>
+<tr><td><code>wells</code>, 1,000,000</td><td class="num"><strong>2.7 s</strong></td><td class="num">19.4 s</td><td class="num">&ndash;</td></tr>
+<tr><td><code>circles</code>, 1,000,000</td><td class="num"><strong>1.5 s</strong></td><td class="num">9.8 s</td><td class="num">&ndash;</td></tr>
+<tr><td rowspan="7">Grid matrices alone (<code>example/sparse_solvers.f90</code>)<br><span class="small">(each refactorization; MUMPS on 1 thread / on 4)</span></td><td>2-D grid, order 90,000</td><td class="num">0.092 s</td><td class="num"><strong>0.045 / 0.042 s</strong></td><td class="num">&ndash;</td></tr>
+<tr><td>2-D grid, order 490,000</td><td class="num">1.25 s</td><td class="num"><strong>0.32 / 0.28 s</strong></td><td class="num">&ndash;</td></tr>
+<tr><td>2-D KKT, order 135,000</td><td class="num">0.34 s</td><td class="num"><strong>0.054 / 0.053 s</strong></td><td class="num">&ndash;</td></tr>
+<tr><td>2-D KKT, order 735,000 (first factorization)</td><td class="num">4.3 s (<strong>4.5 s</strong>)</td><td class="num"><strong>0.44</strong> / 0.40 s (72 s)</td><td class="num">&ndash;</td></tr>
+<tr><td>3-D grid, order 27,000</td><td class="num">0.89 s</td><td class="num"><strong>0.10 / 0.071 s</strong></td><td class="num">&ndash;</td></tr>
+<tr><td>3-D grid, order 125,000</td><td class="num">39 s</td><td class="num"><strong>1.7 / 0.67 s</strong></td><td class="num">&ndash;</td></tr>
+<tr><td>3-D KKT, order 40,500</td><td class="num">4.9 s</td><td class="num"><strong>0.14 / 0.085 s</strong></td><td class="num">&ndash;</td></tr>
+</tbody>
+</table></div>
+
+<p class="small">A dash: too large for the dense solver (its limit is an order of 2,000). The grid matrices are the Laplacian of a 5-point (2-D) or 7-point (3-D) grid plus the identity, and their KKT matrices with a constraint coupling each second point with its neighbour (see the program's header). Run them with <code>pixi run run-mumps --example sparse_solvers --profile release -- --threads=4</code> (the 3-D grid of order 216,000 is in the program too, but takes QDLDL minutes: <code>--max-n</code> skips it). The HS suite and <code>benchmark_large</code> take <code>--linear-solver=qdldl|mumps</code>.</p>
+
+<h3 id="factorization-threads">Threads <span class="h-note"><code>options%factorization_threads</code></span></h3>
+
+<p>MUMPS, and the BLAS library under it, can use OpenMP threads if they were built with OpenMP (QDLDL is single-threaded). conda-forge's <code>mumps-seq</code> package is (its "seq" means without MPI), with an OpenMP build of OpenBLAS. <code>options%factorization_threads</code> sets how many threads the factorizations and their solves use: <code>1</code> (the default) for none, a larger number for that many, or <code>0</code> to use whatever the OpenMP environment gives (<code>OMP_NUM_THREADS</code>, or every core). The setting only applies inside MUMPS: the rest of your program keeps its own number of threads.</p>
+
+<p>The default is one thread, because threads only pay when the factorization has large dense blocks to work on, and they cost a lot otherwise:</p>
+
+<div class="table-wrap"><table class="bench">
+<thead><tr><th>matrix</th><th class="num">order</th><th class="num">1 thread</th><th class="num">2</th><th class="num">4</th><th class="num">8</th></tr></thead>
+<tbody>
+<tr><td>3-D grid (7-point stencil)</td><td class="num">216,000</td><td class="num">11.5 s</td><td class="num">7.0 s</td><td class="num"><strong>4.9 s</strong></td><td class="num">4.8 s</td></tr>
+<tr><td>2-D grid (5-point stencil)</td><td class="num">490,000</td><td class="num">2.0 s</td><td class="num">2.0 s</td><td class="num">1.9 s</td><td class="num">2.1 s</td></tr>
+<tr><td><code>control</code> of the <a href="performance.html#large-problems">large benchmark</a> (banded), whole solve</td><td class="num">150,002</td><td class="num">1.4 s</td><td class="num">1.4 s</td><td class="num">1.4 s</td><td class="num">1.4 s</td></tr>
+<tr><td>the 305 Hock&ndash;Schittkowski problems, exact Hessian with inertia control</td><td class="num">up to 200</td><td class="num">1.4 s</td><td class="num"></td><td class="num"></td><td class="num">24.5 s (10 threads)</td></tr>
+</tbody>
+</table></div>
+
+<p class="small">The grid rows time the sparse solver alone (the analysis, two factorizations, and a solve). So: leave it at 1 for small problems and for problems with a banded or otherwise very sparse structure (discretized time, chains), and try 4 or so when the constraints or the Hessian couple the variables in two or three dimensions and the factorization time (<code>results%time_factorization</code>) dominates.</p>
+
+<h3 id="direct-least-squares">Direct least squares <span class="h-note"><code>options%direct_least_squares</code></span></h3>
+
+<p>The Gauss-Newton <a href="#restoration">restoration step</a> and the second-order correction both need the minimum-norm solution of \( J_S\,d = r \) for some rows of the Jacobian. They use the iterative solver <code>LSQR</code>, and take no step if it stops at its iteration limit. With <code>options%direct_least_squares = .true.</code>, the solution comes from one sparse factorization of \( \begin{bmatrix} I &amp; J_S^T \\ J_S &amp; -\epsilon I \end{bmatrix} \) instead (with a small \( \epsilon \), so that dependent rows are no problem), with any Hessian mode.</p>
+
+<p>It pays when the problem is large and the rows are coupled, because <code>LSQR</code> then needs a number of iterations that grows with the problem:</p>
+
+<ul>
+  <li><strong>Second-order corrections:</strong> on a chain of coupled circle constraints (<code>circles</code> in the <a href="performance.html#large-problems">large-problem benchmark</a>), a solve with 3 corrections took 88.7 s with <code>LSQR</code> and 0.16 s with direct least squares at 100,000 variables (0.59 s and 0.011 s at 10,000; with MUMPS as the sparse solver, 1.1 s and 0.08 s).</li>
+  <li><strong>Restoration steps:</strong> on a chain of hyperbola constraints with 10,000 variables (<code>hyperbolas</code> there), the 9 Gauss-Newton restoration steps took 2.3 s with <code>LSQR</code> and 0.02 s directly (though that problem's total time is dominated by the QPs that find the linearization inconsistent).</li>
+</ul>
+
+<p>On small problems it changes little, and not always for the better: on the Hock&ndash;Schittkowski problems the default options solve 278 problems with it and fail on one (TP106, where a more accurate correction leads to a slow crawl), against 281 and none without it. So it is off by default: turn it on for large problems that take corrections or restoration steps (<code>results%n_soc</code>, <code>results%n_restoration_steps</code>) and spend their time outside the QP and the user functions.</p>
+
+<h3 id="dense-qp">Dense QP options <span class="h-note"><code>qp_solver%dense_qp%&lt;name&gt;</code></span></h3>
+<p class="set-on">Used when <code>mode == sqpopt_qp_dense</code>.</p>
+<div class="table-wrap"><table class="opt-table">
+<thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>max_iter</code></td><td><code>100</code></td><td>minimum limit on active-set iterations per QP solve (the actual limit is <code>max(max_iter, 10*(rows+1))</code>)</td></tr>
+<tr><td><code>active_tol</code></td><td><code>1e-8</code></td><td>relative tolerance for a row being at a bound, and for the sign of a multiplier</td></tr>
+<tr><td><code>opt_tol</code></td><td><code>1e-10</code></td><td>relative tolerance on the reduced-gradient stationarity test</td></tr>
+<tr><td><code>feas_tol</code></td><td><code>1e-6</code></td><td>an elastic slack larger than <code>feas_tol*max(1, |initial violation|)</code> at the solution counts as a violated linearized constraint</td></tr>
+<tr><td><code>elastic_weight</code></td><td><code>1e4</code></td><td>initial elastic penalty weight, relative to \( \max(1,\lVert g \rVert_\infty) \)</td></tr>
+<tr><td><code>elastic_weight_max</code></td><td><code>1e10</code></td><td>largest elastic penalty weight tried (same scaling) before the linearization is declared inconsistent</td></tr>
+<tr><td><code>warm_start</code></td><td><code>.true.</code></td><td>start each QP from the previous QP's final working set (within one <code>solve</code>)</td></tr>
+</tbody>
+</table></div>
+
+<h3 id="sparse-qp">Sparse QP options <span class="h-note"><code>qp_solver%sparse_qp%&lt;name&gt;</code></span></h3>
+<p class="set-on">Used when <code>mode == sqpopt_qp_reduced_hessian</code>.</p>
+<div class="table-wrap"><table class="opt-table">
+<thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>null_space</code></td><td><code>sqpopt_null_space_lu</code></td><td>how the null space of the working set is handled.
+  <ul>
+  <li><code>sqpopt_null_space_lu</code> (SQOPT-style) gives every general row a slack variable, so the working set is just the unknowns fixed at a bound, and splits the free unknowns into a nonsingular basis <code>B</code> and the superbasic rest <code>S</code>. The null space is \( Z = \begin{bmatrix} -B^{-1}S \\ I \end{bmatrix} \), every projection and multiplier is a direct solve with <code>B</code>'s sparse LU factors, and working-set changes update the factors (<code>lu8rpc</code>) instead of refactorizing.</li>
+  <li><code>sqpopt_null_space_lsqr</code> uses orthogonal projections, each an iterative <code>LSQR</code> least-squares solve, with projected CG. It is much slower at scale, and kept for comparison.</li>
+  </ul></td></tr>
+<tr><td><code>max_iter</code></td><td><code>100</code></td><td>minimum limit on active-set iterations per QP solve (the actual limit is <code>max(max_iter, 10*(rows+1))</code>)</td></tr>
+<tr><td><code>max_pcg_iter</code></td><td><code>0</code></td><td>maximum CG iterations per active-set face (<code>&lt;= 0</code> means twice the number of unknowns; CG is also stopped at the dimension of the face)</td></tr>
+<tr><td><code>dense_max_ns</code></td><td><code>50</code></td><td>with <code>null_space = sqpopt_null_space_lu</code>, a face with at most this many superbasics is solved exactly with a dense Cholesky factorization of the reduced Hessian (if positive definite) instead of by diagonally preconditioned CG; <code>0</code> means always CG</td></tr>
+<tr><td><code>active_tol</code></td><td><code>1e-8</code></td><td>relative tolerance for a row being at a bound, and for the sign of a multiplier</td></tr>
+<tr><td><code>opt_tol</code></td><td><code>1e-10</code></td><td>relative tolerance on the projected-gradient stationarity test</td></tr>
+<tr><td><code>pcg_rtol</code></td><td><code>1e-10</code></td><td>projected CG stops once the projected residual has been reduced by this factor</td></tr>
+<tr><td><code>feas_tol</code></td><td><code>1e-6</code></td><td>as for the dense solver</td></tr>
+<tr><td><code>elastic_weight</code></td><td><code>1e4</code></td><td>as for the dense solver</td></tr>
+<tr><td><code>elastic_weight_max</code></td><td><code>1e8</code></td><td>as for the dense solver (lower, since the iterative projections' accuracy is relative to the weight)</td></tr>
+<tr><td><code>warm_start</code></td><td><code>.true.</code></td><td>as for the dense solver</td></tr>
+<tr><td><code>lsqr_atol</code>, <code>lsqr_btol</code>, <code>lsqr_conlim</code></td><td><code>0.0</code></td><td><code>LSQR</code> relative error tolerances in <code>A</code> and <code>b</code>, and the upper limit on <code>cond(Abar)</code>, for the minimum-norm starting step and (with <code>null_space = sqpopt_null_space_lsqr</code>) every projection. <code>0</code> lets <code>LSQR</code> use its own machine-precision-based default, which is tighter than usually necessary.</td></tr>
+<tr><td><code>lsqr_itnlim</code></td><td><code>0</code></td><td><code>LSQR</code> maximum iterations per solve (<code>&lt;= 0</code> means <code>2*(rows+columns)+10</code>)</td></tr>
+</tbody>
+</table></div>
+
+<!-- ============================================================ -->
+<h2 id="linesearch">Line search &amp; merit function <code class="h-type">sqpopt_linesearch_type</code></h2>
+
+<p class="set-on">Set as <code>linesearch%&lt;name&gt;</code>, except the merit function, filter, and funnel options, which are set on those components of <code>linesearch</code> (<code>linesearch%merit%&lt;name&gt;</code>, <code>linesearch%filter%&lt;name&gt;</code>, <code>linesearch%funnel%&lt;name&gt;</code>). The tags at the end of a description show which <a href="#linesearch-modes">modes</a> use that option.</p>
+
+<h3 class="opt-group">General</h3>
+<div class="table-wrap"><table class="opt-table">
+<thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>mode</code></td><td><code>sqpopt_linesearch_filter</code></td><td>line search strategy (overwritten from <code>options%linesearch_mode</code>); see <a href="#linesearch-modes">modes</a></td></tr>
+<tr><td><code>major_step_limit</code></td><td><code>2.0</code></td><td>caps the <em>initial</em> trial step length (before any backtracking), in all modes, so that no variable changes by more than this factor relative to \( \max(1,\lvert x_j\rvert) \) (SNOPT's "Major step limit"). Guards against divergence from a QP step that is technically feasible but unreasonably large.</td></tr>
+</tbody>
+</table></div>
+
+<h3 class="opt-group" id="merit-options">Merit function <span class="h-note"><code>linesearch%merit%&lt;name&gt;</code></span></h3>
+<div class="table-wrap"><table class="opt-table">
+<thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>mode</code></td><td><code>sqpopt_merit_l1</code></td><td>merit function (overwritten from <code>options%merit_mode</code>); see <a href="#merit-modes">merit functions</a> <span class="mode-tag">armijo, exact, watchdog, trust region</span></td></tr>
+<tr><td><code>penalty</code></td><td><code>1.0</code></td><td>current penalty parameter in the merit function (\( \mu \) for <code>sqpopt_merit_l1</code>, \( \rho \) for <code>sqpopt_merit_augmented_lagrangian</code>)</td></tr>
+<tr><td><code>penalty_update</code></td><td><code>sqpopt_penalty_multipliers</code></td><td>how the penalty is updated (overwritten from <code>options%penalty_update</code>); see <a href="#penalty-modes">penalty updates</a></td></tr>
+<tr><td><code>penalty_rho</code></td><td><code>0.1</code></td><td><code>sqpopt_penalty_model</code> with <code>sqpopt_merit_l1</code>: the fraction of the linearized violation reduction the penalty must credit</td></tr>
+</tbody>
+</table></div>
+
+<h3 class="opt-group">Backtracking</h3>
+<div class="table-wrap"><table class="opt-table">
+<thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>sigma</code></td><td><code>0.1</code></td><td>Armijo sufficient-decrease parameter, \( 0&lt;\sigma&lt;1 \) <span class="mode-tag">armijo, watchdog</span></td></tr>
+<tr><td><code>backtrack</code></td><td><code>0.5</code></td><td>step-length reduction factor at each backtracking step (when <code>interpolate</code> is off, or the interpolation has no minimizer)</td></tr>
+<tr><td><code>interpolate</code></td><td><code>.true.</code></td><td>choose each backtracking step length by safeguarded quadratic interpolation of the merit function (or, in the filter search, of the violation if the trial made it worse, else the objective), within \( [0.1\alpha,\ 0.5\alpha] \), as in NLPQLP <span class="mode-tag">armijo, watchdog, filter, funnel</span></td></tr>
+<tr><td><code>nonmonotone_len</code></td><td><code>0</code></td><td>if <code>&gt; 0</code>, a failed search is retried non-monotonically, as in NLPQLP: against the worst merit value (filter search: the worst violation and objective) of the last <code>nonmonotone_len</code> iterates instead of the current one. Helps the merit-function searches on hard problems; not the filter search. <span class="mode-tag">armijo, filter</span></td></tr>
+<tr><td><code>alpha_min</code></td><td><code>1e-10</code></td><td>minimum step length: if no acceptable step is found before <code>alpha</code> would drop below this, the search fails and no step is taken <span class="mode-tag">armijo, watchdog, filter, funnel</span></td></tr>
+<tr><td><code>max_ls_iter</code></td><td><code>40</code></td><td>maximum number of trial step lengths per search <span class="mode-tag">armijo, watchdog, filter, funnel</span></td></tr>
+<tr><td><code>tol</code></td><td><code>1e-4</code></td><td>desired tolerance on the minimizer <span class="mode-tag">exact</span></td></tr>
+</tbody>
+</table></div>
+
+<h3 class="opt-group">Watchdog</h3>
+<div class="table-wrap"><table class="opt-table">
+<thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>watchdog_relaxed_len</code></td><td><code>2</code></td><td>number of relaxed steps tolerated before requiring a new best point <span class="mode-tag">watchdog</span></td></tr>
+<tr><td><code>watchdog_cooldown_len</code></td><td><code>10</code></td><td>number of iterations relaxed acceptance is disabled for after a backtrack <span class="mode-tag">watchdog</span></td></tr>
+</tbody>
+</table></div>
+
+<h3 class="opt-group" id="filter-options">Filter <span class="h-note"><code>linesearch%filter%&lt;name&gt;</code></span></h3>
+<div class="table-wrap"><table class="opt-table">
+<thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>gamma_theta</code>, <code>gamma_phi</code></td><td><code>1e-5</code>, <code>1e-5</code></td><td>filter margins \( \gamma_\theta,\gamma_\varphi \): a step must reduce the violation \( \theta \) by the fraction \( \gamma_\theta \), or the objective by \( \gamma_\varphi\theta \) <span class="mode-tag">filter, trust region</span></td></tr>
+<tr><td><code>delta</code>, <code>s_theta</code>, <code>s_phi</code></td><td><code>1</code>, <code>1.1</code>, <code>2.3</code></td><td>switching condition \( \alpha(-g^Tp)^{s_\varphi} &gt; \delta\,\theta^{s_\theta} \): when it holds (and \( \theta\le\theta_{min} \)), the step must satisfy an Armijo condition on the objective <span class="mode-tag">filter</span></td></tr>
+<tr><td><code>eta_phi</code></td><td><code>1e-4</code></td><td>Armijo constant for those ("f-type") steps <span class="mode-tag">filter</span></td></tr>
+<tr><td><code>theta_max_fact</code>, <code>theta_min_fact</code></td><td><code>1e4</code>, <code>1e-4</code></td><td>\( \theta_{max} \) and \( \theta_{min} \) as multiples of \( \max(1,\theta(x_0)) \). No point with violation above \( \theta_{max} \) is accepted. <span class="mode-tag">filter</span></td></tr>
+<tr><td><code>gamma_alpha</code></td><td><code>0.05</code></td><td>safety factor in the minimum step length below which the search gives up (and a restoration step is taken) <span class="mode-tag">filter</span></td></tr>
+</tbody>
+</table></div>
+
+<h3 class="opt-group" id="funnel-options">Funnel <span class="h-note"><code>linesearch%funnel%&lt;name&gt;</code></span></h3>
+<div class="table-wrap"><table class="opt-table">
+<thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>width_min</code>, <code>width_fact</code></td><td><code>1</code>, <code>1.5</code></td><td>initial funnel width \( \tau_0 = \max(\) <code>width_min</code>, <code>width_fact</code> \( \times\,\theta(x_0)) \) <span class="mode-tag">funnel, trust region</span></td></tr>
+<tr><td><code>delta</code>, <code>s_theta</code></td><td><code>0.999</code>, <code>2</code></td><td>switching condition \( \alpha(-g^Tp) &gt; \delta\,\theta^{s_\theta} \): when it holds, the step must satisfy an Armijo condition on the objective ("f-type" step) <span class="mode-tag">funnel</span></td></tr>
+<tr><td><code>eta</code></td><td><code>1e-4</code></td><td>Armijo constant for f-type steps <span class="mode-tag">funnel</span></td></tr>
+<tr><td><code>beta</code></td><td><code>0.9999</code></td><td>otherwise ("h-type" step), the violation must satisfy \( \theta \le \beta\tau \) <span class="mode-tag">funnel</span></td></tr>
+<tr><td><code>kappa</code>, <code>update</code></td><td><code>0.5</code>, <code>1</code></td><td>how an h-type step shrinks the funnel: rule <code>1</code> sets \( \tau = \max(\beta\tau,\ \kappa\theta_k + (1-\kappa)\theta_{new}) \) if the violation decreased, else \( \beta\tau \); rule <code>2</code> sets \( \tau = \kappa\tau + (1-\kappa)\theta_{new} \). Before a restoration step, \( \tau = \kappa\tau + (1-\kappa)\theta_k \). <span class="mode-tag">funnel</span></td></tr>
+<tr><td><code>require_current</code>, <code>gamma</code></td><td><code>.false.</code>, <code>1e-3</code></td><td>also require each trial point to improve on the current point: \( \theta &lt; \beta\theta_k \) or \( \varphi \le \varphi_k - \gamma\theta \) <span class="mode-tag">funnel</span></td></tr>
+</tbody>
+</table></div>
+
+<h3 id="linesearch-modes">Line search modes <span class="h-note"><code>options%linesearch_mode</code></span></h3>
+<div class="table-wrap"><table class="opt-table modes">
+<thead><tr><th>value</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>sqpopt_linesearch_filter</code> <span class="badge">default</span></td><td>filter line search (Fletcher &amp; Leyffer's filter, with the globally convergent line-search rules of W&auml;chter &amp; Biegler, as in IPOPT). No merit function or penalty parameter: a trial point is judged by its (violation, objective) pair, which must not be dominated by the filter. A switching condition decides whether the step must reduce the objective (Armijo) or may trade it for feasibility, and only the latter steps enlarge the filter. If no acceptable step is found, a feasibility-restoration step is taken. Ignores <code>merit_mode</code> and <code>penalty</code>.</td></tr>
+<tr><td><code>sqpopt_linesearch_funnel</code></td><td>the funnel method of Kiessling, Leyffer &amp; Vanaret (as in the Uno solver). Like the filter, no merit function or penalty parameter, but the filter's list of points is replaced by a single number: the funnel width, a bound on the violation that shrinks as the iterations progress. A trial point must be inside the funnel. If the switching condition holds, it must reduce the objective (Armijo, "f-type"); otherwise it must be sufficiently inside the funnel ("h-type"), which then shrinks. If no acceptable step is found, the funnel is tightened toward the current violation and a feasibility-restoration step is taken. Ignores <code>merit_mode</code>, <code>penalty</code>, and <code>nonmonotone_len</code>.</td></tr>
+<tr><td><code>sqpopt_linesearch_armijo</code></td><td>standard backtracking line search with an Armijo-type sufficient-decrease test on the merit function (the default in <code>slsqp</code>)</td></tr>
+<tr><td><code>sqpopt_linesearch_exact</code></td><td>(approximately) minimizes the merit function along the search direction using the derivative-free <code>fmin</code> routine</td></tr>
+<tr><td><code>sqpopt_linesearch_watchdog</code></td><td>Powell's watchdog technique: tracks the best point found so far and, for a short window after a genuine improvement, relaxes the sufficient-decrease test (accepting the full step outright) rather than stalling near a curved constraint boundary (the Maratos effect). If the window is used up without a new best point, it backtracks to the best point and disables relaxed acceptance for <code>watchdog_cooldown_len</code> iterations.</td></tr>
+</tbody>
+</table></div>
+
+<h3 id="merit-modes">Merit functions <span class="h-note"><code>options%merit_mode</code></span></h3>
+<div class="table-wrap"><table class="opt-table modes">
+<thead><tr><th>value</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>sqpopt_merit_l1</code> <span class="badge">default</span></td><td>non-smooth \( \ell_1 \) exact penalty function (as in <code>slsqp</code>)</td></tr>
+<tr><td><code>sqpopt_merit_augmented_lagrangian</code></td><td>smooth augmented Lagrangian merit function (Gill, Murray, Saunders &amp; Wright; the merit function used in NPSOL and, in spirit, SNOPT). It is twice continuously differentiable, which helps avoid the Maratos effect.</td></tr>
+</tbody>
+</table></div>
+
+<h3 id="penalty-modes">Penalty updates <span class="h-note"><code>options%penalty_update</code></span></h3>
+<div class="table-wrap"><table class="opt-table modes">
+<thead><tr><th>value</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>sqpopt_penalty_multipliers</code> <span class="badge">default</span></td><td>keep the penalty above the multiplier estimates, \( \mu \ge \lVert\lambda\rVert_\infty + 1 \) (Han/Powell, as in <code>slsqp</code>). It never decreases, so it can grow very large at degenerate points.</td></tr>
+<tr><td><code>sqpopt_penalty_model</code></td><td>each merit function's principled rule.
+  <ul>
+  <li><code>sqpopt_merit_l1</code>: Byrd&ndash;Nocedal model reduction. The penalty only increases as needed for the step's predicted merit reduction to credit a fraction <code>penalty_rho</code> of its linearized violation reduction.</li>
+  <li><code>sqpopt_merit_augmented_lagrangian</code>: Gill&ndash;Murray&ndash;Saunders&ndash;Wright. The line search moves the multipliers (toward the QP's) and the slacks (toward the QP's linearized constraint values) along with the variables. The penalty is set just large enough for the merit's slope to be at most \( -\tfrac12 p^THp \), and it can also decrease (a limited number of times).</li>
+  </ul></td></tr>
+</tbody>
+</table></div>
+
+<div class="callout">
+<p><strong>Second-order correction.</strong> In every line search, and in the trust region, when the first (full) trial step is rejected without reducing the constraint violation (the signature of the Maratos effect near curved constraints), a second-order-corrected step is tried before backtracking. This is a minimum-norm correction for the true constraint values at the trial point, using the current Jacobian, kept within the bounds. See <code>sqpopt_soc_module</code>.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="trust-region">Trust-region globalization <code class="h-type">sqpopt_trust_region_type</code></h2>
+
+<p>An opt-in <em>alternative</em> to the line search, disabled by default. Instead of solving the QP once and searching for a step length \( \alpha \) along the resulting \( p \), the QP is re-solved as needed with a shrinking trust-region radius until a step is accepted or the retries are exhausted. The radius is enforced by temporarily tightening the variable bounds passed to whichever <code>qp_solver_mode</code> is selected, so it works with every QP solver.</p>
+
+<p class="set-on">Set as <code>trust_region%&lt;name&gt;</code>.</p>
+
+<div class="table-wrap"><table class="opt-table">
+<thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>enabled</code></td><td><code>.false.</code></td><td>if <code>.true.</code>, use trust-region radius management instead of the line search for every major iteration</td></tr>
+<tr><td><code>radius0</code></td><td><code>1.0</code></td><td>initial trust-region radius</td></tr>
+<tr><td><code>radius_min</code></td><td><code>1e-8</code></td><td>below this, a major iteration's retries give up (no step is taken)</td></tr>
+<tr><td><code>radius_max</code></td><td><code>1e3</code></td><td>ceiling on the radius</td></tr>
+<tr><td><code>eta1</code></td><td><code>0.1</code></td><td>ratio threshold to accept a step (merit-ratio acceptance only; see below)</td></tr>
+<tr><td><code>eta2</code></td><td><code>0.75</code></td><td>ratio threshold to also grow the radius (merit-ratio acceptance only)</td></tr>
+<tr><td><code>shrink_factor</code></td><td><code>0.5</code></td><td><code>radius *= shrink_factor</code> on a rejected step</td></tr>
+<tr><td><code>expand_factor</code></td><td><code>2.0</code></td><td><code>radius *= expand_factor</code> on an accepted step that used the full radius</td></tr>
+<tr><td><code>max_retries</code></td><td><code>20</code></td><td>maximum QP re-solves (with a shrinking radius) per major iteration</td></tr>
+</tbody>
+</table></div>
+
+<p>When the trust region is enabled, <code>linesearch%mode</code> selects <em>which acceptance test</em> to use, not which line search to run (there is no \( \alpha \) to search for):</p>
+<ul>
+  <li><code>sqpopt_linesearch_filter</code> uses the same filter acceptance test as the filter line search, with the quadratic model's predicted decrease in the switching condition: a trust-region filter-SQP method in the spirit of Fletcher &amp; Leyffer.</li>
+  <li><code>sqpopt_linesearch_funnel</code> uses the funnel acceptance test, with the quadratic model's predicted decrease: the trust-region funnel-SQP method of Kiessling, Leyffer &amp; Vanaret (Uno's <code>funnelsqp</code> preset).</li>
+  <li><code>armijo</code>, <code>exact</code>, and <code>watchdog</code> all use the same classical trust-region SQP ratio test on the merit function selected by <code>merit_mode</code>.</li>
+</ul>
+
+<p>The full design is in <a href="https://github.com/jacobwilliams/sqpopt/blob/master/plan/TRUST_REGION_PLAN.md"><code>plan/TRUST_REGION_PLAN.md</code></a>.</p>
+
+<h3 id="restoration">Feasibility restoration <span class="h-note"><code>options%restoration_mode</code></span></h3>
+
+<p>When the filter or funnel line search, or the trust region, finds no acceptable step at an infeasible point, the solver enters a <strong>feasibility restoration phase</strong> (<code>sqpopt_restoration_phase</code>, the default), as in filter-SQP methods and the Uno solver:</p>
+<ul>
+  <li>The current point is added to the filter (or the funnel is tightened toward it), so the iterations can't cycle back to it.</li>
+  <li>Each iteration of the phase solves a <em>feasibility QP</em> with the regular QP solvers: its objective is a proximal term toward the point where the phase started, and it enforces the linearized constraints or, if they are inconsistent, minimizes their \( \ell_1 \) violation (the QP's elastic mode). A backtracking search then requires a decrease of the \( \ell_1 \) violation (an Armijo test against the decrease the linearization predicts). If this fails, a Gauss-Newton step on the violation is taken instead.</li>
+  <li>The phase ends once the violation is below <code>restoration_exit_factor</code> times its value where the phase started and the point is acceptable to the filter or funnel, when the point is feasible, or after <code>restoration_max_iter</code> iterations. The multipliers are kept from before the phase.</li>
+</ul>
+<p>An inconsistent QP (linearized constraints that can't be satisfied) is still handled with a single Gauss-Newton step on the violation, falling back to the QP's elastic step, which also accounts for the objective. With <code>sqpopt_restoration_gauss_newton</code>, that single step is also used when the filter or funnel line search fails, and the trust region takes no restoration step at all. Before a point is reported as infeasible (a point where the violation can't be decreased to first order), the solver also probes for a second-order decrease of the violation, which escapes, for example, symmetry planes of the problem.</p>
+
+<p><strong>Problems with more equality constraints than variables</strong> have an inconsistent QP at every iteration, so they are solved by these Gauss-Newton steps alone: SQPOPT then acts as a least-squares solver for the constraints. The cap on the step's length (<code>qp_solver%max_step</code>) adapts after these steps as it does after a line search: a full step that the cap cut short doubles it, and a shortened one halves it. A solution far from the starting point is then reached in a few iterations, not by steps of the cap's length.</p>
+<p>If the equations can't all hold (a data-fitting problem written as one equation per data point), the solve ends as <code>sqpopt_infeasible</code> at best, at a least-squares solution of the constraints (of the scaled constraints, with the automatic <a href="#scaling">scaling</a>, which weights them differently from the original ones). Where the Jacobian is nearly rank deficient, the Gauss-Newton step finds no decrease, and the solve ends as a line-search failure or at the iteration limit instead. Give such a problem to the <a href="#least-squares">least-squares interface</a>, which solves it as an ordinary problem with far fewer evaluations.</p>
+
+</div><!-- .reference -->
+
+<!-- ============================================================ -->
+<h2 id="related">Other Fortran SQP solvers</h2>
+<ul>
+  <li><a href="https://ccom.ucsd.edu/~optimizers/solvers/snopt/">SNOPT</a>: large-scale SQP solver by Philip Gill, Walter Murray, and Michael Saunders (commercial)</li>
+  <li><a href="https://www.hsl.rl.ac.uk/archive/">VF13AD</a>: classic SQP method from the HSL Archive</li>
+  <li><a href="https://github.com/jacobwilliams/slsqp">SLSQP</a>: originally by Dieter Kraft; one of the optimization methods in SciPy</li>
+  <li><a href="https://github.com/jacobwilliams/psqp">PSQP</a>: another SQP code, originally by Ladislav Luk&scaron;an</li>
+</ul>
+
+<h2 id="other-solvers">Other solvers</h2>
+<ul>
+  <li><a href="https://github.com/cvanaret/Uno">Uno</a>: a modular solver for nonlinearly constrained optimization by Charlie Vanaret and Sven Leyffer (C++, MIT license). It builds SQP, interior-point, and other methods from interchangeable parts. SQPOPT's <a href="#linesearch">funnel method</a> and <a href="#restoration">restoration phase</a> follow it.</li>
+  <li><a href="https://github.com/coin-or/Ipopt">IPOPT</a>: an interior-point solver for large-scale nonlinear optimization by Andreas W&auml;chter and Lorenz Biegler (C++, EPL license). SQPOPT takes from it the rules of its <a href="#linesearch">filter line search</a>, its <a href="#scaling">gradient-based scaling</a>, the acceptable-level stopping test, and the shift search of its <a href="#inertia-control">inertia control</a>.</li>
+</ul>
+
+<h2 id="references">References</h2>
+<ol class="refs">
+  <li>Vanaret, C. &amp; Leyffer, S. (2026). Implementing a unified solver for nonlinearly constrained optimization. <em>Mathematical Programming Computation</em>, 10 June 2026.</li>
+  <li>Kiessling, D., Leyffer, S., Vanaret, C. (2026). A Unified Funnel Restoration SQP Algorithm. <em>Mathematical Programming</em>, 217, 323&ndash;367.</li>
+  <li>Gill, P. E. &amp; Wong, E. (2021). User's Guide for SQOPT Version 7.7: Software for Large-Scale Linear and Quadratic Programming. Mar 2021.</li>
+  <li>Stellato, B., Banjac, G., Goulart, P., Bemporad, A., Boyd, S. (2020). OSQP: an operator splitting solver for quadratic programs. <em>Mathematical Programming Computation</em>, 12(4), 637&ndash;672. <a href="https://doi.org/10.1007/s12532-020-00179-2">doi:10.1007/s12532-020-00179-2</a> (its \( LDL^T \) solver, QDLDL, is the default <a href="#linear-solver">sparse solver</a>).</li>
+  <li>P. E. Gill &amp; E. Wong. (2010). Sequential quadratic programming methods, UCSD Department of Mathematics, Technical Report NA-10-03, August 2010.</li>
+  <li>Nocedal, J., &amp; Wright, S. J. (2006). <em>Numerical Optimization</em>. Springer.</li>
+  <li>W&auml;chter, A. &amp; Biegler, L. T. (2006). On the implementation of an interior-point filter line-search algorithm for large-scale nonlinear programming. <em>Mathematical Programming</em>, 106, 25&ndash;57 (published 28 April 2005).</li>
+  <li>Gill, P. E., Murray, W., Saunders, M. A. (2002). SNOPT: An SQP Algorithm for Large-Scale Constrained Optimization. <em>SIAM Journal on Optimization</em>, 12(4), 979&ndash;1006.</li>
+  <li>Fletcher, R., &amp; Leyffer, S. (2002). Nonlinear programming without a penalty function. <em>Mathematical Programming</em>, 91(2), 239&ndash;269.</li>
+  <li>Boggs, P. T. &amp; Tolle, J. W. (2000). Sequential quadratic programming for large-scale nonlinear optimization. <em>Journal of Computational and Applied Mathematics</em>, Volume 124, Issues 1-2, 1 December 2000, Pages 123-137.</li>
+  <li>Fletcher, R. &amp; Leyffer, S. (1998). User manual for filterSQP. University of Dundee, April 1998.</li>
+  <li>Kraft, D. (1988). A software package for sequential quadratic programming. Forschungsbericht, Deutsche Forschungs- und Versuchsanstalt f&uuml;r Luft- und Raumfahrt.</li>
+  <li>Gill, P. E., Murray, W., Saunders, M. A., Wright, M. H. (1986). Some Theoretical Properties of an Augmented Lagrangian Merit Function. SOL-86-6, 1 April 1986.</li>
+  <li>R.M. Chamberlain, C. Lemaréchal, H.C. Pedersen, and M.J.D. Powell. (1982). "The watchdog technique for forcing convergence in algorithms for constrained optimization", Mathematical Programming Study 16 (pages 1-17), December 1982.</li>
+</ol>
+
+<!-- ============================================================ -->
+<h2 id="developing">Developing</h2>
+
+<div class="callout note">The full development information (the tests, benchmarks, tools, source layout, and continuous integration) is in the <a href="https://github.com/jacobwilliams/sqpopt#readme">README on GitHub</a>.</div>
+
+<p>Use the <a href="https://pixi.sh">pixi</a> environment and FPM:</p>
+
+<pre><code class="language-bash">pixi shell
+fpm build --profile release
+fpm test --profile release</code></pre>
+
+<p>The pixi environment includes MUMPS. <code>pixi run build-mumps</code>, <code>pixi run test-mumps</code>, and <code>pixi run run-mumps</code> build, test, and run with it (the <a href="#inertia-control">inertia control</a>, the <a href="#direct-qp">direct QP method</a>, and the <a href="#direct-least-squares">direct least squares</a>).</p>
+
+<p>The API documentation is generated with <a href="https://github.com/Fortran-FOSS-Programmers/ford">FORD</a>. To build it into this site's <code>api/</code> folder:</p>
+
+<pre><code class="language-bash">ford ford.md --output_dir web/api</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="dependencies">Dependencies</h2>
+
+<p>These are fetched and built automatically by FPM:</p>
+<ul>
+  <li><a href="https://github.com/jacobwilliams/LSQR">LSQR</a>: iterative solver for sparse linear systems and least-squares problems</li>
+  <li><a href="https://github.com/jacobwilliams/lusol">lusol</a>: sparse LU factorization (the sparse QP's basis factors and updates, and its rank-revealing basis choice)</li>
+  <li><a href="https://github.com/jacobwilliams/fmin">fmin</a>: derivative-free minimization routine used by the exact line search</li>
+  <li><a href="https://github.com/jacobwilliams/qdldl-fortran">qdldl-fortran</a>: sparse \( LDL^T \) factorization without pivoting (a Fortran port of OSQP's QDLDL), the default <a href="#linear-solver">sparse solver</a></li>
+</ul>
+
+<p>Optional, and not fetched by FPM (see <a href="#installation">Installation</a>):</p>
+<ul>
+  <li><a href="https://mumps-solver.org">MUMPS</a>: sparse symmetric indefinite factorization, for the <a href="#inertia-control">inertia control</a>, the <a href="#direct-qp">direct QP method</a>, and the <a href="#direct-least-squares">direct least squares</a></li>
+</ul>
+
+<footer class="footer">
+  <p>SQPOPT is released under the <a href="https://github.com/jacobwilliams/sqpopt/blob/master/LICENSE">MIT license</a>. &copy; Jacob Williams.</p>
+  <p><a href="api/index.html">API reference</a> &middot; <a href="https://github.com/jacobwilliams/sqpopt">Source on GitHub</a> &middot; <a href="https://github.com/jacobwilliams/sqpopt/issues">Report an issue</a></p>
+</footer>
+
+</main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/fortran.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/ini.min.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

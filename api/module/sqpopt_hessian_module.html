@@ -1,0 +1,3137 @@
+<!-- -*- mode: jinja2 -*- -->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- sqpopt theme: set before the page is drawn; the guide's choice (the same
+         localStorage key, on the same site), or else the system's -->
+    <script>
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('sqpopt-theme'); } catch (e) {}
+        if (t !== 'dark' && t !== 'light') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-bs-theme', t);
+      })();
+    </script>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta name="description" content="Modern Fortran SQP OPTimizer">
+    <meta name="author" content="Jacob Williams" >
+    <link rel="icon" href="../favicon.png">
+
+    <title>sqpopt_hessian_module &ndash; sqpopt</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <!-- Font Awesome -->
+    <link href="../css/fontawesome.min.css" rel="stylesheet">
+    <link href="../css/brands.min.css" rel="stylesheet">
+    <link href="../css/regular.min.css" rel="stylesheet">
+    <link href="../css/solid.min.css" rel="stylesheet">
+    <link href="../css/v4-font-face.min.css" rel="stylesheet">
+    <link href="../css/v4-shims.min.css" rel="stylesheet">
+    <!-- MathJax -->
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        TeX: { equationNumbers: { autoNumber: "AMS" } }
+      });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@2.7.9/MathJax.js?config=TeX-AMS-MML_HTMLorMML" async
+            integrity="sha256-DViIOMYdwlM/axqoGDPeUyf0urLoHMN4QACBKyB58Uw=" crossorigin="anonymous"></script>
+    <!-- Other scripts and stylesheets -->
+    <link href="../css/local.css" rel="stylesheet">
+    <link href="../css/pygments.css" rel="stylesheet">
+      <link href="../css/user.css" rel="stylesheet">
+    <script src="../js/svg-pan-zoom.min.js"></script>
+  </head>
+
+  <body>
+
+    <!-- Fixed navbar -->
+    <div class="container-fluid mb-sm-4 mb-xl-2">
+      <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+          <a class="navbar-brand" href="../index.html">sqpopt </a>
+          <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbar"
+                  aria-expanded="false" aria-controls="navbar" aria-label="Toggle navigation">
+                  <span class="navbar-toggler-icon">
+          </button>
+
+          <div id="navbar" class="navbar-collapse collapse">
+            <ul class="navbar-nav">
+                  <li class="nav-item">
+                    <a class="nav-link" href="../lists/files.html">Source Files</a>
+                  </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/modules.html">Modules</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/procedures.html">Procedures</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/absint.html">Abstract Interfaces</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/types.html">Derived Types</a>
+                </li>
+            </ul>
+              <div class="d-flex align-items-end flex-grow-1">
+                <form action="../search.html" role="search" class="ms-auto">
+                  <input type="text" class="form-control" aria-label="Search" placeholder="Search" name="q" id="tipue_search_input" autocomplete="off" required>
+                </form>
+              </div>
+            <!-- sqpopt theme: the light/dark button -->
+            <button type="button" class="btn nav-link theme-toggle ms-lg-3" aria-label="Toggle dark mode" title="Toggle dark mode">
+              <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg>
+              <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div><!--/.nav-collapse -->
+        </div>
+      </nav>
+    </div>
+
+    <div class="container">
+  <div class="row">
+    <h1>sqpopt_hessian_module
+      <small>Module</small>
+      
+    </h1>
+      <div class="container p-2 mb-4 bg-light border rounded-3">
+    <div class="row align-items-center justify-content-between" id="info-bar">
+      <div class="col">
+        <ul class="list-inline" style="margin-bottom:0px;display:inline">
+            <li class="list-inline-item" id="meta-author"><i class="fa fa-pencil"></i> Jacob Williams</li>
+            <li class="list-inline-item" id="meta-license"><i class="fa fa-legal"></i> MIT</li>
+
+            <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
+              <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
+                 title=" 5.3% of total for modules and submodules.">519 statements</a>
+            </li>
+
+            <li class="list-inline-item" id="source-file">
+              <i class="fa fa-code"></i>
+              <a href="../src/sqpopt_hessian_module.f90"> Source File</a>
+            </li>
+        </ul>
+      </div>
+      <div class="col">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb justify-content-end mb-0">
+                <li class="breadcrumb-item"><a href='../sourcefile/sqpopt_hessian_module.f90.html'>sqpopt_hessian_module.f90</a></li>
+            <li class="breadcrumb-item active" aria-current="page">sqpopt_hessian_module</li>
+          </ol>
+        </nav>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Enable Bootstrap tooltips
+    (function () {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+      const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+    })();
+  </script>
+
+  </div>
+
+  <div class="row">
+    <div class="col-md-3">
+        <div id="sidebar">
+      <h3>Contents</h3>
+  
+      <div class="card mb-4">
+      <a data-bs-toggle="collapse" href="#vars-0"
+         aria-expanded="false" aria-controls="vars-0">
+         <h4 class="card-header bg-primary text-white">Variables</h4>
+      </a>
+      <div id="vars-0" class="collapse">
+        <div class="list-group list-group-flush">
+            <a class="list-group-item" href="../module/sqpopt_hessian_module.html#variable-sqpopt_hessian_bfgs">sqpopt_hessian_bfgs</a>
+            <a class="list-group-item" href="../module/sqpopt_hessian_module.html#variable-sqpopt_hessian_sr1">sqpopt_hessian_sr1</a>
+            <a class="list-group-item" href="../module/sqpopt_hessian_module.html#variable-sqpopt_hessian_exact">sqpopt_hessian_exact</a>
+        </div>
+      </div>
+    </div>
+
+  
+  
+  
+  
+  
+  
+  
+  
+      <div class="card mb-4">
+      <a data-bs-toggle="collapse" href="#types-0"
+         aria-expanded="false" aria-controls="types-0">
+         <h4 class="card-header bg-primary text-white">Derived Types</h4>
+      </a>
+      <div id="types-0" class="collapse">
+        <div class="list-group list-group-flush">
+            <a class="list-group-item" href="../module/sqpopt_hessian_module.html#type-sqpopt_hessian_type">sqpopt_hessian_type</a>
+        </div>
+      </div>
+    </div>
+
+      <div class="card mb-4">
+      <a data-bs-toggle="collapse" href="#funcs-0"
+         aria-expanded="false" aria-controls="funcs-0">
+         <h4 class="card-header bg-primary text-white">Functions</h4>
+      </a>
+      <div id="funcs-0" class="collapse">
+        <div class="list-group list-group-flush">
+            <a class="list-group-item" href="../module/sqpopt_hessian_module.html#proc-pair_col">pair_col</a>
+            <a class="list-group-item" href="../module/sqpopt_hessian_module.html#proc-hessian_low_rank_size">hessian_low_rank_size</a>
+            <a class="list-group-item" href="../module/sqpopt_hessian_module.html#proc-hessian_size">hessian_size</a>
+        </div>
+      </div>
+    </div>
+
+      <div class="card mb-4">
+      <a data-bs-toggle="collapse" href="#subs-0"
+         aria-expanded="false" aria-controls="subs-0">
+         <h4 class="card-header bg-primary text-white">Subroutines</h4>
+      </a>
+      <div id="subs-0" class="collapse">
+        <div class="list-group list-group-flush">
+            <a class="list-group-item" href="../module/sqpopt_hessian_module.html#proc-hessian_initialize">hessian_initialize</a>
+            <a class="list-group-item" href="../module/sqpopt_hessian_module.html#proc-hessian_update_bfgs">hessian_update_bfgs</a>
+            <a class="list-group-item" href="../module/sqpopt_hessian_module.html#proc-hessian_update_sr1">hessian_update_sr1</a>
+            <a class="list-group-item" href="../module/sqpopt_hessian_module.html#proc-hessian_push_pair">hessian_push_pair</a>
+            <a class="list-group-item" href="../module/sqpopt_hessian_module.html#proc-hessian_vector_product">hessian_vector_product</a>
+            <a class="list-group-item" href="../module/sqpopt_hessian_module.html#proc-hessian_diagonal">hessian_diagonal</a>
+            <a class="list-group-item" href="../module/sqpopt_hessian_module.html#proc-hessian_dense">hessian_dense</a>
+            <a class="list-group-item" href="../module/sqpopt_hessian_module.html#proc-factor_middle_matrix">factor_middle_matrix</a>
+            <a class="list-group-item" href="../module/sqpopt_hessian_module.html#proc-middle_matrix">middle_matrix</a>
+            <a class="list-group-item" href="../module/sqpopt_hessian_module.html#proc-hessian_low_rank_multiply">hessian_low_rank_multiply</a>
+            <a class="list-group-item" href="../module/sqpopt_hessian_module.html#proc-hessian_low_rank_column">hessian_low_rank_column</a>
+            <a class="list-group-item" href="../module/sqpopt_hessian_module.html#proc-hessian_low_rank_multiply_transpose">hessian_low_rank_multiply_transpose</a>
+            <a class="list-group-item" href="../module/sqpopt_hessian_module.html#proc-hessian_low_rank_middle">hessian_low_rank_middle</a>
+            <a class="list-group-item" href="../module/sqpopt_hessian_module.html#proc-hessian_inverse_vector_product">hessian_inverse_vector_product</a>
+            <a class="list-group-item" href="../module/sqpopt_hessian_module.html#proc-hessian_cg_solve">hessian_cg_solve</a>
+            <a class="list-group-item" href="../module/sqpopt_hessian_module.html#proc-hessian_reset">hessian_reset</a>
+            <a class="list-group-item" href="../module/sqpopt_hessian_module.html#proc-hessian_set_exact">hessian_set_exact</a>
+            <a class="list-group-item" href="../module/sqpopt_hessian_module.html#proc-hessian_set_values">hessian_set_values</a>
+        </div>
+      </div>
+    </div>
+
+  
+  
+  
+  
+  
+  
+  
+
+
+  </div>
+
+    </div>
+
+    <div class="col-md-9" id='text'>
+      <p>Limited-memory quasi-Newton approximation to the Hessian of the
+Lagrangian. Rather than storing a dense <script type="math/tex"> n \times n </script> matrix, only
+the last <code>max_history</code> step/gradient-change vector pairs <script type="math/tex"> (s,y) </script>
+are kept (<code>max_history</code> is a small constant, independent of <code>n</code>), and
+Hessian(-inverse)-vector products are formed matrix-free using the
+compact representations and the standard two-loop recursion. Supports
+(Powell-damped) BFGS and SR1 updates.</p>
+<p>The pairs are kept in a circular buffer (no data is moved when the
+oldest pair is discarded), together with their inner products
+<script type="math/tex"> S^TS </script> and <script type="math/tex"> S^TY </script>, which are updated in <code>O(nk)</code> as each pair is
+added. The small <code>2k x 2k</code> (BFGS) or <code>k x k</code> (SR1) middle matrix of the
+compact representation is formed from them and LU-factored only when
+the pairs or the scaling change, not on every product, so each
+<a href="../proc/hessian_vector_product.html">hessian_vector_product</a> costs only <code>O(nk)</code>. The diagonal (see
+<a href="../proc/hessian_diagonal.html">hessian_diagonal</a>) is likewise kept until the pairs or the scaling
+change. The dense QP solver, which needs the whole matrix, gets it from
+<a href="../proc/hessian_dense.html">hessian_dense</a>.</p>
+<p><strong>Exact mode</strong> (see <a href="../proc/hessian_set_exact.html">hessian_set_exact</a>): instead of the quasi-Newton
+approximation, the user's sparse Hessian of the Lagrangian is used,
+with the values set at each major iteration by <a href="../proc/hessian_set_values.html">hessian_set_values</a>.
+The products are formed from its nonzeros, plus a shift
+<script type="math/tex"> \delta I </script> (<script type="math/tex"> \delta \ge 0 </script>), a simple <em>primal inertia
+correction</em> for an indefinite Hessian (as in IPOPT and Uno, but without
+factorizing): wherever the solver would restart a quasi-Newton
+approximation (<a href="../proc/hessian_reset.html">hessian_reset</a>: the QP step was not a descent
+direction, a step failed, or a run of steps was very short), <script type="math/tex"> \delta </script>
+is increased tenfold, from <code>shift_min</code> times the size of the Hessian's
+largest element; at each new major iteration that follows a good step,
+it is divided by 3 (and set to 0 once below that minimum). The quasi-Newton updates do nothing
+in this mode. With <code>options%inertia_control</code>, the shift that an
+iteration needs is instead found from a factorization (see
+<a href="../module/sqpopt_inertia_module.html">sqpopt_inertia_module</a>), and only the increases after a failed step
+or a run of very short ones are carried over to the next iteration.</p>
+<p>The exact Hessian depends on the multipliers it is evaluated with. After
+a step whose shift was large (<code>shift_dominant</code>), the QP's multipliers
+mostly balance the shift, so <a href="../proc/sqpopt_iterate.html">sqpopt_iterate</a> replaces them by a
+least-squares estimate before evaluating the next Hessian (see
+<a href="../proc/multiplier_estimate.html">multiplier_estimate</a>).</p>
+<p><strong>For the sparse factorizations</strong> (see <a href="../module/sqpopt_kkt_module.html">sqpopt_kkt_module</a>), the
+quasi-Newton matrix is available in its compact form, a multiple of the
+identity plus a matrix of low rank <code>r</code>:</p>
+<p>
+<script type="math/tex; mode=display"> B = \theta I + \sigma\, U M^{-1} U^T </script>
+</p>
+<p>with <script type="math/tex"> U = [\theta S \; Y] </script>, <script type="math/tex"> \sigma = -1 </script> (BFGS, <code>r = 2k</code>) or
+<script type="math/tex"> U = Y - \theta S </script>, <script type="math/tex"> \sigma = +1 </script> (SR1, <code>r = k</code>), and the middle
+matrix <script type="math/tex"> M </script> of <a href="../proc/factor_middle_matrix.html">factor_middle_matrix</a>: see <a href="../proc/hessian_low_rank_size.html">hessian_low_rank_size</a>,
+<a href="../proc/hessian_low_rank_multiply.html">hessian_low_rank_multiply</a>, <a href="../proc/hessian_low_rank_column.html">hessian_low_rank_column</a>, and
+<a href="../proc/hessian_low_rank_middle.html">hessian_low_rank_middle</a>. The shift
+<script type="math/tex"> \delta I </script> also applies to the quasi-Newton matrices (it is zero
+unless the inertia control sets it, for SR1).</p>
+<br>          <div class="card mb-4">
+      <h3 class="card-header card-title bg-light">Uses</h3>
+      <div class="card-body">
+        <ul class="list-group list-group-flush">
+            <li class="list-group-item">
+              <ul class="list-inline">
+                  <li class="list-inline-item"><a href='sqpopt_kinds.html'>sqpopt_kinds</a></li>
+                  <li class="list-inline-item"><a href='sqpopt_dense_linalg_module.html'>sqpopt_dense_linalg_module</a></li>
+              </ul>
+            </li>
+            <li class="list-group-item">
+              <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: module~~sqpopt_hessian_module~~UsesGraph Pages: 1 -->
+<svg id="modulesqpopt_hessian_moduleUsesGraph" width="594pt" height="52pt"
+ viewBox="0.00 0.00 594.00 52.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="module~~sqpopt_hessian_module~~UsesGraph" class="graph" transform="scale(1 1) rotate(0) translate(4 48.27)">
+<title>module~~sqpopt_hessian_module~~UsesGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-48.27 590.08,-48.27 590.08,4 -4,4"/>
+<!-- module~sqpopt_hessian_module -->
+<g id="module~~sqpopt_hessian_module~~UsesGraph_node1" class="node">
+<title>module~sqpopt_hessian_module</title>
+<polygon fill="none" stroke="black" points="586.08,-24.27 447.06,-24.27 447.06,0 586.08,0 586.08,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="516.57" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_hessian_module</text>
+</g>
+<!-- module~sqpopt_dense_linalg_module -->
+<g id="module~~sqpopt_hessian_module~~UsesGraph_node2" class="node">
+<title>module~sqpopt_dense_linalg_module</title>
+<g id="a_module~~sqpopt_hessian_module~~UsesGraph_node2"><a xlink:href="../module/sqpopt_dense_linalg_module.html" xlink:title="sqpopt_dense_linalg_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="411.06,-44.27 245.79,-44.27 245.79,-20 411.06,-20 411.06,-44.27"/>
+<text xml:space="preserve" text-anchor="middle" x="328.42" y="-28.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_dense_linalg_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_hessian_module&#45;&gt;module~sqpopt_dense_linalg_module -->
+<g id="module~~sqpopt_hessian_module~~UsesGraph_edge1" class="edge">
+<title>module~sqpopt_hessian_module&#45;&gt;module~sqpopt_dense_linalg_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M446.79,-19.53C438.97,-20.36 430.91,-21.23 422.85,-22.1"/>
+<polygon fill="#000000" stroke="#000000" points="422.55,-18.61 412.98,-23.16 423.3,-25.57 422.55,-18.61"/>
+</g>
+<!-- module~sqpopt_kinds -->
+<g id="module~~sqpopt_hessian_module~~UsesGraph_node3" class="node">
+<title>module~sqpopt_kinds</title>
+<g id="a_module~~sqpopt_hessian_module~~UsesGraph_node3"><a xlink:href="../module/sqpopt_kinds.html" xlink:title="sqpopt_kinds">
+<polygon fill="#337ab7" stroke="#337ab7" points="209.79,-24.27 129.27,-24.27 129.27,0 209.79,0 209.79,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="169.53" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_kinds</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_hessian_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_hessian_module~~UsesGraph_edge2" class="edge">
+<title>module~sqpopt_hessian_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M446.71,-11.38C434.82,-11.28 422.58,-11.19 411.06,-11.13 337.61,-10.78 319.24,-10.65 245.79,-11.13 237.89,-11.19 229.51,-11.27 221.34,-11.37"/>
+<polygon fill="#000000" stroke="#000000" points="221.45,-7.87 211.49,-11.49 221.54,-14.87 221.45,-7.87"/>
+</g>
+<!-- module~sqpopt_dense_linalg_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_hessian_module~~UsesGraph_edge3" class="edge">
+<title>module~sqpopt_dense_linalg_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M245.3,-21.67C237.13,-20.62 229.01,-19.59 221.3,-18.61"/>
+<polygon fill="#000000" stroke="#000000" points="221.82,-15.14 211.46,-17.35 220.94,-22.09 221.82,-15.14"/>
+</g>
+<!-- iso_fortran_env -->
+<g id="module~~sqpopt_hessian_module~~UsesGraph_node4" class="node">
+<title>iso_fortran_env</title>
+<g id="a_module~~sqpopt_hessian_module~~UsesGraph_node4"><a xlink:href="http://fortranwiki.org/fortran/show/iso_fortran_env" xlink:title="iso_fortran_env">
+<polygon fill="#337ab7" stroke="#337ab7" points="93.27,-24.27 0,-24.27 0,0 93.27,0 93.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="46.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">iso_fortran_env</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_kinds&#45;&gt;iso_fortran_env -->
+<g id="module~~sqpopt_hessian_module~~UsesGraph_edge4" class="edge">
+<title>module~sqpopt_kinds&#45;&gt;iso_fortran_env</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M128.94,-12.13C121.27,-12.13 113.08,-12.13 104.97,-12.13"/>
+<polygon fill="#000000" stroke="#000000" points="105.12,-8.64 95.12,-12.14 105.12,-15.64 105.12,-8.64"/>
+</g>
+</g>
+</svg>
+</div>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#UsesGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="UsesGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="511pt" height="32pt"
+ viewBox="0.00 0.00 511.00 32.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 506.88,-28.27 506.88,4 -4,4"/>
+<!-- Module -->
+<g id="node1" class="node">
+<title>Module</title>
+<polygon fill="#337ab7" stroke="#337ab7" points="54,-24.27 0,-24.27 0,0 54,0 54,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="27" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Module</text>
+</g>
+<!-- Submodule -->
+<g id="node2" class="node">
+<title>Submodule</title>
+<polygon fill="#5bc0de" stroke="#5bc0de" points="144.13,-24.27 71.87,-24.27 71.87,0 144.13,0 144.13,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="108" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Submodule</text>
+</g>
+<!-- Subroutine -->
+<g id="node3" class="node">
+<title>Subroutine</title>
+<polygon fill="#d9534f" stroke="#d9534f" points="231.63,-24.27 162.37,-24.27 162.37,0 231.63,0 231.63,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="197" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Subroutine</text>
+</g>
+<!-- Function -->
+<g id="node4" class="node">
+<title>Function</title>
+<polygon fill="#d94e8f" stroke="#d94e8f" points="306.26,-24.27 249.74,-24.27 249.74,0 306.26,0 306.26,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="278" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Function</text>
+</g>
+<!-- Program -->
+<g id="node5" class="node">
+<title>Program</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="381.26,-24.27 324.74,-24.27 324.74,0 381.26,0 381.26,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="353" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Program</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node6" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="502.88,-24.27 399.12,-24.27 399.12,0 502.88,0 502.88,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="451" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a submodule to the (sub)module which it is
+descended from. Dashed arrows point from a module or program unit to 
+modules which it uses.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+            </li>
+        </ul>
+      </div>
+    </div>
+
+          <div class="card">
+      <h3 class="card-header card-title bg-light">Used by</h3>
+      <div class="card-body">
+        <ul class="list-group list-group-flush">
+            <li class="list-group-item">
+              <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: module~~sqpopt_hessian_module~~UsedByGraph Pages: 1 -->
+<svg id="modulesqpopt_hessian_moduleUsedByGraph" width="641pt" height="212pt"
+ viewBox="0.00 0.00 641.00 212.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="module~~sqpopt_hessian_module~~UsedByGraph" class="graph" transform="scale(0.325758 0.325758) rotate(0) translate(4 647.74)">
+<title>module~~sqpopt_hessian_module~~UsedByGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-647.74 1963.72,-647.74 1963.72,4 -4,4"/>
+<!-- module~sqpopt_hessian_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_node1" class="node">
+<title>module~sqpopt_hessian_module</title>
+<polygon fill="none" stroke="black" points="139.02,-374.27 0,-374.27 0,-350 139.02,-350 139.02,-374.27"/>
+<text xml:space="preserve" text-anchor="middle" x="69.51" y="-358.53" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_hessian_module</text>
+</g>
+<!-- module~sqpopt_inertia_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_node2" class="node">
+<title>module~sqpopt_inertia_module</title>
+<g id="a_module~~sqpopt_hessian_module~~UsedByGraph_node2"><a xlink:href="../module/sqpopt_inertia_module.html" xlink:title="sqpopt_inertia_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="466.56,-221.27 333.54,-221.27 333.54,-197 466.56,-197 466.56,-221.27"/>
+<text xml:space="preserve" text-anchor="middle" x="400.05" y="-205.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_inertia_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_inertia_module&#45;&gt;module~sqpopt_hessian_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge1" class="edge">
+<title>module~sqpopt_inertia_module&#45;&gt;module~sqpopt_hessian_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M391.59,-196.99C369.58,-162.85 302.14,-70.09 233.15,-95.13"/>
+</g>
+<!-- module~sqpopt_kkt_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_node4" class="node">
+<title>module~sqpopt_kkt_module</title>
+<g id="a_module~~sqpopt_hessian_module~~UsedByGraph_node4"><a xlink:href="../module/sqpopt_kkt_module.html" xlink:title="sqpopt_kkt_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="289.29,-374.27 175.02,-374.27 175.02,-350 289.29,-350 289.29,-374.27"/>
+<text xml:space="preserve" text-anchor="middle" x="232.15" y="-358.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_kkt_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_inertia_module&#45;&gt;module~sqpopt_kkt_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge19" class="edge">
+<title>module~sqpopt_inertia_module&#45;&gt;module~sqpopt_kkt_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M385.47,-221.65C356.65,-248.23 289.16,-310.48 254.51,-342.43"/>
+<polygon fill="#000000" stroke="#000000" points="252.55,-339.49 247.57,-348.84 257.29,-344.63 252.55,-339.49"/>
+</g>
+<!-- module~sqpopt_iterate_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_node3" class="node">
+<title>module~sqpopt_iterate_module</title>
+<g id="a_module~~sqpopt_hessian_module~~UsedByGraph_node3"><a xlink:href="../module/sqpopt_iterate_module.html" xlink:title="sqpopt_iterate_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="1677.93,-347.27 1544.16,-347.27 1544.16,-323 1677.93,-323 1677.93,-347.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1611.04" y="-331.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_iterate_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_iterate_module&#45;&gt;module~sqpopt_hessian_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge2" class="edge">
+<title>module~sqpopt_iterate_module&#45;&gt;module~sqpopt_hessian_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1586.88,-322.73C1527.21,-290.9 1369.04,-207.35 1313.64,-186.13 1109.73,-108.04 1056.06,-28.54 839.59,-57.13"/>
+</g>
+<!-- module~sqpopt_iterate_module&#45;&gt;module~sqpopt_inertia_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge13" class="edge">
+<title>module~sqpopt_iterate_module&#45;&gt;module~sqpopt_inertia_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1427.9,-346.13C1249.54,-345.38 1217.35,-247.13 1038.98,-247.13 1038.98,-247.13 1038.98,-247.13 837.59,-247.13 711.27,-247.13 565.16,-231.15 478.08,-219.91"/>
+<polygon fill="#000000" stroke="#000000" points="478.59,-216.45 468.22,-218.62 477.68,-223.39 478.59,-216.45"/>
+</g>
+<!-- module~sqpopt_iterate_module&#45;&gt;module~sqpopt_kkt_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge20" class="edge">
+<title>module~sqpopt_iterate_module&#45;&gt;module~sqpopt_kkt_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1036.98,-365.13C754.73,-350.29 683.6,-354.89 401.05,-362.13"/>
+</g>
+<!-- module~sqpopt_options_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_node7" class="node">
+<title>module~sqpopt_options_module</title>
+<g id="a_module~~sqpopt_hessian_module~~UsedByGraph_node7"><a xlink:href="../module/sqpopt_options_module.html" xlink:title="sqpopt_options_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="1301.64,-522.27 1164.12,-522.27 1164.12,-498 1301.64,-498 1301.64,-522.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1232.88" y="-506.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_options_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_iterate_module&#45;&gt;module~sqpopt_options_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge28" class="edge">
+<title>module~sqpopt_iterate_module&#45;&gt;module~sqpopt_options_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1427.9,-346.13C1341.13,-345.77 1273.14,-442.81 1246.31,-487.77"/>
+<polygon fill="#000000" stroke="#000000" points="1243.42,-485.79 1241.42,-496.19 1249.47,-489.3 1243.42,-485.79"/>
+</g>
+<!-- module~sqpopt_qp_direct_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_node9" class="node">
+<title>module~sqpopt_qp_direct_module</title>
+<g id="a_module~~sqpopt_hessian_module~~UsedByGraph_node9"><a xlink:href="../module/sqpopt_qp_direct_module.html" xlink:title="sqpopt_qp_direct_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="687.7,-414.27 540.43,-414.27 540.43,-390 687.7,-390 687.7,-414.27"/>
+<text xml:space="preserve" text-anchor="middle" x="614.07" y="-398.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qp_direct_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_iterate_module&#45;&gt;module~sqpopt_qp_direct_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge32" class="edge">
+<title>module~sqpopt_iterate_module&#45;&gt;module~sqpopt_qp_direct_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1231.88,-366.13C1140.86,-379.39 1129.38,-424.11 1038.98,-441.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1036.98,-441.13C987.19,-450.51 974.25,-432.29 923.85,-427.13 848.04,-419.38 761.57,-412.55 699.45,-408"/>
+<polygon fill="#000000" stroke="#000000" points="699.88,-404.52 689.65,-407.28 699.37,-411.5 699.88,-404.52"/>
+</g>
+<!-- module~sqpopt_qp_solver_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_node11" class="node">
+<title>module~sqpopt_qp_solver_module</title>
+<g id="a_module~~sqpopt_hessian_module~~UsedByGraph_node11"><a xlink:href="../module/sqpopt_qp_solver_module.html" xlink:title="sqpopt_qp_solver_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="913.35,-493.27 763.83,-493.27 763.83,-469 913.35,-469 913.35,-493.27"/>
+<text xml:space="preserve" text-anchor="middle" x="838.59" y="-477.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qp_solver_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_iterate_module&#45;&gt;module~sqpopt_qp_solver_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge37" class="edge">
+<title>module~sqpopt_iterate_module&#45;&gt;module~sqpopt_qp_solver_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1036.98,-441.13C994.92,-449.06 947.95,-458.55 910.38,-466.3"/>
+<polygon fill="#000000" stroke="#000000" points="910.11,-462.78 901.03,-468.23 911.53,-469.63 910.11,-462.78"/>
+</g>
+<!-- module~sqpopt_restoration_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_node12" class="node">
+<title>module~sqpopt_restoration_module</title>
+<g id="a_module~~sqpopt_hessian_module~~UsedByGraph_node12"><a xlink:href="../module/sqpopt_restoration_module.html" xlink:title="sqpopt_restoration_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="1116.12,-493.27 959.85,-493.27 959.85,-469 1116.12,-469 1116.12,-493.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1037.98" y="-477.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_restoration_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_iterate_module&#45;&gt;module~sqpopt_restoration_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge43" class="edge">
+<title>module~sqpopt_iterate_module&#45;&gt;module~sqpopt_restoration_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1231.88,-366.13C1190,-372.23 1184.8,-391.25 1152.12,-418.13 1134.4,-432.71 1135.53,-442.9 1116.12,-455.13 1110.6,-458.61 1104.57,-461.67 1098.39,-464.37"/>
+<polygon fill="#000000" stroke="#000000" points="1097.3,-461.03 1089.31,-467.99 1099.9,-467.53 1097.3,-461.03"/>
+</g>
+<!-- module~sqpopt_trust_region_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_node13" class="node">
+<title>module~sqpopt_trust_region_module</title>
+<g id="a_module~~sqpopt_hessian_module~~UsedByGraph_node13"><a xlink:href="../module/sqpopt_trust_region_module.html" xlink:title="sqpopt_trust_region_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="1313.64,-219.27 1152.12,-219.27 1152.12,-195 1313.64,-195 1313.64,-219.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1232.88" y="-203.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_trust_region_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_iterate_module&#45;&gt;module~sqpopt_trust_region_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge46" class="edge">
+<title>module~sqpopt_iterate_module&#45;&gt;module~sqpopt_trust_region_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1543.8,-341.25C1509.78,-343.86 1467.66,-346.29 1429.9,-346.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1427.9,-346.13C1387.33,-345.96 1377.73,-328.41 1349.64,-299.13 1326.51,-275.02 1339.34,-254.49 1313.64,-233.13 1309.75,-229.9 1305.46,-227.07 1300.93,-224.59"/>
+<polygon fill="#000000" stroke="#000000" points="1302.62,-221.52 1292.09,-220.35 1299.6,-227.83 1302.62,-221.52"/>
+</g>
+<!-- module~sqpopt_diagnostics_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_node14" class="node">
+<title>module~sqpopt_diagnostics_module</title>
+<g id="a_module~~sqpopt_hessian_module~~UsedByGraph_node14"><a xlink:href="../module/sqpopt_diagnostics_module.html" xlink:title="sqpopt_diagnostics_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="1508.16,-522.27 1349.64,-522.27 1349.64,-498 1508.16,-498 1508.16,-522.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1428.9" y="-506.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_diagnostics_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_iterate_module&#45;&gt;module~sqpopt_diagnostics_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge49" class="edge">
+<title>module~sqpopt_iterate_module&#45;&gt;module~sqpopt_diagnostics_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1597.09,-347.72C1566.32,-377.61 1488.61,-453.1 1450.97,-489.66"/>
+<polygon fill="#000000" stroke="#000000" points="1448.56,-487.13 1443.82,-496.61 1453.44,-492.15 1448.56,-487.13"/>
+</g>
+<!-- module~sqpopt_least_squares_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_node15" class="node">
+<title>module~sqpopt_least_squares_module</title>
+<g id="a_module~~sqpopt_hessian_module~~UsedByGraph_node15"><a xlink:href="../module/sqpopt_least_squares_module.html" xlink:title="sqpopt_least_squares_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="923.85,-337.27 753.33,-337.27 753.33,-313 923.85,-313 923.85,-337.27"/>
+<text xml:space="preserve" text-anchor="middle" x="838.59" y="-321.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_least_squares_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_iterate_module&#45;&gt;module~sqpopt_least_squares_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge51" class="edge">
+<title>module~sqpopt_iterate_module&#45;&gt;module~sqpopt_least_squares_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1231.88,-366.13C1147.04,-378.49 1124.6,-369.64 1038.98,-365.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1036.98,-365.13C987.78,-362.54 932.93,-350.69 893.56,-340.55"/>
+<polygon fill="#000000" stroke="#000000" points="894.66,-337.21 884.1,-338.06 892.88,-343.98 894.66,-337.21"/>
+</g>
+<!-- module~sqpopt_soc_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_node16" class="node">
+<title>module~sqpopt_soc_module</title>
+<g id="a_module~~sqpopt_hessian_module~~UsedByGraph_node16"><a xlink:href="../module/sqpopt_soc_module.html" xlink:title="sqpopt_soc_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="1096.24,-337.27 979.72,-337.27 979.72,-313 1096.24,-313 1096.24,-337.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1037.98" y="-321.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_soc_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_iterate_module&#45;&gt;module~sqpopt_soc_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge56" class="edge">
+<title>module~sqpopt_iterate_module&#45;&gt;module~sqpopt_soc_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1427.9,-346.13C1341.21,-345.77 1319.66,-353.64 1233.88,-366.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1231.88,-366.13C1205.46,-369.98 1139.61,-353.92 1092.2,-340.78"/>
+<polygon fill="#000000" stroke="#000000" points="1093.21,-337.43 1082.64,-338.09 1091.32,-344.17 1093.21,-337.43"/>
+</g>
+<!-- module~sqpopt_kkt_module&#45;&gt;module~sqpopt_hessian_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge3" class="edge">
+<title>module~sqpopt_kkt_module&#45;&gt;module~sqpopt_hessian_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M174.97,-362.13C167.16,-362.13 159.01,-362.13 150.87,-362.13"/>
+<polygon fill="#000000" stroke="#000000" points="150.9,-358.63 140.9,-362.13 150.9,-365.63 150.9,-358.63"/>
+</g>
+<!-- module~sqpopt_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_node5" class="node">
+<title>module~sqpopt_module</title>
+<g id="a_module~~sqpopt_hessian_module~~UsedByGraph_node5"><a xlink:href="../module/sqpopt_module.html" xlink:title="sqpopt_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="1807.2,-317.27 1713.93,-317.27 1713.93,-293 1807.2,-293 1807.2,-317.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1760.56" y="-301.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_hessian_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge4" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_hessian_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1610.04,-550.13C1383.54,-669.53 1290.8,-579.79 1038.98,-626.13"/>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_inertia_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge14" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_inertia_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1713.74,-302.1C1684.29,-299.38 1645.43,-294.33 1612.04,-285.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1610.04,-285.13C1476.14,-248.25 1450.73,-208.42 1313.64,-186.13 1218.78,-170.71 1194.35,-146.9 510.81,-195.13 500.21,-195.88 489.08,-196.96 478.12,-198.19"/>
+<polygon fill="#000000" stroke="#000000" points="477.83,-194.7 468.31,-199.34 478.65,-201.65 477.83,-194.7"/>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_iterate_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge18" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_iterate_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1713.7,-314.46C1704.7,-316.29 1695.05,-318.25 1685.42,-320.21"/>
+<polygon fill="#000000" stroke="#000000" points="1684.73,-316.78 1675.63,-322.2 1686.13,-323.64 1684.73,-316.78"/>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_kkt_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge22" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_kkt_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1752.53,-292.61C1721.82,-239.83 1593.77,-38.13 1429.9,-38.13 1429.9,-38.13 1429.9,-38.13 1231.88,-38.13 1185.15,-38.13 443.66,-149.96 401.05,-169.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M399.05,-169.13C368.25,-183.18 351.87,-167.16 325.29,-188.13 275.41,-227.49 249.39,-301.43 238.88,-338.98"/>
+<polygon fill="#000000" stroke="#000000" points="235.58,-337.78 236.39,-348.34 242.34,-339.58 235.58,-337.78"/>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_options_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge29" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_options_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1610.04,-550.13C1538.6,-586.27 1509.86,-554.2 1429.9,-550.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1427.9,-550.13C1379.6,-547.68 1325.82,-535.85 1287.16,-525.69"/>
+<polygon fill="#000000" stroke="#000000" points="1288.19,-522.34 1277.63,-523.13 1286.38,-529.1 1288.19,-522.34"/>
+</g>
+<!-- module~sqpopt_qp_reduced_hessian_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_node10" class="node">
+<title>module~sqpopt_qp_reduced_hessian_module</title>
+<g id="a_module~~sqpopt_hessian_module~~UsedByGraph_node10"><a xlink:href="../module/sqpopt_qp_reduced_hessian_module.html" xlink:title="sqpopt_qp_reduced_hessian_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="717.33,-572.27 510.81,-572.27 510.81,-548 717.33,-548 717.33,-572.27"/>
+<text xml:space="preserve" text-anchor="middle" x="614.07" y="-556.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qp_reduced_hessian_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_qp_reduced_hessian_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge34" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_qp_reduced_hessian_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1231.88,-550.13C1056.42,-545.63 852.83,-550.99 729.03,-555.43"/>
+<polygon fill="#000000" stroke="#000000" points="729.05,-551.93 719.18,-555.79 729.31,-558.93 729.05,-551.93"/>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_qp_solver_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge38" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_qp_solver_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1427.9,-550.13C1341.78,-545.75 1320.08,-552.34 1233.88,-550.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1231.88,-550.13C1145.21,-547.91 1124.94,-532.42 1038.98,-521.13"/>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_restoration_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge44" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_restoration_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1756.89,-317.66C1746.97,-360.59 1707.74,-501.73 1612.04,-550.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1610.04,-550.13C1562.95,-573.95 1558.61,-504.63 1508.16,-489.13 1380.57,-449.95 1224.12,-457.64 1128.01,-468.26"/>
+<polygon fill="#000000" stroke="#000000" points="1127.64,-464.78 1118.1,-469.4 1128.43,-471.74 1127.64,-464.78"/>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_trust_region_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge47" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_trust_region_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1610.04,-285.13C1532.86,-263.87 1509.58,-292.98 1429.9,-285.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1427.9,-285.13C1372.37,-279.66 1365.64,-253.37 1313.64,-233.13 1304.86,-229.72 1295.42,-226.37 1286.23,-223.27"/>
+<polygon fill="#000000" stroke="#000000" points="1287.62,-220.04 1277.03,-220.23 1285.42,-226.69 1287.62,-220.04"/>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_diagnostics_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge50" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_diagnostics_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1610.04,-550.13C1598.77,-555.83 1533.02,-539.33 1484.19,-525.81"/>
+<polygon fill="#000000" stroke="#000000" points="1485.15,-522.45 1474.58,-523.13 1483.27,-529.19 1485.15,-522.45"/>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_least_squares_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge52" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_least_squares_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1427.9,-285.13C1255.88,-268.19 1208.47,-251.18 1038.98,-285.13"/>
+</g>
+<!-- module~sqpopt_nlls_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_node6" class="node">
+<title>module~sqpopt_nlls_module</title>
+<g id="a_module~~sqpopt_hessian_module~~UsedByGraph_node6"><a xlink:href="../module/sqpopt_nlls_module.html" xlink:title="sqpopt_nlls_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="1959.72,-317.27 1843.2,-317.27 1843.2,-293 1959.72,-293 1959.72,-317.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1901.46" y="-301.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_nlls_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_nlls_module&#45;&gt;module~sqpopt_hessian_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge5" class="edge">
+<title>module~sqpopt_nlls_module&#45;&gt;module~sqpopt_hessian_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1882.16,-292.62C1855.28,-274.09 1803.75,-238.01 1761.56,-205.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1759.56,-205.13C1703.36,-161.33 1734.65,-110.27 1677.93,-67.13 1587.04,1.99 1544.09,-0.13 1429.9,-0.13 1429.9,-0.13 1429.9,-0.13 1231.88,-0.13 1055.7,-0.13 1014.19,-33.55 839.59,-57.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M837.59,-57.13C737.84,-67.91 715.38,-93.2 615.07,-95.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M613.07,-95.13C444.25,-98.38 391.87,-37.52 233.15,-95.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M231.15,-95.13C128.37,-135.36 87.38,-281.06 74.98,-338.56"/>
+<polygon fill="#000000" stroke="#000000" points="71.57,-337.74 73,-348.24 78.43,-339.14 71.57,-337.74"/>
+</g>
+<!-- module~sqpopt_nlls_module&#45;&gt;module~sqpopt_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge26" class="edge">
+<title>module~sqpopt_nlls_module&#45;&gt;module~sqpopt_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1842.76,-305.13C1834.85,-305.13 1826.73,-305.13 1818.82,-305.13"/>
+<polygon fill="#000000" stroke="#000000" points="1818.96,-301.63 1808.96,-305.13 1818.96,-308.63 1818.96,-301.63"/>
+</g>
+<!-- module~sqpopt_nlls_module&#45;&gt;module~sqpopt_options_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge30" class="edge">
+<title>module~sqpopt_nlls_module&#45;&gt;module~sqpopt_options_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1894.34,-317.51C1872.24,-360.65 1791.85,-505.01 1677.93,-564.13 1579.63,-615.15 1540.12,-598.99 1429.9,-588.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1427.9,-588.13C1391.64,-585.2 1381.92,-580.91 1349.64,-564.13 1331.65,-554.79 1331.54,-545.64 1313.64,-536.13 1306.9,-532.55 1299.57,-529.35 1292.19,-526.52"/>
+<polygon fill="#000000" stroke="#000000" points="1293.4,-523.24 1282.81,-523.15 1291.04,-529.82 1293.4,-523.24"/>
+</g>
+<!-- module~sqpopt_nlls_module&#45;&gt;module~sqpopt_qp_solver_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge39" class="edge">
+<title>module~sqpopt_nlls_module&#45;&gt;module~sqpopt_qp_solver_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1427.9,-588.13C1305.27,-578.21 1272.05,-591.58 1152.12,-564.13 1099.68,-552.13 1092.32,-528.14 1038.98,-521.13"/>
+</g>
+<!-- module~sqpopt_nlls_module&#45;&gt;module~sqpopt_trust_region_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge48" class="edge">
+<title>module~sqpopt_nlls_module&#45;&gt;module~sqpopt_trust_region_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1759.56,-205.13C1611.27,-101.69 1377.67,-159.55 1279.61,-191.01"/>
+<polygon fill="#000000" stroke="#000000" points="1278.74,-187.61 1270.33,-194.04 1280.92,-194.26 1278.74,-187.61"/>
+</g>
+<!-- module~sqpopt_options_module&#45;&gt;module~sqpopt_hessian_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge6" class="edge">
+<title>module~sqpopt_options_module&#45;&gt;module~sqpopt_hessian_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1183.91,-522.7C1173.15,-526.35 1162,-530.82 1152.12,-536.13 1095.54,-566.57 1102.76,-618.31 1038.98,-626.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1036.98,-626.13C754.94,-660.73 671.98,-645.82 401.05,-560.13"/>
+</g>
+<!-- module~sqpopt_options_module&#45;&gt;module~sqpopt_qp_solver_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge40" class="edge">
+<title>module~sqpopt_options_module&#45;&gt;module~sqpopt_qp_solver_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1163.85,-519.89C1126.82,-523.72 1080.28,-526.14 1038.98,-521.13"/>
+</g>
+<!-- module~sqpopt_options_module&#45;&gt;module~sqpopt_restoration_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge45" class="edge">
+<title>module~sqpopt_options_module&#45;&gt;module~sqpopt_restoration_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1163.87,-499.91C1152.16,-498.15 1139.84,-496.3 1127.68,-494.47"/>
+<polygon fill="#000000" stroke="#000000" points="1128.49,-491.05 1118.08,-493.02 1127.45,-497.97 1128.49,-491.05"/>
+</g>
+<!-- module~sqpopt_qp_dense_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_node8" class="node">
+<title>module~sqpopt_qp_dense_module</title>
+<g id="a_module~~sqpopt_hessian_module~~UsedByGraph_node8"><a xlink:href="../module/sqpopt_qp_dense_module.html" xlink:title="sqpopt_qp_dense_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="474.81,-532.27 325.29,-532.27 325.29,-508 474.81,-508 474.81,-532.27"/>
+<text xml:space="preserve" text-anchor="middle" x="400.05" y="-516.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qp_dense_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_qp_dense_module&#45;&gt;module~sqpopt_hessian_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge7" class="edge">
+<title>module~sqpopt_qp_dense_module&#45;&gt;module~sqpopt_hessian_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M359.5,-507.62C348.28,-503.69 336.17,-499.07 325.29,-494.13 282.48,-474.69 277.42,-457.99 233.15,-442.13"/>
+</g>
+<!-- module~sqpopt_qp_direct_module&#45;&gt;module~sqpopt_hessian_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge8" class="edge">
+<title>module~sqpopt_qp_direct_module&#45;&gt;module~sqpopt_hessian_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M399.05,-404.13C323.41,-404.04 304.36,-467.65 233.15,-442.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M231.15,-442.13C184.25,-425.32 133.26,-398.3 101.59,-380.38"/>
+<polygon fill="#000000" stroke="#000000" points="103.35,-377.36 92.94,-375.43 99.88,-383.43 103.35,-377.36"/>
+</g>
+<!-- module~sqpopt_qp_direct_module&#45;&gt;module~sqpopt_inertia_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge15" class="edge">
+<title>module~sqpopt_qp_direct_module&#45;&gt;module~sqpopt_inertia_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M588.51,-389.56C566.85,-377.85 535.06,-359.08 510.81,-338.13 472.36,-304.92 435.82,-257.78 416.12,-230.64"/>
+<polygon fill="#000000" stroke="#000000" points="419.2,-228.93 410.53,-222.84 413.51,-233 419.2,-228.93"/>
+</g>
+<!-- module~sqpopt_qp_direct_module&#45;&gt;module~sqpopt_kkt_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge23" class="edge">
+<title>module~sqpopt_qp_direct_module&#45;&gt;module~sqpopt_kkt_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M539.97,-403.21C499.1,-403.71 447.25,-404.19 401.05,-404.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M399.05,-404.13C355.54,-404.08 307.52,-390.34 274.39,-378.59"/>
+<polygon fill="#000000" stroke="#000000" points="275.77,-375.37 265.18,-375.23 273.37,-381.95 275.77,-375.37"/>
+</g>
+<!-- module~sqpopt_qp_reduced_hessian_module&#45;&gt;module~sqpopt_hessian_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge9" class="edge">
+<title>module~sqpopt_qp_reduced_hessian_module&#45;&gt;module~sqpopt_hessian_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M510.32,-572.55C474.97,-573.59 435.62,-571.07 401.05,-560.13"/>
+</g>
+<!-- module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_hessian_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge10" class="edge">
+<title>module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_hessian_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M613.07,-520.13C566.94,-523.08 556.24,-530.57 510.81,-539.13 462,-548.34 448.41,-575.11 401.05,-560.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M399.05,-560.13C366.77,-549.92 354.38,-558.44 325.29,-541.13 273.63,-510.4 289.74,-462.41 233.15,-442.13"/>
+</g>
+<!-- module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_inertia_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge16" class="edge">
+<title>module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_inertia_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M824.22,-468.51C802.72,-448.57 758.68,-409.17 717.33,-381.13 621.68,-316.27 499.21,-255.38 438.56,-226.56"/>
+<polygon fill="#000000" stroke="#000000" points="440.22,-223.47 429.69,-222.36 437.23,-229.8 440.22,-223.47"/>
+</g>
+<!-- module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_kkt_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge24" class="edge">
+<title>module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_kkt_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M781.7,-493.73C736.91,-503.14 672.32,-515.2 615.07,-520.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M613.07,-520.13C545.47,-525.96 386.58,-447.24 325.29,-418.13 302.71,-407.41 278.62,-392.64 260.73,-380.96"/>
+<polygon fill="#000000" stroke="#000000" points="262.77,-378.1 252.5,-375.5 258.9,-383.94 262.77,-378.1"/>
+</g>
+<!-- module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_qp_dense_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge31" class="edge">
+<title>module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_qp_dense_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M613.07,-520.13C571.51,-523.72 525.21,-524.13 486.5,-523.47"/>
+<polygon fill="#000000" stroke="#000000" points="486.85,-519.98 476.78,-523.28 486.71,-526.98 486.85,-519.98"/>
+</g>
+<!-- module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_qp_direct_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge33" class="edge">
+<title>module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_qp_direct_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M802.33,-468.61C764.2,-455.08 703.24,-433.44 661.29,-418.54"/>
+<polygon fill="#000000" stroke="#000000" points="662.55,-415.28 651.96,-415.23 660.21,-421.87 662.55,-415.28"/>
+</g>
+<!-- module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_qp_reduced_hessian_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge35" class="edge">
+<title>module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_qp_reduced_hessian_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M812.28,-493.76C788.28,-505.39 750.98,-522.53 717.33,-534.13 706.24,-537.96 694.3,-541.49 682.63,-544.65"/>
+<polygon fill="#000000" stroke="#000000" points="681.81,-541.25 673.02,-547.17 683.58,-548.02 681.81,-541.25"/>
+</g>
+<!-- module~sqpopt_restoration_module&#45;&gt;module~sqpopt_hessian_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge11" class="edge">
+<title>module~sqpopt_restoration_module&#45;&gt;module~sqpopt_hessian_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M978.81,-468.52C961.24,-465.2 941.83,-462.02 923.85,-460.13 618.45,-428.01 522.23,-545.72 233.15,-442.13"/>
+</g>
+<!-- module~sqpopt_restoration_module&#45;&gt;module~sqpopt_qp_solver_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge41" class="edge">
+<title>module~sqpopt_restoration_module&#45;&gt;module~sqpopt_qp_solver_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M959.54,-481.13C948.19,-481.13 936.46,-481.13 924.97,-481.13"/>
+<polygon fill="#000000" stroke="#000000" points="925.1,-477.63 915.1,-481.13 925.1,-484.63 925.1,-477.63"/>
+</g>
+<!-- module~sqpopt_restoration_module&#45;&gt;module~sqpopt_least_squares_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge53" class="edge">
+<title>module~sqpopt_restoration_module&#45;&gt;module~sqpopt_least_squares_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M987.55,-468.57C977.96,-465.02 968.27,-460.59 959.85,-455.13 914.37,-425.68 874.52,-375.18 854.1,-346.56"/>
+<polygon fill="#000000" stroke="#000000" points="857.17,-344.85 848.58,-338.66 851.44,-348.86 857.17,-344.85"/>
+</g>
+<!-- module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_hessian_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge12" class="edge">
+<title>module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_hessian_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1191.2,-194.5C1093.13,-165.21 835.46,-95.13 615.07,-95.13"/>
+</g>
+<!-- module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_inertia_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge17" class="edge">
+<title>module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_inertia_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M613.07,-209.13C568.47,-207.05 518.52,-206.94 478.32,-207.41"/>
+<polygon fill="#000000" stroke="#000000" points="478.45,-203.9 468.5,-207.53 478.54,-210.9 478.45,-203.9"/>
+</g>
+<!-- module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_kkt_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge25" class="edge">
+<title>module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_kkt_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1151.98,-209.93C1034.34,-213.47 807.61,-218.11 615.07,-209.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M613.07,-209.13C517.33,-203.65 488.5,-129.79 401.05,-169.13"/>
+</g>
+<!-- module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_qp_solver_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge42" class="edge">
+<title>module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_qp_solver_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1224.28,-219.39C1207.54,-245.59 1165.04,-307.75 1116.12,-346.13 1095.78,-362.09 948.11,-431.1 877.28,-463.81"/>
+<polygon fill="#000000" stroke="#000000" points="876,-460.54 868.39,-467.91 878.93,-466.9 876,-460.54"/>
+</g>
+<!-- module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_least_squares_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge55" class="edge">
+<title>module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_least_squares_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1209,-219.68C1173.75,-238.24 1103.45,-272.22 1038.98,-285.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1036.98,-285.13C995.82,-293.38 949.84,-302.69 912.62,-310.25"/>
+<polygon fill="#000000" stroke="#000000" points="911.95,-306.82 902.85,-312.24 913.35,-313.68 911.95,-306.82"/>
+</g>
+<!-- module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_soc_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge57" class="edge">
+<title>module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_soc_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1219.41,-219.51C1199.26,-238.91 1157.61,-276.56 1116.12,-299.13 1109.61,-302.67 1102.54,-305.85 1095.4,-308.67"/>
+<polygon fill="#000000" stroke="#000000" points="1094.54,-305.26 1086.38,-312.02 1096.97,-311.82 1094.54,-305.26"/>
+</g>
+<!-- module~sqpopt_diagnostics_module&#45;&gt;module~sqpopt_options_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge27" class="edge">
+<title>module~sqpopt_diagnostics_module&#45;&gt;module~sqpopt_options_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1349.26,-510.13C1337.4,-510.13 1325.16,-510.13 1313.29,-510.13"/>
+<polygon fill="#000000" stroke="#000000" points="1313.55,-506.63 1303.55,-510.13 1313.55,-513.63 1313.55,-506.63"/>
+</g>
+<!-- module~sqpopt_diagnostics_module&#45;&gt;module~sqpopt_qp_solver_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge36" class="edge">
+<title>module~sqpopt_diagnostics_module&#45;&gt;module~sqpopt_qp_solver_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1370.64,-497.5C1352.51,-494.07 1332.32,-490.84 1313.64,-489.13 1242.15,-482.62 1222.83,-476.76 1152.12,-489.13 1135.36,-492.07 1132.4,-497.2 1116.12,-502.13 1082.33,-512.36 1074.03,-525.39 1038.98,-521.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1036.98,-521.13C991.71,-515.18 941.25,-504.89 902.68,-496.24"/>
+<polygon fill="#000000" stroke="#000000" points="903.63,-492.87 893.1,-494.07 902.08,-499.69 903.63,-492.87"/>
+</g>
+<!-- module~sqpopt_least_squares_module&#45;&gt;module~sqpopt_kkt_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge21" class="edge">
+<title>module~sqpopt_least_squares_module&#45;&gt;module~sqpopt_kkt_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M752.84,-329.78C686.81,-333.72 592.88,-340.02 510.81,-348.13 461.87,-352.97 450.04,-357.82 401.05,-362.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M399.05,-362.13C366.75,-362.96 330.91,-363.06 300.83,-362.92"/>
+<polygon fill="#000000" stroke="#000000" points="301.13,-359.42 291.11,-362.86 301.09,-366.42 301.13,-359.42"/>
+</g>
+<!-- module~sqpopt_soc_module&#45;&gt;module~sqpopt_least_squares_module -->
+<g id="module~~sqpopt_hessian_module~~UsedByGraph_edge54" class="edge">
+<title>module~sqpopt_soc_module&#45;&gt;module~sqpopt_least_squares_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M979.36,-325.13C965.58,-325.13 950.49,-325.13 935.49,-325.13"/>
+<polygon fill="#000000" stroke="#000000" points="935.58,-321.63 925.58,-325.13 935.58,-328.63 935.58,-321.63"/>
+</g>
+</g>
+</svg>
+</div>                <script>
+                  var panmodulesqpopt_hessian_moduleUsedByGraph = svgPanZoom('#modulesqpopt_hessian_moduleUsedByGraph',
+                    {zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true,}
+                  );
+                </script>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#UsedByGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="UsedByGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="511pt" height="32pt"
+ viewBox="0.00 0.00 511.00 32.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 506.88,-28.27 506.88,4 -4,4"/>
+<!-- Module -->
+<g id="node1" class="node">
+<title>Module</title>
+<polygon fill="#337ab7" stroke="#337ab7" points="54,-24.27 0,-24.27 0,0 54,0 54,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="27" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Module</text>
+</g>
+<!-- Submodule -->
+<g id="node2" class="node">
+<title>Submodule</title>
+<polygon fill="#5bc0de" stroke="#5bc0de" points="144.13,-24.27 71.87,-24.27 71.87,0 144.13,0 144.13,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="108" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Submodule</text>
+</g>
+<!-- Subroutine -->
+<g id="node3" class="node">
+<title>Subroutine</title>
+<polygon fill="#d9534f" stroke="#d9534f" points="231.63,-24.27 162.37,-24.27 162.37,0 231.63,0 231.63,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="197" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Subroutine</text>
+</g>
+<!-- Function -->
+<g id="node4" class="node">
+<title>Function</title>
+<polygon fill="#d94e8f" stroke="#d94e8f" points="306.26,-24.27 249.74,-24.27 249.74,0 306.26,0 306.26,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="278" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Function</text>
+</g>
+<!-- Program -->
+<g id="node5" class="node">
+<title>Program</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="381.26,-24.27 324.74,-24.27 324.74,0 381.26,0 381.26,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="353" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Program</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node6" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="502.88,-24.27 399.12,-24.27 399.12,0 502.88,0 502.88,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="451" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a submodule to the (sub)module which it is
+descended from. Dashed arrows point from a module or program unit to 
+modules which it uses.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+            </li>
+        </ul>
+      </div>
+    </div>
+
+      <br>
+
+
+        <section>
+          <h2>Variables</h2>
+            <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Visibility</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+<th></th><th scope="col">Initial</th>        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-sqpopt_hessian_bfgs"></span>
+              integer,
+            </td>
+              <td>public,</td>
+            <td>
+parameter               
+            </td>
+            <td>::</td>
+            <td><strong>sqpopt_hessian_bfgs</strong></td>
+<td> =</td>
+                <td>1</td>
+            <td>
+                <p>limited-memory (damped) BFGS quasi-Newton Hessian approximation</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-sqpopt_hessian_sr1"></span>
+              integer,
+            </td>
+              <td>public,</td>
+            <td>
+parameter               
+            </td>
+            <td>::</td>
+            <td><strong>sqpopt_hessian_sr1</strong></td>
+<td> =</td>
+                <td>2</td>
+            <td>
+                <p>limited-memory symmetric rank-1 (SR1) quasi-Newton Hessian approximation</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-sqpopt_hessian_exact"></span>
+              integer,
+            </td>
+              <td>public,</td>
+            <td>
+parameter               
+            </td>
+            <td>::</td>
+            <td><strong>sqpopt_hessian_exact</strong></td>
+<td> =</td>
+                <td>3</td>
+            <td>
+                <p>user-supplied exact sparse Hessian of the Lagrangian (the
+<code>hess</code> function of <a href="../proc/set_functions.html">set_functions</a>, with the pattern of
+<a href="../proc/set_hessian_sparsity.html">set_hessian_sparsity</a>; see the module documentation)</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+        </section>
+        <br>
+
+
+
+
+        <section>
+          <h2>Derived Types</h2>
+              <div class="card">
+    <div class="card-header codesum">
+      <span class="anchor" id="type-sqpopt_hessian_type"></span>
+      <h3>
+        type, public&nbsp;::&nbsp;
+        <a href='../type/sqpopt_hessian_type.html'>sqpopt_hessian_type</a>
+        
+      </h3>
+    </div>
+    <div class="card-body">
+      <p>stores and updates a limited-memory approximation to the
+Hessian of the Lagrangian (never stores a dense <code>n x n</code> matrix:
+<a href="../proc/hessian_dense.html">hessian_dense</a> writes one into the dense QP solver's array).</p>
+
+        <h4>Components</h4>
+          <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Visibility</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+<th></th><th scope="col">Initial</th>        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-n~51"></span>
+              integer,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>n</strong></td>
+<td> =</td>
+                <td>0</td>
+            <td>
+<p>problem size</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-max_history"></span>
+              integer,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>max_history</strong></td>
+<td> =</td>
+                <td>0</td>
+            <td>
+<p>number of <code>(s,y)</code> pairs retained (independent of <code>n</code>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-n_history"></span>
+              integer,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>n_history</strong></td>
+<td> =</td>
+                <td>0</td>
+            <td>
+<p>number of pairs currently stored (<code>&lt;= max_history</code>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-use_sr1"></span>
+              logical,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>use_sr1</strong></td>
+<td> =</td>
+                <td>.false.</td>
+            <td>
+<p>if true, use the limited-memory SR1 update instead of BFGS</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-damping"></span>
+              logical,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>damping</strong></td>
+<td> =</td>
+                <td>.true.</td>
+            <td>
+<p>if true, use Powell's damped BFGS update (see <a href="../proc/hessian_update_bfgs.html">hessian_update_bfgs</a>),
+else skip any update that fails the curvature condition</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-first~6"></span>
+              integer,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>first</strong></td>
+<td> =</td>
+                <td>1</td>
+            <td>
+<p>column of <code>s</code>/<code>y</code> holding the oldest pair (the buffer is circular:
+the <code>i</code>-th oldest pair is in column <a href="../proc/pair_col.html">pair_col</a><code>(i)</code>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-s~15"></span>
+              real(kind=wp),
+            </td>
+              <td>public,</td>
+            <td>
+              dimension(:,:), allocatable
+            </td>
+            <td>::</td>
+            <td><strong>s</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+<p>stored step vectors <code>dimension(n,max_history)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-y~12"></span>
+              real(kind=wp),
+            </td>
+              <td>public,</td>
+            <td>
+              dimension(:,:), allocatable
+            </td>
+            <td>::</td>
+            <td><strong>y</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+<p>stored Lagrangian gradient-change vectors <code>dimension(n,max_history)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-rho~3"></span>
+              real(kind=wp),
+            </td>
+              <td>public,</td>
+            <td>
+              dimension(:), allocatable
+            </td>
+            <td>::</td>
+            <td><strong>rho</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+<p><code>1/(y^T s)</code> for each stored pair <code>dimension(max_history)</code> (BFGS)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-ss"></span>
+              real(kind=wp),
+            </td>
+              <td>public,</td>
+            <td>
+              dimension(:,:), allocatable
+            </td>
+            <td>::</td>
+            <td><strong>ss</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+<p><code>ss(a,b)</code> <script type="math/tex"> = s_a^Ts_b </script> for the pairs in columns <code>a</code>, <code>b</code>
+<code>dimension(max_history,max_history)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-sy~2"></span>
+              real(kind=wp),
+            </td>
+              <td>public,</td>
+            <td>
+              dimension(:,:), allocatable
+            </td>
+            <td>::</td>
+            <td><strong>sy</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+<p><code>sy(a,b)</code> <script type="math/tex"> = s_a^Ty_b </script> for the pairs in columns <code>a</code>, <code>b</code>
+<code>dimension(max_history,max_history)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-gamma~2"></span>
+              real(kind=wp),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>gamma</strong></td>
+<td> =</td>
+                <td>1.0_wp</td>
+            <td>
+<p>scaling of the initial Hessian <script type="math/tex"> H_0 = \gamma I </script>
+</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-gamma0"></span>
+              real(kind=wp),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>gamma0</strong></td>
+<td> =</td>
+                <td>1.0_wp</td>
+            <td>
+<p><code>gamma</code> before any update (and after a <a href="../proc/hessian_reset.html">hessian_reset</a>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-exact"></span>
+              logical,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>exact</strong></td>
+<td> =</td>
+                <td>.false.</td>
+            <td>
+<p>if true, use the user's sparse Hessian (see <a href="../proc/hessian_set_exact.html">hessian_set_exact</a>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-shift_min"></span>
+              real(kind=wp),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>shift_min</strong></td>
+<td> =</td>
+                <td>1.0e-4_wp</td>
+            <td>
+<p>smallest nonzero shift, relative to <script type="math/tex"> \max(1,\max|H_{ij}|) </script>
+</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-shift_max~2"></span>
+              real(kind=wp),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>shift_max</strong></td>
+<td> =</td>
+                <td>1.0e10_wp</td>
+            <td>
+<p>largest shift, relative to the same</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-shift~2"></span>
+              real(kind=wp),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>shift</strong></td>
+<td> =</td>
+                <td>0.0_wp</td>
+            <td>
+<p>the current shift <script type="math/tex"> \delta </script> (added to the diagonal in every mode; in the
+quasi-Newton modes it is zero unless the inertia control sets it)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-shift_dominant"></span>
+              logical,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>shift_dominant</strong></td>
+<td> =</td>
+                <td>.false.</td>
+            <td>
+<p>whether the shift's term <script type="math/tex"> \delta p </script> of the last step was at least
+as large as the gradient: the QP's multipliers are then mostly an
+artifact of the shift (internal state, set and used by
+<a href="../proc/sqpopt_iterate.html">sqpopt_iterate</a>, which then re-estimates them)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-h_irow~2"></span>
+              integer,
+            </td>
+              <td>public,</td>
+            <td>
+              dimension(:), allocatable
+            </td>
+            <td>::</td>
+            <td><strong>h_irow</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+<p>sparsity pattern: row indices</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-h_icol~2"></span>
+              integer,
+            </td>
+              <td>public,</td>
+            <td>
+              dimension(:), allocatable
+            </td>
+            <td>::</td>
+            <td><strong>h_icol</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+<p>sparsity pattern: column indices</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-h_val~2"></span>
+              real(kind=wp),
+            </td>
+              <td>public,</td>
+            <td>
+              dimension(:), allocatable
+            </td>
+            <td>::</td>
+            <td><strong>h_val</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+<p>current nonzero values</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-mid_valid"></span>
+              logical,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>mid_valid</strong></td>
+<td> =</td>
+                <td>.false.</td>
+            <td>
+<p>whether <code>mid_lu</code>/<code>mid_piv</code> match the current pairs and <code>gamma</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-mid_ok"></span>
+              logical,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>mid_ok</strong></td>
+<td> =</td>
+                <td>.false.</td>
+            <td>
+<p>whether the middle matrix is nonsingular</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-mid_lu"></span>
+              real(kind=wp),
+            </td>
+              <td>public,</td>
+            <td>
+              dimension(:,:), allocatable
+            </td>
+            <td>::</td>
+            <td><strong>mid_lu</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+<p>LU factors of the middle matrix</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-mid_piv"></span>
+              integer,
+            </td>
+              <td>public,</td>
+            <td>
+              dimension(:), allocatable
+            </td>
+            <td>::</td>
+            <td><strong>mid_piv</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+<p>row pivots of the LU factorization</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-diag_valid"></span>
+              logical,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>diag_valid</strong></td>
+<td> =</td>
+                <td>.false.</td>
+            <td>
+<p>whether <code>diag</code> matches the current factorization</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-diag~4"></span>
+              real(kind=wp),
+            </td>
+              <td>public,</td>
+            <td>
+              dimension(:), allocatable
+            </td>
+            <td>::</td>
+            <td><strong>diag</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+<p>the diagonal of the approximation (see <a href="../proc/hessian_diagonal.html">hessian_diagonal</a>)</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+
+
+        <h4>Type-Bound Procedures</h4>
+        <table class="table table-striped varlist">
+          <tbody>
+              <tr>
+                <td>  procedure, public ::
+  <strong><a href='../type/sqpopt_hessian_type.html#boundprocedure-initialize~6'>initialize</a></strong> => <a href='/home/runner/work/sqpopt/sqpopt/web/api/proc/hessian_initialize.html'>hessian_initialize</a></td>
+                  <td></td>
+              </tr>
+              <tr>
+                <td>  procedure, public ::
+  <strong><a href='../type/sqpopt_hessian_type.html#boundprocedure-update_bfgs'>update_bfgs</a></strong> => <a href='/home/runner/work/sqpopt/sqpopt/web/api/proc/hessian_update_bfgs.html'>hessian_update_bfgs</a></td>
+                  <td></td>
+              </tr>
+              <tr>
+                <td>  procedure, public ::
+  <strong><a href='../type/sqpopt_hessian_type.html#boundprocedure-update_sr1'>update_sr1</a></strong> => <a href='/home/runner/work/sqpopt/sqpopt/web/api/proc/hessian_update_sr1.html'>hessian_update_sr1</a></td>
+                  <td></td>
+              </tr>
+              <tr>
+                <td>  procedure, public ::
+  <strong><a href='../type/sqpopt_hessian_type.html#boundprocedure-hv_product~2'>hv_product</a></strong> => <a href='/home/runner/work/sqpopt/sqpopt/web/api/proc/hessian_vector_product.html'>hessian_vector_product</a></td>
+                  <td></td>
+              </tr>
+              <tr>
+                <td>  procedure, public ::
+  <strong><a href='../type/sqpopt_hessian_type.html#boundprocedure-diagonal'>diagonal</a></strong> => <a href='/home/runner/work/sqpopt/sqpopt/web/api/proc/hessian_diagonal.html'>hessian_diagonal</a></td>
+                  <td></td>
+              </tr>
+              <tr>
+                <td>  procedure, public ::
+  <strong><a href='../type/sqpopt_hessian_type.html#boundprocedure-dense'>dense</a></strong> => <a href='/home/runner/work/sqpopt/sqpopt/web/api/proc/hessian_dense.html'>hessian_dense</a></td>
+                  <td></td>
+              </tr>
+              <tr>
+                <td>  procedure, public ::
+  <strong><a href='../type/sqpopt_hessian_type.html#boundprocedure-inverse_vector_product'>inverse_vector_product</a></strong> => <a href='/home/runner/work/sqpopt/sqpopt/web/api/proc/hessian_inverse_vector_product.html'>hessian_inverse_vector_product</a></td>
+                  <td></td>
+              </tr>
+              <tr>
+                <td>  procedure, public ::
+  <strong><a href='../type/sqpopt_hessian_type.html#boundprocedure-reset'>reset</a></strong> => <a href='/home/runner/work/sqpopt/sqpopt/web/api/proc/hessian_reset.html'>hessian_reset</a></td>
+                  <td></td>
+              </tr>
+              <tr>
+                <td>  procedure, public ::
+  <strong><a href='../type/sqpopt_hessian_type.html#boundprocedure-set_exact'>set_exact</a></strong> => <a href='/home/runner/work/sqpopt/sqpopt/web/api/proc/hessian_set_exact.html'>hessian_set_exact</a></td>
+                  <td></td>
+              </tr>
+              <tr>
+                <td>  procedure, public ::
+  <strong><a href='../type/sqpopt_hessian_type.html#boundprocedure-set_values'>set_values</a></strong> => <a href='/home/runner/work/sqpopt/sqpopt/web/api/proc/hessian_set_values.html'>hessian_set_values</a></td>
+                  <td></td>
+              </tr>
+              <tr>
+                <td>  procedure, public ::
+  <strong><a href='../type/sqpopt_hessian_type.html#boundprocedure-magnitude'>magnitude</a></strong> => <a href='/home/runner/work/sqpopt/sqpopt/web/api/proc/hessian_size.html'>hessian_size</a></td>
+                  <td></td>
+              </tr>
+              <tr>
+                <td>  procedure, public ::
+  <strong><a href='../type/sqpopt_hessian_type.html#boundprocedure-low_rank_size'>low_rank_size</a></strong> => <a href='/home/runner/work/sqpopt/sqpopt/web/api/proc/hessian_low_rank_size.html'>hessian_low_rank_size</a></td>
+                  <td></td>
+              </tr>
+              <tr>
+                <td>  procedure, public ::
+  <strong><a href='../type/sqpopt_hessian_type.html#boundprocedure-low_rank_multiply'>low_rank_multiply</a></strong> => <a href='/home/runner/work/sqpopt/sqpopt/web/api/proc/hessian_low_rank_multiply.html'>hessian_low_rank_multiply</a></td>
+                  <td></td>
+              </tr>
+              <tr>
+                <td>  procedure, public ::
+  <strong><a href='../type/sqpopt_hessian_type.html#boundprocedure-low_rank_column'>low_rank_column</a></strong> => <a href='/home/runner/work/sqpopt/sqpopt/web/api/proc/hessian_low_rank_column.html'>hessian_low_rank_column</a></td>
+                  <td></td>
+              </tr>
+              <tr>
+                <td>  procedure, public ::
+  <strong><a href='../type/sqpopt_hessian_type.html#boundprocedure-low_rank_multiply_transpose'>low_rank_multiply_transpose</a></strong> => <a href='/home/runner/work/sqpopt/sqpopt/web/api/proc/hessian_low_rank_multiply_transpose.html'>hessian_low_rank_multiply_transpose</a></td>
+                  <td></td>
+              </tr>
+              <tr>
+                <td>  procedure, public ::
+  <strong><a href='../type/sqpopt_hessian_type.html#boundprocedure-low_rank_middle'>low_rank_middle</a></strong> => <a href='/home/runner/work/sqpopt/sqpopt/web/api/proc/hessian_low_rank_middle.html'>hessian_low_rank_middle</a></td>
+                  <td></td>
+              </tr>
+          </tbody>
+        </table>
+    </div>
+  </div>
+
+        </section>
+        <br>
+
+        <section>
+          <h2>Functions</h2>
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-pair_col"></span> <h3>private pure function <a href='../proc/pair_col.html'>pair_col</a>(me, i)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>the column of <code>s</code>/<code>y</code>/<code>rho</code> holding the <code>i</code>-th oldest stored pair
+(<code>i=1</code> is the oldest, <code>i=n_history</code> the newest).</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~128"></span>
+              class(<a href='../type/sqpopt_hessian_type.html'>sqpopt_hessian_type</a>),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-i~40"></span>
+              integer,
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>i</strong></td>
+            <td>
+<p>age rank of the pair (<code>1</code> = oldest, <code>n_history</code> = newest)</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+    <h4>
+    Return Value
+    <small>integer</small>
+    </h4>
+    
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-hessian_low_rank_size"></span> <h3>private  function <a href='../proc/hessian_low_rank_size.html'>hessian_low_rank_size</a>(me) result(r)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>the rank <code>r</code> of the low-rank part of the compact representation (see the
+module documentation): <code>2k</code> (BFGS) or <code>k</code> (SR1) for <code>k</code> stored pairs. It
+is <code>0</code> when the matrix is just <script type="math/tex"> \theta I </script> (no pairs yet, or a
+singular middle matrix, where <a href="../proc/hessian_vector_product.html">hessian_vector_product</a> falls back on
+that too), and in exact mode.</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~134"></span>
+              class(<a href='../type/sqpopt_hessian_type.html'>sqpopt_hessian_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+    <h4>
+    Return Value
+    <small>integer</small>
+    </h4>
+    
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-hessian_size"></span> <h3>private pure function <a href='../proc/hessian_size.html'>hessian_size</a>(me) result(h)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>the size of the Hessian, which the shift is relative to:
+<script type="math/tex"> \max(1, \max_{ij} |H_{ij}|) </script> for the exact Hessian, and
+<script type="math/tex"> \max(1, \theta) </script> for a quasi-Newton one.</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~144"></span>
+              class(<a href='../type/sqpopt_hessian_type.html'>sqpopt_hessian_type</a>),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+    <h4>
+    Return Value
+    <small>real(kind=wp)</small>
+    </h4>
+    
+
+    </div>
+  </div>
+
+        </section>
+        <br>
+
+        <section>
+          <h2>Subroutines</h2>
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-hessian_initialize"></span> <h3>private  subroutine <a href='../proc/hessian_initialize.html'>hessian_initialize</a>(me, n, max_history, use_sr1, scale0)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>initialize the limited-memory Hessian approximation (equivalent to
+<script type="math/tex"> H_0 = \gamma I </script>, with no <code>(s,y)</code> pairs stored).</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~124"></span>
+              class(<a href='../type/sqpopt_hessian_type.html'>sqpopt_hessian_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-n~52"></span>
+              integer,
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>n</strong></td>
+            <td>
+<p>problem size</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-max_history~2"></span>
+              integer,
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>max_history</strong></td>
+            <td>
+<p>number of <code>(s,y)</code> pairs to retain</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-use_sr1~2"></span>
+              logical,
+            </td>
+<td>intent(in),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>use_sr1</strong></td>
+            <td>
+<p>if true, use SR1 instead of BFGS (default <code>.false.</code>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-scale0"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>scale0</strong></td>
+            <td>
+<p>initial Hessian approximation <script type="math/tex"> B_0 = </script>
+<code>scale0</code> <script type="math/tex"> I </script> (default 1)</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-hessian_update_bfgs"></span> <h3>private  subroutine <a href='../proc/hessian_update_bfgs.html'>hessian_update_bfgs</a>(me, s, y)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>update the limited-memory Hessian approximation using the BFGS
+update formula, given the step <script type="math/tex"> s = x_{k+1} - x_k </script> and the change
+in the Lagrangian gradient <script type="math/tex"> y = \nabla_x \mathcal{L}_{k+1} - \nabla_x \mathcal{L}_k </script>.</p><a href="../proc/hessian_update_bfgs.html" class="pull-right"><emph>Read more&hellip;</emph></a>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~125"></span>
+              class(<a href='../type/sqpopt_hessian_type.html'>sqpopt_hessian_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-s~16"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>s</strong></td>
+            <td>
+<p>step vector <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-y~13"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>y</strong></td>
+            <td>
+<p>Lagrangian gradient change <code>dimension(n)</code></p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-hessian_update_sr1"></span> <h3>private  subroutine <a href='../proc/hessian_update_sr1.html'>hessian_update_sr1</a>(me, s, y)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>update the limited-memory Hessian approximation using the symmetric
+rank-1 (SR1) update formula. The update is skipped if the standard
+SR1 safeguard <script type="math/tex"> |(y-Bs)^Ts| \ge \epsilon \lVert y-Bs \rVert \lVert s
+\rVert </script> is not satisfied. The oldest pair is discarded once
+<code>max_history</code> pairs are stored.</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~126"></span>
+              class(<a href='../type/sqpopt_hessian_type.html'>sqpopt_hessian_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-s~17"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>s</strong></td>
+            <td>
+<p>step vector <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-y~14"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>y</strong></td>
+            <td>
+<p>Lagrangian gradient change <code>dimension(n)</code></p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-hessian_push_pair"></span> <h3>private  subroutine <a href='../proc/hessian_push_pair.html'>hessian_push_pair</a>(me, s, y)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>push a new <code>(s,y)</code> pair into the circular history buffer, discarding
+the oldest pair if <code>max_history</code> pairs are already stored (by
+overwriting its column and advancing <code>first</code>, so no data is moved), and
+update the inner products <code>ss</code> and <code>sy</code> with the new pair (<code>O(nk)</code>).</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~127"></span>
+              class(<a href='../type/sqpopt_hessian_type.html'>sqpopt_hessian_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-s~18"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>s</strong></td>
+            <td>
+<p>step vector <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-y~15"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>y</strong></td>
+            <td>
+<p>Lagrangian gradient change <code>dimension(n)</code></p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-hessian_vector_product"></span> <h3>private  subroutine <a href='../proc/hessian_vector_product.html'>hessian_vector_product</a>(me, v, hv)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>compute the matrix-free Hessian-vector product <script type="math/tex"> h_v = H v </script>, used
+by the QP subproblem solver in place of an explicit dense matrix.
+Uses the compact representation of either the BFGS or the SR1
+matrix (Byrd, Nocedal &amp; Schnabel, 1994), depending on <code>use_sr1</code>, with
+its small middle matrix factored once (see <a href="../proc/factor_middle_matrix.html">factor_middle_matrix</a>)
+and reused until the pairs or <code>gamma</code> change.</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~129"></span>
+              class(<a href='../type/sqpopt_hessian_type.html'>sqpopt_hessian_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-v~31"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>v</strong></td>
+            <td>
+<p>input vector <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-hv~4"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>hv</strong></td>
+            <td>
+<p>result <code>dimension(n)</code></p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-hessian_diagonal"></span> <h3>private  subroutine <a href='../proc/hessian_diagonal.html'>hessian_diagonal</a>(me, d)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>the diagonal of the Hessian approximation <script type="math/tex"> H </script>, from its compact
+representation (at a cost of <script type="math/tex"> O(n k^2) </script> for <code>k</code> pairs, without
+forming <script type="math/tex"> H </script>): <script type="math/tex"> H_{ii} = \theta \mp \psi_i^T M^{-1} \psi_i </script>, with
+<script type="math/tex"> \psi_i </script> the <code>i</code>-th row of <script type="math/tex"> \Psi = [\theta S \; Y] </script> (BFGS, minus)
+or of <script type="math/tex"> \Psi = Y - \theta S </script> (SR1, plus), i.e. the row sums of
+<script type="math/tex"> \Psi \circ (\Psi M^{-1}) </script>. Used as a (Jacobi) preconditioner. The
+result is kept until the pairs or the scaling change.</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~130"></span>
+              class(<a href='../type/sqpopt_hessian_type.html'>sqpopt_hessian_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-d~11"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>d</strong></td>
+            <td>
+<p>the diagonal <code>dimension(n)</code></p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-hessian_dense"></span> <h3>private  subroutine <a href='../proc/hessian_dense.html'>hessian_dense</a>(me, h)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>the Hessian approximation <script type="math/tex"> H </script> as a dense matrix, in the caller's
+array (for the dense QP solver, the only place a dense <script type="math/tex"> n \times n </script>
+matrix is used).</p><a href="../proc/hessian_dense.html" class="pull-right"><emph>Read more&hellip;</emph></a>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~131"></span>
+              class(<a href='../type/sqpopt_hessian_type.html'>sqpopt_hessian_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-h~3"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:,:)
+            </td>
+            <td>::</td>
+            <td><strong>h</strong></td>
+            <td>
+<p>the matrix <code>dimension(n,n)</code> (symmetric, both triangles set)</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-factor_middle_matrix"></span> <h3>private  subroutine <a href='../proc/factor_middle_matrix.html'>factor_middle_matrix</a>(me)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>form and LU-factor the middle matrix of the compact representation for
+the current pairs and <code>gamma</code> (<script type="math/tex"> \theta = 1/\gamma </script>):</p><a href="../proc/factor_middle_matrix.html" class="pull-right"><emph>Read more&hellip;</emph></a>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~132"></span>
+              class(<a href='../type/sqpopt_hessian_type.html'>sqpopt_hessian_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-middle_matrix"></span> <h3>private pure subroutine <a href='../proc/middle_matrix.html'>middle_matrix</a>(me, a)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>form the middle matrix <script type="math/tex"> M </script> of the compact representation (see
+<a href="../proc/factor_middle_matrix.html">factor_middle_matrix</a>) for the current pairs and <code>gamma</code>, in <code>a</code>.</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~133"></span>
+              class(<a href='../type/sqpopt_hessian_type.html'>sqpopt_hessian_type</a>),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-a~17"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:,:)
+            </td>
+            <td>::</td>
+            <td><strong>a</strong></td>
+            <td>
+<p>the matrix: <code>dimension(k,k)</code> (SR1) or <code>dimension(2k,2k)</code> (BFGS)</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-hessian_low_rank_multiply"></span> <h3>private pure subroutine <a href='../proc/hessian_low_rank_multiply.html'>hessian_low_rank_multiply</a>(me, w, v)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>the product <script type="math/tex"> v = U w </script> with the low-rank factor of the compact
+representation (see the module documentation).</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~135"></span>
+              class(<a href='../type/sqpopt_hessian_type.html'>sqpopt_hessian_type</a>),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-w~13"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>w</strong></td>
+            <td>
+<p>the coefficients <code>dimension(r)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-v~32"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>v</strong></td>
+            <td>
+<p>the product <code>dimension(n)</code></p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-hessian_low_rank_column"></span> <h3>private pure subroutine <a href='../proc/hessian_low_rank_column.html'>hessian_low_rank_column</a>(me, j, u)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>column <code>j</code> of the low-rank factor <script type="math/tex"> U </script> of the compact representation
+(see the module documentation).</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~136"></span>
+              class(<a href='../type/sqpopt_hessian_type.html'>sqpopt_hessian_type</a>),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-j~32"></span>
+              integer,
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>j</strong></td>
+            <td>
+<p>the column (<code>1..r</code>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-u~9"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>u</strong></td>
+            <td>
+<p>the column <code>dimension(n)</code></p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-hessian_low_rank_multiply_transpose"></span> <h3>private pure subroutine <a href='../proc/hessian_low_rank_multiply_transpose.html'>hessian_low_rank_multiply_transpose</a>(me, v, w)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>the product <script type="math/tex"> w = U^T v </script> with the low-rank factor of the compact
+representation (see the module documentation).</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~137"></span>
+              class(<a href='../type/sqpopt_hessian_type.html'>sqpopt_hessian_type</a>),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-v~33"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>v</strong></td>
+            <td>
+<p>the vector <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-w~14"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>w</strong></td>
+            <td>
+<p>the product <code>dimension(r)</code></p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-hessian_low_rank_middle"></span> <h3>private pure subroutine <a href='../proc/hessian_low_rank_middle.html'>hessian_low_rank_middle</a>(me, a, sigma)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>the middle matrix <script type="math/tex"> M </script> of the compact representation, and the sign
+<script type="math/tex"> \sigma </script> of its term (see the module documentation).</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~138"></span>
+              class(<a href='../type/sqpopt_hessian_type.html'>sqpopt_hessian_type</a>),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-a~18"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:,:)
+            </td>
+            <td>::</td>
+            <td><strong>a</strong></td>
+            <td>
+<p>the matrix <script type="math/tex"> M </script>
+<code>dimension(r,r)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-sigma~4"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>sigma</strong></td>
+            <td>
+<p><code>-1</code> (BFGS) or <code>+1</code> (SR1)</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-hessian_inverse_vector_product"></span> <h3>private  subroutine <a href='../proc/hessian_inverse_vector_product.html'>hessian_inverse_vector_product</a>(me, v, d)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>compute the matrix-free inverse-Hessian-vector product <script type="math/tex"> d = H^{-1} v </script>.
+For the BFGS mode this uses the classic two-loop recursion. For the
+SR1 mode (no simple closed-form inverse exists) this uses a small
+internal conjugate-gradient solve driven by <a href="../proc/hessian_vector_product.html">hessian_vector_product</a>.</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~139"></span>
+              class(<a href='../type/sqpopt_hessian_type.html'>sqpopt_hessian_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-v~34"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>v</strong></td>
+            <td>
+<p>input vector <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-d~12"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>d</strong></td>
+            <td>
+<p>result <code>dimension(n)</code></p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-hessian_cg_solve"></span> <h3>private  subroutine <a href='../proc/hessian_cg_solve.html'>hessian_cg_solve</a>(me, v, d)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>approximate <script type="math/tex"> H^{-1} v </script> via a small conjugate-gradient solve of
+ <script type="math/tex"> H d = v </script>, using only <a href="../proc/hessian_vector_product.html">hessian_vector_product</a> (matrix-free).
+ Used for the SR1 mode, which has no simple closed-form inverse.</p><a href="../proc/hessian_cg_solve.html" class="pull-right"><emph>Read more&hellip;</emph></a>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~140"></span>
+              class(<a href='../type/sqpopt_hessian_type.html'>sqpopt_hessian_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-v~35"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>v</strong></td>
+            <td>
+<p>right-hand side <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-d~13"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>d</strong></td>
+            <td>
+<p>solution of <script type="math/tex"> B d = v </script>
+<code>dimension(n)</code></p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-hessian_reset"></span> <h3>private  subroutine <a href='../proc/hessian_reset.html'>hessian_reset</a>(me)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>reset the Hessian approximation, discarding all stored <code>(s,y)</code> pairs
+(and any shift). In exact mode, increase the shift instead (see the
+module documentation).</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~141"></span>
+              class(<a href='../type/sqpopt_hessian_type.html'>sqpopt_hessian_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-hessian_set_exact"></span> <h3>private  subroutine <a href='../proc/hessian_set_exact.html'>hessian_set_exact</a>(me, irow, icol)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>switch to the exact mode (see the module documentation), with the
+sparsity pattern <code>irow</code>/<code>icol</code> of the Hessian of the Lagrangian (each
+off-diagonal element given once, see <a href="../proc/set_hessian_sparsity.html">set_hessian_sparsity</a>). The
+values are set by <a href="../proc/hessian_set_values.html">hessian_set_values</a>; until then they are zero.</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~142"></span>
+              class(<a href='../type/sqpopt_hessian_type.html'>sqpopt_hessian_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-irow~18"></span>
+              integer,
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>irow</strong></td>
+            <td>
+<p>row indices <code>dimension(nnz)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-icol~17"></span>
+              integer,
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>icol</strong></td>
+            <td>
+<p>column indices <code>dimension(nnz)</code></p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-hessian_set_values"></span> <h3>private  subroutine <a href='../proc/hessian_set_values.html'>hessian_set_values</a>(me, val, decay)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>set the values of the exact Hessian for a new major iteration, and, if
+<code>decay</code>, decrease the shift (divided by 3, and set to 0 once below its
+minimum).</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~143"></span>
+              class(<a href='../type/sqpopt_hessian_type.html'>sqpopt_hessian_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-val~19"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>val</strong></td>
+            <td>
+<p>the nonzero values <code>dimension(nnz)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-decay"></span>
+              logical,
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>decay</strong></td>
+            <td>
+<p>whether to decrease the shift (after a good step)</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+        </section>
+        <br>
+
+
+
+    </div>
+  </div>
+
+      <hr>
+    </div> <!-- /container -->
+    <footer>
+      <div class="container">
+        <div class="row justify-content-between">
+          <div class="col">
+            <p>
+              sqpopt
+ was developed by Jacob Williams<br>              &copy; 2026 
+</p>
+          </div>
+          <div class="col">
+            <p class="text-end">
+              Documentation generated by
+              <a href="https://github.com/Fortran-FOSS-Programmers/ford">FORD</a>
+            </p>
+          </div>
+        </div>
+        <br>
+      </div> <!-- /container -->
+    </footer>
+    <!-- sqpopt theme: the button switches the theme, and remembers it for the guide too -->
+    <script>
+      document.querySelector('.theme-toggle').addEventListener('click', function () {
+        var root = document.documentElement;
+        var next = root.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-bs-theme', next);
+        try { localStorage.setItem('sqpopt-theme', next); } catch (e) {}
+      });
+    </script>
+  </body>
+</html>

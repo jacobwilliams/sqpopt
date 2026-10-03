@@ -1,0 +1,405 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - coverage.info - src/sqpopt_qp_direct_module.f90</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../index.html" title="Click to go to top-level">top level</a> - <a href="index.html" title="Click to go to directory src">src</a> - sqpopt_qp_direct_module.f90<span style="font-size: 80%;"> (source / <a href="sqpopt_qp_direct_module.f90.func-c.html" title="Click to go to function table">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">coverage.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">90.5&nbsp;%</td>
+            <td class="headerCovTableEntry">116</td>
+            <td class="headerCovTableEntry">105</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2026-10-03 21:13:48</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryLo">50.0&nbsp;%</td>
+            <td class="headerCovTableEntry">2</td>
+            <td class="headerCovTableEntry">1</td>
+          </tr>
+                  <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : !*******************************************************************************</span>
+<span id="L2"><span class="lineNum">       2</span>              : !&gt; author: Jacob Williams</span>
+<span id="L3"><span class="lineNum">       3</span>              : !  license: MIT</span>
+<span id="L4"><span class="lineNum">       4</span>              : !</span>
+<span id="L5"><span class="lineNum">       5</span>              : !  A direct solution of the QP subproblem (`options%direct_qp`), by sparse</span>
+<span id="L6"><span class="lineNum">       6</span>              : !  factorizations of the KKT matrix of its working set (see</span>
+<span id="L7"><span class="lineNum">       7</span>              : !  [[sqpopt_kkt_module]]; MUMPS or QDLDL, see `options%linear_solver`).</span>
+<span id="L8"><span class="lineNum">       8</span>              : !</span>
+<span id="L9"><span class="lineNum">       9</span>              : !  For a given working set (the general rows and variable bounds held at</span>
+<span id="L10"><span class="lineNum">      10</span>              : !  a bound), the QP is an equality-constrained one, and its solution is one</span>
+<span id="L11"><span class="lineNum">      11</span>              : !  linear solve:</span>
+<span id="L12"><span class="lineNum">      12</span>              : !</span>
+<span id="L13"><span class="lineNum">      13</span>              : !  $$ \begin{bmatrix} H &amp; J_a^T \\ J_a &amp; 0 \end{bmatrix}</span>
+<span id="L14"><span class="lineNum">      14</span>              : !     \begin{bmatrix} p \\ -\lambda \end{bmatrix} =</span>
+<span id="L15"><span class="lineNum">      15</span>              : !     \begin{bmatrix} -g \\ b_a - c_a \end{bmatrix} $$</span>
+<span id="L16"><span class="lineNum">      16</span>              : !</span>
+<span id="L17"><span class="lineNum">      17</span>              : !  with the variables at a bound of the working set fixed there. That step</span>
+<span id="L18"><span class="lineNum">      18</span>              : !  solves the whole QP if it is *feasible* (it satisfies the rows and bounds</span>
+<span id="L19"><span class="lineNum">      19</span>              : !  outside the working set) and *optimal* (the multipliers of the working</span>
+<span id="L20"><span class="lineNum">      20</span>              : !  set's inequalities have the right signs), and the face is convex (no</span>
+<span id="L21"><span class="lineNum">      21</span>              : !  negative curvature, which the factorization tells).</span>
+<span id="L22"><span class="lineNum">      22</span>              : !</span>
+<span id="L23"><span class="lineNum">      23</span>              : !  [[direct_qp_step]] starts from the working set that the QP solver would</span>
+<span id="L24"><span class="lineNum">      24</span>              : !  start from: near a solution of the nonlinear problem, that is already</span>
+<span id="L25"><span class="lineNum">      25</span>              : !  the right one, and the QP costs one factorization and one solve. If the</span>
+<span id="L26"><span class="lineNum">      26</span>              : !  step isn't feasible and optimal, the working set is changed as in a</span>
+<span id="L27"><span class="lineNum">      27</span>              : !  *primal-dual active-set method* (Hintermüller, Ito &amp; Kunisch, 2002):</span>
+<span id="L28"><span class="lineNum">      28</span>              : !  every row and bound the step violates is added, every one whose</span>
+<span id="L29"><span class="lineNum">      29</span>              : !  multiplier has the wrong sign is dropped, and the new face is factored</span>
+<span id="L30"><span class="lineNum">      30</span>              : !  and solved. After a few changes without success, it gives up, and the</span>
+<span id="L31"><span class="lineNum">      31</span>              : !  caller solves the QP with its active-set solver instead (see</span>
+<span id="L32"><span class="lineNum">      32</span>              : !  [[solve_qp_subproblem]]). So the direct method only ever replaces a QP</span>
+<span id="L33"><span class="lineNum">      33</span>              : !  solve by a solution that satisfies the QP's optimality conditions.</span>
+<span id="L34"><span class="lineNum">      34</span>              : !</span>
+<span id="L35"><span class="lineNum">      35</span>              : !  Adding every violated bound at once can leave a row of the working set</span>
+<span id="L36"><span class="lineNum">      36</span>              : !  with no free variable, or otherwise dependent on the others: the KKT</span>
+<span id="L37"><span class="lineNum">      37</span>              : !  matrix is then singular. Such a face is factored again with a small</span>
+<span id="L38"><span class="lineNum">      38</span>              : !  regularization (\( -\epsilon I \) in the rows' block, see</span>
+<span id="L39"><span class="lineNum">      39</span>              : !  [[sqpopt_kkt_module]]), which satisfies the dependent rows only in a</span>
+<span id="L40"><span class="lineNum">      40</span>              : !  heavily weighted least-squares sense. That gives them large multipliers,</span>
+<span id="L41"><span class="lineNum">      41</span>              : !  so the bounds that over-determine them are dropped at the next change.</span>
+<span id="L42"><span class="lineNum">      42</span>              : !  A step is only accepted if it satisfies the working set's rows, so a</span>
+<span id="L43"><span class="lineNum">      43</span>              : !  regularized face is accepted only if its rows were consistent. A</span>
+<span id="L44"><span class="lineNum">      44</span>              : !  regularized solve leaves each row short by \( \epsilon \) times its</span>
+<span id="L45"><span class="lineNum">      45</span>              : !  multiplier, so if that is all that is wrong with the step, the face is</span>
+<span id="L46"><span class="lineNum">      46</span>              : !  solved once more with a much smaller \( \epsilon \). (That matters</span>
+<span id="L47"><span class="lineNum">      47</span>              : !  when the solver finds a matrix singular that isn't: near the solution of</span>
+<span id="L48"><span class="lineNum">      48</span>              : !  a chain of 100,000 circle constraints, the first regularization left the</span>
+<span id="L49"><span class="lineNum">      49</span>              : !  rows `7e-8` short, and the method gave up on a QP it had solved.) A face</span>
+<span id="L50"><span class="lineNum">      50</span>              : !  that is still singular (a direction of zero curvature) ends the method.</span>
+<span id="L51"><span class="lineNum">      51</span>              : !</span>
+<span id="L52"><span class="lineNum">      52</span>              : !  A face with negative curvature has no minimizer. With inertia control</span>
+<span id="L53"><span class="lineNum">      53</span>              : !  (see [[sqpopt_inertia_module]]), the Hessian's shift is raised until the</span>
+<span id="L54"><span class="lineNum">      54</span>              : !  face is convex, and the method continues from there with the shifted</span>
+<span id="L55"><span class="lineNum">      55</span>              : !  Hessian (the shift only ever increases, so this can't cycle). Without</span>
+<span id="L56"><span class="lineNum">      56</span>              : !  it, the method gives up at such a face.</span>
+<span id="L57"><span class="lineNum">      57</span>              : !</span>
+<span id="L58"><span class="lineNum">      58</span>              : !  The factorization can't be updated when the working set changes: every</span>
+<span id="L59"><span class="lineNum">      59</span>              : !  change is a new factorization. That is cheap next to the active-set</span>
+<span id="L60"><span class="lineNum">      60</span>              : !  solvers on large problems (their iterations each solve with the reduced</span>
+<span id="L61"><span class="lineNum">      61</span>              : !  Hessian), but it is why this isn't used for a QP that needs many</span>
+<span id="L62"><span class="lineNum">      62</span>              : !  changes, such as the first one from an infeasible starting point.</span>
+<span id="L63"><span class="lineNum">      63</span>              : </span>
+<span id="L64"><span class="lineNum">      64</span>              :     module sqpopt_qp_direct_module</span>
+<span id="L65"><span class="lineNum">      65</span>              : </span>
+<span id="L66"><span class="lineNum">      66</span>              :     use sqpopt_kinds,          only: wp =&gt; sqpopt_module_wp</span>
+<span id="L67"><span class="lineNum">      67</span>              :     use sqpopt_types_module,   only: sqpopt_sparse_matrix, sqpopt_all_finite</span>
+<span id="L68"><span class="lineNum">      68</span>              :     use sqpopt_hessian_module, only: sqpopt_hessian_type</span>
+<span id="L69"><span class="lineNum">      69</span>              :     use sqpopt_kkt_module,     only: sqpopt_kkt_type</span>
+<span id="L70"><span class="lineNum">      70</span>              :     use sqpopt_inertia_module, only: sqpopt_inertia_type</span>
+<span id="L71"><span class="lineNum">      71</span>              :     use sqpopt_linalg_module,  only: sparse_matvec, sparse_matvec_transpose</span>
+<span id="L72"><span class="lineNum">      72</span>              : </span>
+<span id="L73"><span class="lineNum">      73</span>              :     implicit none</span>
+<span id="L74"><span class="lineNum">      74</span>              : </span>
+<span id="L75"><span class="lineNum">      75</span>              :     private</span>
+<span id="L76"><span class="lineNum">      76</span>              : </span>
+<span id="L77"><span class="lineNum">      77</span>              :     public :: direct_qp_step, direct_outcome_text</span>
+<span id="L78"><span class="lineNum">      78</span>              : </span>
+<span id="L79"><span class="lineNum">      79</span>              :     real(wp), parameter :: stationarity_tol = 1.0e-8_wp !! tolerance on the stationarity residual of a solve, in</span>
+<span id="L80"><span class="lineNum">      80</span>              :                                                         !! the free variables, relative to the terms that it is</span>
+<span id="L81"><span class="lineNum">      81</span>              :                                                         !! the difference of (the gradient, and the Hessian times</span>
+<span id="L82"><span class="lineNum">      82</span>              :                                                         !! the step)</span>
+<span id="L83"><span class="lineNum">      83</span>              :     real(wp), parameter :: reg_factor = 1.0e-8_wp  !! the regularization of a singular face, relative to the square</span>
+<span id="L84"><span class="lineNum">      84</span>              :                                                    !! of the largest element of the face's part of the Jacobian (the</span>
+<span id="L85"><span class="lineNum">      85</span>              :                                                    !! working set's rows, in the variables that are not fixed)</span>
+<span id="L86"><span class="lineNum">      86</span>              :     real(wp), parameter :: reg_factor_fine = 1.0e-11_wp !! the smaller one, tried if the step of a regularized face</span>
+<span id="L87"><span class="lineNum">      87</span>              :                                                    !! only fails to satisfy the working set's rows: a regularized</span>
+<span id="L88"><span class="lineNum">      88</span>              :                                                    !! solve leaves each row short by the regularization times its</span>
+<span id="L89"><span class="lineNum">      89</span>              :                                                    !! multiplier</span>
+<span id="L90"><span class="lineNum">      90</span>              : </span>
+<span id="L91"><span class="lineNum">      91</span>              :     ! how [[direct_qp_step]] ended:</span>
+<span id="L92"><span class="lineNum">      92</span>              :     integer, parameter, public :: sqpopt_direct_solved     = 0 !! it found the QP's solution</span>
+<span id="L93"><span class="lineNum">      93</span>              :     integer, parameter, public :: sqpopt_direct_nonconvex  = 1 !! a face had negative curvature</span>
+<span id="L94"><span class="lineNum">      94</span>              :     integer, parameter, public :: sqpopt_direct_singular   = 2 !! a face had no unique minimizer, or</span>
+<span id="L95"><span class="lineNum">      95</span>              :                                                                !! inconsistent rows</span>
+<span id="L96"><span class="lineNum">      96</span>              :     integer, parameter, public :: sqpopt_direct_max_changes = 3 !! too many changes of the working set</span>
+<span id="L97"><span class="lineNum">      97</span>              :     integer, parameter, public :: sqpopt_direct_failed     = 4 !! a factorization or a solve failed</span>
+<span id="L98"><span class="lineNum">      98</span>              :     integer, parameter, public :: sqpopt_direct_inaccurate = 5 !! a solve was too inaccurate</span>
+<span id="L99"><span class="lineNum">      99</span>              : </span>
+<span id="L100"><span class="lineNum">     100</span>              :     contains</span>
+<span id="L101"><span class="lineNum">     101</span>              : !*******************************************************************************</span>
+<span id="L102"><span class="lineNum">     102</span>              : </span>
+<span id="L103"><span class="lineNum">     103</span>              : !*******************************************************************************</span>
+<span id="L104"><span class="lineNum">     104</span>              : !&gt;</span>
+<span id="L105"><span class="lineNum">     105</span>              : !  try to solve the QP subproblem directly (see the module documentation),</span>
+<span id="L106"><span class="lineNum">     106</span>              : !  starting from the working set `status`. If it succeeds</span>
+<span id="L107"><span class="lineNum">     107</span>              : !  (`outcome = sqpopt_direct_solved`), `p` and `lambda` are the QP's</span>
+<span id="L108"><span class="lineNum">     108</span>              : !  solution and `status` its working set. Otherwise they are not to be</span>
+<span id="L109"><span class="lineNum">     109</span>              : !  used, `status` is unchanged, and `outcome` says why it gave up (see the</span>
+<span id="L110"><span class="lineNum">     110</span>              : !  `sqpopt_direct_*` constants).</span>
+<span id="L111"><span class="lineNum">     111</span>              : </span>
+<span id="L112"><span class="lineNum">     112</span> <span class="tlaGNC">        7206 :     subroutine direct_qp_step(kkt, hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, max_changes, tol, &amp;</span></span>
+<span id="L113"><span class="lineNum">     113</span> <span class="tlaGNC">        7206 :                               status, p, lambda, n_changes, outcome, inertia)</span></span>
+<span id="L114"><span class="lineNum">     114</span>              : </span>
+<span id="L115"><span class="lineNum">     115</span>              :     type(sqpopt_kkt_type),      intent(inout) :: kkt     !! the KKT matrix (see [[sqpopt_kkt_module]])</span>
+<span id="L116"><span class="lineNum">     116</span>              :     type(sqpopt_hessian_type),  intent(inout) :: hessian !! the Hessian (exact, with its shift, or quasi-Newton)</span>
+<span id="L117"><span class="lineNum">     117</span>              :     type(sqpopt_sparse_matrix), intent(in)    :: jac     !! sparse constraint Jacobian, `dimension(m,n)`</span>
+<span id="L118"><span class="lineNum">     118</span>              :     real(wp), dimension(:),     intent(in)    :: x       !! current point `dimension(n)`</span>
+<span id="L119"><span class="lineNum">     119</span>              :     real(wp), dimension(:),     intent(in)    :: g       !! objective gradient `dimension(n)`</span>
+<span id="L120"><span class="lineNum">     120</span>              :     real(wp), dimension(:),     intent(in)    :: c       !! current constraint values `dimension(m)`</span>
+<span id="L121"><span class="lineNum">     121</span>              :     real(wp), dimension(:),     intent(in)    :: x_lb    !! variable lower bounds `dimension(n)`</span>
+<span id="L122"><span class="lineNum">     122</span>              :     real(wp), dimension(:),     intent(in)    :: x_ub    !! variable upper bounds `dimension(n)`</span>
+<span id="L123"><span class="lineNum">     123</span>              :     real(wp), dimension(:),     intent(in)    :: c_lb    !! constraint lower bounds `dimension(m)`</span>
+<span id="L124"><span class="lineNum">     124</span>              :     real(wp), dimension(:),     intent(in)    :: c_ub    !! constraint upper bounds `dimension(m)`</span>
+<span id="L125"><span class="lineNum">     125</span>              :     integer,                    intent(in)    :: max_changes !! maximum number of changes of the working set</span>
+<span id="L126"><span class="lineNum">     126</span>              :     real(wp),                   intent(in)    :: tol     !! relative tolerance for a violated row or bound, and for</span>
+<span id="L127"><span class="lineNum">     127</span>              :                                                          !! the sign of a multiplier</span>
+<span id="L128"><span class="lineNum">     128</span>              :     integer, dimension(:),      intent(inout) :: status  !! the working set: the side (`-1` lower, `+1` upper, `0`</span>
+<span id="L129"><span class="lineNum">     129</span>              :                                                          !! not in it) of each general row, then of each variable</span>
+<span id="L130"><span class="lineNum">     130</span>              :                                                          !! bound `dimension(m+n)`</span>
+<span id="L131"><span class="lineNum">     131</span>              :     real(wp), dimension(:),     intent(out)   :: p       !! the step `dimension(n)`</span>
+<span id="L132"><span class="lineNum">     132</span>              :     real(wp), dimension(:),     intent(out)   :: lambda  !! the constraint multipliers `dimension(m)`</span>
+<span id="L133"><span class="lineNum">     133</span>              :     integer,                    intent(out)   :: n_changes !! number of changes of the working set that were made</span>
+<span id="L134"><span class="lineNum">     134</span>              :     integer,                    intent(out)   :: outcome   !! how it ended (a `sqpopt_direct_*` constant)</span>
+<span id="L135"><span class="lineNum">     135</span>              :     type(sqpopt_inertia_type), optional, intent(inout) :: inertia !! the inertia control, to raise the Hessian's shift</span>
+<span id="L136"><span class="lineNum">     136</span>              :                                                                   !! at a nonconvex face (used if `inertia%enabled`)</span>
+<span id="L137"><span class="lineNum">     137</span>              : </span>
+<span id="L138"><span class="lineNum">     138</span>              :     integer :: n, m, i, j, k</span>
+<span id="L139"><span class="lineNum">     139</span> <span class="tlaGNC">        3603 :     integer, dimension(:), allocatable :: st, st_new</span></span>
+<span id="L140"><span class="lineNum">     140</span> <span class="tlaGNC">        3603 :     real(wp), dimension(:), allocatable :: v</span></span>
+<span id="L141"><span class="lineNum">     141</span> <span class="tlaGNC">        3603 :     real(wp), dimension(:), allocatable :: p_fixed, hp, z</span></span>
+<span id="L142"><span class="lineNum">     142</span> <span class="tlaGNC">        3603 :     real(wp), dimension(:), allocatable :: jp</span></span>
+<span id="L143"><span class="lineNum">     143</span>              :     real(wp) :: dual_tol, lin</span>
+<span id="L144"><span class="lineNum">     144</span>              :     logical  :: ok, convex, shifted, consistent</span>
+<span id="L145"><span class="lineNum">     145</span>              :     logical  :: regularized !! whether the current face's KKT matrix is singular, and so regularized</span>
+<span id="L146"><span class="lineNum">     146</span>              :     logical  :: fine        !! whether the current face is being solved again with the smaller regularization</span>
+<span id="L147"><span class="lineNum">     147</span>              :     real(wp) :: reg, target, jmax</span>
+<span id="L148"><span class="lineNum">     148</span>              : </span>
+<span id="L149"><span class="lineNum">     149</span> <span class="tlaGNC">        3603 :     allocate(st(size(status)), st_new(size(status)))</span></span>
+<span id="L150"><span class="lineNum">     150</span> <span class="tlaGNC">        3603 :     allocate(v(size(x) + size(c)), p_fixed(size(x)), hp(size(x)), z(size(x)), jp(size(c)))</span></span>
+<span id="L151"><span class="lineNum">     151</span>              : </span>
+<span id="L152"><span class="lineNum">     152</span> <span class="tlaGNC">        3603 :     n = size(x)</span></span>
+<span id="L153"><span class="lineNum">     153</span> <span class="tlaGNC">        3603 :     m = size(c)</span></span>
+<span id="L154"><span class="lineNum">     154</span> <span class="tlaGNC">        3603 :     outcome   = sqpopt_direct_failed</span></span>
+<span id="L155"><span class="lineNum">     155</span> <span class="tlaGNC">        3603 :     n_changes = 0</span></span>
+<span id="L156"><span class="lineNum">     156</span> <span class="tlaGNC">     2351078 :     p      = 0.0_wp</span></span>
+<span id="L157"><span class="lineNum">     157</span> <span class="tlaGNC">      453102 :     lambda = 0.0_wp</span></span>
+<span id="L158"><span class="lineNum">     158</span> <span class="tlaGNC">     2804180 :     st = status</span></span>
+<span id="L159"><span class="lineNum">     159</span> <span class="tlaGNC">        3603 :     fine = .false.</span></span>
+<span id="L160"><span class="lineNum">     160</span> <span class="tlaGNC">        3603 :     regularized = .false.</span></span>
+<span id="L161"><span class="lineNum">     161</span>              : </span>
+<span id="L162"><span class="lineNum">     162</span> <span class="tlaGNC">        1058 :     do</span></span>
+<span id="L163"><span class="lineNum">     163</span>              : </span>
+<span id="L164"><span class="lineNum">     164</span> <span class="tlaGNC">        4661 :         if (.not. fine) then</span></span>
+<span id="L165"><span class="lineNum">     165</span> <span class="tlaGNC">        4582 :             call kkt%factor(hessian, jac, st, ok)</span></span>
+<span id="L166"><span class="lineNum">     166</span> <span class="tlaGNC">        4582 :             if (.not. ok) return</span></span>
+<span id="L167"><span class="lineNum">     167</span> <span class="tlaGNC">        4582 :             if (kkt%n_negative &gt; 0) then</span></span>
+<span id="L168"><span class="lineNum">     168</span>              :                 ! a nonconvex face: raise the shift until it is convex, if we may</span>
+<span id="L169"><span class="lineNum">     169</span> <span class="tlaGNC">          28 :                 convex = .false.</span></span>
+<span id="L170"><span class="lineNum">     170</span> <span class="tlaGNC">          28 :                 if (present(inertia)) call inertia%correct(kkt, hessian, jac, st, shifted, convex)</span></span>
+<span id="L171"><span class="lineNum">     171</span> <span class="tlaGNC">          28 :                 if (.not. convex) then</span></span>
+<span id="L172"><span class="lineNum">     172</span> <span class="tlaGNC">          27 :                     outcome = sqpopt_direct_nonconvex</span></span>
+<span id="L173"><span class="lineNum">     173</span> <span class="tlaGNC">          27 :                     return</span></span>
+<span id="L174"><span class="lineNum">     174</span>              :                 end if</span>
+<span id="L175"><span class="lineNum">     175</span>              :             end if</span>
+<span id="L176"><span class="lineNum">     176</span> <span class="tlaGNC">        4555 :             regularized = kkt%singular</span></span>
+<span id="L177"><span class="lineNum">     177</span>              :         end if</span>
+<span id="L178"><span class="lineNum">     178</span> <span class="tlaGNC">        4634 :         if (regularized) then</span></span>
+<span id="L179"><span class="lineNum">     179</span>              :             ! dependent rows: regularize them (see the module documentation),</span>
+<span id="L180"><span class="lineNum">     180</span>              :             ! relative to the elements of the Jacobian that are in the face's matrix</span>
+<span id="L181"><span class="lineNum">     181</span> <span class="tlaGNC">         504 :             reg = merge(reg_factor_fine, reg_factor, fine)</span></span>
+<span id="L182"><span class="lineNum">     182</span> <span class="tlaGNC">         504 :             jmax = 0.0_wp</span></span>
+<span id="L183"><span class="lineNum">     183</span> <span class="tlaGNC">        6415 :             do k = 1, jac%nnz</span></span>
+<span id="L184"><span class="lineNum">     184</span> <span class="tlaGNC">        6415 :                 if (st(jac%irow(k)) /= 0 .and. st(m + jac%icol(k)) == 0) jmax = max(jmax, abs(jac%val(k)))</span></span>
+<span id="L185"><span class="lineNum">     185</span>              :             end do</span>
+<span id="L186"><span class="lineNum">     186</span> <span class="tlaGNC">         504 :             if (jmax &gt; 0.0_wp) reg = max(reg*jmax**2, tiny(1.0_wp))   ! (not zero, if the square underflows)</span></span>
+<span id="L187"><span class="lineNum">     187</span> <span class="tlaGNC">         504 :             call kkt%factor(hessian, jac, st, ok, reg=reg)</span></span>
+<span id="L188"><span class="lineNum">     188</span> <span class="tlaGNC">         504 :             if (.not. ok) return</span></span>
+<span id="L189"><span class="lineNum">     189</span>              :             ! (a face without a unique minimizer is left to the active-set solver)</span>
+<span id="L190"><span class="lineNum">     190</span> <span class="tlaGNC">         504 :             if (kkt%singular .or. kkt%n_negative &gt; 0) then</span></span>
+<span id="L191"><span class="lineNum">     191</span> <span class="tlaUNC">           0 :                 outcome = sqpopt_direct_singular</span></span>
+<span id="L192"><span class="lineNum">     192</span> <span class="tlaUNC">           0 :                 return</span></span>
+<span id="L193"><span class="lineNum">     193</span>              :             end if</span>
+<span id="L194"><span class="lineNum">     194</span>              :         end if</span>
+<span id="L195"><span class="lineNum">     195</span>              : </span>
+<span id="L196"><span class="lineNum">     196</span>              :         ! the right-hand side: the variables at a bound of the working set are</span>
+<span id="L197"><span class="lineNum">     197</span>              :         ! fixed there, and their part of the step moves to the right-hand side</span>
+<span id="L198"><span class="lineNum">     198</span> <span class="tlaGNC">     2424818 :         do j = 1, n</span></span>
+<span id="L199"><span class="lineNum">     199</span> <span class="tlaGNC">        4634 :             select case (st(m+j))</span></span>
+<span id="L200"><span class="lineNum">     200</span> <span class="tlaGNC">       15754 :             case (:-1);   p_fixed(j) = x_lb(j) - x(j)</span></span>
+<span id="L201"><span class="lineNum">     201</span> <span class="tlaGNC">        1008 :             case (1:);    p_fixed(j) = x_ub(j) - x(j)</span></span>
+<span id="L202"><span class="lineNum">     202</span> <span class="tlaGNC">     2420184 :             case default; p_fixed(j) = 0.0_wp</span></span>
+<span id="L203"><span class="lineNum">     203</span>              :             end select</span>
+<span id="L204"><span class="lineNum">     204</span>              :         end do</span>
+<span id="L205"><span class="lineNum">     205</span> <span class="tlaGNC">        4634 :         call hessian%hv_product(p_fixed, hp)</span></span>
+<span id="L206"><span class="lineNum">     206</span> <span class="tlaGNC">        4634 :         call sparse_matvec(jac, p_fixed, jp)</span></span>
+<span id="L207"><span class="lineNum">     207</span> <span class="tlaGNC">     2424818 :         do j = 1, n</span></span>
+<span id="L208"><span class="lineNum">     208</span> <span class="tlaGNC">     2424818 :             v(j) = merge(-g(j) - hp(j), p_fixed(j), st(m+j) == 0)</span></span>
+<span id="L209"><span class="lineNum">     209</span>              :         end do</span>
+<span id="L210"><span class="lineNum">     210</span> <span class="tlaGNC">      490625 :         do i = 1, m</span></span>
+<span id="L211"><span class="lineNum">     211</span> <span class="tlaGNC">        4634 :             select case (st(i))</span></span>
+<span id="L212"><span class="lineNum">     212</span> <span class="tlaGNC">      467301 :             case (:-1);   v(n+i) = c_lb(i) - c(i) - jp(i)</span></span>
+<span id="L213"><span class="lineNum">     213</span> <span class="tlaGNC">         751 :             case (1:);    v(n+i) = c_ub(i) - c(i) - jp(i)</span></span>
+<span id="L214"><span class="lineNum">     214</span> <span class="tlaGNC">      485991 :             case default; v(n+i) = 0.0_wp</span></span>
+<span id="L215"><span class="lineNum">     215</span>              :             end select</span>
+<span id="L216"><span class="lineNum">     216</span>              :         end do</span>
+<span id="L217"><span class="lineNum">     217</span>              : </span>
+<span id="L218"><span class="lineNum">     218</span> <span class="tlaGNC">        4634 :         call kkt%solve(v, ok, hessian=hessian)</span></span>
+<span id="L219"><span class="lineNum">     219</span> <span class="tlaGNC">        4634 :         if (.not. ok) return</span></span>
+<span id="L220"><span class="lineNum">     220</span> <span class="tlaGNC">     2424818 :         p = v(1:n)</span></span>
+<span id="L221"><span class="lineNum">     221</span> <span class="tlaGNC">      490625 :         do i = 1, m</span></span>
+<span id="L222"><span class="lineNum">     222</span> <span class="tlaGNC">      490625 :             lambda(i) = merge(-v(n+i), 0.0_wp, st(i) /= 0)</span></span>
+<span id="L223"><span class="lineNum">     223</span>              :         end do</span>
+<span id="L224"><span class="lineNum">     224</span>              : </span>
+<span id="L225"><span class="lineNum">     225</span>              :         ! the bound multipliers: z = g + H p - J^T lambda</span>
+<span id="L226"><span class="lineNum">     226</span> <span class="tlaGNC">        4634 :         call hessian%hv_product(p, hp)</span></span>
+<span id="L227"><span class="lineNum">     227</span> <span class="tlaGNC">        4634 :         call sparse_matvec_transpose(jac, lambda, z)</span></span>
+<span id="L228"><span class="lineNum">     228</span> <span class="tlaGNC">     2429452 :         z = g + hp - z</span></span>
+<span id="L229"><span class="lineNum">     229</span> <span class="tlaGNC">        4634 :         call sparse_matvec(jac, p, jp)</span></span>
+<span id="L230"><span class="lineNum">     230</span>              : </span>
+<span id="L231"><span class="lineNum">     231</span>              :         ! (the step must satisfy the stationarity condition in the free</span>
+<span id="L232"><span class="lineNum">     232</span>              :         ! variables: this checks the accuracy of the solve. The residual is</span>
+<span id="L233"><span class="lineNum">     233</span>              :         ! relative to the terms that it is the difference of: for a long step,</span>
+<span id="L234"><span class="lineNum">     234</span>              :         ! H p is the sum of products much larger than itself, and its roundoff</span>
+<span id="L235"><span class="lineNum">     235</span>              :         ! is relative to those)</span>
+<span id="L236"><span class="lineNum">     236</span> <span class="tlaGNC">     9685542 :         if (maxval(abs(z), mask=st(m+1:) == 0) &gt; stationarity_tol*(1.0_wp + maxval(abs(g)) + maxval(abs(hp)) + &amp;</span></span>
+<span id="L237"><span class="lineNum">     237</span>              :                 (hessian%magnitude() + hessian%shift)*maxval(abs(p)))) then</span>
+<span id="L238"><span class="lineNum">     238</span> <span class="tlaGNC">         107 :             outcome = sqpopt_direct_inaccurate</span></span>
+<span id="L239"><span class="lineNum">     239</span> <span class="tlaGNC">         107 :             return</span></span>
+<span id="L240"><span class="lineNum">     240</span>              :         end if</span>
+<span id="L241"><span class="lineNum">     241</span>              : </span>
+<span id="L242"><span class="lineNum">     242</span> <span class="tlaGNC">     2424298 :         dual_tol = max(1.0_wp, maxval(abs(g)))</span></span>
+<span id="L243"><span class="lineNum">     243</span> <span class="tlaGNC">      490119 :         if (m &gt; 0) dual_tol = max(dual_tol, maxval(abs(lambda)))</span></span>
+<span id="L244"><span class="lineNum">     244</span> <span class="tlaGNC">        4527 :         dual_tol = tol*dual_tol</span></span>
+<span id="L245"><span class="lineNum">     245</span>              : </span>
+<span id="L246"><span class="lineNum">     246</span>              :         ! the new working set: add what the step violates, and drop what has a</span>
+<span id="L247"><span class="lineNum">     247</span>              :         ! multiplier of the wrong sign (an equality, or a fixed variable, stays)</span>
+<span id="L248"><span class="lineNum">     248</span> <span class="tlaGNC">     2914417 :         st_new = st</span></span>
+<span id="L249"><span class="lineNum">     249</span> <span class="tlaGNC">        4527 :         consistent = .true.</span></span>
+<span id="L250"><span class="lineNum">     250</span> <span class="tlaGNC">      490119 :         do i = 1, m</span></span>
+<span id="L251"><span class="lineNum">     251</span> <span class="tlaGNC">      485592 :             lin = c(i) + jp(i)</span></span>
+<span id="L252"><span class="lineNum">     252</span> <span class="tlaGNC">      485592 :             if (st(i) /= 0) then</span></span>
+<span id="L253"><span class="lineNum">     253</span>              :                 ! (a regularized face may not satisfy its rows)</span>
+<span id="L254"><span class="lineNum">     254</span> <span class="tlaGNC">      467736 :                 target = merge(c_lb(i), c_ub(i), st(i) &lt; 0)</span></span>
+<span id="L255"><span class="lineNum">     255</span> <span class="tlaGNC">      467736 :                 if (abs(lin - target) &gt; tol*max(1.0_wp, abs(target))) consistent = .false.</span></span>
+<span id="L256"><span class="lineNum">     256</span>              :             end if</span>
+<span id="L257"><span class="lineNum">     257</span> <span class="tlaGNC">      490119 :             if (st(i) == 0) then</span></span>
+<span id="L258"><span class="lineNum">     258</span> <span class="tlaGNC">       17856 :                 if (lin &lt; c_lb(i) - tol*max(1.0_wp, abs(c_lb(i)))) then</span></span>
+<span id="L259"><span class="lineNum">     259</span> <span class="tlaGNC">         405 :                     st_new(i) = -1</span></span>
+<span id="L260"><span class="lineNum">     260</span> <span class="tlaGNC">       17451 :                 else if (lin &gt; c_ub(i) + tol*max(1.0_wp, abs(c_ub(i)))) then</span></span>
+<span id="L261"><span class="lineNum">     261</span> <span class="tlaGNC">         334 :                     st_new(i) = 1</span></span>
+<span id="L262"><span class="lineNum">     262</span>              :                 end if</span>
+<span id="L263"><span class="lineNum">     263</span> <span class="tlaGNC">      467736 :             else if (c_ub(i) - c_lb(i) &gt; 0.0_wp) then</span></span>
+<span id="L264"><span class="lineNum">     264</span> <span class="tlaGNC">        1726 :                 if ((st(i) &lt; 0 .and. lambda(i) &lt; -dual_tol) .or. (st(i) &gt; 0 .and. lambda(i) &gt; dual_tol)) st_new(i) = 0</span></span>
+<span id="L265"><span class="lineNum">     265</span>              :             end if</span>
+<span id="L266"><span class="lineNum">     266</span>              :         end do</span>
+<span id="L267"><span class="lineNum">     267</span> <span class="tlaGNC">     2424298 :         do j = 1, n</span></span>
+<span id="L268"><span class="lineNum">     268</span> <span class="tlaGNC">     2424298 :             if (st(m+j) == 0) then</span></span>
+<span id="L269"><span class="lineNum">     269</span> <span class="tlaGNC">     2403165 :                 if (x(j) + p(j) &lt; x_lb(j) - tol*max(1.0_wp, abs(x_lb(j)))) then</span></span>
+<span id="L270"><span class="lineNum">     270</span> <span class="tlaGNC">        2540 :                     st_new(m+j) = -1</span></span>
+<span id="L271"><span class="lineNum">     271</span> <span class="tlaGNC">     2400625 :                 else if (x(j) + p(j) &gt; x_ub(j) + tol*max(1.0_wp, abs(x_ub(j)))) then</span></span>
+<span id="L272"><span class="lineNum">     272</span> <span class="tlaGNC">         568 :                     st_new(m+j) = 1</span></span>
+<span id="L273"><span class="lineNum">     273</span>              :                 end if</span>
+<span id="L274"><span class="lineNum">     274</span> <span class="tlaGNC">       16606 :             else if (x_ub(j) - x_lb(j) &gt; 0.0_wp) then</span></span>
+<span id="L275"><span class="lineNum">     275</span> <span class="tlaGNC">       16130 :                 if ((st(m+j) &lt; 0 .and. z(j) &lt; -dual_tol) .or. (st(m+j) &gt; 0 .and. z(j) &gt; dual_tol)) st_new(m+j) = 0</span></span>
+<span id="L276"><span class="lineNum">     276</span>              :             end if</span>
+<span id="L277"><span class="lineNum">     277</span>              :         end do</span>
+<span id="L278"><span class="lineNum">     278</span>              : </span>
+<span id="L279"><span class="lineNum">     279</span> <span class="tlaGNC">     2875800 :         if (all(st_new == st)) then</span></span>
+<span id="L280"><span class="lineNum">     280</span> <span class="tlaGNC">        3542 :             if (.not. consistent .and. regularized .and. .not. fine) then</span></span>
+<span id="L281"><span class="lineNum">     281</span>              :                 ! (only the rows are not satisfied: perhaps because of the regularization)</span>
+<span id="L282"><span class="lineNum">     282</span> <span class="tlaGNC">          79 :                 fine = .true.</span></span>
+<span id="L283"><span class="lineNum">     283</span> <span class="tlaGNC">          79 :                 cycle</span></span>
+<span id="L284"><span class="lineNum">     284</span> <span class="tlaGNC">        3463 :             else if (.not. consistent) then</span></span>
+<span id="L285"><span class="lineNum">     285</span>              :                 ! (the working set's rows are inconsistent, and nothing can be dropped)</span>
+<span id="L286"><span class="lineNum">     286</span> <span class="tlaGNC">           6 :                 outcome = sqpopt_direct_singular</span></span>
+<span id="L287"><span class="lineNum">     287</span> <span class="tlaGNC">        3457 :             else if (sqpopt_all_finite(p) .and. sqpopt_all_finite(lambda)) then</span></span>
+<span id="L288"><span class="lineNum">     288</span>              :                 ! feasible and optimal: the QP's solution</span>
+<span id="L289"><span class="lineNum">     289</span> <span class="tlaGNC">        3457 :                 outcome = sqpopt_direct_solved</span></span>
+<span id="L290"><span class="lineNum">     290</span> <span class="tlaGNC">     2796990 :                 status  = st</span></span>
+<span id="L291"><span class="lineNum">     291</span>              :             end if</span>
+<span id="L292"><span class="lineNum">     292</span> <span class="tlaGNC">        3463 :             return</span></span>
+<span id="L293"><span class="lineNum">     293</span>              :         end if</span>
+<span id="L294"><span class="lineNum">     294</span> <span class="tlaGNC">         985 :         if (n_changes &gt;= max_changes) then</span></span>
+<span id="L295"><span class="lineNum">     295</span> <span class="tlaGNC">           6 :             outcome = sqpopt_direct_max_changes</span></span>
+<span id="L296"><span class="lineNum">     296</span> <span class="tlaGNC">           6 :             return</span></span>
+<span id="L297"><span class="lineNum">     297</span>              :         end if</span>
+<span id="L298"><span class="lineNum">     298</span> <span class="tlaGNC">         979 :         n_changes = n_changes + 1</span></span>
+<span id="L299"><span class="lineNum">     299</span> <span class="tlaGNC">      110816 :         st = st_new</span></span>
+<span id="L300"><span class="lineNum">     300</span> <span class="tlaGNC">         979 :         fine = .false.</span></span>
+<span id="L301"><span class="lineNum">     301</span>              : </span>
+<span id="L302"><span class="lineNum">     302</span>              :     end do</span>
+<span id="L303"><span class="lineNum">     303</span>              : </span>
+<span id="L304"><span class="lineNum">     304</span> <span class="tlaGNC">        3603 :     end subroutine direct_qp_step</span></span>
+<span id="L305"><span class="lineNum">     305</span>              : !*******************************************************************************</span>
+<span id="L306"><span class="lineNum">     306</span>              : </span>
+<span id="L307"><span class="lineNum">     307</span>              : !*******************************************************************************</span>
+<span id="L308"><span class="lineNum">     308</span>              : !&gt;</span>
+<span id="L309"><span class="lineNum">     309</span>              : !  a short description of how [[direct_qp_step]] ended, for the detailed log.</span>
+<span id="L310"><span class="lineNum">     310</span>              : </span>
+<span id="L311"><span class="lineNum">     311</span> <span class="tlaUNC">           0 :     pure function direct_outcome_text(outcome) result(text)</span></span>
+<span id="L312"><span class="lineNum">     312</span>              : </span>
+<span id="L313"><span class="lineNum">     313</span>              :     integer, intent(in) :: outcome !! a `sqpopt_direct_*` constant</span>
+<span id="L314"><span class="lineNum">     314</span>              :     character(len=:), allocatable :: text</span>
+<span id="L315"><span class="lineNum">     315</span>              : </span>
+<span id="L316"><span class="lineNum">     316</span> <span class="tlaUNC">           0 :     select case (outcome)</span></span>
+<span id="L317"><span class="lineNum">     317</span> <span class="tlaUNC">           0 :     case (sqpopt_direct_solved);      text = 'solved'</span></span>
+<span id="L318"><span class="lineNum">     318</span> <span class="tlaUNC">           0 :     case (sqpopt_direct_nonconvex);   text = 'a face is nonconvex'</span></span>
+<span id="L319"><span class="lineNum">     319</span> <span class="tlaUNC">           0 :     case (sqpopt_direct_singular);    text = 'a face is singular'</span></span>
+<span id="L320"><span class="lineNum">     320</span> <span class="tlaUNC">           0 :     case (sqpopt_direct_max_changes); text = 'too many changes of the working set'</span></span>
+<span id="L321"><span class="lineNum">     321</span> <span class="tlaUNC">           0 :     case (sqpopt_direct_inaccurate);  text = 'a solve was inaccurate'</span></span>
+<span id="L322"><span class="lineNum">     322</span> <span class="tlaUNC">           0 :     case default;                     text = 'the factorization failed'</span></span>
+<span id="L323"><span class="lineNum">     323</span>              :     end select</span>
+<span id="L324"><span class="lineNum">     324</span>              : </span>
+<span id="L325"><span class="lineNum">     325</span> <span class="tlaUNC">           0 :     end function direct_outcome_text</span></span>
+<span id="L326"><span class="lineNum">     326</span>              : !*******************************************************************************</span>
+<span id="L327"><span class="lineNum">     327</span>              : </span>
+<span id="L328"><span class="lineNum">     328</span>              :     end module sqpopt_qp_direct_module</span>
+<span id="L329"><span class="lineNum">     329</span>              : !*******************************************************************************</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com/linux-test-project/lcov" target="_parent">LCOV version 2.5-0</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

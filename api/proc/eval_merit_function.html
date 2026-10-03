@@ -1,0 +1,847 @@
+<!-- -*- mode: jinja2 -*- -->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- sqpopt theme: set before the page is drawn; the guide's choice (the same
+         localStorage key, on the same site), or else the system's -->
+    <script>
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('sqpopt-theme'); } catch (e) {}
+        if (t !== 'dark' && t !== 'light') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-bs-theme', t);
+      })();
+    </script>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta name="description" content="Modern Fortran SQP OPTimizer">
+    <meta name="author" content="Jacob Williams" >
+    <link rel="icon" href="../favicon.png">
+
+    <title>eval_merit_function &ndash; sqpopt</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <!-- Font Awesome -->
+    <link href="../css/fontawesome.min.css" rel="stylesheet">
+    <link href="../css/brands.min.css" rel="stylesheet">
+    <link href="../css/regular.min.css" rel="stylesheet">
+    <link href="../css/solid.min.css" rel="stylesheet">
+    <link href="../css/v4-font-face.min.css" rel="stylesheet">
+    <link href="../css/v4-shims.min.css" rel="stylesheet">
+    <!-- MathJax -->
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        TeX: { equationNumbers: { autoNumber: "AMS" } }
+      });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@2.7.9/MathJax.js?config=TeX-AMS-MML_HTMLorMML" async
+            integrity="sha256-DViIOMYdwlM/axqoGDPeUyf0urLoHMN4QACBKyB58Uw=" crossorigin="anonymous"></script>
+    <!-- Other scripts and stylesheets -->
+    <link href="../css/local.css" rel="stylesheet">
+    <link href="../css/pygments.css" rel="stylesheet">
+      <link href="../css/user.css" rel="stylesheet">
+    <script src="../js/svg-pan-zoom.min.js"></script>
+  </head>
+
+  <body>
+
+    <!-- Fixed navbar -->
+    <div class="container-fluid mb-sm-4 mb-xl-2">
+      <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+          <a class="navbar-brand" href="../index.html">sqpopt </a>
+          <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbar"
+                  aria-expanded="false" aria-controls="navbar" aria-label="Toggle navigation">
+                  <span class="navbar-toggler-icon">
+          </button>
+
+          <div id="navbar" class="navbar-collapse collapse">
+            <ul class="navbar-nav">
+                  <li class="nav-item">
+                    <a class="nav-link" href="../lists/files.html">Source Files</a>
+                  </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/modules.html">Modules</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/procedures.html">Procedures</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/absint.html">Abstract Interfaces</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/types.html">Derived Types</a>
+                </li>
+            </ul>
+              <div class="d-flex align-items-end flex-grow-1">
+                <form action="../search.html" role="search" class="ms-auto">
+                  <input type="text" class="form-control" aria-label="Search" placeholder="Search" name="q" id="tipue_search_input" autocomplete="off" required>
+                </form>
+              </div>
+            <!-- sqpopt theme: the light/dark button -->
+            <button type="button" class="btn nav-link theme-toggle ms-lg-3" aria-label="Toggle dark mode" title="Toggle dark mode">
+              <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg>
+              <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div><!--/.nav-collapse -->
+        </div>
+      </nav>
+    </div>
+
+    <div class="container">
+  <div class="row">
+    <h1>eval_merit_function
+      <small>Subroutine</small>
+      
+    </h1>
+      <div class="container p-2 mb-4 bg-light border rounded-3">
+    <div class="row align-items-center justify-content-between" id="info-bar">
+      <div class="col">
+        <ul class="list-inline" style="margin-bottom:0px;display:inline">
+
+            <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
+              <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
+                 title=" 0.4% of total for procedures.">31 statements</a>
+            </li>
+
+            <li class="list-inline-item" id="source-file">
+              <i class="fa fa-code"></i>
+              <a href="../src/sqpopt_merit_module.f90"> Source File</a>
+            </li>
+        </ul>
+      </div>
+      <div class="col">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb justify-content-end mb-0">
+                <li class="breadcrumb-item"><a href='../sourcefile/sqpopt_merit_module.f90.html'>sqpopt_merit_module.f90</a></li>
+                <li class="breadcrumb-item"><a href='../module/sqpopt_merit_module.html'>sqpopt_merit_module</a></li>
+            <li class="breadcrumb-item active" aria-current="page">eval_merit_function</li>
+          </ol>
+        </nav>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Enable Bootstrap tooltips
+    (function () {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+      const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+    })();
+  </script>
+
+  </div>
+  
+  <div class="row">
+    <div class="col-md-3 hidden-xs hidden-sm visible-md visible-lg">
+      <div id="sidebar">
+      <h3>Contents</h3>
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+    <div class="card card-primary">
+      <div class="card-header text-left"><h3 class="card-title">Source Code</h3></div>
+      <div class="list-group">
+        <a class="list-group-item" href="../proc/eval_merit_function.html#src">eval_merit_function</a>
+      </div>
+    </div>
+
+
+  </div>
+
+    </div>
+    
+    <div class="col-md-9" id='text'>
+    <h2>private  subroutine eval_merit_function(me, f, c, c_lb, c_ub, lambda, phi, alpha)  
+</h2>
+    
+
+    <p>evaluate the merit function used to measure progress, dispatching on
+<code>me%mode</code>:</p>
+<ul>
+<li><code>sqpopt_merit_l1</code>:
+  <script type="math/tex; mode=display"> \phi(x) = f(x) + \mu \lVert \max(c_l - c(x), 0, c(x) - c_u) \rVert_1 </script>
+</li>
+<li><code>sqpopt_merit_augmented_lagrangian</code>:
+  <script type="math/tex; mode=display"> \phi(x,\lambda,\rho) = f(x) - \lambda^T\!\left(c(x)-s\right) + \tfrac{1}{2}\rho \lVert c(x)-s \rVert_2^2 </script>
+  where the slack <code>s</code> is the closed-form minimizer of <script type="math/tex"> \phi </script> subject
+  to <script type="math/tex"> c_l \le s \le c_u </script> (see <a href="../proc/augmented_lagrangian_slacks.html">augmented_lagrangian_slacks</a>).
+  With the joint step (<code>joint_active</code>), the multipliers and the slacks
+  are those at step length <code>alpha</code> along it, <script type="math/tex"> \lambda_0 +
+  \alpha(\lambda - \lambda_0) </script> and <script type="math/tex"> s_0 + \alpha q </script> (<code>alpha=0</code> if
+  absent), instead of the slacks' closed-form minimizer (see
+  <a href="../proc/update_penalty_parameter.html">update_penalty_parameter</a>).</li>
+</ul>
+
+    <h3>Type Bound</h3>
+    <p><a href='../type/sqpopt_merit_type.html'>sqpopt_merit_type</a></p>
+
+    <h3>Arguments</h3>
+        <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~82"></span>
+              class(<a href='../type/sqpopt_merit_type.html'>sqpopt_merit_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+                
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-f~18"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>f</strong></td>
+            <td>
+                <p>objective function value</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c~23"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c</strong></td>
+            <td>
+                <p>constraint values <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_lb~16"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_lb</strong></td>
+            <td>
+                <p>constraint lower bounds <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_ub~16"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_ub</strong></td>
+            <td>
+                <p>constraint upper bounds <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-lambda~20"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>lambda</strong></td>
+            <td>
+                <p>Lagrange multiplier estimate <code>dimension(m)</code>
+(only used by <code>sqpopt_merit_augmented_lagrangian</code>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-phi~8"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>phi</strong></td>
+            <td>
+                <p>value of the merit function</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-alpha~22"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>alpha</strong></td>
+            <td>
+                <p>step length along the joint step (see above)</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+    <br>
+    <div class="card">
+      <div class="card-header">
+  <h3 class="card-title">Calls</h3>
+      </div>
+      <div class="card-body">
+  <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: proc~~eval_merit_function~~CallsGraph Pages: 1 -->
+<svg id="proceval_merit_functionCallsGraph" width="442pt" height="32pt"
+ viewBox="0.00 0.00 442.00 32.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="proc~~eval_merit_function~~CallsGraph" class="graph" transform="scale(1 1) rotate(0) translate(4 28.27)">
+<title>proc~~eval_merit_function~~CallsGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 438.04,-28.27 438.04,4 -4,4"/>
+<!-- proc~eval_merit_function -->
+<g id="proc~~eval_merit_function~~CallsGraph_node1" class="node">
+<title>proc~eval_merit_function</title>
+<polygon fill="none" stroke="black" points="224.52,-24.27 0,-24.27 0,0 224.52,0 224.52,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="112.26" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_merit_type%eval_merit_function</text>
+</g>
+<!-- proc~augmented_lagrangian_slacks -->
+<g id="proc~~eval_merit_function~~CallsGraph_node2" class="node">
+<title>proc~augmented_lagrangian_slacks</title>
+<g id="a_proc~~eval_merit_function~~CallsGraph_node2"><a xlink:href="../proc/augmented_lagrangian_slacks.html" xlink:title="augmented_lagrangian_slacks">
+<polygon fill="#d9534f" stroke="#d9534f" points="434.04,-24.27 260.52,-24.27 260.52,0 434.04,0 434.04,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="347.28" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">augmented_lagrangian_slacks</text>
+</a>
+</g>
+</g>
+<!-- proc~eval_merit_function&#45;&gt;proc~augmented_lagrangian_slacks -->
+<g id="proc~~eval_merit_function~~CallsGraph_edge1" class="edge">
+<title>proc~eval_merit_function&#45;&gt;proc~augmented_lagrangian_slacks</title>
+<path fill="none" stroke="#000000" d="M224.99,-12.13C232.92,-12.13 240.87,-12.13 248.71,-12.13"/>
+<polygon fill="#000000" stroke="#000000" points="248.58,-15.64 258.58,-12.14 248.58,-8.64 248.58,-15.64"/>
+</g>
+</g>
+</svg>
+</div>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#CallsGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="CallsGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="641pt" height="28pt"
+ viewBox="0.00 0.00 641.00 28.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(0.873868 0.873868) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 729.52,-28.27 729.52,4 -4,4"/>
+<!-- Subroutine -->
+<g id="node1" class="node">
+<title>Subroutine</title>
+<polygon fill="#d9534f" stroke="#d9534f" points="69.27,-24.27 0,-24.27 0,0 69.27,0 69.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="34.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Subroutine</text>
+</g>
+<!-- Function -->
+<g id="node2" class="node">
+<title>Function</title>
+<polygon fill="#d94e8f" stroke="#d94e8f" points="143.89,-24.27 87.38,-24.27 87.38,0 143.89,0 143.89,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="115.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Function</text>
+</g>
+<!-- Interface -->
+<g id="node3" class="node">
+<title>Interface</title>
+<polygon fill="#a7506f" stroke="#a7506f" points="221.39,-24.27 161.88,-24.27 161.88,0 221.39,0 221.39,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="191.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Interface</text>
+</g>
+<!-- Type Bound Procedure -->
+<g id="node4" class="node">
+<title>Type Bound Procedure</title>
+<polygon fill="#a7506f" stroke="#a7506f" points="368.27,-24.27 239,-24.27 239,0 368.27,0 368.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="303.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Type Bound Procedure</text>
+</g>
+<!-- Unknown Procedure Type -->
+<g id="node5" class="node">
+<title>Unknown Procedure Type</title>
+<polygon fill="#777777" stroke="#777777" points="529.39,-24.27 385.88,-24.27 385.88,0 529.39,0 529.39,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="457.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Unknown Procedure Type</text>
+</g>
+<!-- Program -->
+<g id="node6" class="node">
+<title>Program</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="603.89,-24.27 547.38,-24.27 547.38,0 603.89,0 603.89,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="575.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Program</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node7" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="725.52,-24.27 621.75,-24.27 621.75,0 725.52,0 725.52,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="673.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a procedure to one which it calls. Dashed 
+arrows point from an interface to procedures which implement that interface.
+This could include the module procedures in a generic interface or the
+implementation in a submodule of an interface in a parent module.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+  <h3 class="card-title">Called by</h3>
+      </div>
+      <div class="card-body">
+  <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: proc~~eval_merit_function~~CalledByGraph Pages: 1 -->
+<svg id="proceval_merit_functionCalledByGraph" width="641pt" height="83pt"
+ viewBox="0.00 0.00 641.00 83.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="proc~~eval_merit_function~~CalledByGraph" class="graph" transform="scale(0.407849 0.407849) rotate(0) translate(4 200.14)">
+<title>proc~~eval_merit_function~~CalledByGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-200.14 1567.66,-200.14 1567.66,4 -4,4"/>
+<!-- proc~eval_merit_function -->
+<g id="proc~~eval_merit_function~~CalledByGraph_node1" class="node">
+<title>proc~eval_merit_function</title>
+<polygon fill="none" stroke="black" points="1563.66,-142.27 1339.14,-142.27 1339.14,-118 1563.66,-118 1563.66,-142.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1451.4" y="-126.53" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_merit_type%eval_merit_function</text>
+</g>
+<!-- proc~armijo_line_search -->
+<g id="proc~~eval_merit_function~~CalledByGraph_node2" class="node">
+<title>proc~armijo_line_search</title>
+<g id="a_proc~~eval_merit_function~~CalledByGraph_node2"><a xlink:href="../proc/armijo_line_search.html" xlink:title="armijo_line_search">
+<polygon fill="#d9534f" stroke="#d9534f" points="872.47,-182.27 761.2,-182.27 761.2,-158 872.47,-158 872.47,-182.27"/>
+<text xml:space="preserve" text-anchor="middle" x="816.84" y="-166.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">armijo_line_search</text>
+</a>
+</g>
+</g>
+<!-- proc~armijo_line_search&#45;&gt;proc~eval_merit_function -->
+<g id="proc~~eval_merit_function~~CalledByGraph_edge1" class="edge">
+<title>proc~armijo_line_search&#45;&gt;proc~eval_merit_function</title>
+<path fill="none" stroke="#000000" d="M862.43,-182.74C879.39,-186.94 899,-191.07 917.1,-193.13 1019.33,-204.82 1287.9,-176.89 1303.14,-174.13 1338.18,-167.8 1376.71,-156.11 1405.56,-146.37"/>
+<polygon fill="#000000" stroke="#000000" points="1406.36,-149.8 1414.69,-143.24 1404.09,-143.18 1406.36,-149.8"/>
+</g>
+<!-- proc~backtrack_search -->
+<g id="proc~~eval_merit_function~~CalledByGraph_node7" class="node">
+<title>proc~backtrack_search</title>
+<g id="a_proc~~eval_merit_function~~CalledByGraph_node7"><a xlink:href="../proc/backtrack_search.html" xlink:title="backtrack_search">
+<polygon fill="#d9534f" stroke="#d9534f" points="1021.99,-142.27 917.47,-142.27 917.47,-118 1021.99,-118 1021.99,-142.27"/>
+<text xml:space="preserve" text-anchor="middle" x="969.73" y="-126.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">backtrack_search</text>
+</a>
+</g>
+</g>
+<!-- proc~armijo_line_search&#45;&gt;proc~backtrack_search -->
+<g id="proc~~eval_merit_function~~CalledByGraph_edge13" class="edge">
+<title>proc~armijo_line_search&#45;&gt;proc~backtrack_search</title>
+<path fill="none" stroke="#000000" d="M865.17,-157.59C879.57,-153.77 895.56,-149.53 910.58,-145.55"/>
+<polygon fill="#000000" stroke="#000000" points="911.08,-149.04 919.85,-143.09 909.29,-142.27 911.08,-149.04"/>
+</g>
+<!-- proc~eval_trial -->
+<g id="proc~~eval_merit_function~~CalledByGraph_node3" class="node">
+<title>proc~eval_trial</title>
+<g id="a_proc~~eval_merit_function~~CalledByGraph_node3"><a xlink:href="../proc/eval_trial.html" xlink:title="eval_trial">
+<polygon fill="#d9534f" stroke="#d9534f" points="1210.89,-142.27 1150.62,-142.27 1150.62,-118 1210.89,-118 1210.89,-142.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1180.75" y="-126.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">eval_trial</text>
+</a>
+</g>
+</g>
+<!-- proc~eval_trial&#45;&gt;proc~eval_merit_function -->
+<g id="proc~~eval_merit_function~~CalledByGraph_edge2" class="edge">
+<title>proc~eval_trial&#45;&gt;proc~eval_merit_function</title>
+<path fill="none" stroke="#000000" d="M1211.27,-130.13C1239.55,-130.13 1284.17,-130.13 1327.25,-130.13"/>
+<polygon fill="#000000" stroke="#000000" points="1327.24,-133.64 1337.24,-130.14 1327.24,-126.64 1327.24,-133.64"/>
+</g>
+<!-- proc~exact_line_search -->
+<g id="proc~~eval_merit_function~~CalledByGraph_node4" class="node">
+<title>proc~exact_line_search</title>
+<g id="a_proc~~eval_merit_function~~CalledByGraph_node4"><a xlink:href="../proc/exact_line_search.html" xlink:title="exact_line_search">
+<polygon fill="#d9534f" stroke="#d9534f" points="1022.37,-184.27 917.1,-184.27 917.1,-160 1022.37,-160 1022.37,-184.27"/>
+<text xml:space="preserve" text-anchor="middle" x="969.73" y="-168.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">exact_line_search</text>
+</a>
+</g>
+</g>
+<!-- proc~exact_line_search&#45;&gt;proc~eval_merit_function -->
+<g id="proc~~eval_merit_function~~CalledByGraph_edge3" class="edge">
+<title>proc~exact_line_search&#45;&gt;proc~eval_merit_function</title>
+<path fill="none" stroke="#000000" d="M1022.66,-170.12C1088.16,-167.28 1204.2,-161.3 1303.14,-151.13 1321.22,-149.28 1340.5,-146.85 1358.94,-144.32"/>
+<polygon fill="#000000" stroke="#000000" points="1359.38,-147.79 1368.79,-142.93 1358.4,-140.86 1359.38,-147.79"/>
+</g>
+<!-- proc~exact_line_search&#45;&gt;proc~eval_trial -->
+<g id="proc~~eval_merit_function~~CalledByGraph_edge8" class="edge">
+<title>proc~exact_line_search&#45;&gt;proc~eval_trial</title>
+<path fill="none" stroke="#000000" d="M1022.67,-161.7C1058.69,-154.46 1105.97,-144.96 1139.21,-138.28"/>
+<polygon fill="#000000" stroke="#000000" points="1139.75,-141.74 1148.86,-136.34 1138.37,-134.88 1139.75,-141.74"/>
+</g>
+<!-- proc~trust_region_step -->
+<g id="proc~~eval_merit_function~~CalledByGraph_node5" class="node">
+<title>proc~trust_region_step</title>
+<g id="a_proc~~eval_merit_function~~CalledByGraph_node5"><a xlink:href="../proc/trust_region_step.html" xlink:title="sqpopt_trust_region_type%trust_region_step">
+<polygon fill="#d9534f" stroke="#d9534f" points="1303.14,-24.27 1058.37,-24.27 1058.37,0 1303.14,0 1303.14,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1180.75" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_trust_region_type%trust_region_step</text>
+</a>
+</g>
+</g>
+<!-- proc~trust_region_step&#45;&gt;proc~eval_merit_function -->
+<g id="proc~~eval_merit_function~~CalledByGraph_edge4" class="edge">
+<title>proc~trust_region_step&#45;&gt;proc~eval_merit_function</title>
+<path fill="none" stroke="#000000" d="M1260.02,-24.71C1274.62,-28.22 1289.56,-32.64 1303.14,-38.13 1349.38,-56.86 1397.38,-89.82 1425.53,-110.79"/>
+<polygon fill="#000000" stroke="#000000" points="1423.33,-113.51 1433.42,-116.75 1427.55,-107.93 1423.33,-113.51"/>
+</g>
+<!-- proc~watchdog_line_search -->
+<g id="proc~~eval_merit_function~~CalledByGraph_node6" class="node">
+<title>proc~watchdog_line_search</title>
+<g id="a_proc~~eval_merit_function~~CalledByGraph_node6"><a xlink:href="../proc/watchdog_line_search.html" xlink:title="watchdog_line_search">
+<polygon fill="#d9534f" stroke="#d9534f" points="881.1,-102.27 752.58,-102.27 752.58,-78 881.1,-78 881.1,-102.27"/>
+<text xml:space="preserve" text-anchor="middle" x="816.84" y="-86.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">watchdog_line_search</text>
+</a>
+</g>
+</g>
+<!-- proc~watchdog_line_search&#45;&gt;proc~eval_merit_function -->
+<g id="proc~~eval_merit_function~~CalledByGraph_edge5" class="edge">
+<title>proc~watchdog_line_search&#45;&gt;proc~eval_merit_function</title>
+<path fill="none" stroke="#000000" d="M881.59,-90.34C974.5,-91.15 1152.48,-94.67 1303.14,-109.13 1321.64,-110.91 1341.38,-113.35 1360.19,-115.94"/>
+<polygon fill="#000000" stroke="#000000" points="1359.57,-119.38 1369.96,-117.31 1360.54,-112.45 1359.57,-119.38"/>
+</g>
+<!-- proc~watchdog_line_search&#45;&gt;proc~eval_trial -->
+<g id="proc~~eval_merit_function~~CalledByGraph_edge9" class="edge">
+<title>proc~watchdog_line_search&#45;&gt;proc~eval_trial</title>
+<path fill="none" stroke="#000000" d="M881.48,-95.39C921.88,-98.88 975.24,-103.8 1022.37,-109.13 1062.13,-113.63 1107.41,-119.78 1139.16,-124.26"/>
+<polygon fill="#000000" stroke="#000000" points="1138.32,-127.68 1148.71,-125.62 1139.3,-120.75 1138.32,-127.68"/>
+</g>
+<!-- proc~watchdog_line_search&#45;&gt;proc~backtrack_search -->
+<g id="proc~~eval_merit_function~~CalledByGraph_edge14" class="edge">
+<title>proc~watchdog_line_search&#45;&gt;proc~backtrack_search</title>
+<path fill="none" stroke="#000000" d="M865.17,-102.68C879.57,-106.5 895.56,-110.74 910.58,-114.72"/>
+<polygon fill="#000000" stroke="#000000" points="909.29,-118 919.85,-117.18 911.08,-111.23 909.29,-118"/>
+</g>
+<!-- proc~backtrack_search&#45;&gt;proc~eval_trial -->
+<g id="proc~~eval_merit_function~~CalledByGraph_edge7" class="edge">
+<title>proc~backtrack_search&#45;&gt;proc~eval_trial</title>
+<path fill="none" stroke="#000000" d="M1022.4,-130.13C1058.41,-130.13 1105.78,-130.13 1139.11,-130.13"/>
+<polygon fill="#000000" stroke="#000000" points="1138.75,-133.64 1148.75,-130.14 1138.75,-126.64 1138.75,-133.64"/>
+</g>
+<!-- proc~line_search -->
+<g id="proc~~eval_merit_function~~CalledByGraph_node8" class="node">
+<title>proc~line_search</title>
+<g id="a_proc~~eval_merit_function~~CalledByGraph_node8"><a xlink:href="../proc/line_search.html" xlink:title="sqpopt_linesearch_type%line_search">
+<polygon fill="#d9534f" stroke="#d9534f" points="716.58,-122.27 510.81,-122.27 510.81,-98 716.58,-98 716.58,-122.27"/>
+<text xml:space="preserve" text-anchor="middle" x="613.69" y="-106.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_linesearch_type%line_search</text>
+</a>
+</g>
+</g>
+<!-- proc~line_search&#45;&gt;proc~armijo_line_search -->
+<g id="proc~~eval_merit_function~~CalledByGraph_edge6" class="edge">
+<title>proc~line_search&#45;&gt;proc~armijo_line_search</title>
+<path fill="none" stroke="#000000" d="M656.86,-122.71C687.7,-131.91 729.76,-144.46 762.87,-154.34"/>
+<polygon fill="#000000" stroke="#000000" points="761.7,-157.64 772.28,-157.14 763.7,-150.93 761.7,-157.64"/>
+</g>
+<!-- proc~line_search&#45;&gt;proc~exact_line_search -->
+<g id="proc~~eval_merit_function~~CalledByGraph_edge10" class="edge">
+<title>proc~line_search&#45;&gt;proc~exact_line_search</title>
+<path fill="none" stroke="#000000" d="M716.99,-122.4C766.74,-129.05 827.28,-138.17 881.1,-149.13 891.74,-151.3 903.01,-153.97 913.8,-156.72"/>
+<polygon fill="#000000" stroke="#000000" points="912.8,-160.08 923.36,-159.21 914.57,-153.3 912.8,-160.08"/>
+</g>
+<!-- proc~line_search&#45;&gt;proc~watchdog_line_search -->
+<g id="proc~~eval_merit_function~~CalledByGraph_edge12" class="edge">
+<title>proc~line_search&#45;&gt;proc~watchdog_line_search</title>
+<path fill="none" stroke="#000000" d="M717.04,-99.96C725.12,-99.16 733.19,-98.35 741.04,-97.57"/>
+<polygon fill="#000000" stroke="#000000" points="741.24,-101.07 750.84,-96.6 740.54,-94.1 741.24,-101.07"/>
+</g>
+<!-- proc~sqpopt_iterate -->
+<g id="proc~~eval_merit_function~~CalledByGraph_node9" class="node">
+<title>proc~sqpopt_iterate</title>
+<g id="a_proc~~eval_merit_function~~CalledByGraph_node9"><a xlink:href="../proc/sqpopt_iterate.html" xlink:title="sqpopt_iterate">
+<polygon fill="#d9534f" stroke="#d9534f" points="474.81,-63.27 386.79,-63.27 386.79,-39 474.81,-39 474.81,-63.27"/>
+<text xml:space="preserve" text-anchor="middle" x="430.8" y="-47.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_iterate</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~trust_region_step -->
+<g id="proc~~eval_merit_function~~CalledByGraph_edge11" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~trust_region_step</title>
+<path fill="none" stroke="#000000" d="M475.25,-48.87C584.56,-43.17 874.55,-28.05 1046.49,-19.08"/>
+<polygon fill="#000000" stroke="#000000" points="1046.58,-22.58 1056.38,-18.57 1046.21,-15.59 1046.58,-22.58"/>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~line_search -->
+<g id="proc~~eval_merit_function~~CalledByGraph_edge15" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~line_search</title>
+<path fill="none" stroke="#000000" d="M470.16,-63.65C497.29,-72.5 533.9,-84.44 563.23,-94"/>
+<polygon fill="#000000" stroke="#000000" points="562.04,-97.3 572.64,-97.07 564.21,-90.64 562.04,-97.3"/>
+</g>
+<!-- proc~sqpopt_solve -->
+<g id="proc~~eval_merit_function~~CalledByGraph_node10" class="node">
+<title>proc~sqpopt_solve</title>
+<g id="a_proc~~eval_merit_function~~CalledByGraph_node10"><a xlink:href="../proc/sqpopt_solve.html" xlink:title="sqpopt_type%sqpopt_solve">
+<polygon fill="#d9534f" stroke="#d9534f" points="350.79,-63.27 196.02,-63.27 196.02,-39 350.79,-39 350.79,-63.27"/>
+<text xml:space="preserve" text-anchor="middle" x="273.4" y="-47.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_type%sqpopt_solve</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_solve&#45;&gt;proc~sqpopt_iterate -->
+<g id="proc~~eval_merit_function~~CalledByGraph_edge16" class="edge">
+<title>proc~sqpopt_solve&#45;&gt;proc~sqpopt_iterate</title>
+<path fill="none" stroke="#000000" d="M351.19,-51.13C359.21,-51.13 367.25,-51.13 374.96,-51.13"/>
+<polygon fill="#000000" stroke="#000000" points="374.84,-54.64 384.84,-51.14 374.84,-47.64 374.84,-54.64"/>
+</g>
+<!-- proc~nlls_solve -->
+<g id="proc~~eval_merit_function~~CalledByGraph_node11" class="node">
+<title>proc~nlls_solve</title>
+<g id="a_proc~~eval_merit_function~~CalledByGraph_node11"><a xlink:href="../proc/nlls_solve.html" xlink:title="sqpopt_nlls_type%nlls_solve">
+<polygon fill="#d9534f" stroke="#d9534f" points="160.02,-63.27 0,-63.27 0,-39 160.02,-39 160.02,-63.27"/>
+<text xml:space="preserve" text-anchor="middle" x="80.01" y="-47.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_nlls_type%nlls_solve</text>
+</a>
+</g>
+</g>
+<!-- proc~nlls_solve&#45;&gt;proc~sqpopt_solve -->
+<g id="proc~~eval_merit_function~~CalledByGraph_edge17" class="edge">
+<title>proc~nlls_solve&#45;&gt;proc~sqpopt_solve</title>
+<path fill="none" stroke="#000000" d="M160.52,-51.13C168.31,-51.13 176.26,-51.13 184.14,-51.13"/>
+<polygon fill="#000000" stroke="#000000" points="184.09,-54.64 194.09,-51.14 184.09,-47.64 184.09,-54.64"/>
+</g>
+</g>
+</svg>
+</div>                <script>
+                  var panproceval_merit_functionCalledByGraph = svgPanZoom('#proceval_merit_functionCalledByGraph',
+                    {zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true,}
+                  );
+                </script>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#CalledByGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="CalledByGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="641pt" height="28pt"
+ viewBox="0.00 0.00 641.00 28.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(0.873868 0.873868) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 729.52,-28.27 729.52,4 -4,4"/>
+<!-- Subroutine -->
+<g id="node1" class="node">
+<title>Subroutine</title>
+<polygon fill="#d9534f" stroke="#d9534f" points="69.27,-24.27 0,-24.27 0,0 69.27,0 69.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="34.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Subroutine</text>
+</g>
+<!-- Function -->
+<g id="node2" class="node">
+<title>Function</title>
+<polygon fill="#d94e8f" stroke="#d94e8f" points="143.89,-24.27 87.38,-24.27 87.38,0 143.89,0 143.89,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="115.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Function</text>
+</g>
+<!-- Interface -->
+<g id="node3" class="node">
+<title>Interface</title>
+<polygon fill="#a7506f" stroke="#a7506f" points="221.39,-24.27 161.88,-24.27 161.88,0 221.39,0 221.39,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="191.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Interface</text>
+</g>
+<!-- Type Bound Procedure -->
+<g id="node4" class="node">
+<title>Type Bound Procedure</title>
+<polygon fill="#a7506f" stroke="#a7506f" points="368.27,-24.27 239,-24.27 239,0 368.27,0 368.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="303.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Type Bound Procedure</text>
+</g>
+<!-- Unknown Procedure Type -->
+<g id="node5" class="node">
+<title>Unknown Procedure Type</title>
+<polygon fill="#777777" stroke="#777777" points="529.39,-24.27 385.88,-24.27 385.88,0 529.39,0 529.39,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="457.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Unknown Procedure Type</text>
+</g>
+<!-- Program -->
+<g id="node6" class="node">
+<title>Program</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="603.89,-24.27 547.38,-24.27 547.38,0 603.89,0 603.89,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="575.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Program</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node7" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="725.52,-24.27 621.75,-24.27 621.75,0 725.52,0 725.52,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="673.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a procedure to one which it calls. Dashed 
+arrows point from an interface to procedures which implement that interface.
+This could include the module procedures in a generic interface or the
+implementation in a submodule of an interface in a parent module.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <br>
+
+
+    
+    
+
+    
+    
+
+
+
+    
+    <section>
+    <h2><span class="anchor" id="src"></span>Source Code</h2>
+    <div class="hl codehilite"><pre><span></span><span class="w">    </span><span class="k">subroutine </span><span class="n">eval_merit_function</span><span class="p">(</span><span class="n">me</span><span class="p">,</span><span class="w"> </span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">c_lb</span><span class="p">,</span><span class="w"> </span><span class="n">c_ub</span><span class="p">,</span><span class="w"> </span><span class="n">lambda</span><span class="p">,</span><span class="w"> </span><span class="n">phi</span><span class="p">,</span><span class="w"> </span><span class="n">alpha</span><span class="p">)</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">class</span><span class="p">(</span><span class="n">sqpopt_merit_type</span><span class="p">),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">me</span><span class="w"></span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">                </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">f</span><span class="w">      </span><span class="c">!! objective function value</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">c</span><span class="w">      </span><span class="c">!! constraint values `dimension(m)`</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">c_lb</span><span class="w">   </span><span class="c">!! constraint lower bounds `dimension(m)`</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">c_ub</span><span class="w">   </span><span class="c">!! constraint upper bounds `dimension(m)`</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">lambda</span><span class="w"> </span><span class="c">!! Lagrange multiplier estimate `dimension(m)`</span>
+<span class="w">                                                  </span><span class="c">!! (only used by `sqpopt_merit_augmented_lagrangian`)</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">                </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">phi</span><span class="w">    </span><span class="c">!! value of the merit function</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">optional</span><span class="p">,</span><span class="w">      </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">alpha</span><span class="w">  </span><span class="c">!! step length along the joint step (see above)</span>
+
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">allocatable</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">,</span><span class="w"> </span><span class="n">lam</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">allocate</span><span class="p">(</span><span class="n">s</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)),</span><span class="w"> </span><span class="n">r</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)),</span><span class="w"> </span><span class="n">lam</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)))</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">select case</span><span class="w"> </span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">mode</span><span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="p">(</span><span class="n">sqpopt_merit_augmented_lagrangian</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">joint_active</span><span class="p">)</span><span class="w"> </span><span class="k">then</span><span class="w"></span>
+<span class="w">            </span><span class="c">! (the multipliers and the slacks both move along the step)</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">present</span><span class="p">(</span><span class="n">alpha</span><span class="p">))</span><span class="w"> </span><span class="k">then</span>
+<span class="k">                </span><span class="n">lam</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">lambda0</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">alpha</span><span class="o">*</span><span class="p">(</span><span class="n">lambda</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">lambda0</span><span class="p">)</span><span class="w"></span>
+<span class="w">                </span><span class="n">s</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">s0</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">alpha</span><span class="o">*</span><span class="n">me</span><span class="p">%</span><span class="n">q</span><span class="w"></span>
+<span class="w">            </span><span class="k">else</span>
+<span class="k">                </span><span class="n">lam</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">lambda0</span><span class="w"></span>
+<span class="w">                </span><span class="n">s</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">s0</span><span class="w"></span>
+<span class="w">            </span><span class="k">end if</span>
+<span class="k">        else</span>
+<span class="k">            </span><span class="n">lam</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">lambda</span><span class="w"></span>
+<span class="w">            </span><span class="k">call </span><span class="n">augmented_lagrangian_slacks</span><span class="p">(</span><span class="n">me</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">c_lb</span><span class="p">,</span><span class="w"> </span><span class="n">c_ub</span><span class="p">,</span><span class="w"> </span><span class="n">lam</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="k">end if</span>
+<span class="k">        </span><span class="n">r</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">s</span><span class="w"></span>
+<span class="w">        </span><span class="n">phi</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">f</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nb">dot_product</span><span class="p">(</span><span class="n">lam</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mf">0.5_wp</span><span class="o">*</span><span class="n">me</span><span class="p">%</span><span class="n">penalty</span><span class="o">*</span><span class="nb">dot_product</span><span class="p">(</span><span class="n">r</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="k">case </span><span class="n">default</span><span class="w"></span>
+<span class="w">        </span><span class="n">phi</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">f</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">penalty</span><span class="o">*</span><span class="nb">sum</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">c_lb</span><span class="o">-</span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="n">c</span><span class="o">-</span><span class="n">c_ub</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="p">))</span><span class="w"></span>
+<span class="w">    </span><span class="k">end select</span>
+
+<span class="k">    end subroutine </span><span class="n">eval_merit_function</span><span class="w"></span>
+</pre></div>
+
+    </section>
+    <br>
+    
+    </div>
+  </div>
+
+      <hr>
+    </div> <!-- /container -->
+    <footer>
+      <div class="container">
+        <div class="row justify-content-between">
+          <div class="col">
+            <p>
+              sqpopt
+ was developed by Jacob Williams<br>              &copy; 2026 
+</p>
+          </div>
+          <div class="col">
+            <p class="text-end">
+              Documentation generated by
+              <a href="https://github.com/Fortran-FOSS-Programmers/ford">FORD</a>
+            </p>
+          </div>
+        </div>
+        <br>
+      </div> <!-- /container -->
+    </footer>
+    <!-- sqpopt theme: the button switches the theme, and remembers it for the guide too -->
+    <script>
+      document.querySelector('.theme-toggle').addEventListener('click', function () {
+        var root = document.documentElement;
+        var next = root.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-bs-theme', next);
+        try { localStorage.setItem('sqpopt-theme', next); } catch (e) {}
+      });
+    </script>
+  </body>
+</html>

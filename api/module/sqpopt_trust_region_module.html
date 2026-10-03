@@ -1,0 +1,2024 @@
+<!-- -*- mode: jinja2 -*- -->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- sqpopt theme: set before the page is drawn; the guide's choice (the same
+         localStorage key, on the same site), or else the system's -->
+    <script>
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('sqpopt-theme'); } catch (e) {}
+        if (t !== 'dark' && t !== 'light') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-bs-theme', t);
+      })();
+    </script>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta name="description" content="Modern Fortran SQP OPTimizer">
+    <meta name="author" content="Jacob Williams" >
+    <link rel="icon" href="../favicon.png">
+
+    <title>sqpopt_trust_region_module &ndash; sqpopt</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <!-- Font Awesome -->
+    <link href="../css/fontawesome.min.css" rel="stylesheet">
+    <link href="../css/brands.min.css" rel="stylesheet">
+    <link href="../css/regular.min.css" rel="stylesheet">
+    <link href="../css/solid.min.css" rel="stylesheet">
+    <link href="../css/v4-font-face.min.css" rel="stylesheet">
+    <link href="../css/v4-shims.min.css" rel="stylesheet">
+    <!-- MathJax -->
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        TeX: { equationNumbers: { autoNumber: "AMS" } }
+      });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@2.7.9/MathJax.js?config=TeX-AMS-MML_HTMLorMML" async
+            integrity="sha256-DViIOMYdwlM/axqoGDPeUyf0urLoHMN4QACBKyB58Uw=" crossorigin="anonymous"></script>
+    <!-- Other scripts and stylesheets -->
+    <link href="../css/local.css" rel="stylesheet">
+    <link href="../css/pygments.css" rel="stylesheet">
+      <link href="../css/user.css" rel="stylesheet">
+    <script src="../js/svg-pan-zoom.min.js"></script>
+  </head>
+
+  <body>
+
+    <!-- Fixed navbar -->
+    <div class="container-fluid mb-sm-4 mb-xl-2">
+      <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+          <a class="navbar-brand" href="../index.html">sqpopt </a>
+          <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbar"
+                  aria-expanded="false" aria-controls="navbar" aria-label="Toggle navigation">
+                  <span class="navbar-toggler-icon">
+          </button>
+
+          <div id="navbar" class="navbar-collapse collapse">
+            <ul class="navbar-nav">
+                  <li class="nav-item">
+                    <a class="nav-link" href="../lists/files.html">Source Files</a>
+                  </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/modules.html">Modules</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/procedures.html">Procedures</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/absint.html">Abstract Interfaces</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/types.html">Derived Types</a>
+                </li>
+            </ul>
+              <div class="d-flex align-items-end flex-grow-1">
+                <form action="../search.html" role="search" class="ms-auto">
+                  <input type="text" class="form-control" aria-label="Search" placeholder="Search" name="q" id="tipue_search_input" autocomplete="off" required>
+                </form>
+              </div>
+            <!-- sqpopt theme: the light/dark button -->
+            <button type="button" class="btn nav-link theme-toggle ms-lg-3" aria-label="Toggle dark mode" title="Toggle dark mode">
+              <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg>
+              <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div><!--/.nav-collapse -->
+        </div>
+      </nav>
+    </div>
+
+    <div class="container">
+  <div class="row">
+    <h1>sqpopt_trust_region_module
+      <small>Module</small>
+      
+    </h1>
+      <div class="container p-2 mb-4 bg-light border rounded-3">
+    <div class="row align-items-center justify-content-between" id="info-bar">
+      <div class="col">
+        <ul class="list-inline" style="margin-bottom:0px;display:inline">
+            <li class="list-inline-item" id="meta-author"><i class="fa fa-pencil"></i> Jacob Williams</li>
+            <li class="list-inline-item" id="meta-license"><i class="fa fa-legal"></i> MIT</li>
+
+            <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
+              <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
+                 title=" 1.8% of total for modules and submodules.">179 statements</a>
+            </li>
+
+            <li class="list-inline-item" id="source-file">
+              <i class="fa fa-code"></i>
+              <a href="../src/sqpopt_trust_region_module.f90"> Source File</a>
+            </li>
+        </ul>
+      </div>
+      <div class="col">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb justify-content-end mb-0">
+                <li class="breadcrumb-item"><a href='../sourcefile/sqpopt_trust_region_module.f90.html'>sqpopt_trust_region_module.f90</a></li>
+            <li class="breadcrumb-item active" aria-current="page">sqpopt_trust_region_module</li>
+          </ol>
+        </nav>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Enable Bootstrap tooltips
+    (function () {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+      const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+    })();
+  </script>
+
+  </div>
+
+  <div class="row">
+    <div class="col-md-3">
+        <div id="sidebar">
+      <h3>Contents</h3>
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+      <div class="card mb-4">
+      <a data-bs-toggle="collapse" href="#types-0"
+         aria-expanded="false" aria-controls="types-0">
+         <h4 class="card-header bg-primary text-white">Derived Types</h4>
+      </a>
+      <div id="types-0" class="collapse">
+        <div class="list-group list-group-flush">
+            <a class="list-group-item" href="../module/sqpopt_trust_region_module.html#type-sqpopt_trust_region_type">sqpopt_trust_region_type</a>
+        </div>
+      </div>
+    </div>
+
+  
+      <div class="card mb-4">
+      <a data-bs-toggle="collapse" href="#subs-0"
+         aria-expanded="false" aria-controls="subs-0">
+         <h4 class="card-header bg-primary text-white">Subroutines</h4>
+      </a>
+      <div id="subs-0" class="collapse">
+        <div class="list-group list-group-flush">
+            <a class="list-group-item" href="../module/sqpopt_trust_region_module.html#proc-trust_region_step">trust_region_step</a>
+        </div>
+      </div>
+    </div>
+
+  
+  
+  
+  
+  
+  
+  
+
+
+  </div>
+
+    </div>
+
+    <div class="col-md-9" id='text'>
+      <p>Opt-in <strong>trust-region</strong> globalization strategy for the SQP major
+iteration -- an alternative to the line-search-based approach in
+<a href="../module/sqpopt_linesearch_module.html">sqpopt_linesearch_module</a> (see <code>plan/TRUST_REGION_PLAN.md</code> for the
+full design rationale). Disabled by default (<code>sqpopt_trust_region_type
+%enabled = .false.</code>), in which case <code>sqpopt_iterate_module</code> behaves
+exactly as if this module did not exist.</p>
+<p>When enabled, a major iteration no longer solves the linearized QP
+once and then searches for a step length <code>alpha</code> along the resulting
+<code>p</code>. Instead, the QP is re-solved as needed with a <strong>trust-region
+radius</strong>: the variable bounds passed to <code>qp_solver%solve</code> are
+temporarily tightened to <code>max(x_lb,x-radius)</code>/<code>min(x_ub,x+radius)</code>
+(an <script type="math/tex"> \ell_\infty </script> ball around <code>x</code>, intersected with the problem's
+own bounds -- exactly the box constraint Fletcher &amp; Leyffer's own
+trust-region QP uses, and for the same reason: it keeps the QP a
+simple bound-constrained problem, not a genuinely quadratically-
+constrained one). No changes are needed to any of the three
+<code>qp_solver_mode</code>s to support this, since they all already enforce
+variable bounds.</p>
+<p>The resulting step <code>p</code> is tested for acceptance (and, if it is rejected
+without reducing the constraint violation, so is its second-order
+correction, see <a href="../module/sqpopt_soc_module.html">sqpopt_soc_module</a>), and the radius is grown or
+shrunk accordingly:</p>
+<ul>
+<li>if <code>linesearch%mode == sqpopt_linesearch_filter</code>, acceptance uses the
+  same filter test as the filter line search (<code>linesearch%filter%accept</code>,
+  with the quadratic model's predicted decrease <code>q</code> in place of
+  <script type="math/tex"> g^Tp </script> in the switching condition) -- a trust-region filter-SQP
+  method in the spirit of Fletcher &amp; Leyffer (<code>references/fletcher.pdf</code>).</li>
+<li>if <code>linesearch%mode == sqpopt_linesearch_funnel</code>, acceptance uses the
+  funnel test of the funnel line search (<code>linesearch%funnel%accept</code>,
+  with <code>q</code> as the predicted decrease) -- the trust-region funnel SQP
+  method of Kiessling, Leyffer &amp; Vanaret (Uno's <code>funnelsqp</code> preset).</li>
+<li>otherwise, acceptance uses the classical trust-region-SQP ratio test
+  (Nocedal &amp; Wright, <em>Numerical Optimization</em>, Ch. 18): <script type="math/tex"> \rho =
+  \text{ared}/\text{pred} </script>, the ratio of the actual to the
+  predicted decrease in the merit function selected by
+  <code>linesearch%merit%mode</code>, accepted when <script type="math/tex"> \rho \ge \eta_1 </script>.</li>
+</ul>
+<p>If a step is rejected, the radius is shrunk (<code>shrink_factor</code>) and the
+QP is re-solved (bounded by <code>max_retries</code> retries per major iteration)
+-- there is no <code>alpha</code> to backtrack along, since a genuinely different
+<code>p</code> is computed each time. Trial points where <code>f</code> or <code>c</code> is not finite
+are always rejected. If every retry is rejected, no step is taken
+(<code>istat=sqpopt_line_search_failed</code>), as for a failed line search.</p>
+<p>Because this bypasses <code>linesearch%search</code> entirely, the line-search-
+specific options (<code>major_step_limit</code>, <code>alpha_min</code>/<code>sigma</code>/<code>backtrack</code>/
+<code>max_ls_iter</code>, and the watchdog fields) are not used when trust region
+is enabled -- there is no <code>alpha</code>, so nothing to cap or backtrack.</p>
+<p>At <code>options%print_level &gt;= 3</code>, every QP re-solve (radius, QP status, and
+the trial point's ratio, or violation and objective, and whether it was
+accepted) is written to the detailed log (<code>log</code>, see
+<a href="../module/sqpopt_log_module.html">sqpopt_log_module</a>).</p>
+<br>          <div class="card mb-4">
+      <h3 class="card-header card-title bg-light">Uses</h3>
+      <div class="card-body">
+        <ul class="list-group list-group-flush">
+            <li class="list-group-item">
+              <ul class="list-inline">
+                  <li class="list-inline-item"><a href='sqpopt_problem_module.html'>sqpopt_problem_module</a></li>
+                  <li class="list-inline-item"><a href='sqpopt_linesearch_module.html'>sqpopt_linesearch_module</a></li>
+                  <li class="list-inline-item"><a href='sqpopt_hessian_module.html'>sqpopt_hessian_module</a></li>
+                  <li class="list-inline-item"><a href='sqpopt_linalg_module.html'>sqpopt_linalg_module</a></li>
+                  <li class="list-inline-item"><a href='sqpopt_qp_solver_module.html'>sqpopt_qp_solver_module</a></li>
+                  <li class="list-inline-item"><a href='sqpopt_types_module.html'>sqpopt_types_module</a></li>
+                  <li class="list-inline-item"><a href='sqpopt_kkt_module.html'>sqpopt_kkt_module</a></li>
+                  <li class="list-inline-item"><a href='sqpopt_inertia_module.html'>sqpopt_inertia_module</a></li>
+                  <li class="list-inline-item"><a href='sqpopt_log_module.html'>sqpopt_log_module</a></li>
+                  <li class="list-inline-item"><a href='sqpopt_soc_module.html'>sqpopt_soc_module</a></li>
+                  <li class="list-inline-item"><a href='sqpopt_least_squares_module.html'>sqpopt_least_squares_module</a></li>
+                  <li class="list-inline-item"><a href='sqpopt_kinds.html'>sqpopt_kinds</a></li>
+              </ul>
+            </li>
+            <li class="list-group-item">
+              <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: module~~sqpopt_trust_region_module~~UsesGraph Pages: 1 -->
+<svg id="modulesqpopt_trust_region_moduleUsesGraph" width="641pt" height="370pt"
+ viewBox="0.00 0.00 641.00 370.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="module~~sqpopt_trust_region_module~~UsesGraph" class="graph" transform="scale(0.342927 0.342927) rotate(0) translate(4 1073.77)">
+<title>module~~sqpopt_trust_region_module~~UsesGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-1073.77 1865.2,-1073.77 1865.2,4 -4,4"/>
+<!-- module~sqpopt_trust_region_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node1" class="node">
+<title>module~sqpopt_trust_region_module</title>
+<polygon fill="none" stroke="black" points="1861.2,-462.77 1699.68,-462.77 1699.68,-438.5 1861.2,-438.5 1861.2,-462.77"/>
+<text xml:space="preserve" text-anchor="middle" x="1780.44" y="-447.03" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_trust_region_module</text>
+</g>
+<!-- module~sqpopt_hessian_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node2" class="node">
+<title>module~sqpopt_hessian_module</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsesGraph_node2"><a xlink:href="../module/sqpopt_hessian_module.html" xlink:title="sqpopt_hessian_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="819.22,-251.77 680.2,-251.77 680.2,-227.5 819.22,-227.5 819.22,-251.77"/>
+<text xml:space="preserve" text-anchor="middle" x="749.71" y="-236.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_hessian_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge1" class="edge">
+<title>module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_hessian_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1764.1,-438.02C1732.93,-412.88 1659.26,-355.93 1589.92,-320.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1587.92,-320.63C1530.68,-291.5 1534.1,-258.19 1478.16,-226.63 1448.55,-209.93 1436.45,-216.75 1405.52,-202.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1403.52,-202.63C1290.01,-150.81 1246.07,-145.08 1124.37,-172.63 1057.96,-187.67 1054.19,-237.43 986.11,-238.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M984.11,-238.63C933.24,-237.39 876.12,-237.61 831.12,-238.15"/>
+<polygon fill="#000000" stroke="#000000" points="831.13,-234.65 821.17,-238.28 831.22,-241.65 831.13,-234.65"/>
+</g>
+<!-- module~sqpopt_inertia_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node3" class="node">
+<title>module~sqpopt_inertia_module</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsesGraph_node3"><a xlink:href="../module/sqpopt_inertia_module.html" xlink:title="sqpopt_inertia_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="1276.14,-330.77 1143.12,-330.77 1143.12,-306.5 1276.14,-306.5 1276.14,-330.77"/>
+<text xml:space="preserve" text-anchor="middle" x="1209.63" y="-315.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_inertia_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_inertia_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge2" class="edge">
+<title>module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_inertia_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1587.92,-320.63C1536.98,-295.84 1382.64,-303.64 1287.88,-311.3"/>
+<polygon fill="#000000" stroke="#000000" points="1287.81,-307.8 1278.14,-312.11 1288.39,-314.77 1287.81,-307.8"/>
+</g>
+<!-- module~sqpopt_kinds -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node4" class="node">
+<title>module~sqpopt_kinds</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsesGraph_node4"><a xlink:href="../module/sqpopt_kinds.html" xlink:title="sqpopt_kinds">
+<polygon fill="#337ab7" stroke="#337ab7" points="216.91,-291.77 136.39,-291.77 136.39,-267.5 216.91,-267.5 216.91,-291.77"/>
+<text xml:space="preserve" text-anchor="middle" x="176.65" y="-276.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_kinds</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge3" class="edge">
+<title>module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1587.92,-739.63C1506.42,-790.95 1498.08,-830.01 1405.52,-856.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1403.52,-856.63C1266.88,-895.95 1229.35,-820.09 1088.37,-801.63 757.25,-758.3 632.46,-869.33 343.67,-701.63"/>
+</g>
+<!-- module~sqpopt_kkt_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node5" class="node">
+<title>module~sqpopt_kkt_module</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsesGraph_node5"><a xlink:href="../module/sqpopt_kkt_module.html" xlink:title="sqpopt_kkt_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="1042.24,-290.77 927.97,-290.77 927.97,-266.5 1042.24,-266.5 1042.24,-290.77"/>
+<text xml:space="preserve" text-anchor="middle" x="985.11" y="-275.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_kkt_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_kkt_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge4" class="edge">
+<title>module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_kkt_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1403.52,-202.63C1290.17,-151.07 1241.1,-183.28 1124.37,-226.63 1105.87,-233.51 1106.25,-244.28 1088.37,-252.63 1077.44,-257.74 1065.37,-261.94 1053.47,-265.36"/>
+<polygon fill="#000000" stroke="#000000" points="1052.83,-261.91 1044.08,-267.9 1054.65,-268.67 1052.83,-261.91"/>
+</g>
+<!-- module~sqpopt_least_squares_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node6" class="node">
+<title>module~sqpopt_least_squares_module</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsesGraph_node6"><a xlink:href="../module/sqpopt_least_squares_module.html" xlink:title="sqpopt_least_squares_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="1294.89,-711.77 1124.37,-711.77 1124.37,-687.5 1294.89,-687.5 1294.89,-711.77"/>
+<text xml:space="preserve" text-anchor="middle" x="1209.63" y="-696.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_least_squares_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_least_squares_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge5" class="edge">
+<title>module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_least_squares_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1403.52,-699.63C1372.16,-694.64 1337.55,-693.34 1306.42,-693.7"/>
+<polygon fill="#000000" stroke="#000000" points="1306.56,-690.19 1296.63,-693.87 1306.69,-697.19 1306.56,-690.19"/>
+</g>
+<!-- module~sqpopt_linalg_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node7" class="node">
+<title>module~sqpopt_linalg_module</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsesGraph_node7"><a xlink:href="../module/sqpopt_linalg_module.html" xlink:title="sqpopt_linalg_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="603.33,-521.77 475.56,-521.77 475.56,-497.5 603.33,-497.5 603.33,-521.77"/>
+<text xml:space="preserve" text-anchor="middle" x="539.44" y="-506.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_linalg_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_linalg_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge6" class="edge">
+<title>module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_linalg_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1775.47,-463.24C1760.21,-509.37 1700.61,-669.94 1589.92,-739.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1587.92,-739.63C1579.14,-745.16 1415.77,-701.27 1405.52,-699.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1403.52,-699.63C1354.96,-691.9 1343.67,-684.82 1294.89,-678.63 1158.49,-661.33 1123.35,-667.95 986.11,-659.63"/>
+</g>
+<!-- module~sqpopt_linesearch_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node8" class="node">
+<title>module~sqpopt_linesearch_module</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsesGraph_node8"><a xlink:href="../module/sqpopt_linesearch_module.html" xlink:title="sqpopt_linesearch_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="1061.74,-867.77 908.47,-867.77 908.47,-843.5 1061.74,-843.5 1061.74,-867.77"/>
+<text xml:space="preserve" text-anchor="middle" x="985.11" y="-852.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_linesearch_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_linesearch_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge7" class="edge">
+<title>module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_linesearch_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1403.52,-856.63C1319.47,-880.82 1297.97,-890.88 1210.63,-895.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1208.63,-895.63C1178.7,-897.26 1105.28,-882.71 1050.92,-870.71"/>
+<polygon fill="#000000" stroke="#000000" points="1051.97,-867.35 1041.45,-868.6 1050.45,-874.19 1051.97,-867.35"/>
+</g>
+<!-- module~sqpopt_log_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node9" class="node">
+<title>module~sqpopt_log_module</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsesGraph_node9"><a xlink:href="../module/sqpopt_log_module.html" xlink:title="sqpopt_log_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="596.95,-1027.77 481.93,-1027.77 481.93,-1003.5 596.95,-1003.5 596.95,-1027.77"/>
+<text xml:space="preserve" text-anchor="middle" x="539.44" y="-1012.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_log_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_log_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge8" class="edge">
+<title>module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_log_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M748.71,-1015.63C702.4,-1023.64 649.43,-1023.51 608.5,-1021.45"/>
+<polygon fill="#000000" stroke="#000000" points="608.71,-1017.96 598.53,-1020.89 608.32,-1024.95 608.71,-1017.96"/>
+</g>
+<!-- module~sqpopt_problem_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node10" class="node">
+<title>module~sqpopt_problem_module</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsesGraph_node10"><a xlink:href="../module/sqpopt_problem_module.html" xlink:title="sqpopt_problem_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="610.83,-1069.77 468.06,-1069.77 468.06,-1045.5 610.83,-1045.5 610.83,-1069.77"/>
+<text xml:space="preserve" text-anchor="middle" x="539.44" y="-1054.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_problem_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_problem_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge9" class="edge">
+<title>module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_problem_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M748.71,-1015.63C702.04,-1023.7 649.78,-1034.24 609.28,-1042.75"/>
+<polygon fill="#000000" stroke="#000000" points="608.73,-1039.29 599.67,-1044.78 610.18,-1046.14 608.73,-1039.29"/>
+</g>
+<!-- module~sqpopt_qp_solver_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node11" class="node">
+<title>module~sqpopt_qp_solver_module</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsesGraph_node11"><a xlink:href="../module/sqpopt_qp_solver_module.html" xlink:title="sqpopt_qp_solver_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="1663.68,-462.77 1514.16,-462.77 1514.16,-438.5 1663.68,-438.5 1663.68,-462.77"/>
+<text xml:space="preserve" text-anchor="middle" x="1588.92" y="-447.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qp_solver_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_qp_solver_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge10" class="edge">
+<title>module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_qp_solver_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1699.34,-450.63C1691.38,-450.63 1683.27,-450.63 1675.25,-450.63"/>
+<polygon fill="#000000" stroke="#000000" points="1675.52,-447.13 1665.52,-450.63 1675.52,-454.13 1675.52,-447.13"/>
+</g>
+<!-- module~sqpopt_soc_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node12" class="node">
+<title>module~sqpopt_soc_module</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsesGraph_node12"><a xlink:href="../module/sqpopt_soc_module.html" xlink:title="sqpopt_soc_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="1462.78,-751.77 1346.26,-751.77 1346.26,-727.5 1462.78,-727.5 1462.78,-751.77"/>
+<text xml:space="preserve" text-anchor="middle" x="1404.52" y="-736.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_soc_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_soc_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge11" class="edge">
+<title>module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_soc_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1587.92,-739.63C1550.73,-763.05 1500.25,-761.08 1461.82,-754.36"/>
+<polygon fill="#000000" stroke="#000000" points="1462.79,-750.98 1452.31,-752.54 1461.47,-757.86 1462.79,-750.98"/>
+</g>
+<!-- module~sqpopt_types_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node13" class="node">
+<title>module~sqpopt_types_module</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsesGraph_node13"><a xlink:href="../module/sqpopt_types_module.html" xlink:title="sqpopt_types_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="406.18,-827.77 279.16,-827.77 279.16,-803.5 406.18,-803.5 406.18,-827.77"/>
+<text xml:space="preserve" text-anchor="middle" x="342.67" y="-812.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_types_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge12" class="edge">
+<title>module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1208.63,-895.63C998.55,-907.06 958.03,-979.81 750.71,-1015.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M748.71,-1015.63C699.11,-1019.42 690.62,-989.85 653.58,-956.63 634.25,-939.3 638.7,-925.72 617.58,-910.63 557.37,-867.62 475.97,-842.68 417.59,-829.24"/>
+<polygon fill="#000000" stroke="#000000" points="418.6,-825.88 408.07,-827.11 417.07,-832.71 418.6,-825.88"/>
+</g>
+<!-- module~sqpopt_hessian_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge14" class="edge">
+<title>module~sqpopt_hessian_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M703.66,-252.25C661.78,-263.02 597.46,-277.16 540.44,-279.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M538.44,-279.63C450.16,-283.46 430.79,-224.78 343.67,-239.63"/>
+</g>
+<!-- module~sqpopt_dense_linalg_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node20" class="node">
+<title>module~sqpopt_dense_linalg_module</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsesGraph_node20"><a xlink:href="../module/sqpopt_dense_linalg_module.html" xlink:title="sqpopt_dense_linalg_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="425.31,-291.77 260.04,-291.77 260.04,-267.5 425.31,-267.5 425.31,-291.77"/>
+<text xml:space="preserve" text-anchor="middle" x="342.67" y="-276.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_dense_linalg_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_hessian_module&#45;&gt;module~sqpopt_dense_linalg_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge13" class="edge">
+<title>module~sqpopt_hessian_module&#45;&gt;module~sqpopt_dense_linalg_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M538.44,-279.63C505.35,-281.07 469.07,-281.41 436.88,-281.28"/>
+<polygon fill="#000000" stroke="#000000" points="437.22,-277.78 427.2,-281.22 437.18,-284.78 437.22,-277.78"/>
+</g>
+<!-- module~sqpopt_inertia_module&#45;&gt;module~sqpopt_hessian_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge15" class="edge">
+<title>module~sqpopt_inertia_module&#45;&gt;module~sqpopt_hessian_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1154.42,-306.06C1144.06,-302.52 1133.59,-298.1 1124.37,-292.63 1105.18,-281.25 1108.19,-267.89 1088.37,-257.63 1047.31,-236.39 1032.33,-237.82 986.11,-238.63"/>
+</g>
+<!-- module~sqpopt_inertia_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge16" class="edge">
+<title>module~sqpopt_inertia_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1142.98,-313.25C1037.95,-306.42 826.35,-300.06 653.58,-341.63 599.78,-354.58 595.74,-391.45 540.44,-393.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M538.44,-393.63C450.37,-396.1 427.59,-383.52 343.67,-356.63"/>
+</g>
+<!-- module~sqpopt_inertia_module&#45;&gt;module~sqpopt_kkt_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge17" class="edge">
+<title>module~sqpopt_inertia_module&#45;&gt;module~sqpopt_kkt_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1142.77,-306.8C1114.6,-301.73 1081.74,-295.82 1053.41,-290.73"/>
+<polygon fill="#000000" stroke="#000000" points="1054.34,-287.34 1043.88,-289.02 1053.1,-294.23 1054.34,-287.34"/>
+</g>
+<!-- module~sqpopt_inertia_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge18" class="edge">
+<title>module~sqpopt_inertia_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1196.58,-331.21C1175.91,-352.29 1131.72,-395.22 1088.37,-423.63 949.48,-514.66 897.36,-505.71 750.71,-583.63"/>
+</g>
+<!-- iso_fortran_env -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node16" class="node">
+<title>iso_fortran_env</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsesGraph_node16"><a xlink:href="http://fortranwiki.org/fortran/show/iso_fortran_env" xlink:title="iso_fortran_env">
+<polygon fill="#337ab7" stroke="#337ab7" points="93.27,-291.77 0,-291.77 0,-267.5 93.27,-267.5 93.27,-291.77"/>
+<text xml:space="preserve" text-anchor="middle" x="46.63" y="-276.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">iso_fortran_env</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_kinds&#45;&gt;iso_fortran_env -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge19" class="edge">
+<title>module~sqpopt_kinds&#45;&gt;iso_fortran_env</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M136.2,-279.63C126.27,-279.63 115.42,-279.63 104.81,-279.63"/>
+<polygon fill="#000000" stroke="#000000" points="104.98,-276.13 94.98,-279.63 104.98,-283.13 104.98,-276.13"/>
+</g>
+<!-- module~sqpopt_kkt_module&#45;&gt;module~sqpopt_hessian_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge21" class="edge">
+<title>module~sqpopt_kkt_module&#45;&gt;module~sqpopt_hessian_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M927.61,-269.19C898.53,-264.33 862.57,-258.33 830.69,-253"/>
+<polygon fill="#000000" stroke="#000000" points="831.53,-249.59 821.09,-251.39 830.38,-256.5 831.53,-249.59"/>
+</g>
+<!-- module~sqpopt_kkt_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge22" class="edge">
+<title>module~sqpopt_kkt_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M538.44,-317.63C450.29,-322.32 427.75,-383.57 343.67,-356.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M341.67,-356.63C293.83,-341.3 241.84,-315.13 209.5,-297.61"/>
+<polygon fill="#000000" stroke="#000000" points="211.5,-294.72 201.05,-292.98 208.14,-300.86 211.5,-294.72"/>
+</g>
+<!-- module~sqpopt_kkt_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge24" class="edge">
+<title>module~sqpopt_kkt_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M960.94,-291.07C939.94,-302.56 908.3,-320.41 881.85,-337.63 759.96,-416.98 739.5,-451.34 617.58,-530.63 550.39,-574.33 513.26,-559.61 461.31,-620.63 432.04,-655.02 447.88,-676.53 425.31,-715.63 408.1,-745.46 382.13,-775.51 364.13,-794.77"/>
+<polygon fill="#000000" stroke="#000000" points="361.64,-792.31 357.28,-801.97 366.71,-797.13 361.64,-792.31"/>
+</g>
+<!-- module~sqpopt_kkt_module&#45;&gt;module~sqpopt_dense_linalg_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge20" class="edge">
+<title>module~sqpopt_kkt_module&#45;&gt;module~sqpopt_dense_linalg_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M927.6,-282.09C861.73,-286.3 749.64,-294.06 653.58,-303.63 603.16,-308.66 590.9,-313.05 540.44,-317.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M538.44,-317.63C487.3,-320.35 429.87,-307.1 390.7,-295.5"/>
+<polygon fill="#000000" stroke="#000000" points="391.94,-292.22 381.36,-292.66 389.9,-298.92 391.94,-292.22"/>
+</g>
+<!-- module~sqpopt_symmetric_solver_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node27" class="node">
+<title>module~sqpopt_symmetric_solver_module</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsesGraph_node27"><a xlink:href="../module/sqpopt_symmetric_solver_module.html" xlink:title="sqpopt_symmetric_solver_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="845.85,-198.77 653.58,-198.77 653.58,-174.5 845.85,-174.5 845.85,-198.77"/>
+<text xml:space="preserve" text-anchor="middle" x="749.71" y="-183.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_symmetric_solver_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_kkt_module&#45;&gt;module~sqpopt_symmetric_solver_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge23" class="edge">
+<title>module~sqpopt_kkt_module&#45;&gt;module~sqpopt_symmetric_solver_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M957.11,-266.11C929.44,-253.46 885.05,-233.7 845.85,-218.63 831.46,-213.1 815.66,-207.58 801.14,-202.71"/>
+<polygon fill="#000000" stroke="#000000" points="802.36,-199.42 791.76,-199.6 800.15,-206.07 802.36,-199.42"/>
+</g>
+<!-- module~sqpopt_least_squares_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge26" class="edge">
+<title>module~sqpopt_least_squares_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1191.42,-687C1174.08,-674.08 1146.76,-653.19 1124.37,-633.63 1107.56,-618.96 1106.91,-611.05 1088.37,-598.63 990.77,-533.29 959.84,-521.95 845.85,-493.63 713.71,-460.81 673,-500.75 540.44,-469.63"/>
+</g>
+<!-- module~sqpopt_least_squares_module&#45;&gt;module~sqpopt_kkt_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge27" class="edge">
+<title>module~sqpopt_least_squares_module&#45;&gt;module~sqpopt_kkt_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1183.51,-687.09C1163.93,-675.9 1137.88,-657.59 1124.37,-633.63 1059.25,-518.21 1161.47,-448.18 1088.37,-337.63 1075.86,-318.72 1055.07,-305.14 1035.49,-295.81"/>
+<polygon fill="#000000" stroke="#000000" points="1037.05,-292.67 1026.49,-291.8 1034.2,-299.06 1037.05,-292.67"/>
+</g>
+<!-- module~sqpopt_least_squares_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge28" class="edge">
+<title>module~sqpopt_least_squares_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M984.11,-701.63C937.77,-707.28 924.55,-706.77 881.85,-725.63 817.19,-754.2 820.91,-807.26 750.71,-815.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M748.71,-815.63C656.8,-826.6 632.92,-811.57 540.44,-815.63"/>
+</g>
+<!-- lsqr_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node17" class="node">
+<title>lsqr_module</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsesGraph_node17"><a xlink:href="https://github.com/jacobwilliams/LSQR" xlink:title="lsqr_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="788.1,-711.77 711.33,-711.77 711.33,-687.5 788.1,-687.5 788.1,-711.77"/>
+<text xml:space="preserve" text-anchor="middle" x="749.71" y="-696.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">lsqr_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_least_squares_module&#45;&gt;lsqr_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge25" class="edge">
+<title>module~sqpopt_least_squares_module&#45;&gt;lsqr_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1124.07,-695.95C1082.39,-695.26 1031.46,-696.11 986.11,-701.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M984.11,-701.63C920.89,-709.34 847.31,-706.83 799.94,-703.74"/>
+<polygon fill="#000000" stroke="#000000" points="800.2,-700.25 789.99,-703.05 799.72,-707.24 800.2,-700.25"/>
+</g>
+<!-- module~sqpopt_linalg_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge31" class="edge">
+<title>module~sqpopt_linalg_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M486.41,-522.14C477.54,-525.64 468.79,-530.07 461.31,-535.63 388.76,-589.61 422.99,-745.06 343.67,-701.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M341.67,-701.63C194.08,-620.82 178.64,-380.05 177.54,-303.37"/>
+<polygon fill="#000000" stroke="#000000" points="181.04,-303.64 177.47,-293.66 174.04,-303.68 181.04,-303.64"/>
+</g>
+<!-- module~sqpopt_linalg_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge32" class="edge">
+<title>module~sqpopt_linalg_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M479.19,-522.14C472.46,-525.6 466.26,-530.01 461.31,-535.63 407.42,-596.89 460.13,-641.86 425.31,-715.63 410.63,-746.74 384.2,-776.5 365.4,-795.34"/>
+<polygon fill="#000000" stroke="#000000" points="363.15,-792.64 358.44,-802.13 368.04,-797.65 363.15,-792.64"/>
+</g>
+<!-- lusol -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node18" class="node">
+<title>lusol</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsesGraph_node18"><a xlink:href="https://github.com/jacobwilliams/lusol" xlink:title="lusol">
+<polygon fill="#337ab7" stroke="#337ab7" points="369.67,-500.77 315.67,-500.77 315.67,-476.5 369.67,-476.5 369.67,-500.77"/>
+<text xml:space="preserve" text-anchor="middle" x="342.67" y="-485.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">lusol</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_linalg_module&#45;&gt;lusol -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge29" class="edge">
+<title>module~sqpopt_linalg_module&#45;&gt;lusol</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M475.21,-502.82C444.05,-499.46 407.56,-495.52 380.92,-492.65"/>
+<polygon fill="#000000" stroke="#000000" points="381.62,-489.21 371.3,-491.61 380.87,-496.16 381.62,-489.21"/>
+</g>
+<!-- lusol_precision -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node19" class="node">
+<title>lusol_precision</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsesGraph_node19"><a xlink:href="https://github.com/jacobwilliams/lusol" xlink:title="lusol_precision">
+<polygon fill="#337ab7" stroke="#337ab7" points="387.43,-542.77 297.91,-542.77 297.91,-518.5 387.43,-518.5 387.43,-542.77"/>
+<text xml:space="preserve" text-anchor="middle" x="342.67" y="-527.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">lusol_precision</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_linalg_module&#45;&gt;lusol_precision -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge30" class="edge">
+<title>module~sqpopt_linalg_module&#45;&gt;lusol_precision</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M475.21,-516.45C450.68,-519.1 422.83,-522.1 399.1,-524.66"/>
+<polygon fill="#000000" stroke="#000000" points="398.89,-521.16 389.32,-525.71 399.64,-528.12 398.89,-521.16"/>
+</g>
+<!-- module~sqpopt_linesearch_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge36" class="edge">
+<title>module~sqpopt_linesearch_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M748.71,-895.63C654.58,-903.12 633.99,-840.78 540.44,-853.63"/>
+</g>
+<!-- module~sqpopt_linesearch_module&#45;&gt;module~sqpopt_log_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge37" class="edge">
+<title>module~sqpopt_linesearch_module&#45;&gt;module~sqpopt_log_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M908.14,-866.85C898.64,-870.5 889.57,-875.31 881.85,-881.63 853.24,-905.06 875.13,-934.05 845.85,-956.63 827.25,-970.98 692.84,-993.08 608.65,-1005.77"/>
+<polygon fill="#000000" stroke="#000000" points="608.24,-1002.29 598.87,-1007.23 609.28,-1009.21 608.24,-1002.29"/>
+</g>
+<!-- module~sqpopt_linesearch_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge39" class="edge">
+<title>module~sqpopt_linesearch_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M927.88,-868.21C880.82,-878.02 811.78,-890.78 750.71,-895.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M748.71,-895.63C705.73,-899.05 691.46,-897.23 653.58,-876.63 633.42,-865.67 637.14,-851.63 617.58,-839.63 586.98,-820.86 576.31,-814.06 540.44,-815.63"/>
+</g>
+<!-- fmin_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node14" class="node">
+<title>fmin_module</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsesGraph_node14"><a xlink:href="https://github.com/jacobwilliams/fmin" xlink:title="fmin_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="790.35,-947.77 709.08,-947.77 709.08,-923.5 790.35,-923.5 790.35,-947.77"/>
+<text xml:space="preserve" text-anchor="middle" x="749.71" y="-932.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">fmin_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_linesearch_module&#45;&gt;fmin_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge33" class="edge">
+<title>module~sqpopt_linesearch_module&#45;&gt;fmin_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M917.77,-868.25C905.5,-871.76 893.04,-876.16 881.85,-881.63 863.64,-890.54 863.98,-900.56 845.85,-909.63 832.06,-916.53 816.2,-921.8 801.44,-925.72"/>
+<polygon fill="#000000" stroke="#000000" points="800.74,-922.29 791.88,-928.1 802.43,-929.08 800.74,-922.29"/>
+</g>
+<!-- module~sqpopt_filter_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node21" class="node">
+<title>module~sqpopt_filter_module</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsesGraph_node21"><a xlink:href="../module/sqpopt_filter_module.html" xlink:title="sqpopt_filter_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="601.08,-985.77 477.81,-985.77 477.81,-961.5 601.08,-961.5 601.08,-985.77"/>
+<text xml:space="preserve" text-anchor="middle" x="539.44" y="-970.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_filter_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_linesearch_module&#45;&gt;module~sqpopt_filter_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge34" class="edge">
+<title>module~sqpopt_linesearch_module&#45;&gt;module~sqpopt_filter_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M748.71,-895.63C705.73,-899.05 691.32,-893.78 653.58,-914.63 633.22,-925.89 637.54,-940.69 617.58,-952.63 615.27,-954.02 612.86,-955.31 610.39,-956.52"/>
+<polygon fill="#000000" stroke="#000000" points="609.12,-953.26 601.33,-960.44 611.9,-959.68 609.12,-953.26"/>
+</g>
+<!-- module~sqpopt_funnel_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node22" class="node">
+<title>module~sqpopt_funnel_module</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsesGraph_node22"><a xlink:href="../module/sqpopt_funnel_module.html" xlink:title="sqpopt_funnel_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="605.58,-943.77 473.31,-943.77 473.31,-919.5 605.58,-919.5 605.58,-943.77"/>
+<text xml:space="preserve" text-anchor="middle" x="539.44" y="-928.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_funnel_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_linesearch_module&#45;&gt;module~sqpopt_funnel_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge35" class="edge">
+<title>module~sqpopt_linesearch_module&#45;&gt;module~sqpopt_funnel_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M748.71,-895.63C701.24,-899.41 648.36,-908.61 607.77,-916.77"/>
+<polygon fill="#000000" stroke="#000000" points="607.24,-913.3 598.15,-918.73 608.64,-920.16 607.24,-913.3"/>
+</g>
+<!-- module~sqpopt_merit_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node23" class="node">
+<title>module~sqpopt_merit_module</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsesGraph_node23"><a xlink:href="../module/sqpopt_merit_module.html" xlink:title="sqpopt_merit_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="813.22,-867.77 686.2,-867.77 686.2,-843.5 813.22,-843.5 813.22,-867.77"/>
+<text xml:space="preserve" text-anchor="middle" x="749.71" y="-852.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_merit_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_linesearch_module&#45;&gt;module~sqpopt_merit_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge38" class="edge">
+<title>module~sqpopt_linesearch_module&#45;&gt;module~sqpopt_merit_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M908.01,-855.63C881.24,-855.63 851.21,-855.63 824.62,-855.63"/>
+<polygon fill="#000000" stroke="#000000" points="824.97,-852.13 814.97,-855.63 824.97,-859.13 824.97,-852.13"/>
+</g>
+<!-- module~sqpopt_log_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge41" class="edge">
+<title>module~sqpopt_log_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M481.6,-1003.52C474.57,-1001.05 467.63,-998.12 461.31,-994.63 442.3,-984.15 443.85,-972.92 425.31,-961.63 392.3,-941.53 372,-957.93 343.67,-931.63"/>
+</g>
+<!-- module~sqpopt_log_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge42" class="edge">
+<title>module~sqpopt_log_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M481.66,-1006.37C474.29,-1003.46 467.26,-999.64 461.31,-994.63 432.41,-970.31 445.25,-949.72 425.31,-917.63 406.7,-887.7 380.61,-856.53 362.97,-836.64"/>
+<polygon fill="#000000" stroke="#000000" points="365.59,-834.32 356.3,-829.22 360.38,-839 365.59,-834.32"/>
+</g>
+<!-- module~sqpopt_log_module&#45;&gt;iso_fortran_env -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge40" class="edge">
+<title>module~sqpopt_log_module&#45;&gt;iso_fortran_env</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M481.49,-1016.76C419.2,-1014.86 320.25,-1002.2 260.04,-945.63 64.5,-761.93 48.28,-398.84 47.5,-303.18"/>
+<polygon fill="#000000" stroke="#000000" points="51,-303.46 47.47,-293.47 44,-303.48 51,-303.46"/>
+</g>
+<!-- module~sqpopt_problem_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge44" class="edge">
+<title>module~sqpopt_problem_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M480.43,-1045.01C473.8,-1042.65 467.29,-1039.88 461.31,-1036.63 399.72,-1003.2 395.04,-979.31 343.67,-931.63"/>
+</g>
+<!-- module~sqpopt_problem_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge45" class="edge">
+<title>module~sqpopt_problem_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M472.66,-1045.07C468.54,-1042.71 464.69,-1039.92 461.31,-1036.63 421.7,-998.11 451.04,-966.53 425.31,-917.63 408.92,-886.48 382.39,-855.6 364.04,-836.12"/>
+<polygon fill="#000000" stroke="#000000" points="366.76,-833.89 357.31,-829.11 361.71,-838.74 366.76,-833.89"/>
+</g>
+<!-- ieee_arithmetic -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node15" class="node">
+<title>ieee_arithmetic</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsesGraph_node15"><a xlink:href="http://fortranwiki.org/fortran/show/ieee_arithmetic" xlink:title="ieee_arithmetic">
+<polygon fill="#337ab7" stroke="#337ab7" points="224.04,-1051.77 129.27,-1051.77 129.27,-1027.5 224.04,-1027.5 224.04,-1051.77"/>
+<text xml:space="preserve" text-anchor="middle" x="176.65" y="-1036.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">ieee_arithmetic</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_problem_module&#45;&gt;ieee_arithmetic -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge43" class="edge">
+<title>module~sqpopt_problem_module&#45;&gt;ieee_arithmetic</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M467.59,-1054.1C399.88,-1050.72 299.02,-1045.69 235.87,-1042.54"/>
+<polygon fill="#000000" stroke="#000000" points="236.2,-1039.05 226.04,-1042.05 235.85,-1046.04 236.2,-1039.05"/>
+</g>
+<!-- module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_hessian_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge47" class="edge">
+<title>module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_hessian_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1403.52,-240.63C1331.23,-194.56 1296.29,-237.21 1210.63,-240.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1208.63,-240.63C1109.81,-244.59 1085,-236.88 986.11,-238.63"/>
+</g>
+<!-- module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_inertia_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge48" class="edge">
+<title>module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_inertia_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1572.56,-463.12C1542.61,-486.3 1473.43,-534.29 1405.52,-541.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1403.52,-541.63C1298.54,-552.98 1237.5,-401.24 1217.75,-341.88"/>
+<polygon fill="#000000" stroke="#000000" points="1221.11,-340.9 1214.72,-332.45 1214.45,-343.04 1221.11,-340.9"/>
+</g>
+<!-- module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge49" class="edge">
+<title>module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1403.52,-541.63C1311.2,-546.87 1302.68,-610.8 1210.63,-619.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1208.63,-619.63C1133.16,-626.88 1156.92,-531.03 1088.37,-498.63 990.48,-452.37 953.94,-481.81 845.85,-475.63 811.96,-473.7 573.38,-477.84 540.44,-469.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M538.44,-469.63C443.09,-439.24 438.98,-387.17 343.67,-356.63"/>
+</g>
+<!-- module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_kkt_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge50" class="edge">
+<title>module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_kkt_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1208.63,-240.63C1153.87,-242.83 1092.55,-253.96 1048.16,-263.61"/>
+<polygon fill="#000000" stroke="#000000" points="1047.46,-260.19 1038.45,-265.77 1048.97,-267.02 1047.46,-260.19"/>
+</g>
+<!-- module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_linalg_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge51" class="edge">
+<title>module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_linalg_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1208.63,-619.63C1108.61,-629.24 1086.49,-655.17 986.11,-659.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M984.11,-659.63C820.31,-666.92 639.29,-569.66 569.8,-528.03"/>
+<polygon fill="#000000" stroke="#000000" points="571.66,-525.06 561.29,-522.87 568.02,-531.05 571.66,-525.06"/>
+</g>
+<!-- module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge55" class="edge">
+<title>module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1587.85,-462.99C1586.84,-510.51 1576.32,-682.72 1478.16,-760.63 1305.8,-897.44 1205.58,-799.61 986.11,-815.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M984.11,-815.63C880.4,-817.56 853.72,-803.34 750.71,-815.63"/>
+</g>
+<!-- module~sqpopt_qp_solver_module&#45;&gt;iso_fortran_env -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge46" class="edge">
+<title>module~sqpopt_qp_solver_module&#45;&gt;iso_fortran_env</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1579.23,-438.06C1564.88,-417.09 1535.71,-373.44 1514.16,-334.63 1496.21,-302.31 1506.69,-283.16 1478.16,-259.63 1452.42,-238.41 1433.66,-258.57 1405.52,-240.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1403.52,-240.63C1374.85,-222.36 1361.03,-232.37 1330.89,-216.63 1313.16,-207.38 1312.54,-199.04 1294.89,-189.63 1111.63,-92.01 1049.53,-101.03 845.85,-60.63 745.04,-40.64 719.86,-33.75 617.58,-23.63 532.48,-15.22 510.81,-18.19 425.31,-16.63 314.79,-14.62 262.6,31.11 177.65,-39.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M175.65,-39.63C100.44,-94.61 65.13,-207.38 52.88,-256.22"/>
+<polygon fill="#000000" stroke="#000000" points="49.53,-255.18 50.61,-265.72 56.34,-256.81 49.53,-255.18"/>
+</g>
+<!-- module~sqpopt_qp_dense_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node24" class="node">
+<title>module~sqpopt_qp_dense_module</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsesGraph_node24"><a xlink:href="../module/sqpopt_qp_dense_module.html" xlink:title="sqpopt_qp_dense_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="1059.87,-370.77 910.35,-370.77 910.35,-346.5 1059.87,-346.5 1059.87,-370.77"/>
+<text xml:space="preserve" text-anchor="middle" x="985.11" y="-355.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qp_dense_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_qp_dense_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge52" class="edge">
+<title>module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_qp_dense_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1403.52,-541.63C1321.86,-550.46 1098.1,-424.6 1016.45,-376.72"/>
+<polygon fill="#000000" stroke="#000000" points="1018.47,-373.85 1008.08,-371.79 1014.92,-379.88 1018.47,-373.85"/>
+</g>
+<!-- module~sqpopt_qp_direct_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node25" class="node">
+<title>module~sqpopt_qp_direct_module</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsesGraph_node25"><a xlink:href="../module/sqpopt_qp_direct_module.html" xlink:title="sqpopt_qp_direct_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="1478.16,-292.77 1330.89,-292.77 1330.89,-268.5 1478.16,-268.5 1478.16,-292.77"/>
+<text xml:space="preserve" text-anchor="middle" x="1404.52" y="-277.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qp_direct_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_qp_direct_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge53" class="edge">
+<title>module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_qp_direct_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1574.51,-438.13C1543.28,-409.03 1465.48,-336.52 1427.32,-300.95"/>
+<polygon fill="#000000" stroke="#000000" points="1429.77,-298.44 1420.06,-294.19 1424.99,-303.56 1429.77,-298.44"/>
+</g>
+<!-- module~sqpopt_qp_reduced_hessian_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node26" class="node">
+<title>module~sqpopt_qp_reduced_hessian_module</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsesGraph_node26"><a xlink:href="../module/sqpopt_qp_reduced_hessian_module.html" xlink:title="sqpopt_qp_reduced_hessian_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="1088.37,-631.77 881.85,-631.77 881.85,-607.5 1088.37,-607.5 1088.37,-631.77"/>
+<text xml:space="preserve" text-anchor="middle" x="985.11" y="-616.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qp_reduced_hessian_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_qp_reduced_hessian_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge54" class="edge">
+<title>module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_qp_reduced_hessian_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1208.63,-619.63C1173.41,-623.02 1134.91,-623.98 1099.98,-623.82"/>
+<polygon fill="#000000" stroke="#000000" points="1100.32,-620.32 1090.29,-623.74 1100.26,-627.32 1100.32,-620.32"/>
+</g>
+<!-- module~sqpopt_soc_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge57" class="edge">
+<title>module~sqpopt_soc_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M748.71,-739.63C575.13,-689.03 502.26,-788.47 343.67,-701.63"/>
+</g>
+<!-- module~sqpopt_soc_module&#45;&gt;module~sqpopt_least_squares_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge58" class="edge">
+<title>module~sqpopt_soc_module&#45;&gt;module~sqpopt_least_squares_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1345.91,-727.69C1325.96,-723.55 1303.35,-718.86 1282.4,-714.52"/>
+<polygon fill="#000000" stroke="#000000" points="1283.28,-711.13 1272.78,-712.52 1281.86,-717.98 1283.28,-711.13"/>
+</g>
+<!-- module~sqpopt_soc_module&#45;&gt;module~sqpopt_linalg_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge59" class="edge">
+<title>module~sqpopt_soc_module&#45;&gt;module~sqpopt_linalg_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M984.11,-739.63C880.5,-734.54 850.3,-768.67 750.71,-739.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M748.71,-739.63C707.32,-727.57 688.22,-746.31 653.58,-720.63 589.18,-672.9 557.6,-577.33 545.94,-533.09"/>
+<polygon fill="#000000" stroke="#000000" points="549.37,-532.37 543.54,-523.53 542.58,-534.08 549.37,-532.37"/>
+</g>
+<!-- module~sqpopt_soc_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge60" class="edge">
+<title>module~sqpopt_soc_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1362.5,-752.18C1288.2,-773.77 1126.06,-815.63 986.11,-815.63"/>
+</g>
+<!-- module~sqpopt_soc_module&#45;&gt;lsqr_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge56" class="edge">
+<title>module~sqpopt_soc_module&#45;&gt;lsqr_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1346.1,-741.17C1265.6,-742.98 1114.62,-745.08 986.11,-739.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M984.11,-739.63C919.62,-736.46 846.42,-722.13 799.46,-711.52"/>
+<polygon fill="#000000" stroke="#000000" points="800.41,-708.15 789.88,-709.32 798.84,-714.97 800.41,-708.15"/>
+</g>
+<!-- module~sqpopt_types_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge62" class="edge">
+<title>module~sqpopt_types_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M327.93,-803.22C309.4,-785.63 276.78,-751.6 260.04,-715.63 192.08,-569.65 180.18,-371.38 178.09,-303.54"/>
+<polygon fill="#000000" stroke="#000000" points="181.59,-303.52 177.84,-293.61 174.6,-303.7 181.59,-303.52"/>
+</g>
+<!-- module~sqpopt_types_module&#45;&gt;ieee_arithmetic -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge61" class="edge">
+<title>module~sqpopt_types_module&#45;&gt;ieee_arithmetic</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M332.62,-828C305.97,-864.4 227.52,-971.53 193.59,-1017.87"/>
+<polygon fill="#000000" stroke="#000000" points="190.86,-1015.68 187.78,-1025.81 196.51,-1019.81 190.86,-1015.68"/>
+</g>
+<!-- module~sqpopt_dense_linalg_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge63" class="edge">
+<title>module~sqpopt_dense_linalg_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M259.66,-279.63C249.07,-279.63 238.48,-279.63 228.6,-279.63"/>
+<polygon fill="#000000" stroke="#000000" points="228.87,-276.13 218.87,-279.63 228.87,-283.13 228.87,-276.13"/>
+</g>
+<!-- module~sqpopt_filter_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge64" class="edge">
+<title>module~sqpopt_filter_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M477.67,-967.33C427.99,-960.97 362.94,-949.52 343.67,-931.63"/>
+</g>
+<!-- module~sqpopt_filter_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge65" class="edge">
+<title>module~sqpopt_filter_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M478.38,-961.15C472.4,-958.78 466.59,-955.97 461.31,-952.63 448.72,-944.68 390.01,-873.05 360.58,-836.66"/>
+<polygon fill="#000000" stroke="#000000" points="363.4,-834.58 354.4,-829 357.95,-838.98 363.4,-834.58"/>
+</g>
+<!-- module~sqpopt_funnel_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge66" class="edge">
+<title>module~sqpopt_funnel_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M472.99,-940.78C423.83,-946.02 361.95,-948.6 343.67,-931.63"/>
+</g>
+<!-- module~sqpopt_funnel_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge67" class="edge">
+<title>module~sqpopt_funnel_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M492.95,-919.06C482.28,-915.36 471.17,-910.88 461.31,-905.63 424.8,-886.2 387.73,-855.66 365.22,-835.64"/>
+<polygon fill="#000000" stroke="#000000" points="367.67,-833.14 357.91,-829.04 362.98,-838.34 367.67,-833.14"/>
+</g>
+<!-- module~sqpopt_merit_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge68" class="edge">
+<title>module~sqpopt_merit_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M685.99,-850.29C644.49,-847.91 588.99,-846.96 540.44,-853.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M538.44,-853.63C446.07,-866.33 412.01,-995.08 343.67,-931.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M341.67,-931.63C300.88,-893.76 283.16,-887.27 260.04,-836.63 215.3,-738.66 186.54,-396.62 179.4,-303.31"/>
+<polygon fill="#000000" stroke="#000000" points="182.91,-303.28 178.67,-293.57 175.93,-303.81 182.91,-303.28"/>
+</g>
+<!-- module~sqpopt_merit_module&#45;&gt;module~sqpopt_linalg_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge69" class="edge">
+<title>module~sqpopt_merit_module&#45;&gt;module~sqpopt_linalg_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M734.64,-843.26C714.65,-825.14 677.78,-789.59 653.58,-753.63 603.08,-678.6 564.23,-577.43 548.31,-532.63"/>
+<polygon fill="#000000" stroke="#000000" points="551.71,-531.74 545.1,-523.45 545.1,-534.05 551.71,-531.74"/>
+</g>
+<!-- module~sqpopt_merit_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge70" class="edge">
+<title>module~sqpopt_merit_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M697.62,-843C646.19,-830.79 570.33,-814.32 540.44,-815.63"/>
+</g>
+<!-- module~sqpopt_qp_dense_module&#45;&gt;module~sqpopt_hessian_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge72" class="edge">
+<title>module~sqpopt_qp_dense_module&#45;&gt;module~sqpopt_hessian_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M959.57,-346.12C917.9,-324.88 833.18,-281.68 785.44,-257.34"/>
+<polygon fill="#000000" stroke="#000000" points="787.12,-254.27 776.62,-252.84 783.94,-260.5 787.12,-254.27"/>
+</g>
+<!-- module~sqpopt_qp_dense_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge73" class="edge">
+<title>module~sqpopt_qp_dense_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M748.71,-355.63C654.65,-358.07 634.46,-389.93 540.44,-393.63"/>
+</g>
+<!-- module~sqpopt_qp_dense_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge74" class="edge">
+<title>module~sqpopt_qp_dense_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M973.11,-371.06C953.41,-393.66 911.38,-443.45 881.85,-489.63 863,-519.11 873.24,-537.87 845.85,-559.63 811.71,-586.76 786.54,-558.78 750.71,-583.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M748.71,-583.63C712.89,-608.49 693.41,-589.89 653.58,-607.63 537.09,-659.53 416.54,-754.57 367.03,-795.74"/>
+<polygon fill="#000000" stroke="#000000" points="364.94,-792.93 359.52,-802.04 369.43,-798.3 364.94,-792.93"/>
+</g>
+<!-- module~sqpopt_qp_dense_module&#45;&gt;module~sqpopt_dense_linalg_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge71" class="edge">
+<title>module~sqpopt_qp_dense_module&#45;&gt;module~sqpopt_dense_linalg_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M909.98,-355.73C864.09,-354.42 803.96,-353.57 750.71,-355.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M748.71,-355.63C620.63,-360.59 585.51,-363.32 461.31,-331.63 431.1,-323.93 398.85,-309.16 375.78,-297.33"/>
+<polygon fill="#000000" stroke="#000000" points="377.68,-294.37 367.2,-292.83 374.43,-300.57 377.68,-294.37"/>
+</g>
+<!-- module~sqpopt_qp_direct_module&#45;&gt;module~sqpopt_hessian_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge75" class="edge">
+<title>module~sqpopt_qp_direct_module&#45;&gt;module~sqpopt_hessian_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1330.66,-277.67C1294.53,-276.76 1250.26,-276.49 1210.63,-278.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1208.63,-278.63C1108.29,-284.06 1086.58,-236.86 986.11,-238.63"/>
+</g>
+<!-- module~sqpopt_qp_direct_module&#45;&gt;module~sqpopt_inertia_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge76" class="edge">
+<title>module~sqpopt_qp_direct_module&#45;&gt;module~sqpopt_inertia_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1339.56,-293.23C1322.39,-296.62 1303.66,-300.31 1285.93,-303.8"/>
+<polygon fill="#000000" stroke="#000000" points="1285.37,-300.34 1276.23,-305.71 1286.72,-307.21 1285.37,-300.34"/>
+</g>
+<!-- module~sqpopt_qp_direct_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge77" class="edge">
+<title>module~sqpopt_qp_direct_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1364.5,-268.07C1227.67,-224.24 769.79,-79.72 617.58,-58.63 460.06,-36.81 388.47,21.15 260.04,-72.63 199.92,-116.53 183.63,-211.42 179.25,-255.82"/>
+<polygon fill="#000000" stroke="#000000" points="175.78,-255.39 178.42,-265.65 182.75,-255.98 175.78,-255.39"/>
+</g>
+<!-- module~sqpopt_qp_direct_module&#45;&gt;module~sqpopt_kkt_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge78" class="edge">
+<title>module~sqpopt_qp_direct_module&#45;&gt;module~sqpopt_kkt_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1208.63,-278.63C1156.75,-281.44 1097.97,-281.3 1053.86,-280.53"/>
+<polygon fill="#000000" stroke="#000000" points="1053.98,-277.03 1043.91,-280.34 1053.84,-284.03 1053.98,-277.03"/>
+</g>
+<!-- module~sqpopt_qp_direct_module&#45;&gt;module~sqpopt_linalg_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge79" class="edge">
+<title>module~sqpopt_qp_direct_module&#45;&gt;module~sqpopt_linalg_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1208.63,-278.63C1170.3,-280.71 1153.99,-273.21 1124.37,-297.63 1093.66,-322.95 1118.94,-354.14 1088.37,-379.63 1051.95,-410 756.08,-469 614.89,-495.79"/>
+<polygon fill="#000000" stroke="#000000" points="614.43,-492.32 605.26,-497.62 615.73,-499.2 614.43,-492.32"/>
+</g>
+<!-- module~sqpopt_qp_direct_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge80" class="edge">
+<title>module~sqpopt_qp_direct_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1386.33,-293.2C1339.78,-326.93 1206.85,-421.28 1088.37,-486.63 984.57,-543.89 957.68,-558.31 845.85,-597.63 804.71,-612.1 790.55,-603.89 750.71,-621.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M748.71,-621.63C704.67,-643.76 690.96,-646.5 653.58,-678.63 593.7,-730.12 619.34,-812.17 540.44,-815.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M538.44,-815.63C498.67,-817.38 454.27,-817.52 417.92,-817.16"/>
+<polygon fill="#000000" stroke="#000000" points="417.98,-813.66 407.94,-817.05 417.89,-820.66 417.98,-813.66"/>
+</g>
+<!-- module~sqpopt_qp_reduced_hessian_module&#45;&gt;module~sqpopt_hessian_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge82" class="edge">
+<title>module~sqpopt_qp_reduced_hessian_module&#45;&gt;module~sqpopt_hessian_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M976.61,-607.42C943.21,-553.05 807.78,-332.55 764.26,-261.68"/>
+<polygon fill="#000000" stroke="#000000" points="767.31,-259.97 759.1,-253.28 761.35,-263.64 767.31,-259.97"/>
+</g>
+<!-- module~sqpopt_qp_reduced_hessian_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge83" class="edge">
+<title>module~sqpopt_qp_reduced_hessian_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M964.48,-607.12C925.51,-583 834.87,-530.45 750.71,-507.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M748.71,-507.63C657.9,-483.01 632.05,-491.14 540.44,-469.63"/>
+</g>
+<!-- module~sqpopt_qp_reduced_hessian_module&#45;&gt;module~sqpopt_linalg_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge84" class="edge">
+<title>module~sqpopt_qp_reduced_hessian_module&#45;&gt;module~sqpopt_linalg_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M748.71,-507.63C705.42,-495.9 655.18,-496 614.9,-499.23"/>
+<polygon fill="#000000" stroke="#000000" points="614.7,-495.74 605.05,-500.11 615.32,-502.71 614.7,-495.74"/>
+</g>
+<!-- module~sqpopt_qp_reduced_hessian_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge85" class="edge">
+<title>module~sqpopt_qp_reduced_hessian_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M921.3,-607.02C872.6,-600.27 804.57,-597.64 750.71,-621.63"/>
+</g>
+<!-- module~sqpopt_qp_reduced_hessian_module&#45;&gt;lsqr_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge81" class="edge">
+<title>module~sqpopt_qp_reduced_hessian_module&#45;&gt;lsqr_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M947.39,-632.22C907.03,-646.05 842.09,-668.31 797.97,-683.44"/>
+<polygon fill="#000000" stroke="#000000" points="796.98,-680.08 788.66,-686.63 799.25,-686.7 796.98,-680.08"/>
+</g>
+<!-- module~sqpopt_symmetric_solver_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge88" class="edge">
+<title>module~sqpopt_symmetric_solver_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M653.37,-195.66C597.32,-201.36 525.16,-209.39 461.31,-218.63 408.75,-226.24 396.03,-230.71 343.67,-239.63"/>
+</g>
+<!-- module~sqpopt_symmetric_solver_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge92" class="edge">
+<title>module~sqpopt_symmetric_solver_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M681.3,-199.24C670.82,-203.83 661.03,-210.1 653.58,-218.63 597.37,-283.08 668.67,-339.07 617.58,-407.63 570.84,-470.36 507.08,-425.19 461.31,-488.63 401.55,-571.48 467.05,-622.4 425.31,-715.63 411.25,-747.03 384.71,-776.73 365.7,-795.48"/>
+<polygon fill="#000000" stroke="#000000" points="363.45,-792.79 358.66,-802.24 368.3,-797.83 363.45,-792.79"/>
+</g>
+<!-- module~sqpopt_symmetric_solver_module&#45;&gt;iso_fortran_env -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge86" class="edge">
+<title>module~sqpopt_symmetric_solver_module&#45;&gt;iso_fortran_env</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M708.71,-174.06C690.02,-166.53 668.64,-155.31 653.58,-139.63 626.29,-111.22 650.14,-80.81 617.58,-58.63 536.7,-3.56 255.57,19.56 177.65,-39.63"/>
+</g>
+<!-- module~sqpopt_dense_ldl_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node28" class="node">
+<title>module~sqpopt_dense_ldl_module</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsesGraph_node28"><a xlink:href="../module/sqpopt_dense_ldl_module.html" xlink:title="sqpopt_dense_ldl_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="613.83,-251.77 465.06,-251.77 465.06,-227.5 613.83,-227.5 613.83,-251.77"/>
+<text xml:space="preserve" text-anchor="middle" x="539.44" y="-236.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_dense_ldl_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_symmetric_solver_module&#45;&gt;module~sqpopt_dense_ldl_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge87" class="edge">
+<title>module~sqpopt_symmetric_solver_module&#45;&gt;module~sqpopt_dense_ldl_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M699.09,-199.26C669.73,-206.73 632.32,-216.25 601.2,-224.17"/>
+<polygon fill="#000000" stroke="#000000" points="600.34,-220.78 591.51,-226.64 602.07,-227.56 600.34,-220.78"/>
+</g>
+<!-- module~sqpopt_mumps_ldl_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node29" class="node">
+<title>module~sqpopt_mumps_ldl_module</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsesGraph_node29"><a xlink:href="../module/sqpopt_mumps_ldl_module.html" xlink:title="sqpopt_mumps_ldl_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="617.58,-91.77 461.31,-91.77 461.31,-67.5 617.58,-67.5 617.58,-91.77"/>
+<text xml:space="preserve" text-anchor="middle" x="539.44" y="-76.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_mumps_ldl_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_symmetric_solver_module&#45;&gt;module~sqpopt_mumps_ldl_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge89" class="edge">
+<title>module~sqpopt_symmetric_solver_module&#45;&gt;module~sqpopt_mumps_ldl_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M717.43,-174.01C698.21,-165.58 673.54,-153.52 653.58,-139.63 635.51,-127.07 636.45,-116.97 617.58,-105.63 611.7,-102.1 605.27,-98.97 598.72,-96.22"/>
+<polygon fill="#000000" stroke="#000000" points="600.38,-93.11 589.79,-92.75 597.84,-99.64 600.38,-93.11"/>
+</g>
+<!-- module~sqpopt_qdldl_ldl_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node30" class="node">
+<title>module~sqpopt_qdldl_ldl_module</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsesGraph_node30"><a xlink:href="../module/sqpopt_qdldl_ldl_module.html" xlink:title="sqpopt_qdldl_ldl_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="610.83,-171.77 468.06,-171.77 468.06,-147.5 610.83,-147.5 610.83,-171.77"/>
+<text xml:space="preserve" text-anchor="middle" x="539.44" y="-156.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qdldl_ldl_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_symmetric_solver_module&#45;&gt;module~sqpopt_qdldl_ldl_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge90" class="edge">
+<title>module~sqpopt_symmetric_solver_module&#45;&gt;module~sqpopt_qdldl_ldl_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M653.11,-174.24C642.86,-172.91 632.49,-171.57 622.41,-170.26"/>
+<polygon fill="#000000" stroke="#000000" points="623.05,-166.81 612.68,-169 622.15,-173.76 623.05,-166.81"/>
+</g>
+<!-- module~sqpopt_sparse_ldl_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node31" class="node">
+<title>module~sqpopt_sparse_ldl_module</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsesGraph_node31"><a xlink:href="../module/sqpopt_sparse_ldl_module.html" xlink:title="sqpopt_sparse_ldl_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="418.56,-159.77 266.79,-159.77 266.79,-135.5 418.56,-135.5 418.56,-159.77"/>
+<text xml:space="preserve" text-anchor="middle" x="342.67" y="-144.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_sparse_ldl_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_symmetric_solver_module&#45;&gt;module~sqpopt_sparse_ldl_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge91" class="edge">
+<title>module~sqpopt_symmetric_solver_module&#45;&gt;module~sqpopt_sparse_ldl_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M722.85,-174.08C696.93,-162.25 655.54,-145.36 617.58,-138.63 555.58,-127.64 484.49,-130.42 430.27,-135.67"/>
+<polygon fill="#000000" stroke="#000000" points="430.06,-132.17 420.47,-136.67 430.77,-139.14 430.06,-132.17"/>
+</g>
+<!-- module~sqpopt_dense_ldl_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge94" class="edge">
+<title>module~sqpopt_dense_ldl_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M464.89,-233.82C428.22,-232.4 383.34,-232.87 343.67,-239.63"/>
+</g>
+<!-- module~sqpopt_dense_ldl_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge96" class="edge">
+<title>module~sqpopt_dense_ldl_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M477.43,-252.23C471.25,-255.68 465.66,-260.06 461.31,-265.63 399.58,-344.72 462.73,-622.55 425.31,-715.63 412.55,-747.37 385.99,-776.81 366.62,-795.41"/>
+<polygon fill="#000000" stroke="#000000" points="364.34,-792.75 359.41,-802.13 369.11,-797.87 364.34,-792.75"/>
+</g>
+<!-- module~sqpopt_dense_ldl_module&#45;&gt;module~sqpopt_dense_linalg_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge93" class="edge">
+<title>module~sqpopt_dense_ldl_module&#45;&gt;module~sqpopt_dense_linalg_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M477.09,-252.24C457.79,-256.2 436.31,-260.61 416.31,-264.72"/>
+<polygon fill="#000000" stroke="#000000" points="415.63,-261.28 406.54,-266.72 417.04,-268.14 415.63,-261.28"/>
+</g>
+<!-- module~sqpopt_dense_ldl_module&#45;&gt;module~sqpopt_sparse_ldl_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge95" class="edge">
+<title>module~sqpopt_dense_ldl_module&#45;&gt;module~sqpopt_sparse_ldl_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M522.1,-227.08C500.87,-211.33 462.16,-184.48 425.31,-168.63 421.27,-166.9 417.05,-165.28 412.75,-163.77"/>
+<polygon fill="#000000" stroke="#000000" points="413.98,-160.49 403.39,-160.73 411.82,-167.15 413.98,-160.49"/>
+</g>
+<!-- module~sqpopt_mumps_ldl_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge97" class="edge">
+<title>module~sqpopt_mumps_ldl_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M460.94,-75.11C400.86,-75.48 318.3,-84.86 260.04,-126.63 215.52,-158.56 192.71,-222.17 183.21,-256.46"/>
+<polygon fill="#000000" stroke="#000000" points="179.91,-255.24 180.77,-265.8 186.68,-257.01 179.91,-255.24"/>
+</g>
+<!-- module~sqpopt_mumps_ldl_module&#45;&gt;module~sqpopt_sparse_ldl_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge98" class="edge">
+<title>module~sqpopt_mumps_ldl_module&#45;&gt;module~sqpopt_sparse_ldl_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M500.74,-92.2C488.18,-96.42 474.13,-101.19 461.31,-105.63 437.39,-113.94 410.81,-123.4 388.98,-131.24"/>
+<polygon fill="#000000" stroke="#000000" points="388.01,-127.88 379.79,-134.55 390.38,-134.46 388.01,-127.88"/>
+</g>
+<!-- module~sqpopt_qdldl_ldl_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge99" class="edge">
+<title>module~sqpopt_qdldl_ldl_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M493.93,-172.26C483.01,-176 471.54,-180.49 461.31,-185.63 443.91,-194.39 442.64,-201.74 425.31,-210.63 391.05,-228.21 381.63,-233.16 343.67,-239.63"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M341.67,-239.63C303.16,-246.2 260.29,-256.77 228.04,-265.4"/>
+<polygon fill="#000000" stroke="#000000" points="227.3,-261.97 218.56,-267.96 229.13,-268.73 227.3,-261.97"/>
+</g>
+<!-- module~sqpopt_qdldl_ldl_module&#45;&gt;module~sqpopt_sparse_ldl_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge100" class="edge">
+<title>module~sqpopt_qdldl_ldl_module&#45;&gt;module~sqpopt_sparse_ldl_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M467.58,-155.27C455.42,-154.52 442.66,-153.73 430.15,-152.96"/>
+<polygon fill="#000000" stroke="#000000" points="430.46,-149.47 420.26,-152.35 430.03,-156.46 430.46,-149.47"/>
+</g>
+<!-- qdldl_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_node32" class="node">
+<title>qdldl_module</title>
+<polygon fill="#337ab7" stroke="#337ab7" points="384.43,-201.77 300.91,-201.77 300.91,-177.5 384.43,-177.5 384.43,-201.77"/>
+<text xml:space="preserve" text-anchor="middle" x="342.67" y="-186.03" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">qdldl_module</text>
+</g>
+<!-- module~sqpopt_qdldl_ldl_module&#45;&gt;qdldl_module -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge101" class="edge">
+<title>module~sqpopt_qdldl_ldl_module&#45;&gt;qdldl_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M467.58,-170.55C443.87,-174.2 417.88,-178.2 395.86,-181.6"/>
+<polygon fill="#000000" stroke="#000000" points="395.59,-178.1 386.24,-183.08 396.65,-185.02 395.59,-178.1"/>
+</g>
+<!-- module~sqpopt_sparse_ldl_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_trust_region_module~~UsesGraph_edge102" class="edge">
+<title>module~sqpopt_sparse_ldl_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M276.19,-160.11C270.5,-162.47 265.02,-165.29 260.04,-168.63 226.73,-191.03 201.78,-231.54 188.49,-256.94"/>
+<polygon fill="#000000" stroke="#000000" points="185.41,-255.26 184.04,-265.76 191.67,-258.41 185.41,-255.26"/>
+</g>
+</g>
+</svg>
+</div>                <script>
+                  var panmodulesqpopt_trust_region_moduleUsesGraph = svgPanZoom('#modulesqpopt_trust_region_moduleUsesGraph',
+                    {zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true,}
+                  );
+                </script>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#UsesGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="UsesGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="511pt" height="32pt"
+ viewBox="0.00 0.00 511.00 32.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 506.88,-28.27 506.88,4 -4,4"/>
+<!-- Module -->
+<g id="node1" class="node">
+<title>Module</title>
+<polygon fill="#337ab7" stroke="#337ab7" points="54,-24.27 0,-24.27 0,0 54,0 54,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="27" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Module</text>
+</g>
+<!-- Submodule -->
+<g id="node2" class="node">
+<title>Submodule</title>
+<polygon fill="#5bc0de" stroke="#5bc0de" points="144.13,-24.27 71.87,-24.27 71.87,0 144.13,0 144.13,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="108" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Submodule</text>
+</g>
+<!-- Subroutine -->
+<g id="node3" class="node">
+<title>Subroutine</title>
+<polygon fill="#d9534f" stroke="#d9534f" points="231.63,-24.27 162.37,-24.27 162.37,0 231.63,0 231.63,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="197" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Subroutine</text>
+</g>
+<!-- Function -->
+<g id="node4" class="node">
+<title>Function</title>
+<polygon fill="#d94e8f" stroke="#d94e8f" points="306.26,-24.27 249.74,-24.27 249.74,0 306.26,0 306.26,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="278" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Function</text>
+</g>
+<!-- Program -->
+<g id="node5" class="node">
+<title>Program</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="381.26,-24.27 324.74,-24.27 324.74,0 381.26,0 381.26,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="353" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Program</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node6" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="502.88,-24.27 399.12,-24.27 399.12,0 502.88,0 502.88,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="451" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a submodule to the (sub)module which it is
+descended from. Dashed arrows point from a module or program unit to 
+modules which it uses.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+            </li>
+        </ul>
+      </div>
+    </div>
+
+          <div class="card">
+      <h3 class="card-header card-title bg-light">Used by</h3>
+      <div class="card-body">
+        <ul class="list-group list-group-flush">
+            <li class="list-group-item">
+              <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: module~~sqpopt_trust_region_module~~UsedByGraph Pages: 1 -->
+<svg id="modulesqpopt_trust_region_moduleUsedByGraph" width="621pt" height="60pt"
+ viewBox="0.00 0.00 621.00 60.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="module~~sqpopt_trust_region_module~~UsedByGraph" class="graph" transform="scale(1 1) rotate(0) translate(4 56.32)">
+<title>module~~sqpopt_trust_region_module~~UsedByGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-56.32 617.08,-56.32 617.08,4 -4,4"/>
+<!-- module~sqpopt_trust_region_module -->
+<g id="module~~sqpopt_trust_region_module~~UsedByGraph_node1" class="node">
+<title>module~sqpopt_trust_region_module</title>
+<polygon fill="none" stroke="black" points="161.52,-44.27 0,-44.27 0,-20 161.52,-20 161.52,-44.27"/>
+<text xml:space="preserve" text-anchor="middle" x="80.76" y="-28.53" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_trust_region_module</text>
+</g>
+<!-- module~sqpopt_iterate_module -->
+<g id="module~~sqpopt_trust_region_module~~UsedByGraph_node2" class="node">
+<title>module~sqpopt_iterate_module</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsedByGraph_node2"><a xlink:href="../module/sqpopt_iterate_module.html" xlink:title="sqpopt_iterate_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="331.29,-24.27 197.52,-24.27 197.52,0 331.29,0 331.29,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="264.41" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_iterate_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_iterate_module&#45;&gt;module~sqpopt_trust_region_module -->
+<g id="module~~sqpopt_trust_region_module~~UsedByGraph_edge1" class="edge">
+<title>module~sqpopt_iterate_module&#45;&gt;module~sqpopt_trust_region_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M197.06,-19.44C189.27,-20.3 181.23,-21.18 173.18,-22.07"/>
+<polygon fill="#000000" stroke="#000000" points="172.88,-18.58 163.33,-23.15 173.65,-25.54 172.88,-18.58"/>
+</g>
+<!-- module~sqpopt_module -->
+<g id="module~~sqpopt_trust_region_module~~UsedByGraph_node3" class="node">
+<title>module~sqpopt_module</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsedByGraph_node3"><a xlink:href="../module/sqpopt_module.html" xlink:title="sqpopt_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="460.56,-24.27 367.29,-24.27 367.29,0 460.56,0 460.56,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="413.93" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_trust_region_module -->
+<g id="module~~sqpopt_trust_region_module~~UsedByGraph_edge2" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_trust_region_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M383.88,-24.68C354.58,-36.22 307.73,-51.62 265.41,-52.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M263.41,-52.13C232.74,-52.51 199.34,-49.75 169.64,-46.17"/>
+<polygon fill="#000000" stroke="#000000" points="170.31,-42.73 159.95,-44.95 169.44,-49.67 170.31,-42.73"/>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_iterate_module -->
+<g id="module~~sqpopt_trust_region_module~~UsedByGraph_edge4" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_iterate_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M367.06,-12.13C359.32,-12.13 351.11,-12.13 342.83,-12.13"/>
+<polygon fill="#000000" stroke="#000000" points="343.06,-8.64 333.06,-12.14 343.06,-15.64 343.06,-8.64"/>
+</g>
+<!-- module~sqpopt_nlls_module -->
+<g id="module~~sqpopt_trust_region_module~~UsedByGraph_node4" class="node">
+<title>module~sqpopt_nlls_module</title>
+<g id="a_module~~sqpopt_trust_region_module~~UsedByGraph_node4"><a xlink:href="../module/sqpopt_nlls_module.html" xlink:title="sqpopt_nlls_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="613.08,-44.27 496.56,-44.27 496.56,-20 613.08,-20 613.08,-44.27"/>
+<text xml:space="preserve" text-anchor="middle" x="554.82" y="-28.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_nlls_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_nlls_module&#45;&gt;module~sqpopt_trust_region_module -->
+<g id="module~~sqpopt_trust_region_module~~UsedByGraph_edge3" class="edge">
+<title>module~sqpopt_nlls_module&#45;&gt;module~sqpopt_trust_region_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M496.17,-38.07C438,-43.61 345.58,-51.15 265.41,-52.13"/>
+</g>
+<!-- module~sqpopt_nlls_module&#45;&gt;module~sqpopt_module -->
+<g id="module~~sqpopt_trust_region_module~~UsedByGraph_edge5" class="edge">
+<title>module~sqpopt_nlls_module&#45;&gt;module~sqpopt_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M496.12,-23.83C488.21,-22.69 480.09,-21.52 472.18,-20.38"/>
+<polygon fill="#000000" stroke="#000000" points="472.7,-16.92 462.31,-18.96 471.71,-23.85 472.7,-16.92"/>
+</g>
+</g>
+</svg>
+</div>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#UsedByGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="UsedByGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="511pt" height="32pt"
+ viewBox="0.00 0.00 511.00 32.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 506.88,-28.27 506.88,4 -4,4"/>
+<!-- Module -->
+<g id="node1" class="node">
+<title>Module</title>
+<polygon fill="#337ab7" stroke="#337ab7" points="54,-24.27 0,-24.27 0,0 54,0 54,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="27" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Module</text>
+</g>
+<!-- Submodule -->
+<g id="node2" class="node">
+<title>Submodule</title>
+<polygon fill="#5bc0de" stroke="#5bc0de" points="144.13,-24.27 71.87,-24.27 71.87,0 144.13,0 144.13,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="108" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Submodule</text>
+</g>
+<!-- Subroutine -->
+<g id="node3" class="node">
+<title>Subroutine</title>
+<polygon fill="#d9534f" stroke="#d9534f" points="231.63,-24.27 162.37,-24.27 162.37,0 231.63,0 231.63,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="197" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Subroutine</text>
+</g>
+<!-- Function -->
+<g id="node4" class="node">
+<title>Function</title>
+<polygon fill="#d94e8f" stroke="#d94e8f" points="306.26,-24.27 249.74,-24.27 249.74,0 306.26,0 306.26,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="278" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Function</text>
+</g>
+<!-- Program -->
+<g id="node5" class="node">
+<title>Program</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="381.26,-24.27 324.74,-24.27 324.74,0 381.26,0 381.26,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="353" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Program</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node6" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="502.88,-24.27 399.12,-24.27 399.12,0 502.88,0 502.88,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="451" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a submodule to the (sub)module which it is
+descended from. Dashed arrows point from a module or program unit to 
+modules which it uses.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+            </li>
+        </ul>
+      </div>
+    </div>
+
+      <br>
+
+
+
+
+
+
+        <section>
+          <h2>Derived Types</h2>
+              <div class="card">
+    <div class="card-header codesum">
+      <span class="anchor" id="type-sqpopt_trust_region_type"></span>
+      <h3>
+        type, public&nbsp;::&nbsp;
+        <a href='../type/sqpopt_trust_region_type.html'>sqpopt_trust_region_type</a>
+        
+      </h3>
+    </div>
+    <div class="card-body">
+      <p>options and state for trust-region-based globalization
+(an alternative to <code>linesearch%search</code>, see module docs).</p>
+
+        <h4>Components</h4>
+          <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Visibility</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+<th></th><th scope="col">Initial</th>        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-enabled"></span>
+              logical,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>enabled</strong></td>
+<td> =</td>
+                <td>.false.</td>
+            <td>
+<p>if true, use trust-region radius management instead of a line search</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-radius0"></span>
+              real(kind=wp),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>radius0</strong></td>
+<td> =</td>
+                <td>1.0_wp</td>
+            <td>
+<p>initial trust-region radius</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-radius_min"></span>
+              real(kind=wp),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>radius_min</strong></td>
+<td> =</td>
+                <td>1.0e-8_wp</td>
+            <td>
+<p>below this, a major iteration's retries give up (no step is taken)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-radius_max"></span>
+              real(kind=wp),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>radius_max</strong></td>
+<td> =</td>
+                <td>1.0e3_wp</td>
+            <td>
+<p>ceiling on the radius</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-eta1"></span>
+              real(kind=wp),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>eta1</strong></td>
+<td> =</td>
+                <td>0.1_wp</td>
+            <td>
+<p>ratio threshold to accept a step (merit-ratio acceptance only)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-eta2"></span>
+              real(kind=wp),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>eta2</strong></td>
+<td> =</td>
+                <td>0.75_wp</td>
+            <td>
+<p>ratio threshold to also grow the radius (merit-ratio acceptance only)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-shrink_factor"></span>
+              real(kind=wp),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>shrink_factor</strong></td>
+<td> =</td>
+                <td>0.5_wp</td>
+            <td>
+<p><code>radius *= shrink_factor</code> on a rejected step</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-expand_factor"></span>
+              real(kind=wp),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>expand_factor</strong></td>
+<td> =</td>
+                <td>2.0_wp</td>
+            <td>
+<p><code>radius *= expand_factor</code> on a step that used the full radius and was accepted</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-max_retries"></span>
+              integer,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>max_retries</strong></td>
+<td> =</td>
+                <td>20</td>
+            <td>
+<p>maximum QP re-solves (with a shrinking radius) per major iteration</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-ready"></span>
+              logical,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>ready</strong></td>
+<td> =</td>
+                <td>.false.</td>
+            <td>
+<p>whether <code>radius</code> has been initialized from <code>radius0</code> yet</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-radius"></span>
+              real(kind=wp),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>radius</strong></td>
+<td> =</td>
+                <td>0.0_wp</td>
+            <td>
+<p>current trust-region radius</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-log"></span>
+              type(<a href='../type/sqpopt_log_type.html'>sqpopt_log_type</a>),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>log</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-used_soc"></span>
+              logical,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>used_soc</strong></td>
+<td> =</td>
+                <td>.false.</td>
+            <td>
+
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+
+
+        <h4>Type-Bound Procedures</h4>
+        <table class="table table-striped varlist">
+          <tbody>
+              <tr>
+                <td>  procedure, public ::
+  <strong><a href='../type/sqpopt_trust_region_type.html#boundprocedure-step'>step</a></strong> => <a href='/home/runner/work/sqpopt/sqpopt/web/api/proc/trust_region_step.html'>trust_region_step</a></td>
+                  <td></td>
+              </tr>
+          </tbody>
+        </table>
+    </div>
+  </div>
+
+        </section>
+        <br>
+
+
+        <section>
+          <h2>Subroutines</h2>
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-trust_region_step"></span> <h3>private  subroutine <a href='../proc/trust_region_step.html'>trust_region_step</a>(me, problem, hessian, qp_solver, linesearch, x, g, f, c, jac, x_new, new_lambda, alpha, istat, kkt, inertia, least_squares)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>attempt to find and accept a trust-region step, re-solving the QP
+ subproblem with a shrinking radius as needed (see the module-level
+ documentation for the full algorithm). Updates <code>me%radius</code> in place.</p><a href="../proc/trust_region_step.html" class="pull-right"><emph>Read more&hellip;</emph></a>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~8"></span>
+              class(<a href='../type/sqpopt_trust_region_type.html'>sqpopt_trust_region_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-problem~3"></span>
+              type(<a href='../type/sqpopt_problem_type.html'>sqpopt_problem_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>problem</strong></td>
+            <td>
+<p>problem definition</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-hessian~3"></span>
+              type(<a href='../type/sqpopt_hessian_type.html'>sqpopt_hessian_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>hessian</strong></td>
+            <td>
+<p>matrix-free Hessian approximation</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-qp_solver~3"></span>
+              type(<a href='../type/sqpopt_qp_solver_type.html'>sqpopt_qp_solver_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>qp_solver</strong></td>
+            <td>
+<p>QP subproblem solver</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-linesearch~3"></span>
+              type(<a href='../type/sqpopt_linesearch_type.html'>sqpopt_linesearch_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>linesearch</strong></td>
+            <td>
+<p>supplies the merit function (<code>merit</code>, ratio test) or
+the filter (<code>filter</code>, <code>mode==sqpopt_linesearch_filter</code>)
+or funnel (<code>funnel</code>, <code>mode==sqpopt_linesearch_funnel</code>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x~5"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x</strong></td>
+            <td>
+<p>current point <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-g"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>g</strong></td>
+            <td>
+<p>objective gradient at <code>x</code> <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-f~4"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>f</strong></td>
+            <td>
+<p>objective value at <code>x</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c~4"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c</strong></td>
+            <td>
+<p>constraint values at <code>x</code> <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-jac~2"></span>
+              type(<a href='../type/sqpopt_sparse_matrix.html'>sqpopt_sparse_matrix</a>),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>jac</strong></td>
+            <td>
+<p>constraint Jacobian at <code>x</code>, <code>dimension(m,n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x_new"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x_new</strong></td>
+            <td>
+<p>new point <code>dimension(n)</code> (<code>x</code> if no retry was accepted)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-new_lambda"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>new_lambda</strong></td>
+            <td>
+<p>new multipliers <code>dimension(m)</code>, from the QP solve that produced <code>x_new</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-alpha~2"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>alpha</strong></td>
+            <td>
+<p><code>1</code> if a step was accepted, <code>0</code> otherwise (informational only -- there
+is no line-search step length under trust-region globalization)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-istat~5"></span>
+              integer,
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>istat</strong></td>
+            <td>
+<p>status code (see <a href="../module/sqpopt_types_module.html">sqpopt_types_module</a>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-kkt~3"></span>
+              type(<a href='../type/sqpopt_kkt_type.html'>sqpopt_kkt_type</a>),
+            </td>
+<td>intent(inout),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>kkt</strong></td>
+            <td>
+<p>the KKT matrix, for the QP solver's direct method
+(see <a href="../proc/solve_qp_subproblem.html">solve_qp_subproblem</a>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-inertia~2"></span>
+              type(<a href='../type/sqpopt_inertia_type.html'>sqpopt_inertia_type</a>),
+            </td>
+<td>intent(inout),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>inertia</strong></td>
+            <td>
+<p>the inertia control, for the same</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-least_squares~2"></span>
+              type(<a href='../type/sqpopt_least_squares_type.html'>sqpopt_least_squares_type</a>),
+            </td>
+<td>intent(inout),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>least_squares</strong></td>
+            <td>
+<p>the direct least-squares solver, for
+the second-order correction (see <a href="../proc/soc_step.html">soc_step</a>)</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+        </section>
+        <br>
+
+
+
+    </div>
+  </div>
+
+      <hr>
+    </div> <!-- /container -->
+    <footer>
+      <div class="container">
+        <div class="row justify-content-between">
+          <div class="col">
+            <p>
+              sqpopt
+ was developed by Jacob Williams<br>              &copy; 2026 
+</p>
+          </div>
+          <div class="col">
+            <p class="text-end">
+              Documentation generated by
+              <a href="https://github.com/Fortran-FOSS-Programmers/ford">FORD</a>
+            </p>
+          </div>
+        </div>
+        <br>
+      </div> <!-- /container -->
+    </footer>
+    <!-- sqpopt theme: the button switches the theme, and remembers it for the guide too -->
+    <script>
+      document.querySelector('.theme-toggle').addEventListener('click', function () {
+        var root = document.documentElement;
+        var next = root.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-bs-theme', next);
+        try { localStorage.setItem('sqpopt-theme', next); } catch (e) {}
+      });
+    </script>
+  </body>
+</html>

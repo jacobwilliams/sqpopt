@@ -1,0 +1,691 @@
+<!-- -*- mode: jinja2 -*- -->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- sqpopt theme: set before the page is drawn; the guide's choice (the same
+         localStorage key, on the same site), or else the system's -->
+    <script>
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('sqpopt-theme'); } catch (e) {}
+        if (t !== 'dark' && t !== 'light') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-bs-theme', t);
+      })();
+    </script>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta name="description" content="Modern Fortran SQP OPTimizer">
+    <meta name="author" content="Jacob Williams" >
+    <link rel="icon" href="../favicon.png">
+
+    <title>sparse_matvec_transpose &ndash; sqpopt</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <!-- Font Awesome -->
+    <link href="../css/fontawesome.min.css" rel="stylesheet">
+    <link href="../css/brands.min.css" rel="stylesheet">
+    <link href="../css/regular.min.css" rel="stylesheet">
+    <link href="../css/solid.min.css" rel="stylesheet">
+    <link href="../css/v4-font-face.min.css" rel="stylesheet">
+    <link href="../css/v4-shims.min.css" rel="stylesheet">
+    <!-- MathJax -->
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        TeX: { equationNumbers: { autoNumber: "AMS" } }
+      });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@2.7.9/MathJax.js?config=TeX-AMS-MML_HTMLorMML" async
+            integrity="sha256-DViIOMYdwlM/axqoGDPeUyf0urLoHMN4QACBKyB58Uw=" crossorigin="anonymous"></script>
+    <!-- Other scripts and stylesheets -->
+    <link href="../css/local.css" rel="stylesheet">
+    <link href="../css/pygments.css" rel="stylesheet">
+      <link href="../css/user.css" rel="stylesheet">
+    <script src="../js/svg-pan-zoom.min.js"></script>
+  </head>
+
+  <body>
+
+    <!-- Fixed navbar -->
+    <div class="container-fluid mb-sm-4 mb-xl-2">
+      <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+          <a class="navbar-brand" href="../index.html">sqpopt </a>
+          <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbar"
+                  aria-expanded="false" aria-controls="navbar" aria-label="Toggle navigation">
+                  <span class="navbar-toggler-icon">
+          </button>
+
+          <div id="navbar" class="navbar-collapse collapse">
+            <ul class="navbar-nav">
+                  <li class="nav-item">
+                    <a class="nav-link" href="../lists/files.html">Source Files</a>
+                  </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/modules.html">Modules</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/procedures.html">Procedures</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/absint.html">Abstract Interfaces</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/types.html">Derived Types</a>
+                </li>
+            </ul>
+              <div class="d-flex align-items-end flex-grow-1">
+                <form action="../search.html" role="search" class="ms-auto">
+                  <input type="text" class="form-control" aria-label="Search" placeholder="Search" name="q" id="tipue_search_input" autocomplete="off" required>
+                </form>
+              </div>
+            <!-- sqpopt theme: the light/dark button -->
+            <button type="button" class="btn nav-link theme-toggle ms-lg-3" aria-label="Toggle dark mode" title="Toggle dark mode">
+              <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg>
+              <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div><!--/.nav-collapse -->
+        </div>
+      </nav>
+    </div>
+
+    <div class="container">
+  <div class="row">
+    <h1>sparse_matvec_transpose
+      <small>Subroutine</small>
+      
+    </h1>
+      <div class="container p-2 mb-4 bg-light border rounded-3">
+    <div class="row align-items-center justify-content-between" id="info-bar">
+      <div class="col">
+        <ul class="list-inline" style="margin-bottom:0px;display:inline">
+
+            <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
+              <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
+                 title=" 0.1% of total for procedures.">10 statements</a>
+            </li>
+
+            <li class="list-inline-item" id="source-file">
+              <i class="fa fa-code"></i>
+              <a href="../src/sqpopt_linalg_module.f90"> Source File</a>
+            </li>
+        </ul>
+      </div>
+      <div class="col">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb justify-content-end mb-0">
+                <li class="breadcrumb-item"><a href='../sourcefile/sqpopt_linalg_module.f90.html'>sqpopt_linalg_module.f90</a></li>
+                <li class="breadcrumb-item"><a href='../module/sqpopt_linalg_module.html'>sqpopt_linalg_module</a></li>
+            <li class="breadcrumb-item active" aria-current="page">sparse_matvec_transpose</li>
+          </ol>
+        </nav>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Enable Bootstrap tooltips
+    (function () {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+      const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+    })();
+  </script>
+
+  </div>
+  
+  <div class="row">
+    <div class="col-md-3 hidden-xs hidden-sm visible-md visible-lg">
+      <div id="sidebar">
+      <h3>Contents</h3>
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+    <div class="card card-primary">
+      <div class="card-header text-left"><h3 class="card-title">Source Code</h3></div>
+      <div class="list-group">
+        <a class="list-group-item" href="../proc/sparse_matvec_transpose.html#src">sparse_matvec_transpose</a>
+      </div>
+    </div>
+
+
+  </div>
+
+    </div>
+    
+    <div class="col-md-9" id='text'>
+    <h2>public  subroutine sparse_matvec_transpose(a, y, x)  
+</h2>
+    
+
+    <p>compute the sparse transposed matrix-vector product <script type="math/tex"> x = A^T y </script>,
+operating directly on the COO triplets (never forms a dense matrix).</p>
+
+
+    <h3>Arguments</h3>
+        <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-a~12"></span>
+              type(<a href='../type/sqpopt_sparse_matrix.html'>sqpopt_sparse_matrix</a>),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>a</strong></td>
+            <td>
+                <p>sparse matrix, <code>dimension(nrows,ncols)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-y~9"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>y</strong></td>
+            <td>
+                <p>vector to multiply <code>dimension(nrows)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x~24"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x</strong></td>
+            <td>
+                <p>result vector <code>dimension(ncols)</code></p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+    <br>
+    <div class="card">
+      <div class="card-header">
+  <h3 class="card-title">Called by</h3>
+      </div>
+      <div class="card-body">
+  <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: proc~~sparse_matvec_transpose~~CalledByGraph Pages: 1 -->
+<svg id="procsparse_matvec_transposeCalledByGraph" width="641pt" height="158pt"
+ viewBox="0.00 0.00 641.00 158.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph" class="graph" transform="scale(0.396563 0.396563) rotate(0) translate(4 395.37)">
+<title>proc~~sparse_matvec_transpose~~CalledByGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-395.37 1612.39,-395.37 1612.39,4 -4,4"/>
+<!-- proc~sparse_matvec_transpose -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_node1" class="node">
+<title>proc~sparse_matvec_transpose</title>
+<polygon fill="none" stroke="black" points="1608.39,-300.37 1458.87,-300.37 1458.87,-276.1 1608.39,-276.1 1608.39,-300.37"/>
+<text xml:space="preserve" text-anchor="middle" x="1533.63" y="-284.64" font-family="Helvetica,sans-Serif" font-size="10.50">sparse_matvec_transpose</text>
+</g>
+<!-- proc~check_convergence -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_node2" class="node">
+<title>proc~check_convergence</title>
+<g id="a_proc~~sparse_matvec_transpose~~CalledByGraph_node2"><a xlink:href="../proc/check_convergence.html" xlink:title="check_convergence">
+<polygon fill="#d9534f" stroke="#d9534f" points="749.2,-311.37 631.18,-311.37 631.18,-287.1 749.2,-287.1 749.2,-311.37"/>
+<text xml:space="preserve" text-anchor="middle" x="690.19" y="-295.64" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">check_convergence</text>
+</a>
+</g>
+</g>
+<!-- proc~check_convergence&#45;&gt;proc~sparse_matvec_transpose -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_edge1" class="edge">
+<title>proc~check_convergence&#45;&gt;proc~sparse_matvec_transpose</title>
+<path fill="none" stroke="#000000" d="M749.7,-298.47C895.61,-296.56 1276.16,-291.59 1447.19,-289.35"/>
+<polygon fill="#000000" stroke="#000000" points="1447.18,-292.85 1457.13,-289.22 1447.09,-285.85 1447.18,-292.85"/>
+</g>
+<!-- proc~diagnostics_finish -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_node3" class="node">
+<title>proc~diagnostics_finish</title>
+<g id="a_proc~~sparse_matvec_transpose~~CalledByGraph_node3"><a xlink:href="../proc/diagnostics_finish.html" xlink:title="sqpopt_diagnostics_type%diagnostics_finish">
+<polygon fill="#d9534f" stroke="#d9534f" points="1411.24,-391.37 1166.47,-391.37 1166.47,-367.1 1411.24,-367.1 1411.24,-391.37"/>
+<text xml:space="preserve" text-anchor="middle" x="1288.86" y="-375.64" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_diagnostics_type%diagnostics_finish</text>
+</a>
+</g>
+</g>
+<!-- proc~diagnostics_finish&#45;&gt;proc~sparse_matvec_transpose -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_edge2" class="edge">
+<title>proc~diagnostics_finish&#45;&gt;proc~sparse_matvec_transpose</title>
+<path fill="none" stroke="#000000" d="M1376.92,-366.66C1392.49,-363.17 1408.36,-358.76 1422.87,-353.24 1453.24,-341.67 1484.86,-322 1506.32,-307.32"/>
+<polygon fill="#000000" stroke="#000000" points="1508.26,-310.24 1514.46,-301.64 1504.26,-304.49 1508.26,-310.24"/>
+</g>
+<!-- proc~direct_qp_step -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_node4" class="node">
+<title>proc~direct_qp_step</title>
+<g id="a_proc~~sparse_matvec_transpose~~CalledByGraph_node4"><a xlink:href="../proc/direct_qp_step.html" xlink:title="direct_qp_step">
+<polygon fill="#d9534f" stroke="#d9534f" points="1332.87,-258.37 1244.85,-258.37 1244.85,-234.1 1332.87,-234.1 1332.87,-258.37"/>
+<text xml:space="preserve" text-anchor="middle" x="1288.86" y="-242.64" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">direct_qp_step</text>
+</a>
+</g>
+</g>
+<!-- proc~direct_qp_step&#45;&gt;proc~sparse_matvec_transpose -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_edge3" class="edge">
+<title>proc~direct_qp_step&#45;&gt;proc~sparse_matvec_transpose</title>
+<path fill="none" stroke="#000000" d="M1333.26,-253.74C1365.16,-259.26 1409.53,-266.94 1448.31,-273.65"/>
+<polygon fill="#000000" stroke="#000000" points="1447.67,-277.09 1458.12,-275.35 1448.87,-270.19 1447.67,-277.09"/>
+</g>
+<!-- proc~merit_directional_derivative -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_node5" class="node">
+<title>proc~merit_directional_derivative</title>
+<g id="a_proc~~sparse_matvec_transpose~~CalledByGraph_node5"><a xlink:href="../proc/merit_directional_derivative.html" xlink:title="sqpopt_merit_type%merit_directional_derivative">
+<polygon fill="#d9534f" stroke="#d9534f" points="1422.87,-129.37 1154.85,-129.37 1154.85,-105.1 1422.87,-105.1 1422.87,-129.37"/>
+<text xml:space="preserve" text-anchor="middle" x="1288.86" y="-113.64" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_merit_type%merit_directional_derivative</text>
+</a>
+</g>
+</g>
+<!-- proc~merit_directional_derivative&#45;&gt;proc~sparse_matvec_transpose -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_edge4" class="edge">
+<title>proc~merit_directional_derivative&#45;&gt;proc~sparse_matvec_transpose</title>
+<path fill="none" stroke="#000000" d="M1307.71,-129.81C1349.8,-159.46 1455.46,-233.88 1505.52,-269.14"/>
+<polygon fill="#000000" stroke="#000000" points="1503.32,-271.87 1513.51,-274.77 1507.35,-266.15 1503.32,-271.87"/>
+</g>
+<!-- proc~sqpopt_evaluate_point -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_node6" class="node">
+<title>proc~sqpopt_evaluate_point</title>
+<g id="a_proc~~sparse_matvec_transpose~~CalledByGraph_node6"><a xlink:href="../proc/sqpopt_evaluate_point.html" xlink:title="sqpopt_evaluate_point">
+<polygon fill="#d9534f" stroke="#d9534f" points="518.31,-330.37 386.79,-330.37 386.79,-306.1 518.31,-306.1 518.31,-330.37"/>
+<text xml:space="preserve" text-anchor="middle" x="452.55" y="-314.64" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_evaluate_point</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_evaluate_point&#45;&gt;proc~sparse_matvec_transpose -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_edge5" class="edge">
+<title>proc~sqpopt_evaluate_point&#45;&gt;proc~sparse_matvec_transpose</title>
+<path fill="none" stroke="#000000" d="M518.67,-320.77C674.99,-326.1 1083.63,-335.64 1422.87,-305.24 1431.22,-304.49 1439.89,-303.5 1448.54,-302.38"/>
+<polygon fill="#000000" stroke="#000000" points="1448.94,-305.86 1458.38,-301.05 1448,-298.93 1448.94,-305.86"/>
+</g>
+<!-- proc~sqpopt_evaluate_point&#45;&gt;proc~check_convergence -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_edge7" class="edge">
+<title>proc~sqpopt_evaluate_point&#45;&gt;proc~check_convergence</title>
+<path fill="none" stroke="#000000" d="M518.56,-312.99C550.01,-310.46 587.77,-307.41 619.77,-304.83"/>
+<polygon fill="#000000" stroke="#000000" points="619.63,-308.36 629.32,-304.06 619.07,-301.38 619.63,-308.36"/>
+</g>
+<!-- proc~sqpopt_iterate -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_node7" class="node">
+<title>proc~sqpopt_iterate</title>
+<g id="a_proc~~sparse_matvec_transpose~~CalledByGraph_node7"><a xlink:href="../proc/sqpopt_iterate.html" xlink:title="sqpopt_iterate">
+<polygon fill="#d9534f" stroke="#d9534f" points="496.56,-207.37 408.54,-207.37 408.54,-183.1 496.56,-183.1 496.56,-207.37"/>
+<text xml:space="preserve" text-anchor="middle" x="452.55" y="-191.64" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_iterate</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~sparse_matvec_transpose -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_edge6" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~sparse_matvec_transpose</title>
+<path fill="none" stroke="#000000" d="M459.89,-182.9C473.44,-157.96 507.8,-101.76 554.31,-76.24 774.88,44.81 868.52,-8.97 1118.85,-34.24 1256.05,-48.08 1311.14,-15.4 1422.87,-96.24 1481.92,-138.96 1513.74,-223.88 1526.25,-264.94"/>
+<polygon fill="#000000" stroke="#000000" points="1522.88,-265.88 1529.04,-274.5 1529.6,-263.92 1522.88,-265.88"/>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~check_convergence -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_edge8" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~check_convergence</title>
+<path fill="none" stroke="#000000" d="M464.51,-207.8C481.63,-226.52 516.68,-261.35 554.31,-278.24 574.47,-287.28 597.84,-292.52 619.41,-295.53"/>
+<polygon fill="#000000" stroke="#000000" points="618.97,-299.01 629.33,-296.76 619.83,-292.06 618.97,-299.01"/>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~merit_directional_derivative -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_edge12" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~merit_directional_derivative</title>
+<path fill="none" stroke="#000000" d="M496.67,-189.82C514.5,-187.66 535.39,-185.21 554.31,-183.24 758.51,-161.89 995.13,-141.36 1143.17,-129.02"/>
+<polygon fill="#000000" stroke="#000000" points="1143.38,-132.51 1153.05,-128.19 1142.8,-125.53 1143.38,-132.51"/>
+</g>
+<!-- proc~solve_qp_subproblem -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_node9" class="node">
+<title>proc~solve_qp_subproblem</title>
+<g id="a_proc~~sparse_matvec_transpose~~CalledByGraph_node9"><a xlink:href="../proc/solve_qp_subproblem.html" xlink:title="sqpopt_qp_solver_type%solve_qp_subproblem">
+<polygon fill="#d9534f" stroke="#d9534f" points="1118.85,-248.37 862.08,-248.37 862.08,-224.1 1118.85,-224.1 1118.85,-248.37"/>
+<text xml:space="preserve" text-anchor="middle" x="990.46" y="-232.64" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qp_solver_type%solve_qp_subproblem</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~solve_qp_subproblem -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_edge18" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~solve_qp_subproblem</title>
+<path fill="none" stroke="#000000" d="M496.7,-194.71C514.53,-194.52 535.42,-194.33 554.31,-194.24 675.1,-193.64 706.25,-179.08 826.08,-194.24 865.33,-199.2 908.64,-210.62 940.81,-220.3"/>
+<polygon fill="#000000" stroke="#000000" points="939.66,-223.61 950.25,-223.19 941.72,-216.91 939.66,-223.61"/>
+</g>
+<!-- proc~line_search -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_node12" class="node">
+<title>proc~line_search</title>
+<g id="a_proc~~sparse_matvec_transpose~~CalledByGraph_node12"><a xlink:href="../proc/line_search.html" xlink:title="sqpopt_linesearch_type%line_search">
+<polygon fill="#d9534f" stroke="#d9534f" points="793.08,-109.37 587.31,-109.37 587.31,-85.1 793.08,-85.1 793.08,-109.37"/>
+<text xml:space="preserve" text-anchor="middle" x="690.19" y="-93.64" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_linesearch_type%line_search</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~line_search -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_edge22" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~line_search</title>
+<path fill="none" stroke="#000000" d="M467.04,-182.63C485.35,-166.27 519.73,-138.08 554.31,-123.24 563.91,-119.12 574.17,-115.65 584.58,-112.72"/>
+<polygon fill="#000000" stroke="#000000" points="585.22,-116.17 594.01,-110.25 583.45,-109.4 585.22,-116.17"/>
+</g>
+<!-- proc~restoration_phase_step -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_node14" class="node">
+<title>proc~restoration_phase_step</title>
+<g id="a_proc~~sparse_matvec_transpose~~CalledByGraph_node14"><a xlink:href="../proc/restoration_phase_step.html" xlink:title="sqpopt_restoration_type%restoration_phase_step">
+<polygon fill="#d9534f" stroke="#d9534f" points="826.08,-269.37 554.31,-269.37 554.31,-245.1 826.08,-245.1 826.08,-269.37"/>
+<text xml:space="preserve" text-anchor="middle" x="690.19" y="-253.64" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_restoration_type%restoration_phase_step</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~restoration_phase_step -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_edge23" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~restoration_phase_step</title>
+<path fill="none" stroke="#000000" d="M479.48,-207.74C499.5,-216.91 528.1,-228.97 554.31,-236.24 562.41,-238.48 570.85,-240.51 579.39,-242.33"/>
+<polygon fill="#000000" stroke="#000000" points="578.66,-245.76 589.16,-244.31 580.06,-238.9 578.66,-245.76"/>
+</g>
+<!-- proc~trust_region_step -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_node15" class="node">
+<title>proc~trust_region_step</title>
+<g id="a_proc~~sparse_matvec_transpose~~CalledByGraph_node15"><a xlink:href="../proc/trust_region_step.html" xlink:title="sqpopt_trust_region_type%trust_region_step">
+<polygon fill="#d9534f" stroke="#d9534f" points="812.58,-227.37 567.81,-227.37 567.81,-203.1 812.58,-203.1 812.58,-227.37"/>
+<text xml:space="preserve" text-anchor="middle" x="690.19" y="-211.64" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_trust_region_type%trust_region_step</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~trust_region_step -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_edge24" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~trust_region_step</title>
+<path fill="none" stroke="#000000" d="M497.05,-198.93C514.2,-200.38 534.91,-202.14 556.3,-203.96"/>
+<polygon fill="#000000" stroke="#000000" points="555.76,-207.42 566.02,-204.78 556.35,-200.45 555.76,-207.42"/>
+</g>
+<!-- proc~armijo_line_search -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_node8" class="node">
+<title>proc~armijo_line_search</title>
+<g id="a_proc~~sparse_matvec_transpose~~CalledByGraph_node8"><a xlink:href="../proc/armijo_line_search.html" xlink:title="armijo_line_search">
+<polygon fill="#d9534f" stroke="#d9534f" points="1046.1,-67.37 934.83,-67.37 934.83,-43.1 1046.1,-43.1 1046.1,-67.37"/>
+<text xml:space="preserve" text-anchor="middle" x="990.46" y="-51.64" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">armijo_line_search</text>
+</a>
+</g>
+</g>
+<!-- proc~armijo_line_search&#45;&gt;proc~merit_directional_derivative -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_edge11" class="edge">
+<title>proc~armijo_line_search&#45;&gt;proc~merit_directional_derivative</title>
+<path fill="none" stroke="#000000" d="M1046.49,-63.39C1068.99,-66.96 1095.24,-71.43 1118.85,-76.24 1155.64,-83.72 1196.56,-93.61 1228.92,-101.79"/>
+<polygon fill="#000000" stroke="#000000" points="1227.97,-105.16 1238.53,-104.24 1229.7,-98.38 1227.97,-105.16"/>
+</g>
+<!-- proc~solve_qp_subproblem&#45;&gt;proc~direct_qp_step -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_edge10" class="edge">
+<title>proc~solve_qp_subproblem&#45;&gt;proc~direct_qp_step</title>
+<path fill="none" stroke="#000000" d="M1119.31,-240.55C1159.22,-241.9 1201.14,-243.31 1233.19,-244.39"/>
+<polygon fill="#000000" stroke="#000000" points="1232.9,-247.88 1243.01,-244.72 1233.14,-240.89 1232.9,-247.88"/>
+</g>
+<!-- proc~sqpopt_solve -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_node10" class="node">
+<title>proc~sqpopt_solve</title>
+<g id="a_proc~~sparse_matvec_transpose~~CalledByGraph_node10"><a xlink:href="../proc/sqpopt_solve.html" xlink:title="sqpopt_type%sqpopt_solve">
+<polygon fill="#d9534f" stroke="#d9534f" points="350.79,-330.37 196.02,-330.37 196.02,-306.1 350.79,-306.1 350.79,-330.37"/>
+<text xml:space="preserve" text-anchor="middle" x="273.4" y="-314.64" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_type%sqpopt_solve</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_solve&#45;&gt;proc~diagnostics_finish -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_edge9" class="edge">
+<title>proc~sqpopt_solve&#45;&gt;proc~diagnostics_finish</title>
+<path fill="none" stroke="#000000" d="M333.37,-330.86C350.52,-334.1 369.34,-337.23 386.79,-339.24 658.32,-370.47 978.46,-377.71 1154.7,-379.15"/>
+<polygon fill="#000000" stroke="#000000" points="1154.56,-382.65 1164.59,-379.23 1154.61,-375.65 1154.56,-382.65"/>
+</g>
+<!-- proc~sqpopt_solve&#45;&gt;proc~sqpopt_evaluate_point -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_edge14" class="edge">
+<title>proc~sqpopt_solve&#45;&gt;proc~sqpopt_evaluate_point</title>
+<path fill="none" stroke="#000000" d="M351.07,-318.24C358.99,-318.24 367.03,-318.24 374.95,-318.24"/>
+<polygon fill="#000000" stroke="#000000" points="374.91,-321.74 384.91,-318.24 374.91,-314.74 374.91,-321.74"/>
+</g>
+<!-- proc~sqpopt_solve&#45;&gt;proc~sqpopt_iterate -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_edge15" class="edge">
+<title>proc~sqpopt_solve&#45;&gt;proc~sqpopt_iterate</title>
+<path fill="none" stroke="#000000" d="M292.37,-305.76C323.53,-284.12 387.8,-239.5 424.43,-214.07"/>
+<polygon fill="#000000" stroke="#000000" points="426.08,-217.18 432.3,-208.6 422.09,-211.43 426.08,-217.18"/>
+</g>
+<!-- proc~watchdog_line_search -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_node11" class="node">
+<title>proc~watchdog_line_search</title>
+<g id="a_proc~~sparse_matvec_transpose~~CalledByGraph_node11"><a xlink:href="../proc/watchdog_line_search.html" xlink:title="watchdog_line_search">
+<polygon fill="#d9534f" stroke="#d9534f" points="1054.72,-109.37 926.2,-109.37 926.2,-85.1 1054.72,-85.1 1054.72,-109.37"/>
+<text xml:space="preserve" text-anchor="middle" x="990.46" y="-93.64" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">watchdog_line_search</text>
+</a>
+</g>
+</g>
+<!-- proc~watchdog_line_search&#45;&gt;proc~merit_directional_derivative -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_edge13" class="edge">
+<title>proc~watchdog_line_search&#45;&gt;proc~merit_directional_derivative</title>
+<path fill="none" stroke="#000000" d="M1055.05,-101.53C1081.03,-103.28 1112.23,-105.38 1143.22,-107.48"/>
+<polygon fill="#000000" stroke="#000000" points="1142.9,-110.96 1153.11,-108.14 1143.37,-103.98 1142.9,-110.96"/>
+</g>
+<!-- proc~line_search&#45;&gt;proc~armijo_line_search -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_edge16" class="edge">
+<title>proc~line_search&#45;&gt;proc~armijo_line_search</title>
+<path fill="none" stroke="#000000" d="M780.69,-84.63C826.58,-78.17 881.51,-70.44 923.5,-64.52"/>
+<polygon fill="#000000" stroke="#000000" points="923.79,-68.02 933.2,-63.16 922.81,-61.09 923.79,-68.02"/>
+</g>
+<!-- proc~line_search&#45;&gt;proc~watchdog_line_search -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_edge21" class="edge">
+<title>proc~line_search&#45;&gt;proc~watchdog_line_search</title>
+<path fill="none" stroke="#000000" d="M793.43,-97.24C833.31,-97.24 878.19,-97.24 914.92,-97.24"/>
+<polygon fill="#000000" stroke="#000000" points="914.54,-100.74 924.54,-97.24 914.54,-93.74 914.54,-100.74"/>
+</g>
+<!-- proc~nlls_solve -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_node13" class="node">
+<title>proc~nlls_solve</title>
+<g id="a_proc~~sparse_matvec_transpose~~CalledByGraph_node13"><a xlink:href="../proc/nlls_solve.html" xlink:title="sqpopt_nlls_type%nlls_solve">
+<polygon fill="#d9534f" stroke="#d9534f" points="160.02,-330.37 0,-330.37 0,-306.1 160.02,-306.1 160.02,-330.37"/>
+<text xml:space="preserve" text-anchor="middle" x="80.01" y="-314.64" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_nlls_type%nlls_solve</text>
+</a>
+</g>
+</g>
+<!-- proc~nlls_solve&#45;&gt;proc~sqpopt_solve -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_edge20" class="edge">
+<title>proc~nlls_solve&#45;&gt;proc~sqpopt_solve</title>
+<path fill="none" stroke="#000000" d="M160.52,-318.24C168.31,-318.24 176.26,-318.24 184.14,-318.24"/>
+<polygon fill="#000000" stroke="#000000" points="184.09,-321.74 194.09,-318.24 184.09,-314.74 184.09,-321.74"/>
+</g>
+<!-- proc~restoration_phase_step&#45;&gt;proc~solve_qp_subproblem -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_edge17" class="edge">
+<title>proc~restoration_phase_step&#45;&gt;proc~solve_qp_subproblem</title>
+<path fill="none" stroke="#000000" d="M826.37,-247.72C834.43,-247.15 842.56,-246.58 850.64,-246.01"/>
+<polygon fill="#000000" stroke="#000000" points="850.79,-249.51 860.52,-245.31 850.29,-242.53 850.79,-249.51"/>
+</g>
+<!-- proc~trust_region_step&#45;&gt;proc~solve_qp_subproblem -->
+<g id="proc~~sparse_matvec_transpose~~CalledByGraph_edge19" class="edge">
+<title>proc~trust_region_step&#45;&gt;proc~solve_qp_subproblem</title>
+<path fill="none" stroke="#000000" d="M812.94,-223.81C825.28,-224.68 837.87,-225.56 850.37,-226.44"/>
+<polygon fill="#000000" stroke="#000000" points="850.07,-229.93 860.3,-227.14 850.57,-222.95 850.07,-229.93"/>
+</g>
+</g>
+</svg>
+</div>                <script>
+                  var panprocsparse_matvec_transposeCalledByGraph = svgPanZoom('#procsparse_matvec_transposeCalledByGraph',
+                    {zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true,}
+                  );
+                </script>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#CalledByGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="CalledByGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="641pt" height="28pt"
+ viewBox="0.00 0.00 641.00 28.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(0.873868 0.873868) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 729.52,-28.27 729.52,4 -4,4"/>
+<!-- Subroutine -->
+<g id="node1" class="node">
+<title>Subroutine</title>
+<polygon fill="#d9534f" stroke="#d9534f" points="69.27,-24.27 0,-24.27 0,0 69.27,0 69.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="34.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Subroutine</text>
+</g>
+<!-- Function -->
+<g id="node2" class="node">
+<title>Function</title>
+<polygon fill="#d94e8f" stroke="#d94e8f" points="143.89,-24.27 87.38,-24.27 87.38,0 143.89,0 143.89,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="115.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Function</text>
+</g>
+<!-- Interface -->
+<g id="node3" class="node">
+<title>Interface</title>
+<polygon fill="#a7506f" stroke="#a7506f" points="221.39,-24.27 161.88,-24.27 161.88,0 221.39,0 221.39,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="191.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Interface</text>
+</g>
+<!-- Type Bound Procedure -->
+<g id="node4" class="node">
+<title>Type Bound Procedure</title>
+<polygon fill="#a7506f" stroke="#a7506f" points="368.27,-24.27 239,-24.27 239,0 368.27,0 368.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="303.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Type Bound Procedure</text>
+</g>
+<!-- Unknown Procedure Type -->
+<g id="node5" class="node">
+<title>Unknown Procedure Type</title>
+<polygon fill="#777777" stroke="#777777" points="529.39,-24.27 385.88,-24.27 385.88,0 529.39,0 529.39,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="457.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Unknown Procedure Type</text>
+</g>
+<!-- Program -->
+<g id="node6" class="node">
+<title>Program</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="603.89,-24.27 547.38,-24.27 547.38,0 603.89,0 603.89,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="575.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Program</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node7" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="725.52,-24.27 621.75,-24.27 621.75,0 725.52,0 725.52,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="673.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a procedure to one which it calls. Dashed 
+arrows point from an interface to procedures which implement that interface.
+This could include the module procedures in a generic interface or the
+implementation in a submodule of an interface in a parent module.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <br>
+
+
+    
+    
+
+    
+    
+
+
+
+    
+    <section>
+    <h2><span class="anchor" id="src"></span>Source Code</h2>
+    <div class="hl codehilite"><pre><span></span><span class="w">    </span><span class="k">subroutine </span><span class="n">sparse_matvec_transpose</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="p">,</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_sparse_matrix</span><span class="p">),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">a</span><span class="w">  </span><span class="c">!! sparse matrix, `dimension(nrows,ncols)`</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">     </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">y</span><span class="w">  </span><span class="c">!! vector to multiply `dimension(nrows)`</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">     </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">x</span><span class="w">  </span><span class="c">!! result vector `dimension(ncols)`</span>
+
+<span class="w">    </span><span class="kt">integer</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">k</span><span class="w">  </span><span class="c">!! nonzero element counter</span>
+
+<span class="w">    </span><span class="n">x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="w"></span>
+<span class="w">    </span><span class="k">do </span><span class="n">k</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">a</span><span class="p">%</span><span class="n">nnz</span><span class="w"></span>
+<span class="w">        </span><span class="n">x</span><span class="p">(</span><span class="n">a</span><span class="p">%</span><span class="n">icol</span><span class="p">(</span><span class="n">k</span><span class="p">))</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">x</span><span class="p">(</span><span class="n">a</span><span class="p">%</span><span class="n">icol</span><span class="p">(</span><span class="n">k</span><span class="p">))</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">a</span><span class="p">%</span><span class="n">val</span><span class="p">(</span><span class="n">k</span><span class="p">)</span><span class="o">*</span><span class="n">y</span><span class="p">(</span><span class="n">a</span><span class="p">%</span><span class="n">irow</span><span class="p">(</span><span class="n">k</span><span class="p">))</span><span class="w"></span>
+<span class="w">    </span><span class="k">end do</span>
+
+<span class="k">    end subroutine </span><span class="n">sparse_matvec_transpose</span><span class="w"></span>
+</pre></div>
+
+    </section>
+    <br>
+    
+    </div>
+  </div>
+
+      <hr>
+    </div> <!-- /container -->
+    <footer>
+      <div class="container">
+        <div class="row justify-content-between">
+          <div class="col">
+            <p>
+              sqpopt
+ was developed by Jacob Williams<br>              &copy; 2026 
+</p>
+          </div>
+          <div class="col">
+            <p class="text-end">
+              Documentation generated by
+              <a href="https://github.com/Fortran-FOSS-Programmers/ford">FORD</a>
+            </p>
+          </div>
+        </div>
+        <br>
+      </div> <!-- /container -->
+    </footer>
+    <!-- sqpopt theme: the button switches the theme, and remembers it for the guide too -->
+    <script>
+      document.querySelector('.theme-toggle').addEventListener('click', function () {
+        var root = document.documentElement;
+        var next = root.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-bs-theme', next);
+        try { localStorage.setItem('sqpopt-theme', next); } catch (e) {}
+      });
+    </script>
+  </body>
+</html>

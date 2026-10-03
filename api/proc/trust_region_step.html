@@ -1,0 +1,2316 @@
+<!-- -*- mode: jinja2 -*- -->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- sqpopt theme: set before the page is drawn; the guide's choice (the same
+         localStorage key, on the same site), or else the system's -->
+    <script>
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('sqpopt-theme'); } catch (e) {}
+        if (t !== 'dark' && t !== 'light') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-bs-theme', t);
+      })();
+    </script>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta name="description" content="Modern Fortran SQP OPTimizer">
+    <meta name="author" content="Jacob Williams" >
+    <link rel="icon" href="../favicon.png">
+
+    <title>trust_region_step &ndash; sqpopt</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <!-- Font Awesome -->
+    <link href="../css/fontawesome.min.css" rel="stylesheet">
+    <link href="../css/brands.min.css" rel="stylesheet">
+    <link href="../css/regular.min.css" rel="stylesheet">
+    <link href="../css/solid.min.css" rel="stylesheet">
+    <link href="../css/v4-font-face.min.css" rel="stylesheet">
+    <link href="../css/v4-shims.min.css" rel="stylesheet">
+    <!-- MathJax -->
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        TeX: { equationNumbers: { autoNumber: "AMS" } }
+      });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@2.7.9/MathJax.js?config=TeX-AMS-MML_HTMLorMML" async
+            integrity="sha256-DViIOMYdwlM/axqoGDPeUyf0urLoHMN4QACBKyB58Uw=" crossorigin="anonymous"></script>
+    <!-- Other scripts and stylesheets -->
+    <link href="../css/local.css" rel="stylesheet">
+    <link href="../css/pygments.css" rel="stylesheet">
+      <link href="../css/user.css" rel="stylesheet">
+    <script src="../js/svg-pan-zoom.min.js"></script>
+  </head>
+
+  <body>
+
+    <!-- Fixed navbar -->
+    <div class="container-fluid mb-sm-4 mb-xl-2">
+      <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+          <a class="navbar-brand" href="../index.html">sqpopt </a>
+          <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbar"
+                  aria-expanded="false" aria-controls="navbar" aria-label="Toggle navigation">
+                  <span class="navbar-toggler-icon">
+          </button>
+
+          <div id="navbar" class="navbar-collapse collapse">
+            <ul class="navbar-nav">
+                  <li class="nav-item">
+                    <a class="nav-link" href="../lists/files.html">Source Files</a>
+                  </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/modules.html">Modules</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/procedures.html">Procedures</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/absint.html">Abstract Interfaces</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/types.html">Derived Types</a>
+                </li>
+            </ul>
+              <div class="d-flex align-items-end flex-grow-1">
+                <form action="../search.html" role="search" class="ms-auto">
+                  <input type="text" class="form-control" aria-label="Search" placeholder="Search" name="q" id="tipue_search_input" autocomplete="off" required>
+                </form>
+              </div>
+            <!-- sqpopt theme: the light/dark button -->
+            <button type="button" class="btn nav-link theme-toggle ms-lg-3" aria-label="Toggle dark mode" title="Toggle dark mode">
+              <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg>
+              <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div><!--/.nav-collapse -->
+        </div>
+      </nav>
+    </div>
+
+    <div class="container">
+  <div class="row">
+    <h1>trust_region_step
+      <small>Subroutine</small>
+      
+    </h1>
+      <div class="container p-2 mb-4 bg-light border rounded-3">
+    <div class="row align-items-center justify-content-between" id="info-bar">
+      <div class="col">
+        <ul class="list-inline" style="margin-bottom:0px;display:inline">
+
+            <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
+              <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
+                 title=" 1.7% of total for procedures.">145 statements</a>
+            </li>
+
+            <li class="list-inline-item" id="source-file">
+              <i class="fa fa-code"></i>
+              <a href="../src/sqpopt_trust_region_module.f90"> Source File</a>
+            </li>
+        </ul>
+      </div>
+      <div class="col">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb justify-content-end mb-0">
+                <li class="breadcrumb-item"><a href='../sourcefile/sqpopt_trust_region_module.f90.html'>sqpopt_trust_region_module.f90</a></li>
+                <li class="breadcrumb-item"><a href='../module/sqpopt_trust_region_module.html'>sqpopt_trust_region_module</a></li>
+            <li class="breadcrumb-item active" aria-current="page">trust_region_step</li>
+          </ol>
+        </nav>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Enable Bootstrap tooltips
+    (function () {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+      const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+    })();
+  </script>
+
+  </div>
+  
+  <div class="row">
+    <div class="col-md-3 hidden-xs hidden-sm visible-md visible-lg">
+      <div id="sidebar">
+      <h3>Contents</h3>
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+    <div class="card card-primary">
+      <div class="card-header text-left"><h3 class="card-title">Source Code</h3></div>
+      <div class="list-group">
+        <a class="list-group-item" href="../proc/trust_region_step.html#src">trust_region_step</a>
+      </div>
+    </div>
+
+
+  </div>
+
+    </div>
+    
+    <div class="col-md-9" id='text'>
+    <h2>private  subroutine trust_region_step(me, problem, hessian, qp_solver, linesearch, x, g, f, c, jac, x_new, new_lambda, alpha, istat, kkt, inertia, least_squares)  
+</h2>
+    
+
+    <p>attempt to find and accept a trust-region step, re-solving the QP
+ subproblem with a shrinking radius as needed (see the module-level
+ documentation for the full algorithm). Updates <code>me%radius</code> in place.</p>
+<p>(no merit function in either)</p>
+
+    <h3>Type Bound</h3>
+    <p><a href='../type/sqpopt_trust_region_type.html'>sqpopt_trust_region_type</a></p>
+
+    <h3>Arguments</h3>
+        <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~8"></span>
+              class(<a href='../type/sqpopt_trust_region_type.html'>sqpopt_trust_region_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+                
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-problem~3"></span>
+              type(<a href='../type/sqpopt_problem_type.html'>sqpopt_problem_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>problem</strong></td>
+            <td>
+                <p>problem definition</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-hessian~3"></span>
+              type(<a href='../type/sqpopt_hessian_type.html'>sqpopt_hessian_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>hessian</strong></td>
+            <td>
+                <p>matrix-free Hessian approximation</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-qp_solver~3"></span>
+              type(<a href='../type/sqpopt_qp_solver_type.html'>sqpopt_qp_solver_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>qp_solver</strong></td>
+            <td>
+                <p>QP subproblem solver</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-linesearch~3"></span>
+              type(<a href='../type/sqpopt_linesearch_type.html'>sqpopt_linesearch_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>linesearch</strong></td>
+            <td>
+                <p>supplies the merit function (<code>merit</code>, ratio test) or
+the filter (<code>filter</code>, <code>mode==sqpopt_linesearch_filter</code>)
+or funnel (<code>funnel</code>, <code>mode==sqpopt_linesearch_funnel</code>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x~5"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x</strong></td>
+            <td>
+                <p>current point <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-g"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>g</strong></td>
+            <td>
+                <p>objective gradient at <code>x</code> <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-f~4"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>f</strong></td>
+            <td>
+                <p>objective value at <code>x</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c~4"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c</strong></td>
+            <td>
+                <p>constraint values at <code>x</code> <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-jac~2"></span>
+              type(<a href='../type/sqpopt_sparse_matrix.html'>sqpopt_sparse_matrix</a>),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>jac</strong></td>
+            <td>
+                <p>constraint Jacobian at <code>x</code>, <code>dimension(m,n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x_new"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x_new</strong></td>
+            <td>
+                <p>new point <code>dimension(n)</code> (<code>x</code> if no retry was accepted)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-new_lambda"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>new_lambda</strong></td>
+            <td>
+                <p>new multipliers <code>dimension(m)</code>, from the QP solve that produced <code>x_new</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-alpha~2"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>alpha</strong></td>
+            <td>
+                <p><code>1</code> if a step was accepted, <code>0</code> otherwise (informational only -- there
+is no line-search step length under trust-region globalization)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-istat~5"></span>
+              integer,
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>istat</strong></td>
+            <td>
+                <p>status code (see <a href="../module/sqpopt_types_module.html">sqpopt_types_module</a>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-kkt~3"></span>
+              type(<a href='../type/sqpopt_kkt_type.html'>sqpopt_kkt_type</a>),
+            </td>
+<td>intent(inout),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>kkt</strong></td>
+            <td>
+                <p>the KKT matrix, for the QP solver's direct method
+(see <a href="../proc/solve_qp_subproblem.html">solve_qp_subproblem</a>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-inertia~2"></span>
+              type(<a href='../type/sqpopt_inertia_type.html'>sqpopt_inertia_type</a>),
+            </td>
+<td>intent(inout),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>inertia</strong></td>
+            <td>
+                <p>the inertia control, for the same</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-least_squares~2"></span>
+              type(<a href='../type/sqpopt_least_squares_type.html'>sqpopt_least_squares_type</a>),
+            </td>
+<td>intent(inout),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>least_squares</strong></td>
+            <td>
+                <p>the direct least-squares solver, for
+the second-order correction (see <a href="../proc/soc_step.html">soc_step</a>)</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+    <br>
+    <div class="card">
+      <div class="card-header">
+  <h3 class="card-title">Calls</h3>
+      </div>
+      <div class="card-body">
+  <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: proc~~trust_region_step~~CallsGraph Pages: 1 -->
+<svg id="proctrust_region_stepCallsGraph" width="641pt" height="313pt"
+ viewBox="0.00 0.00 641.00 313.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="proc~~trust_region_step~~CallsGraph" class="graph" transform="scale(0.226108 0.226108) rotate(0) translate(4 1379.95)">
+<title>proc~~trust_region_step~~CallsGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-1379.95 2830.93,-1379.95 2830.93,4 -4,4"/>
+<!-- proc~trust_region_step -->
+<g id="proc~~trust_region_step~~CallsGraph_node1" class="node">
+<title>proc~trust_region_step</title>
+<polygon fill="none" stroke="black" points="244.77,-660.55 0,-660.55 0,-636.28 244.77,-636.28 244.77,-660.55"/>
+<text xml:space="preserve" text-anchor="middle" x="122.39" y="-644.82" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_trust_region_type%trust_region_step</text>
+</g>
+<!-- proc~eval_c_cached -->
+<g id="proc~~trust_region_step~~CallsGraph_node2" class="node">
+<title>proc~eval_c_cached</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node2"><a xlink:href="../proc/eval_c_cached.html" xlink:title="sqpopt_problem_type%eval_c_cached">
+<polygon fill="#d9534f" stroke="#d9534f" points="515.79,-1045.55 302.52,-1045.55 302.52,-1021.28 515.79,-1021.28 515.79,-1045.55"/>
+<text xml:space="preserve" text-anchor="middle" x="409.16" y="-1029.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_problem_type%eval_c_cached</text>
+</a>
+</g>
+</g>
+<!-- proc~trust_region_step&#45;&gt;proc~eval_c_cached -->
+<g id="proc~~trust_region_step~~CallsGraph_edge1" class="edge">
+<title>proc~trust_region_step&#45;&gt;proc~eval_c_cached</title>
+<path fill="none" stroke="#000000" d="M124.96,-660.77C132.12,-711.67 166.4,-906.95 280.77,-1002.42 287.47,-1008.01 295.01,-1012.62 303,-1016.42"/>
+<polygon fill="#000000" stroke="#000000" points="301.37,-1019.53 311.94,-1020.22 304.11,-1013.08 301.37,-1019.53"/>
+</g>
+<!-- proc~eval_f_cached -->
+<g id="proc~~trust_region_step~~CallsGraph_node3" class="node">
+<title>proc~eval_f_cached</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node3"><a xlink:href="../proc/eval_f_cached.html" xlink:title="sqpopt_problem_type%eval_f_cached">
+<polygon fill="#d9534f" stroke="#d9534f" points="514.67,-993.55 303.65,-993.55 303.65,-969.28 514.67,-969.28 514.67,-993.55"/>
+<text xml:space="preserve" text-anchor="middle" x="409.16" y="-977.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_problem_type%eval_f_cached</text>
+</a>
+</g>
+</g>
+<!-- proc~trust_region_step&#45;&gt;proc~eval_f_cached -->
+<g id="proc~~trust_region_step~~CallsGraph_edge2" class="edge">
+<title>proc~trust_region_step&#45;&gt;proc~eval_f_cached</title>
+<path fill="none" stroke="#000000" d="M126.57,-661.05C138.56,-705.96 185.18,-859.44 280.77,-939.42 294.45,-950.87 311.35,-959.22 328.32,-965.31"/>
+<polygon fill="#000000" stroke="#000000" points="326.83,-968.51 337.42,-968.34 329.04,-961.87 326.83,-968.51"/>
+</g>
+<!-- proc~eval_merit_function -->
+<g id="proc~~trust_region_step~~CallsGraph_node4" class="node">
+<title>proc~eval_merit_function</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node4"><a xlink:href="../proc/eval_merit_function.html" xlink:title="sqpopt_merit_type%eval_merit_function">
+<polygon fill="#d9534f" stroke="#d9534f" points="521.42,-930.55 296.9,-930.55 296.9,-906.28 521.42,-906.28 521.42,-930.55"/>
+<text xml:space="preserve" text-anchor="middle" x="409.16" y="-914.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_merit_type%eval_merit_function</text>
+</a>
+</g>
+</g>
+<!-- proc~trust_region_step&#45;&gt;proc~eval_merit_function -->
+<g id="proc~~trust_region_step~~CallsGraph_edge3" class="edge">
+<title>proc~trust_region_step&#45;&gt;proc~eval_merit_function</title>
+<path fill="none" stroke="#000000" d="M127.15,-660.86C140.4,-702.33 189.12,-836.68 280.77,-897.42 282.63,-898.65 284.53,-899.82 286.48,-900.92"/>
+<polygon fill="#000000" stroke="#000000" points="284.66,-903.93 295.17,-905.28 287.8,-897.67 284.66,-903.93"/>
+</g>
+<!-- proc~fmt_e -->
+<g id="proc~~trust_region_step~~CallsGraph_node5" class="node">
+<title>proc~fmt_e</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node5"><a xlink:href="../proc/fmt_e.html" xlink:title="fmt_e">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="436.16,-888.55 382.16,-888.55 382.16,-864.28 436.16,-864.28 436.16,-888.55"/>
+<text xml:space="preserve" text-anchor="middle" x="409.16" y="-872.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">fmt_e</text>
+</a>
+</g>
+</g>
+<!-- proc~trust_region_step&#45;&gt;proc~fmt_e -->
+<g id="proc~~trust_region_step~~CallsGraph_edge4" class="edge">
+<title>proc~trust_region_step&#45;&gt;proc~fmt_e</title>
+<path fill="none" stroke="#000000" d="M128.7,-660.8C145.16,-697.52 199.17,-806.28 280.77,-855.42 307.87,-871.74 343.8,-876.45 370.59,-877.39"/>
+<polygon fill="#000000" stroke="#000000" points="370.25,-880.88 380.31,-877.56 370.37,-873.88 370.25,-880.88"/>
+</g>
+<!-- proc~fmt_g -->
+<g id="proc~~trust_region_step~~CallsGraph_node6" class="node">
+<title>proc~fmt_g</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node6"><a xlink:href="../proc/fmt_g.html" xlink:title="fmt_g">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="436.16,-846.55 382.16,-846.55 382.16,-822.28 436.16,-822.28 436.16,-846.55"/>
+<text xml:space="preserve" text-anchor="middle" x="409.16" y="-830.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">fmt_g</text>
+</a>
+</g>
+</g>
+<!-- proc~trust_region_step&#45;&gt;proc~fmt_g -->
+<g id="proc~~trust_region_step~~CallsGraph_edge5" class="edge">
+<title>proc~trust_region_step&#45;&gt;proc~fmt_g</title>
+<path fill="none" stroke="#000000" d="M131.09,-660.94C151.26,-692.5 209.02,-775.5 280.77,-813.42 308.44,-828.04 343.82,-832.96 370.26,-834.41"/>
+<polygon fill="#000000" stroke="#000000" points="370.09,-837.91 380.22,-834.8 370.36,-830.91 370.09,-837.91"/>
+</g>
+<!-- proc~funnel_prepare_state -->
+<g id="proc~~trust_region_step~~CallsGraph_node7" class="node">
+<title>proc~funnel_prepare_state</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node7"><a xlink:href="../proc/funnel_prepare_state.html" xlink:title="sqpopt_funnel_type%funnel_prepare_state">
+<polygon fill="#d9534f" stroke="#d9534f" points="527.42,-804.55 290.9,-804.55 290.9,-780.28 527.42,-780.28 527.42,-804.55"/>
+<text xml:space="preserve" text-anchor="middle" x="409.16" y="-788.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_funnel_type%funnel_prepare_state</text>
+</a>
+</g>
+</g>
+<!-- proc~trust_region_step&#45;&gt;proc~funnel_prepare_state -->
+<g id="proc~~trust_region_step~~CallsGraph_edge6" class="edge">
+<title>proc~trust_region_step&#45;&gt;proc~funnel_prepare_state</title>
+<path fill="none" stroke="#000000" d="M135.01,-661.02C159.34,-686.52 218.53,-744.12 280.77,-771.42 284.87,-773.22 289.1,-774.86 293.42,-776.37"/>
+<polygon fill="#000000" stroke="#000000" points="292.29,-779.68 302.88,-779.37 294.41,-773.01 292.29,-779.68"/>
+</g>
+<!-- proc~funnel_shrink -->
+<g id="proc~~trust_region_step~~CallsGraph_node8" class="node">
+<title>proc~funnel_shrink</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node8"><a xlink:href="../proc/funnel_shrink.html" xlink:title="sqpopt_funnel_type%funnel_shrink">
+<polygon fill="#d9534f" stroke="#d9534f" points="507.17,-762.55 311.15,-762.55 311.15,-738.28 507.17,-738.28 507.17,-762.55"/>
+<text xml:space="preserve" text-anchor="middle" x="409.16" y="-746.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_funnel_type%funnel_shrink</text>
+</a>
+</g>
+</g>
+<!-- proc~trust_region_step&#45;&gt;proc~funnel_shrink -->
+<g id="proc~~trust_region_step~~CallsGraph_edge7" class="edge">
+<title>proc~trust_region_step&#45;&gt;proc~funnel_shrink</title>
+<path fill="none" stroke="#000000" d="M142.88,-661.01C171.78,-679.06 228.25,-712.05 280.77,-729.42 287.26,-731.57 294.02,-733.5 300.88,-735.24"/>
+<polygon fill="#000000" stroke="#000000" points="299.72,-738.56 310.26,-737.47 301.34,-731.75 299.72,-738.56"/>
+</g>
+<!-- proc~funnel_step_acceptable -->
+<g id="proc~~trust_region_step~~CallsGraph_node9" class="node">
+<title>proc~funnel_step_acceptable</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node9"><a xlink:href="../proc/funnel_step_acceptable.html" xlink:title="sqpopt_funnel_type%funnel_step_acceptable">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="534.54,-720.55 283.77,-720.55 283.77,-696.28 534.54,-696.28 534.54,-720.55"/>
+<text xml:space="preserve" text-anchor="middle" x="409.16" y="-704.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_funnel_type%funnel_step_acceptable</text>
+</a>
+</g>
+</g>
+<!-- proc~trust_region_step&#45;&gt;proc~funnel_step_acceptable -->
+<g id="proc~~trust_region_step~~CallsGraph_edge8" class="edge">
+<title>proc~trust_region_step&#45;&gt;proc~funnel_step_acceptable</title>
+<path fill="none" stroke="#000000" d="M180.91,-661.01C210.7,-667.49 247.67,-675.47 280.77,-682.42 298.16,-686.07 316.9,-689.94 334.51,-693.54"/>
+<polygon fill="#000000" stroke="#000000" points="333.62,-696.93 344.12,-695.5 335.02,-690.07 333.62,-696.93"/>
+</g>
+<!-- proc~hessian_vector_product -->
+<g id="proc~~trust_region_step~~CallsGraph_node10" class="node">
+<title>proc~hessian_vector_product</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node10"><a xlink:href="../proc/hessian_vector_product.html" xlink:title="sqpopt_hessian_type%hessian_vector_product">
+<polygon fill="#d9534f" stroke="#d9534f" points="1699.62,-967.55 1442.85,-967.55 1442.85,-943.28 1699.62,-943.28 1699.62,-967.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1571.24" y="-951.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_vector_product</text>
+</a>
+</g>
+</g>
+<!-- proc~trust_region_step&#45;&gt;proc~hessian_vector_product -->
+<g id="proc~~trust_region_step~~CallsGraph_edge9" class="edge">
+<title>proc~trust_region_step&#45;&gt;proc~hessian_vector_product</title>
+<path fill="none" stroke="#000000" d="M245.19,-653.14C359.11,-658.63 515.04,-669.34 537.54,-687.42 578.3,-720.17 534.05,-765.15 573.54,-799.42 658.94,-873.54 742.47,-764.38 824.31,-842.42 878,-893.62 805.5,-955.42 860.31,-1005.42 959.94,-1096.3 1065.8,-948.24 1161.33,-1043.42 1249.28,-1131.04 1104.06,-1238.49 1197.33,-1320.42 1267.29,-1381.88 1328.7,-1371.06 1406.85,-1320.42 1529.17,-1241.16 1560.75,-1046.44 1568.15,-978.92"/>
+<polygon fill="#000000" stroke="#000000" points="1571.59,-979.66 1569.12,-969.36 1564.63,-978.96 1571.59,-979.66"/>
+</g>
+<!-- proc~l1_violation -->
+<g id="proc~~trust_region_step~~CallsGraph_node11" class="node">
+<title>proc~l1_violation</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node11"><a xlink:href="../proc/l1_violation.html" xlink:title="l1_violation">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="445.29,-211.55 373.02,-211.55 373.02,-187.28 445.29,-187.28 445.29,-211.55"/>
+<text xml:space="preserve" text-anchor="middle" x="409.16" y="-195.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">l1_violation</text>
+</a>
+</g>
+</g>
+<!-- proc~trust_region_step&#45;&gt;proc~l1_violation -->
+<g id="proc~~trust_region_step~~CallsGraph_edge10" class="edge">
+<title>proc~trust_region_step&#45;&gt;proc~l1_violation</title>
+<path fill="none" stroke="#000000" d="M123.88,-635.98C126.85,-578.88 147.13,-339.81 280.77,-225.42 302.8,-206.56 334.81,-200.08 361.22,-198.31"/>
+<polygon fill="#000000" stroke="#000000" points="361.19,-201.81 371.02,-197.87 360.88,-194.82 361.19,-201.81"/>
+</g>
+<!-- proc~log_on -->
+<g id="proc~~trust_region_step~~CallsGraph_node12" class="node">
+<title>proc~log_on</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node12"><a xlink:href="../proc/log_on.html" xlink:title="sqpopt_log_type%log_on">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="480.54,-169.55 337.77,-169.55 337.77,-145.28 480.54,-145.28 480.54,-169.55"/>
+<text xml:space="preserve" text-anchor="middle" x="409.16" y="-153.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_log_type%log_on</text>
+</a>
+</g>
+</g>
+<!-- proc~trust_region_step&#45;&gt;proc~log_on -->
+<g id="proc~~trust_region_step~~CallsGraph_edge11" class="edge">
+<title>proc~trust_region_step&#45;&gt;proc~log_on</title>
+<path fill="none" stroke="#000000" d="M123.26,-636.17C123.37,-575.47 132.4,-304.8 280.77,-178.42 293.58,-167.51 309.83,-161.19 326.39,-157.71"/>
+<polygon fill="#000000" stroke="#000000" points="326.55,-161.24 335.81,-156.07 325.35,-154.34 326.55,-161.24"/>
+</g>
+<!-- proc~log_put -->
+<g id="proc~~trust_region_step~~CallsGraph_node13" class="node">
+<title>proc~log_put</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node13"><a xlink:href="../proc/log_put.html" xlink:title="sqpopt_log_type%log_put">
+<polygon fill="#d9534f" stroke="#d9534f" points="482.42,-127.55 335.9,-127.55 335.9,-103.28 482.42,-103.28 482.42,-127.55"/>
+<text xml:space="preserve" text-anchor="middle" x="409.16" y="-111.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_log_type%log_put</text>
+</a>
+</g>
+</g>
+<!-- proc~trust_region_step&#45;&gt;proc~log_put -->
+<g id="proc~~trust_region_step~~CallsGraph_edge12" class="edge">
+<title>proc~trust_region_step&#45;&gt;proc~log_put</title>
+<path fill="none" stroke="#000000" d="M122.88,-635.97C121,-571.75 121.44,-275.6 280.77,-136.42 292.98,-125.76 308.45,-119.44 324.37,-115.87"/>
+<polygon fill="#000000" stroke="#000000" points="324.75,-119.36 333.95,-114.09 323.48,-112.48 324.75,-119.36"/>
+</g>
+<!-- proc~qp_status_text -->
+<g id="proc~~trust_region_step~~CallsGraph_node14" class="node">
+<title>proc~qp_status_text</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node14"><a xlink:href="../proc/qp_status_text.html" xlink:title="qp_status_text">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="452.42,-85.55 365.9,-85.55 365.9,-61.28 452.42,-61.28 452.42,-85.55"/>
+<text xml:space="preserve" text-anchor="middle" x="409.16" y="-69.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">qp_status_text</text>
+</a>
+</g>
+</g>
+<!-- proc~trust_region_step&#45;&gt;proc~qp_status_text -->
+<g id="proc~~trust_region_step~~CallsGraph_edge13" class="edge">
+<title>proc~trust_region_step&#45;&gt;proc~qp_status_text</title>
+<path fill="none" stroke="#000000" d="M125.13,-635.8C135.8,-560.52 194.61,-171.32 280.77,-94.42 300.49,-76.82 329.08,-70.98 354.18,-69.8"/>
+<polygon fill="#000000" stroke="#000000" points="353.98,-73.3 363.9,-69.59 353.83,-66.3 353.98,-73.3"/>
+</g>
+<!-- proc~soc_step -->
+<g id="proc~~trust_region_step~~CallsGraph_node15" class="node">
+<title>proc~soc_step</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node15"><a xlink:href="../proc/soc_step.html" xlink:title="soc_step">
+<polygon fill="#d9534f" stroke="#d9534f" points="727.56,-225.55 670.29,-225.55 670.29,-201.28 727.56,-201.28 727.56,-225.55"/>
+<text xml:space="preserve" text-anchor="middle" x="698.93" y="-209.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">soc_step</text>
+</a>
+</g>
+</g>
+<!-- proc~trust_region_step&#45;&gt;proc~soc_step -->
+<g id="proc~~trust_region_step~~CallsGraph_edge14" class="edge">
+<title>proc~trust_region_step&#45;&gt;proc~soc_step</title>
+<path fill="none" stroke="#000000" d="M124.95,-635.79C132.02,-584.69 165.72,-391.62 280.77,-301.42 372.14,-229.79 424.11,-278.14 537.54,-253.42 579.3,-244.32 626.76,-232.27 659.15,-223.78"/>
+<polygon fill="#000000" stroke="#000000" points="659.7,-227.25 668.48,-221.32 657.92,-220.48 659.7,-227.25"/>
+</g>
+<!-- proc~solve_qp_subproblem -->
+<g id="proc~~trust_region_step~~CallsGraph_node16" class="node">
+<title>proc~solve_qp_subproblem</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node16"><a xlink:href="../proc/solve_qp_subproblem.html" xlink:title="sqpopt_qp_solver_type%solve_qp_subproblem">
+<polygon fill="#d9534f" stroke="#d9534f" points="537.54,-640.55 280.77,-640.55 280.77,-616.28 537.54,-616.28 537.54,-640.55"/>
+<text xml:space="preserve" text-anchor="middle" x="409.16" y="-624.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qp_solver_type%solve_qp_subproblem</text>
+</a>
+</g>
+</g>
+<!-- proc~trust_region_step&#45;&gt;proc~solve_qp_subproblem -->
+<g id="proc~~trust_region_step~~CallsGraph_edge15" class="edge">
+<title>proc~trust_region_step&#45;&gt;proc~solve_qp_subproblem</title>
+<path fill="none" stroke="#000000" d="M244.98,-639.88C252.99,-639.32 261.1,-638.75 269.19,-638.18"/>
+<polygon fill="#000000" stroke="#000000" points="269.36,-641.68 279.09,-637.48 268.87,-634.69 269.36,-641.68"/>
+</g>
+<!-- proc~sparse_matvec -->
+<g id="proc~~trust_region_step~~CallsGraph_node17" class="node">
+<title>proc~sparse_matvec</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node17"><a xlink:href="../proc/sparse_matvec.html" xlink:title="sparse_matvec">
+<polygon fill="#d9534f" stroke="#d9534f" points="1056.71,-327.55 964.94,-327.55 964.94,-303.28 1056.71,-303.28 1056.71,-327.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1010.82" y="-311.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sparse_matvec</text>
+</a>
+</g>
+</g>
+<!-- proc~trust_region_step&#45;&gt;proc~sparse_matvec -->
+<g id="proc~~trust_region_step~~CallsGraph_edge16" class="edge">
+<title>proc~trust_region_step&#45;&gt;proc~sparse_matvec</title>
+<path fill="none" stroke="#000000" d="M135.1,-636.05C183.32,-586.11 373.36,-398.89 573.54,-331.42 703.84,-287.5 868.55,-297.79 953.48,-307.52"/>
+<polygon fill="#000000" stroke="#000000" points="952.82,-310.96 963.17,-308.67 953.65,-304.01 952.82,-310.96"/>
+</g>
+<!-- proc~sqpopt_all_finite -->
+<g id="proc~~trust_region_step~~CallsGraph_node18" class="node">
+<title>proc~sqpopt_all_finite</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node18"><a xlink:href="../proc/sqpopt_all_finite.html" xlink:title="sqpopt_all_finite">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="2314.04,-289.55 2216.27,-289.55 2216.27,-265.28 2314.04,-265.28 2314.04,-289.55"/>
+<text xml:space="preserve" text-anchor="middle" x="2265.15" y="-273.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_all_finite</text>
+</a>
+</g>
+</g>
+<!-- proc~trust_region_step&#45;&gt;proc~sqpopt_all_finite -->
+<g id="proc~~trust_region_step~~CallsGraph_edge17" class="edge">
+<title>proc~trust_region_step&#45;&gt;proc~sqpopt_all_finite</title>
+<path fill="none" stroke="#000000" d="M124.05,-635.83C127.71,-580.17 150.4,-354.54 280.77,-253.42 371.68,-182.9 431.32,-264.63 537.54,-220.42 556.25,-212.63 555.92,-202.43 573.54,-192.42 677.57,-133.29 729.04,-166.83 824.31,-94.42 845.54,-78.28 836.72,-58.86 860.31,-46.42 1033.76,45.03 1105.01,-27.42 1301.09,-27.42 1301.09,-27.42 1301.09,-27.42 1572.24,-27.42 1844.62,-27.42 2143.34,-200.9 2235.5,-258.84"/>
+<polygon fill="#000000" stroke="#000000" points="2233.39,-261.64 2243.71,-264.04 2237.14,-255.73 2233.39,-261.64"/>
+</g>
+<!-- proc~step_bounds -->
+<g id="proc~~trust_region_step~~CallsGraph_node19" class="node">
+<title>proc~step_bounds</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node19"><a xlink:href="../proc/step_bounds.html" xlink:title="sqpopt_problem_type%step_bounds">
+<polygon fill="#d9534f" stroke="#d9534f" points="510.17,-43.55 308.15,-43.55 308.15,-19.28 510.17,-19.28 510.17,-43.55"/>
+<text xml:space="preserve" text-anchor="middle" x="409.16" y="-27.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_problem_type%step_bounds</text>
+</a>
+</g>
+</g>
+<!-- proc~trust_region_step&#45;&gt;proc~step_bounds -->
+<g id="proc~~trust_region_step~~CallsGraph_edge18" class="edge">
+<title>proc~trust_region_step&#45;&gt;proc~step_bounds</title>
+<path fill="none" stroke="#000000" d="M124.85,-635.89C134.29,-557.57 188.93,-135.94 280.77,-52.42 285.76,-47.88 291.34,-44.12 297.3,-41.01"/>
+<polygon fill="#000000" stroke="#000000" points="298.57,-44.28 306.28,-37 295.72,-37.89 298.57,-44.28"/>
+</g>
+<!-- proc~raw_fc -->
+<g id="proc~~trust_region_step~~CallsGraph_node30" class="node">
+<title>proc~raw_fc</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node30"><a xlink:href="../proc/raw_fc.html" xlink:title="raw_fc">
+<polygon fill="#d9534f" stroke="#d9534f" points="725.93,-1065.55 671.93,-1065.55 671.93,-1041.28 725.93,-1041.28 725.93,-1065.55"/>
+<text xml:space="preserve" text-anchor="middle" x="698.93" y="-1049.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">raw_fc</text>
+</a>
+</g>
+</g>
+<!-- proc~eval_c_cached&#45;&gt;proc~raw_fc -->
+<g id="proc~~trust_region_step~~CallsGraph_edge19" class="edge">
+<title>proc~eval_c_cached&#45;&gt;proc~raw_fc</title>
+<path fill="none" stroke="#000000" d="M516.08,-1040.78C566.7,-1044.3 624.06,-1048.29 660.59,-1050.82"/>
+<polygon fill="#000000" stroke="#000000" points="659.95,-1054.29 670.17,-1051.49 660.43,-1047.31 659.95,-1054.29"/>
+</g>
+<!-- proc~eval_f_cached&#45;&gt;proc~raw_fc -->
+<g id="proc~~trust_region_step~~CallsGraph_edge20" class="edge">
+<title>proc~eval_f_cached&#45;&gt;proc~raw_fc</title>
+<path fill="none" stroke="#000000" d="M462.56,-994.03C485.58,-999.6 512.92,-1006.28 537.54,-1012.42 579.82,-1022.97 628.28,-1035.4 660.77,-1043.79"/>
+<polygon fill="#000000" stroke="#000000" points="659.53,-1047.09 670.09,-1046.2 661.28,-1040.31 659.53,-1047.09"/>
+</g>
+<!-- proc~augmented_lagrangian_slacks -->
+<g id="proc~~trust_region_step~~CallsGraph_node21" class="node">
+<title>proc~augmented_lagrangian_slacks</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node21"><a xlink:href="../proc/augmented_lagrangian_slacks.html" xlink:title="augmented_lagrangian_slacks">
+<polygon fill="#d9534f" stroke="#d9534f" points="785.69,-930.55 612.17,-930.55 612.17,-906.28 785.69,-906.28 785.69,-930.55"/>
+<text xml:space="preserve" text-anchor="middle" x="698.93" y="-914.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">augmented_lagrangian_slacks</text>
+</a>
+</g>
+</g>
+<!-- proc~eval_merit_function&#45;&gt;proc~augmented_lagrangian_slacks -->
+<g id="proc~~trust_region_step~~CallsGraph_edge21" class="edge">
+<title>proc~eval_merit_function&#45;&gt;proc~augmented_lagrangian_slacks</title>
+<path fill="none" stroke="#000000" d="M521.83,-918.42C547.72,-918.42 575.08,-918.42 600.32,-918.42"/>
+<polygon fill="#000000" stroke="#000000" points="600.24,-921.92 610.24,-918.42 600.24,-914.92 600.24,-921.92"/>
+</g>
+<!-- proc~merit_slack -->
+<g id="proc~~trust_region_step~~CallsGraph_node28" class="node">
+<title>proc~merit_slack</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node28"><a xlink:href="../proc/merit_slack.html" xlink:title="merit_slack">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="735.06,-875.55 662.79,-875.55 662.79,-851.28 735.06,-851.28 735.06,-875.55"/>
+<text xml:space="preserve" text-anchor="middle" x="698.93" y="-859.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">merit_slack</text>
+</a>
+</g>
+</g>
+<!-- proc~funnel_step_acceptable&#45;&gt;proc~merit_slack -->
+<g id="proc~~trust_region_step~~CallsGraph_edge22" class="edge">
+<title>proc~funnel_step_acceptable&#45;&gt;proc~merit_slack</title>
+<path fill="none" stroke="#000000" d="M525.48,-720.96C529.74,-723.41 533.79,-726.22 537.54,-729.42 576.03,-762.25 535.75,-803.77 573.54,-837.42 594.47,-856.06 625.26,-862.6 650.97,-864.46"/>
+<polygon fill="#000000" stroke="#000000" points="650.7,-867.95 660.86,-864.94 651.04,-860.96 650.7,-867.95"/>
+</g>
+<!-- proc~dense_lu_solve -->
+<g id="proc~~trust_region_step~~CallsGraph_node22" class="node">
+<title>proc~dense_lu_solve</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node22"><a xlink:href="../proc/dense_lu_solve.html" xlink:title="dense_lu_solve">
+<polygon fill="#d9534f" stroke="#d9534f" points="1946.64,-889.55 1854.87,-889.55 1854.87,-865.28 1946.64,-865.28 1946.64,-889.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1900.76" y="-873.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">dense_lu_solve</text>
+</a>
+</g>
+</g>
+<!-- proc~hessian_vector_product&#45;&gt;proc~dense_lu_solve -->
+<g id="proc~~trust_region_step~~CallsGraph_edge23" class="edge">
+<title>proc~hessian_vector_product&#45;&gt;proc~dense_lu_solve</title>
+<path fill="none" stroke="#000000" d="M1606.55,-942.83C1639.32,-931.2 1690.29,-914.16 1735.62,-903.42 1771,-895.04 1811.32,-888.61 1843.15,-884.24"/>
+<polygon fill="#000000" stroke="#000000" points="1843.52,-887.72 1852.96,-882.92 1842.59,-880.78 1843.52,-887.72"/>
+</g>
+<!-- proc~factor_middle_matrix -->
+<g id="proc~~trust_region_step~~CallsGraph_node24" class="node">
+<title>proc~factor_middle_matrix</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node24"><a xlink:href="../proc/factor_middle_matrix.html" xlink:title="factor_middle_matrix">
+<polygon fill="#d9534f" stroke="#d9534f" points="2327.54,-741.55 2202.77,-741.55 2202.77,-717.28 2327.54,-717.28 2327.54,-741.55"/>
+<text xml:space="preserve" text-anchor="middle" x="2265.15" y="-725.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">factor_middle_matrix</text>
+</a>
+</g>
+</g>
+<!-- proc~hessian_vector_product&#45;&gt;proc~factor_middle_matrix -->
+<g id="proc~~trust_region_step~~CallsGraph_edge24" class="edge">
+<title>proc~hessian_vector_product&#45;&gt;proc~factor_middle_matrix</title>
+<path fill="none" stroke="#000000" d="M1699.9,-944.56C1834.94,-932.46 2033.04,-912.72 2065.89,-898.42 2144.65,-864.15 2215.66,-787.72 2247.08,-750.54"/>
+<polygon fill="#000000" stroke="#000000" points="2249.52,-753.08 2253.22,-743.15 2244.14,-748.6 2249.52,-753.08"/>
+</g>
+<!-- proc~pair_col -->
+<g id="proc~~trust_region_step~~CallsGraph_node29" class="node">
+<title>proc~pair_col</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node29"><a xlink:href="../proc/pair_col.html" xlink:title="pair_col">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="2826.93,-849.55 2772.93,-849.55 2772.93,-825.28 2826.93,-825.28 2826.93,-849.55"/>
+<text xml:space="preserve" text-anchor="middle" x="2799.93" y="-833.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">pair_col</text>
+</a>
+</g>
+</g>
+<!-- proc~hessian_vector_product&#45;&gt;proc~pair_col -->
+<g id="proc~~trust_region_step~~CallsGraph_edge25" class="edge">
+<title>proc~hessian_vector_product&#45;&gt;proc~pair_col</title>
+<path fill="none" stroke="#000000" d="M1699.97,-952.07C1799.73,-948.88 1941.77,-943.11 2065.89,-933.42 2365.08,-910.06 2444,-923.6 2736.93,-858.42 2745.09,-856.6 2753.68,-854.1 2761.78,-851.45"/>
+<polygon fill="#000000" stroke="#000000" points="2762.68,-854.84 2771,-848.29 2760.41,-848.22 2762.68,-854.84"/>
+</g>
+<!-- proc~fmt_i -->
+<g id="proc~~trust_region_step~~CallsGraph_node25" class="node">
+<title>proc~fmt_i</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node25"><a xlink:href="../proc/fmt_i.html" xlink:title="fmt_i">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="725.93,-85.55 671.93,-85.55 671.93,-61.28 725.93,-61.28 725.93,-85.55"/>
+<text xml:space="preserve" text-anchor="middle" x="698.93" y="-69.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">fmt_i</text>
+</a>
+</g>
+</g>
+<!-- proc~qp_status_text&#45;&gt;proc~fmt_i -->
+<g id="proc~~trust_region_step~~CallsGraph_edge26" class="edge">
+<title>proc~qp_status_text&#45;&gt;proc~fmt_i</title>
+<path fill="none" stroke="#000000" d="M452.62,-73.42C508.72,-73.42 606.69,-73.42 660.27,-73.42"/>
+<polygon fill="#000000" stroke="#000000" points="660.12,-76.92 670.12,-73.42 660.12,-69.92 660.12,-76.92"/>
+</g>
+<!-- proc~soc_step&#45;&gt;proc~sparse_matvec -->
+<g id="proc~~trust_region_step~~CallsGraph_edge29" class="edge">
+<title>proc~soc_step&#45;&gt;proc~sparse_matvec</title>
+<path fill="none" stroke="#000000" d="M719.28,-225.86C748.56,-244.04 806.43,-277.54 860.31,-294.42 890.21,-303.79 924.78,-308.98 953.15,-311.86"/>
+<polygon fill="#000000" stroke="#000000" points="952.7,-315.34 962.98,-312.79 953.35,-308.37 952.7,-315.34"/>
+</g>
+<!-- proc~soc_step&#45;&gt;proc~sqpopt_all_finite -->
+<g id="proc~~trust_region_step~~CallsGraph_edge30" class="edge">
+<title>proc~soc_step&#45;&gt;proc~sqpopt_all_finite</title>
+<path fill="none" stroke="#000000" d="M727.96,-220.85C802.34,-239.05 1009.37,-279.78 1161.33,-214.42 1182.7,-205.23 1175.96,-185.61 1197.33,-176.42 1282.87,-139.62 1313.87,-171.29 1406.85,-176.42 1701.1,-192.67 1773.5,-212.59 2065.89,-249.42 2112.66,-255.31 2165.52,-262.82 2204.88,-268.58"/>
+<polygon fill="#000000" stroke="#000000" points="2204.23,-272.02 2214.63,-270.01 2205.25,-265.09 2204.23,-272.02"/>
+</g>
+<!-- initialize -->
+<g id="proc~~trust_region_step~~CallsGraph_node20" class="node">
+<title>initialize</title>
+<polygon fill="#777777" stroke="#777777" points="1038.71,-205.55 982.94,-205.55 982.94,-181.28 1038.71,-181.28 1038.71,-205.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1010.82" y="-189.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">initialize</text>
+</g>
+<!-- proc~soc_step&#45;&gt;initialize -->
+<g id="proc~~trust_region_step~~CallsGraph_edge27" class="edge">
+<title>proc~soc_step&#45;&gt;initialize</title>
+<path fill="none" stroke="#000000" d="M727.97,-211.61C783.54,-208.02 907.71,-200.01 971.05,-195.92"/>
+<polygon fill="#000000" stroke="#000000" points="971.24,-199.42 980.99,-195.28 970.79,-192.43 971.24,-199.42"/>
+</g>
+<!-- proc~least_squares_min_norm -->
+<g id="proc~~trust_region_step~~CallsGraph_node27" class="node">
+<title>proc~least_squares_min_norm</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node27"><a xlink:href="../proc/least_squares_min_norm.html" xlink:title="sqpopt_least_squares_type%least_squares_min_norm">
+<polygon fill="#d9534f" stroke="#d9534f" points="1157.96,-285.55 863.69,-285.55 863.69,-261.28 1157.96,-261.28 1157.96,-285.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1010.82" y="-269.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_least_squares_type%least_squares_min_norm</text>
+</a>
+</g>
+</g>
+<!-- proc~soc_step&#45;&gt;proc~least_squares_min_norm -->
+<g id="proc~~trust_region_step~~CallsGraph_edge28" class="edge">
+<title>proc~soc_step&#45;&gt;proc~least_squares_min_norm</title>
+<path fill="none" stroke="#000000" d="M727.96,-219.69C759.93,-226.76 813.78,-238.44 860.31,-247.42 880.5,-251.31 902.28,-255.25 922.79,-258.84"/>
+<polygon fill="#000000" stroke="#000000" points="922.1,-262.27 932.55,-260.54 923.3,-255.38 922.1,-262.27"/>
+</g>
+<!-- rhs_all -->
+<g id="proc~~trust_region_step~~CallsGraph_node34" class="node">
+<title>rhs_all</title>
+<polygon fill="#777777" stroke="#777777" points="1037.82,-163.55 983.82,-163.55 983.82,-139.28 1037.82,-139.28 1037.82,-163.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1010.82" y="-147.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">rhs_all</text>
+</g>
+<!-- proc~soc_step&#45;&gt;rhs_all -->
+<g id="proc~~trust_region_step~~CallsGraph_edge31" class="edge">
+<title>proc~soc_step&#45;&gt;rhs_all</title>
+<path fill="none" stroke="#000000" d="M727.81,-205.29C759.64,-196.24 813.36,-181.69 860.31,-172.42 898.11,-164.96 941.79,-159.14 972.14,-155.54"/>
+<polygon fill="#000000" stroke="#000000" points="972.44,-159.03 981.97,-154.4 971.63,-152.08 972.44,-159.03"/>
+</g>
+<!-- selected -->
+<g id="proc~~trust_region_step~~CallsGraph_node35" class="node">
+<title>selected</title>
+<polygon fill="#777777" stroke="#777777" points="1039.08,-121.55 982.56,-121.55 982.56,-97.28 1039.08,-97.28 1039.08,-121.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1010.82" y="-105.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">selected</text>
+</g>
+<!-- proc~soc_step&#45;&gt;selected -->
+<g id="proc~~trust_region_step~~CallsGraph_edge32" class="edge">
+<title>proc~soc_step&#45;&gt;selected</title>
+<path fill="none" stroke="#000000" d="M723.26,-200.79C764.22,-178.7 846.08,-134.95 860.31,-130.42 896.69,-118.82 940.07,-113.63 970.71,-111.3"/>
+<polygon fill="#000000" stroke="#000000" points="970.95,-114.79 980.69,-110.62 970.47,-107.81 970.95,-114.79"/>
+</g>
+<!-- solve -->
+<g id="proc~~trust_region_step~~CallsGraph_node36" class="node">
+<title>solve</title>
+<polygon fill="#777777" stroke="#777777" points="1037.82,-79.55 983.82,-79.55 983.82,-55.28 1037.82,-55.28 1037.82,-79.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1010.82" y="-63.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">solve</text>
+</g>
+<!-- proc~soc_step&#45;&gt;solve -->
+<g id="proc~~trust_region_step~~CallsGraph_edge33" class="edge">
+<title>proc~soc_step&#45;&gt;solve</title>
+<path fill="none" stroke="#000000" d="M728.03,-203.55C755.14,-192.95 796.1,-173.98 824.31,-147.42 846.67,-126.36 834.64,-105.29 860.31,-88.42 893.58,-66.57 939.98,-63.25 972.24,-64.17"/>
+<polygon fill="#000000" stroke="#000000" points="971.77,-67.65 981.92,-64.6 972.08,-60.66 971.77,-67.65"/>
+</g>
+<!-- proc~solve_qp_subproblem&#45;&gt;proc~sparse_matvec -->
+<g id="proc~~trust_region_step~~CallsGraph_edge38" class="edge">
+<title>proc~solve_qp_subproblem&#45;&gt;proc~sparse_matvec</title>
+<path fill="none" stroke="#000000" d="M414.13,-615.79C428.1,-573.71 479.27,-437.51 573.54,-377.42 605.04,-357.34 842.48,-331.8 953.24,-320.83"/>
+<polygon fill="#000000" stroke="#000000" points="953.4,-324.33 963.01,-319.87 952.71,-317.37 953.4,-324.33"/>
+</g>
+<!-- proc~solve_qp_subproblem&#45;&gt;proc~sqpopt_all_finite -->
+<g id="proc~~trust_region_step~~CallsGraph_edge39" class="edge">
+<title>proc~solve_qp_subproblem&#45;&gt;proc~sqpopt_all_finite</title>
+<path fill="none" stroke="#000000" d="M422.2,-615.94C447.88,-589.9 510.82,-529.19 573.54,-492.42 691.3,-423.38 727.11,-412.27 860.31,-382.42 1122.83,-323.59 1972.08,-288.29 2204.74,-279.56"/>
+<polygon fill="#000000" stroke="#000000" points="2204.61,-283.06 2214.48,-279.19 2204.35,-276.07 2204.61,-283.06"/>
+</g>
+<!-- proc~direct_qp_step -->
+<g id="proc~~trust_region_step~~CallsGraph_node23" class="node">
+<title>proc~direct_qp_step</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node23"><a xlink:href="../proc/direct_qp_step.html" xlink:title="direct_qp_step">
+<polygon fill="#d9534f" stroke="#d9534f" points="742.94,-525.55 654.92,-525.55 654.92,-501.28 742.94,-501.28 742.94,-525.55"/>
+<text xml:space="preserve" text-anchor="middle" x="698.93" y="-509.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">direct_qp_step</text>
+</a>
+</g>
+</g>
+<!-- proc~solve_qp_subproblem&#45;&gt;proc~direct_qp_step -->
+<g id="proc~~trust_region_step~~CallsGraph_edge34" class="edge">
+<title>proc~solve_qp_subproblem&#45;&gt;proc~direct_qp_step</title>
+<path fill="none" stroke="#000000" d="M441.5,-615.89C493.5,-595.11 597.65,-553.49 655.95,-530.2"/>
+<polygon fill="#000000" stroke="#000000" points="657.23,-533.45 665.21,-526.49 654.63,-526.95 657.23,-533.45"/>
+</g>
+<!-- proc~hessian_inverse_vector_product -->
+<g id="proc~~trust_region_step~~CallsGraph_node26" class="node">
+<title>proc~hessian_inverse_vector_product</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node26"><a xlink:href="../proc/hessian_inverse_vector_product.html" xlink:title="sqpopt_hessian_type%hessian_inverse_vector_product">
+<polygon fill="#d9534f" stroke="#d9534f" points="1161.33,-996.55 860.31,-996.55 860.31,-972.28 1161.33,-972.28 1161.33,-996.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1010.82" y="-980.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_inverse_vector_product</text>
+</a>
+</g>
+</g>
+<!-- proc~solve_qp_subproblem&#45;&gt;proc~hessian_inverse_vector_product -->
+<g id="proc~~trust_region_step~~CallsGraph_edge35" class="edge">
+<title>proc~solve_qp_subproblem&#45;&gt;proc~hessian_inverse_vector_product</title>
+<path fill="none" stroke="#000000" d="M516.89,-640.95C524.36,-644.53 531.37,-648.96 537.54,-654.42 575.14,-687.65 535.74,-728.42 573.54,-761.42 659.03,-836.05 742.46,-730.82 824.31,-809.42 875.01,-858.1 808.42,-916.01 860.31,-963.42 860.96,-964.02 861.62,-964.6 862.3,-965.17"/>
+<polygon fill="#000000" stroke="#000000" points="860.12,-967.92 870.24,-971.07 864.29,-962.3 860.12,-967.92"/>
+</g>
+<!-- proc~resolved_mode -->
+<g id="proc~~trust_region_step~~CallsGraph_node31" class="node">
+<title>proc~resolved_mode</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node31"><a xlink:href="../proc/resolved_mode.html" xlink:title="resolved_mode">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="1348.35,-681.55 1255.83,-681.55 1255.83,-657.28 1348.35,-657.28 1348.35,-681.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1302.09" y="-665.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">resolved_mode</text>
+</a>
+</g>
+</g>
+<!-- proc~solve_qp_subproblem&#45;&gt;proc~resolved_mode -->
+<g id="proc~~trust_region_step~~CallsGraph_edge36" class="edge">
+<title>proc~solve_qp_subproblem&#45;&gt;proc~resolved_mode</title>
+<path fill="none" stroke="#000000" d="M474.75,-641.03C494.9,-645.12 517.18,-649.8 537.54,-654.42 553.62,-658.07 557.28,-660.64 573.54,-663.42 831.31,-707.52 900.54,-709.9 1161.33,-690.42 1188.7,-688.37 1218.84,-684.11 1244.1,-679.95"/>
+<polygon fill="#000000" stroke="#000000" points="1244.56,-683.42 1253.84,-678.31 1243.4,-676.52 1244.56,-683.42"/>
+</g>
+<!-- proc~solve_dense_qp -->
+<g id="proc~~trust_region_step~~CallsGraph_node32" class="node">
+<title>proc~solve_dense_qp</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node32"><a xlink:href="../proc/solve_dense_qp.html" xlink:title="sqpopt_dense_qp_type%solve_dense_qp">
+<polygon fill="#d9534f" stroke="#d9534f" points="1123.83,-954.55 897.81,-954.55 897.81,-930.28 1123.83,-930.28 1123.83,-954.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1010.82" y="-938.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_dense_qp_type%solve_dense_qp</text>
+</a>
+</g>
+</g>
+<!-- proc~solve_qp_subproblem&#45;&gt;proc~solve_dense_qp -->
+<g id="proc~~trust_region_step~~CallsGraph_edge37" class="edge">
+<title>proc~solve_qp_subproblem&#45;&gt;proc~solve_dense_qp</title>
+<path fill="none" stroke="#000000" d="M513.46,-640.98C522.06,-644.51 530.24,-648.92 537.54,-654.42 565.17,-675.23 545.79,-702.78 573.54,-723.42 664.59,-791.14 722.98,-720.34 824.31,-771.42 898.27,-808.7 964.19,-884.21 993.59,-921.13"/>
+<polygon fill="#000000" stroke="#000000" points="990.72,-923.14 999.64,-928.85 996.23,-918.82 990.72,-923.14"/>
+</g>
+<!-- proc~starting_working_set -->
+<g id="proc~~trust_region_step~~CallsGraph_node33" class="node">
+<title>proc~starting_working_set</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node33"><a xlink:href="../proc/starting_working_set.html" xlink:title="sqpopt_qp_solver_type%starting_working_set">
+<polygon fill="#d9534f" stroke="#d9534f" points="824.31,-654.55 573.54,-654.55 573.54,-630.28 824.31,-630.28 824.31,-654.55"/>
+<text xml:space="preserve" text-anchor="middle" x="698.93" y="-638.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qp_solver_type%starting_working_set</text>
+</a>
+</g>
+</g>
+<!-- proc~solve_qp_subproblem&#45;&gt;proc~starting_working_set -->
+<g id="proc~~trust_region_step~~CallsGraph_edge40" class="edge">
+<title>proc~solve_qp_subproblem&#45;&gt;proc~starting_working_set</title>
+<path fill="none" stroke="#000000" d="M537.63,-634.62C545.7,-635.01 553.85,-635.41 561.96,-635.8"/>
+<polygon fill="#000000" stroke="#000000" points="561.72,-639.3 571.87,-636.29 562.06,-632.31 561.72,-639.3"/>
+</g>
+<!-- proc~direct_qp_step&#45;&gt;proc~hessian_vector_product -->
+<g id="proc~~trust_region_step~~CallsGraph_edge42" class="edge">
+<title>proc~direct_qp_step&#45;&gt;proc~hessian_vector_product</title>
+<path fill="none" stroke="#000000" d="M719.25,-525.79C748.5,-543.83 806.32,-576.9 860.31,-592.42 918.98,-609.28 1356.19,-614.36 1406.85,-648.42 1509.53,-717.45 1552.51,-872.68 1565.58,-931.88"/>
+<polygon fill="#000000" stroke="#000000" points="1562.12,-932.44 1567.61,-941.5 1568.97,-931 1562.12,-932.44"/>
+</g>
+<!-- proc~direct_qp_step&#45;&gt;proc~sparse_matvec -->
+<g id="proc~~trust_region_step~~CallsGraph_edge46" class="edge">
+<title>proc~direct_qp_step&#45;&gt;proc~sparse_matvec</title>
+<path fill="none" stroke="#000000" d="M712.24,-500.92C737.88,-475.4 799.69,-416.61 860.31,-379.42 892.36,-359.76 931.51,-343.24 961.71,-331.91"/>
+<polygon fill="#000000" stroke="#000000" points="962.81,-335.23 970.98,-328.5 960.39,-328.67 962.81,-335.23"/>
+</g>
+<!-- proc~direct_qp_step&#45;&gt;proc~sqpopt_all_finite -->
+<g id="proc~~trust_region_step~~CallsGraph_edge48" class="edge">
+<title>proc~direct_qp_step&#45;&gt;proc~sqpopt_all_finite</title>
+<path fill="none" stroke="#000000" d="M716.1,-500.89C743.81,-480.23 802.96,-439.59 860.31,-422.42 1048.39,-366.11 1104.76,-393.42 1301.09,-393.42 1301.09,-393.42 1301.09,-393.42 1572.24,-393.42 1793.36,-393.42 1848.97,-374.36 2065.89,-331.42 2116.8,-321.34 2173.88,-305.28 2213.67,-293.29"/>
+<polygon fill="#000000" stroke="#000000" points="2214.67,-296.64 2223.22,-290.38 2212.63,-289.94 2214.67,-296.64"/>
+</g>
+<!-- proc~hessian_size -->
+<g id="proc~~trust_region_step~~CallsGraph_node52" class="node">
+<title>proc~hessian_size</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node52"><a xlink:href="../proc/hessian_size.html" xlink:title="sqpopt_hessian_type%hessian_size">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="1670,-651.55 1472.48,-651.55 1472.48,-627.28 1670,-627.28 1670,-651.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1571.24" y="-635.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_size</text>
+</a>
+</g>
+</g>
+<!-- proc~direct_qp_step&#45;&gt;proc~hessian_size -->
+<g id="proc~~trust_region_step~~CallsGraph_edge41" class="edge">
+<title>proc~direct_qp_step&#45;&gt;proc~hessian_size</title>
+<path fill="none" stroke="#000000" d="M735.76,-525.99C767.96,-536.79 816.74,-551.92 860.31,-560.42 1099.93,-607.17 1164.56,-585.45 1406.85,-615.42 1429.96,-618.28 1454.85,-621.74 1478.06,-625.13"/>
+<polygon fill="#000000" stroke="#000000" points="1477.41,-628.57 1487.81,-626.57 1478.43,-621.65 1477.41,-628.57"/>
+</g>
+<!-- proc~inertia_correct -->
+<g id="proc~~trust_region_step~~CallsGraph_node53" class="node">
+<title>proc~inertia_correct</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node53"><a xlink:href="../proc/inertia_correct.html" xlink:title="sqpopt_inertia_type%inertia_correct">
+<polygon fill="#d9534f" stroke="#d9534f" points="1112.21,-483.55 909.44,-483.55 909.44,-459.28 1112.21,-459.28 1112.21,-483.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1010.82" y="-467.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_inertia_type%inertia_correct</text>
+</a>
+</g>
+</g>
+<!-- proc~direct_qp_step&#45;&gt;proc~inertia_correct -->
+<g id="proc~~trust_region_step~~CallsGraph_edge43" class="edge">
+<title>proc~direct_qp_step&#45;&gt;proc~inertia_correct</title>
+<path fill="none" stroke="#000000" d="M743.34,-507.54C785.18,-501.86 850.11,-493.06 905.4,-485.57"/>
+<polygon fill="#000000" stroke="#000000" points="905.74,-489.06 915.18,-484.25 904.8,-482.12 905.74,-489.06"/>
+</g>
+<!-- proc~kkt_factor -->
+<g id="proc~~trust_region_step~~CallsGraph_node54" class="node">
+<title>proc~kkt_factor</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node54"><a xlink:href="../proc/kkt_factor.html" xlink:title="sqpopt_kkt_type%kkt_factor">
+<polygon fill="#d9534f" stroke="#d9534f" points="1381.73,-445.55 1222.46,-445.55 1222.46,-421.28 1381.73,-421.28 1381.73,-445.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1302.09" y="-429.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_kkt_type%kkt_factor</text>
+</a>
+</g>
+</g>
+<!-- proc~direct_qp_step&#45;&gt;proc~kkt_factor -->
+<g id="proc~~trust_region_step~~CallsGraph_edge44" class="edge">
+<title>proc~direct_qp_step&#45;&gt;proc~kkt_factor</title>
+<path fill="none" stroke="#000000" d="M724.4,-500.8C755.18,-485.64 810.09,-460.93 860.31,-450.42 979.63,-425.43 1121,-424.95 1210.85,-428.15"/>
+<polygon fill="#000000" stroke="#000000" points="1210.46,-431.64 1220.58,-428.53 1210.72,-424.65 1210.46,-431.64"/>
+</g>
+<!-- proc~kkt_solve -->
+<g id="proc~~trust_region_step~~CallsGraph_node56" class="node">
+<title>proc~kkt_solve</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node56"><a xlink:href="../proc/kkt_solve.html" xlink:title="sqpopt_kkt_type%kkt_solve">
+<polygon fill="#d9534f" stroke="#d9534f" points="1649,-609.55 1493.48,-609.55 1493.48,-585.28 1649,-585.28 1649,-609.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1571.24" y="-593.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_kkt_type%kkt_solve</text>
+</a>
+</g>
+</g>
+<!-- proc~direct_qp_step&#45;&gt;proc~kkt_solve -->
+<g id="proc~~trust_region_step~~CallsGraph_edge45" class="edge">
+<title>proc~direct_qp_step&#45;&gt;proc~kkt_solve</title>
+<path fill="none" stroke="#000000" d="M743.42,-519.73C775.64,-524.26 820.65,-530.27 860.31,-534.42 1102.64,-559.8 1164.41,-553.06 1406.85,-577.42 1431.15,-579.86 1457.44,-582.9 1481.67,-585.87"/>
+<polygon fill="#000000" stroke="#000000" points="1481.16,-589.33 1491.52,-587.09 1482.02,-582.39 1481.16,-589.33"/>
+</g>
+<!-- proc~sparse_matvec_transpose -->
+<g id="proc~~trust_region_step~~CallsGraph_node60" class="node">
+<title>proc~sparse_matvec_transpose</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node60"><a xlink:href="../proc/sparse_matvec_transpose.html" xlink:title="sparse_matvec_transpose">
+<polygon fill="#d9534f" stroke="#d9534f" points="1085.58,-525.55 936.06,-525.55 936.06,-501.28 1085.58,-501.28 1085.58,-525.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1010.82" y="-509.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sparse_matvec_transpose</text>
+</a>
+</g>
+</g>
+<!-- proc~direct_qp_step&#45;&gt;proc~sparse_matvec_transpose -->
+<g id="proc~~trust_region_step~~CallsGraph_edge47" class="edge">
+<title>proc~direct_qp_step&#45;&gt;proc~sparse_matvec_transpose</title>
+<path fill="none" stroke="#000000" d="M743.34,-513.42C790.03,-513.42 865.47,-513.42 924.19,-513.42"/>
+<polygon fill="#000000" stroke="#000000" points="924.18,-516.92 934.18,-513.42 924.18,-509.92 924.18,-516.92"/>
+</g>
+<!-- proc~dense_lu_factor -->
+<g id="proc~~trust_region_step~~CallsGraph_node46" class="node">
+<title>proc~dense_lu_factor</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node46"><a xlink:href="../proc/dense_lu_factor.html" xlink:title="dense_lu_factor">
+<polygon fill="#d9534f" stroke="#d9534f" points="2648.43,-741.55 2552.91,-741.55 2552.91,-717.28 2648.43,-717.28 2648.43,-741.55"/>
+<text xml:space="preserve" text-anchor="middle" x="2600.67" y="-725.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">dense_lu_factor</text>
+</a>
+</g>
+</g>
+<!-- proc~factor_middle_matrix&#45;&gt;proc~dense_lu_factor -->
+<g id="proc~~trust_region_step~~CallsGraph_edge49" class="edge">
+<title>proc~factor_middle_matrix&#45;&gt;proc~dense_lu_factor</title>
+<path fill="none" stroke="#000000" d="M2327.71,-729.42C2388.72,-729.42 2481.47,-729.42 2541.32,-729.42"/>
+<polygon fill="#000000" stroke="#000000" points="2540.96,-732.92 2550.96,-729.42 2540.96,-725.92 2540.96,-732.92"/>
+</g>
+<!-- proc~middle_matrix -->
+<g id="proc~~trust_region_step~~CallsGraph_node57" class="node">
+<title>proc~middle_matrix</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node57"><a xlink:href="../proc/middle_matrix.html" xlink:title="middle_matrix">
+<polygon fill="#d9534f" stroke="#d9534f" points="2644.68,-699.55 2556.66,-699.55 2556.66,-675.28 2644.68,-675.28 2644.68,-699.55"/>
+<text xml:space="preserve" text-anchor="middle" x="2600.67" y="-683.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">middle_matrix</text>
+</a>
+</g>
+</g>
+<!-- proc~factor_middle_matrix&#45;&gt;proc~middle_matrix -->
+<g id="proc~~trust_region_step~~CallsGraph_edge50" class="edge">
+<title>proc~factor_middle_matrix&#45;&gt;proc~middle_matrix</title>
+<path fill="none" stroke="#000000" d="M2327.71,-721.67C2390.13,-713.81 2485.78,-701.76 2545.43,-694.25"/>
+<polygon fill="#000000" stroke="#000000" points="2545.51,-697.77 2555,-693.04 2544.64,-690.82 2545.51,-697.77"/>
+</g>
+<!-- proc~hessian_inverse_vector_product&#45;&gt;proc~pair_col -->
+<g id="proc~~trust_region_step~~CallsGraph_edge52" class="edge">
+<title>proc~hessian_inverse_vector_product&#45;&gt;proc~pair_col</title>
+<path fill="none" stroke="#000000" d="M1085.38,-996.94C1113.3,-1005.44 1142.8,-1019.65 1161.33,-1043.42 1237.65,-1141.33 1106.18,-1236.14 1197.33,-1320.42 1319.18,-1433.08 1404.28,-1339.42 1570.24,-1339.42 1570.24,-1339.42 1570.24,-1339.42 2266.15,-1339.42 2528.74,-1339.42 2575.3,-1189.38 2736.93,-982.42 2766.39,-944.7 2784.52,-890.89 2793.06,-860.55"/>
+<polygon fill="#000000" stroke="#000000" points="2796.34,-861.82 2795.57,-851.26 2789.59,-860 2796.34,-861.82"/>
+</g>
+<!-- proc~hessian_cg_solve -->
+<g id="proc~~trust_region_step~~CallsGraph_node50" class="node">
+<title>proc~hessian_cg_solve</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node50"><a xlink:href="../proc/hessian_cg_solve.html" xlink:title="hessian_cg_solve">
+<polygon fill="#d9534f" stroke="#d9534f" points="1353.6,-1311.55 1250.58,-1311.55 1250.58,-1287.28 1353.6,-1287.28 1353.6,-1311.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1302.09" y="-1295.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">hessian_cg_solve</text>
+</a>
+</g>
+</g>
+<!-- proc~hessian_inverse_vector_product&#45;&gt;proc~hessian_cg_solve -->
+<g id="proc~~trust_region_step~~CallsGraph_edge51" class="edge">
+<title>proc~hessian_inverse_vector_product&#45;&gt;proc~hessian_cg_solve</title>
+<path fill="none" stroke="#000000" d="M1144.18,-996.9C1150.43,-1000.64 1156.22,-1005.1 1161.33,-1010.42 1244.65,-1097.03 1115.21,-1190.67 1197.33,-1278.42 1208.14,-1289.97 1223.42,-1296.13 1238.94,-1299.21"/>
+<polygon fill="#000000" stroke="#000000" points="1238.3,-1302.66 1248.72,-1300.72 1239.37,-1295.74 1238.3,-1302.66"/>
+</g>
+<!-- proc~least_squares_min_norm&#45;&gt;proc~sqpopt_all_finite -->
+<g id="proc~~trust_region_step~~CallsGraph_edge56" class="edge">
+<title>proc~least_squares_min_norm&#45;&gt;proc~sqpopt_all_finite</title>
+<path fill="none" stroke="#000000" d="M1131.96,-260.8C1153.69,-258.97 1176.17,-257.39 1197.33,-256.42 1581.13,-238.87 2043.25,-263.54 2204.89,-273.54"/>
+<polygon fill="#000000" stroke="#000000" points="2204.3,-277.01 2214.5,-274.14 2204.73,-270.02 2204.3,-277.01"/>
+</g>
+<!-- proc~kkt_factor_identity -->
+<g id="proc~~trust_region_step~~CallsGraph_node55" class="node">
+<title>proc~kkt_factor_identity</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node55"><a xlink:href="../proc/kkt_factor_identity.html" xlink:title="sqpopt_kkt_type%kkt_factor_identity">
+<polygon fill="#d9534f" stroke="#d9534f" points="1404.23,-289.55 1199.96,-289.55 1199.96,-265.28 1404.23,-265.28 1404.23,-289.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1302.09" y="-273.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_kkt_type%kkt_factor_identity</text>
+</a>
+</g>
+</g>
+<!-- proc~least_squares_min_norm&#45;&gt;proc~kkt_factor_identity -->
+<g id="proc~~trust_region_step~~CallsGraph_edge53" class="edge">
+<title>proc~least_squares_min_norm&#45;&gt;proc~kkt_factor_identity</title>
+<path fill="none" stroke="#000000" d="M1158.15,-275.44C1168.22,-275.58 1178.28,-275.72 1188.14,-275.86"/>
+<polygon fill="#000000" stroke="#000000" points="1188.04,-279.36 1198.09,-275.99 1188.14,-272.36 1188.04,-279.36"/>
+</g>
+<!-- proc~least_squares_min_norm&#45;&gt;proc~kkt_solve -->
+<g id="proc~~trust_region_step~~CallsGraph_edge54" class="edge">
+<title>proc~least_squares_min_norm&#45;&gt;proc~kkt_solve</title>
+<path fill="none" stroke="#000000" d="M1127.29,-285.98C1138.9,-288.33 1150.42,-291.12 1161.33,-294.42 1277.21,-329.48 1331.72,-317.48 1406.85,-412.42 1453.16,-470.94 1388.71,-525.06 1442.85,-576.42 1453.67,-586.68 1467.47,-593.03 1481.97,-596.8"/>
+<polygon fill="#000000" stroke="#000000" points="1481.17,-600.21 1491.68,-598.89 1482.64,-593.37 1481.17,-600.21"/>
+</g>
+<!-- proc~regularization -->
+<g id="proc~~trust_region_step~~CallsGraph_node58" class="node">
+<title>proc~regularization</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node58"><a xlink:href="../proc/regularization.html" xlink:title="regularization">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="1344.6,-209.55 1259.58,-209.55 1259.58,-185.28 1344.6,-185.28 1344.6,-209.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1302.09" y="-193.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">regularization</text>
+</a>
+</g>
+</g>
+<!-- proc~least_squares_min_norm&#45;&gt;proc~regularization -->
+<g id="proc~~trust_region_step~~CallsGraph_edge55" class="edge">
+<title>proc~least_squares_min_norm&#45;&gt;proc~regularization</title>
+<path fill="none" stroke="#000000" d="M1117.11,-260.81C1132.24,-257.37 1147.38,-252.99 1161.33,-247.42 1179.19,-240.28 1179.75,-231.2 1197.33,-223.42 1213.2,-216.4 1231.3,-211.03 1247.9,-207.06"/>
+<polygon fill="#000000" stroke="#000000" points="1248.65,-210.48 1257.63,-204.86 1247.1,-203.65 1248.65,-210.48"/>
+</g>
+<!-- proc~reset_evaluations -->
+<g id="proc~~trust_region_step~~CallsGraph_node59" class="node">
+<title>proc~reset_evaluations</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node59"><a xlink:href="../proc/reset_evaluations.html" xlink:title="sqpopt_problem_type%reset_evaluations">
+<polygon fill="#d9534f" stroke="#d9534f" points="1124.96,-1076.55 896.69,-1076.55 896.69,-1052.28 1124.96,-1052.28 1124.96,-1076.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1010.82" y="-1060.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_problem_type%reset_evaluations</text>
+</a>
+</g>
+</g>
+<!-- proc~raw_fc&#45;&gt;proc~reset_evaluations -->
+<g id="proc~~trust_region_step~~CallsGraph_edge57" class="edge">
+<title>proc~raw_fc&#45;&gt;proc~reset_evaluations</title>
+<path fill="none" stroke="#000000" d="M726.35,-1054.36C761.55,-1055.61 826.23,-1057.9 884.92,-1059.99"/>
+<polygon fill="#000000" stroke="#000000" points="884.56,-1063.48 894.67,-1060.33 884.8,-1056.48 884.56,-1063.48"/>
+</g>
+<!-- proc~wall_time -->
+<g id="proc~~trust_region_step~~CallsGraph_node61" class="node">
+<title>proc~wall_time</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node61"><a xlink:href="../proc/wall_time.html" xlink:title="wall_time">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="1041.71,-1118.55 979.94,-1118.55 979.94,-1094.28 1041.71,-1094.28 1041.71,-1118.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1010.82" y="-1102.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">wall_time</text>
+</a>
+</g>
+</g>
+<!-- proc~raw_fc&#45;&gt;proc~wall_time -->
+<g id="proc~~trust_region_step~~CallsGraph_edge58" class="edge">
+<title>proc~raw_fc&#45;&gt;proc~wall_time</title>
+<path fill="none" stroke="#000000" d="M726.23,-1059.15C757.93,-1065.94 812.86,-1077.36 860.31,-1085.42 896.7,-1091.6 938.29,-1097.33 968.35,-1101.24"/>
+<polygon fill="#000000" stroke="#000000" points="967.81,-1104.7 978.17,-1102.51 968.7,-1097.76 967.81,-1104.7"/>
+</g>
+<!-- coeff_local -->
+<g id="proc~~trust_region_step~~CallsGraph_node37" class="node">
+<title>coeff_local</title>
+<polygon fill="#777777" stroke="#777777" points="1336.73,-1059.55 1267.46,-1059.55 1267.46,-1035.28 1336.73,-1035.28 1336.73,-1059.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1302.09" y="-1043.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">coeff_local</text>
+</g>
+<!-- proc~solve_dense_qp&#45;&gt;coeff_local -->
+<g id="proc~~trust_region_step~~CallsGraph_edge59" class="edge">
+<title>proc~solve_dense_qp&#45;&gt;coeff_local</title>
+<path fill="none" stroke="#000000" d="M1124.22,-946.71C1137.43,-950.47 1150.16,-955.85 1161.33,-963.42 1188.03,-981.51 1171.19,-1007.53 1197.33,-1026.42 1214.19,-1038.6 1236.41,-1044.11 1255.97,-1046.48"/>
+<polygon fill="#000000" stroke="#000000" points="1255.63,-1049.96 1265.92,-1047.41 1256.29,-1042.99 1255.63,-1049.96"/>
+</g>
+<!-- correction -->
+<g id="proc~~trust_region_step~~CallsGraph_node38" class="node">
+<title>correction</title>
+<polygon fill="#777777" stroke="#777777" points="1334.85,-1017.55 1269.33,-1017.55 1269.33,-993.28 1334.85,-993.28 1334.85,-1017.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1302.09" y="-1001.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">correction</text>
+</g>
+<!-- proc~solve_dense_qp&#45;&gt;correction -->
+<g id="proc~~trust_region_step~~CallsGraph_edge60" class="edge">
+<title>proc~solve_dense_qp&#45;&gt;correction</title>
+<path fill="none" stroke="#000000" d="M1123.99,-953.32C1136.76,-955.98 1149.44,-959.3 1161.33,-963.42 1178.83,-969.49 1180.02,-977.83 1197.33,-984.42 1216.53,-991.73 1238.75,-996.66 1257.69,-999.9"/>
+<polygon fill="#000000" stroke="#000000" points="1257.08,-1003.34 1267.51,-1001.46 1258.18,-996.43 1257.08,-1003.34"/>
+</g>
+<!-- dcurv -->
+<g id="proc~~trust_region_step~~CallsGraph_node39" class="node">
+<title>dcurv</title>
+<polygon fill="#777777" stroke="#777777" points="1329.09,-975.55 1275.09,-975.55 1275.09,-951.28 1329.09,-951.28 1329.09,-975.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1302.09" y="-959.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">dcurv</text>
+</g>
+<!-- proc~solve_dense_qp&#45;&gt;dcurv -->
+<g id="proc~~trust_region_step~~CallsGraph_edge61" class="edge">
+<title>proc~solve_dense_qp&#45;&gt;dcurv</title>
+<path fill="none" stroke="#000000" d="M1124.07,-950.57C1173.44,-954.15 1228.12,-958.12 1263.45,-960.69"/>
+<polygon fill="#000000" stroke="#000000" points="1262.92,-964.16 1273.15,-961.39 1263.43,-957.18 1262.92,-964.16"/>
+</g>
+<!-- dp -->
+<g id="proc~~trust_region_step~~CallsGraph_node40" class="node">
+<title>dp</title>
+<polygon fill="#777777" stroke="#777777" points="1329.09,-933.55 1275.09,-933.55 1275.09,-909.28 1329.09,-909.28 1329.09,-933.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1302.09" y="-917.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">dp</text>
+</g>
+<!-- proc~solve_dense_qp&#45;&gt;dp -->
+<g id="proc~~trust_region_step~~CallsGraph_edge62" class="edge">
+<title>proc~solve_dense_qp&#45;&gt;dp</title>
+<path fill="none" stroke="#000000" d="M1124.07,-934.27C1173.44,-930.69 1228.12,-926.72 1263.45,-924.15"/>
+<polygon fill="#000000" stroke="#000000" points="1263.43,-927.66 1273.15,-923.45 1262.92,-920.68 1263.43,-927.66"/>
+</g>
+<!-- dz -->
+<g id="proc~~trust_region_step~~CallsGraph_node41" class="node">
+<title>dz</title>
+<polygon fill="#777777" stroke="#777777" points="1329.09,-891.55 1275.09,-891.55 1275.09,-867.28 1329.09,-867.28 1329.09,-891.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1302.09" y="-875.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">dz</text>
+</g>
+<!-- proc~solve_dense_qp&#45;&gt;dz -->
+<g id="proc~~trust_region_step~~CallsGraph_edge63" class="edge">
+<title>proc~solve_dense_qp&#45;&gt;dz</title>
+<path fill="none" stroke="#000000" d="M1065.73,-929.87C1102.71,-921.35 1152.93,-909.94 1197.33,-900.42 1219.16,-895.74 1243.64,-890.77 1263.33,-886.84"/>
+<polygon fill="#000000" stroke="#000000" points="1264,-890.28 1273.13,-884.9 1262.64,-883.41 1264,-890.28"/>
+</g>
+<!-- gram -->
+<g id="proc~~trust_region_step~~CallsGraph_node42" class="node">
+<title>gram</title>
+<polygon fill="#777777" stroke="#777777" points="1329.09,-849.55 1275.09,-849.55 1275.09,-825.28 1329.09,-825.28 1329.09,-849.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1302.09" y="-833.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">gram</text>
+</g>
+<!-- proc~solve_dense_qp&#45;&gt;gram -->
+<g id="proc~~trust_region_step~~CallsGraph_edge64" class="edge">
+<title>proc~solve_dense_qp&#45;&gt;gram</title>
+<path fill="none" stroke="#000000" d="M1034.86,-929.93C1069.29,-911.75 1136.6,-878.03 1197.33,-858.42 1218.82,-851.48 1243.59,-846.36 1263.53,-842.92"/>
+<polygon fill="#000000" stroke="#000000" points="1263.87,-846.41 1273.17,-841.33 1262.73,-839.5 1263.87,-846.41"/>
+</g>
+<!-- l_fac -->
+<g id="proc~~trust_region_step~~CallsGraph_node43" class="node">
+<title>l_fac</title>
+<polygon fill="#777777" stroke="#777777" points="1329.09,-807.55 1275.09,-807.55 1275.09,-783.28 1329.09,-783.28 1329.09,-807.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1302.09" y="-791.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">l_fac</text>
+</g>
+<!-- proc~solve_dense_qp&#45;&gt;l_fac -->
+<g id="proc~~trust_region_step~~CallsGraph_edge65" class="edge">
+<title>proc~solve_dense_qp&#45;&gt;l_fac</title>
+<path fill="none" stroke="#000000" d="M1025.57,-930.17C1054.89,-904.74 1126.63,-846.16 1197.33,-816.42 1218.29,-807.6 1243.22,-802.4 1263.4,-799.38"/>
+<polygon fill="#000000" stroke="#000000" points="1263.72,-802.87 1273.16,-798.05 1262.78,-795.94 1263.72,-802.87"/>
+</g>
+<!-- proc~build_active_set -->
+<g id="proc~~trust_region_step~~CallsGraph_node44" class="node">
+<title>proc~build_active_set</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node44"><a xlink:href="../proc/build_active_set.html" xlink:title="build_active_set">
+<polygon fill="#d9534f" stroke="#d9534f" points="1350.23,-765.55 1253.96,-765.55 1253.96,-741.28 1350.23,-741.28 1350.23,-765.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1302.09" y="-749.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">build_active_set</text>
+</a>
+</g>
+</g>
+<!-- proc~solve_dense_qp&#45;&gt;proc~build_active_set -->
+<g id="proc~~trust_region_step~~CallsGraph_edge66" class="edge">
+<title>proc~solve_dense_qp&#45;&gt;proc~build_active_set</title>
+<path fill="none" stroke="#000000" d="M1021.51,-929.86C1046.69,-898.15 1117.83,-814.58 1197.33,-774.42 1211.26,-767.38 1227.36,-762.7 1242.66,-759.59"/>
+<polygon fill="#000000" stroke="#000000" points="1242.92,-763.1 1252.13,-757.87 1241.66,-756.22 1242.92,-763.1"/>
+</g>
+<!-- proc~dense_cholesky_curvature -->
+<g id="proc~~trust_region_step~~CallsGraph_node45" class="node">
+<title>proc~dense_cholesky_curvature</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node45"><a xlink:href="../proc/dense_cholesky_curvature.html" xlink:title="dense_cholesky_curvature">
+<polygon fill="#d9534f" stroke="#d9534f" points="1377.98,-723.55 1226.21,-723.55 1226.21,-699.28 1377.98,-699.28 1377.98,-723.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1302.09" y="-707.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">dense_cholesky_curvature</text>
+</a>
+</g>
+</g>
+<!-- proc~solve_dense_qp&#45;&gt;proc~dense_cholesky_curvature -->
+<g id="proc~~trust_region_step~~CallsGraph_edge67" class="edge">
+<title>proc~solve_dense_qp&#45;&gt;proc~dense_cholesky_curvature</title>
+<path fill="none" stroke="#000000" d="M1018.76,-929.99C1040.05,-893.12 1108.43,-783.73 1197.33,-732.42 1202.94,-729.18 1208.97,-726.44 1215.2,-724.11"/>
+<polygon fill="#000000" stroke="#000000" points="1216.01,-727.53 1224.4,-721.06 1213.8,-720.89 1216.01,-727.53"/>
+</g>
+<!-- proc~dense_modified_cholesky -->
+<g id="proc~~trust_region_step~~CallsGraph_node47" class="node">
+<title>proc~dense_modified_cholesky</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node47"><a xlink:href="../proc/dense_modified_cholesky.html" xlink:title="dense_modified_cholesky">
+<polygon fill="#d9534f" stroke="#d9534f" points="1376.1,-1269.55 1228.08,-1269.55 1228.08,-1245.28 1376.1,-1245.28 1376.1,-1269.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1302.09" y="-1253.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">dense_modified_cholesky</text>
+</a>
+</g>
+</g>
+<!-- proc~solve_dense_qp&#45;&gt;proc~dense_modified_cholesky -->
+<g id="proc~~trust_region_step~~CallsGraph_edge68" class="edge">
+<title>proc~solve_dense_qp&#45;&gt;proc~dense_modified_cholesky</title>
+<path fill="none" stroke="#000000" d="M1124.07,-941.76C1138.03,-946.13 1150.99,-953 1161.33,-963.42 1247.5,-1050.32 1113.81,-1146.96 1197.33,-1236.42 1202.87,-1242.35 1209.59,-1246.87 1216.92,-1250.27"/>
+<polygon fill="#000000" stroke="#000000" points="1215.61,-1253.52 1226.2,-1253.83 1218.12,-1246.98 1215.61,-1253.52"/>
+</g>
+<!-- proc~dense_null_space -->
+<g id="proc~~trust_region_step~~CallsGraph_node48" class="node">
+<title>proc~dense_null_space</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node48"><a xlink:href="../proc/dense_null_space.html" xlink:title="dense_null_space">
+<polygon fill="#d9534f" stroke="#d9534f" points="1354.73,-1227.55 1249.46,-1227.55 1249.46,-1203.28 1354.73,-1203.28 1354.73,-1227.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1302.09" y="-1211.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">dense_null_space</text>
+</a>
+</g>
+</g>
+<!-- proc~solve_dense_qp&#45;&gt;proc~dense_null_space -->
+<g id="proc~~trust_region_step~~CallsGraph_edge69" class="edge">
+<title>proc~solve_dense_qp&#45;&gt;proc~dense_null_space</title>
+<path fill="none" stroke="#000000" d="M1124.22,-942.1C1138.07,-946.44 1150.97,-953.21 1161.33,-963.42 1235.35,-1036.34 1125.53,-1119.31 1197.33,-1194.42 1208.01,-1205.59 1222.87,-1211.69 1238.01,-1214.84"/>
+<polygon fill="#000000" stroke="#000000" points="1237.1,-1218.24 1247.53,-1216.4 1238.23,-1211.33 1237.1,-1218.24"/>
+</g>
+<!-- proc~dense_solve_cholesky -->
+<g id="proc~~trust_region_step~~CallsGraph_node49" class="node">
+<title>proc~dense_solve_cholesky</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node49"><a xlink:href="../proc/dense_solve_cholesky.html" xlink:title="dense_solve_cholesky">
+<polygon fill="#d9534f" stroke="#d9534f" points="1366.35,-1185.55 1237.83,-1185.55 1237.83,-1161.28 1366.35,-1161.28 1366.35,-1185.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1302.09" y="-1169.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">dense_solve_cholesky</text>
+</a>
+</g>
+</g>
+<!-- proc~solve_dense_qp&#45;&gt;proc~dense_solve_cholesky -->
+<g id="proc~~trust_region_step~~CallsGraph_edge70" class="edge">
+<title>proc~solve_dense_qp&#45;&gt;proc~dense_solve_cholesky</title>
+<path fill="none" stroke="#000000" d="M1124.29,-942.54C1138.04,-946.84 1150.89,-953.48 1161.33,-963.42 1223.25,-1022.39 1137.21,-1091.61 1197.33,-1152.42 1205.33,-1160.51 1215.52,-1165.91 1226.38,-1169.46"/>
+<polygon fill="#000000" stroke="#000000" points="1225.37,-1172.81 1235.94,-1172.02 1227.19,-1166.05 1225.37,-1172.81"/>
+</g>
+<!-- proc~hessian_dense -->
+<g id="proc~~trust_region_step~~CallsGraph_node51" class="node">
+<title>proc~hessian_dense</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node51"><a xlink:href="../proc/hessian_dense.html" xlink:title="sqpopt_hessian_type%hessian_dense">
+<polygon fill="#d9534f" stroke="#d9534f" points="1406.85,-1143.55 1197.33,-1143.55 1197.33,-1119.28 1406.85,-1119.28 1406.85,-1143.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1302.09" y="-1127.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_dense</text>
+</a>
+</g>
+</g>
+<!-- proc~solve_dense_qp&#45;&gt;proc~hessian_dense -->
+<g id="proc~~trust_region_step~~CallsGraph_edge71" class="edge">
+<title>proc~solve_dense_qp&#45;&gt;proc~hessian_dense</title>
+<path fill="none" stroke="#000000" d="M1124.19,-943.16C1137.87,-947.39 1150.73,-953.84 1161.33,-963.42 1211.22,-1008.53 1148.81,-1063.83 1197.33,-1110.42 1198.08,-1111.14 1198.86,-1111.85 1199.64,-1112.53"/>
+<polygon fill="#000000" stroke="#000000" points="1197.29,-1115.14 1207.44,-1118.15 1201.38,-1109.46 1197.29,-1115.14"/>
+</g>
+<!-- zthz -->
+<g id="proc~~trust_region_step~~CallsGraph_node63" class="node">
+<title>zthz</title>
+<polygon fill="#777777" stroke="#777777" points="1329.09,-1101.55 1275.09,-1101.55 1275.09,-1077.28 1329.09,-1077.28 1329.09,-1101.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1302.09" y="-1085.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">zthz</text>
+</g>
+<!-- proc~solve_dense_qp&#45;&gt;zthz -->
+<g id="proc~~trust_region_step~~CallsGraph_edge72" class="edge">
+<title>proc~solve_dense_qp&#45;&gt;zthz</title>
+<path fill="none" stroke="#000000" d="M1124.17,-944.3C1137.69,-948.38 1150.51,-954.49 1161.33,-963.42 1199.38,-994.82 1160.24,-1035.89 1197.33,-1068.42 1215.28,-1084.17 1241.74,-1089.34 1263.45,-1090.61"/>
+<polygon fill="#000000" stroke="#000000" points="1263.32,-1094.11 1273.42,-1090.92 1263.53,-1087.12 1263.32,-1094.11"/>
+</g>
+<!-- proc~working_set -->
+<g id="proc~~trust_region_step~~CallsGraph_node62" class="node">
+<title>proc~working_set</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node62"><a xlink:href="../proc/working_set.html" xlink:title="sqpopt_qp_solver_type%working_set">
+<polygon fill="#d9534f" stroke="#d9534f" points="1113.33,-681.55 908.31,-681.55 908.31,-657.28 1113.33,-657.28 1113.33,-681.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1010.82" y="-665.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qp_solver_type%working_set</text>
+</a>
+</g>
+</g>
+<!-- proc~starting_working_set&#45;&gt;proc~working_set -->
+<g id="proc~~trust_region_step~~CallsGraph_edge73" class="edge">
+<title>proc~starting_working_set&#45;&gt;proc~working_set</title>
+<path fill="none" stroke="#000000" d="M824.63,-653.28C848.48,-655.36 873.32,-657.53 896.78,-659.57"/>
+<polygon fill="#000000" stroke="#000000" points="896.4,-663.05 906.67,-660.43 897.01,-656.08 896.4,-663.05"/>
+</g>
+<!-- proc~hessian_cg_solve&#45;&gt;proc~hessian_vector_product -->
+<g id="proc~~trust_region_step~~CallsGraph_edge74" class="edge">
+<title>proc~hessian_cg_solve&#45;&gt;proc~hessian_vector_product</title>
+<path fill="none" stroke="#000000" d="M1353.84,-1298.18C1372.05,-1295.53 1391.79,-1289.89 1406.85,-1278.42 1509.73,-1200.03 1552.79,-1038.9 1565.72,-978.75"/>
+<polygon fill="#000000" stroke="#000000" points="1569.08,-979.8 1567.67,-969.3 1562.22,-978.38 1569.08,-979.8"/>
+</g>
+<!-- proc~hessian_dense&#45;&gt;proc~hessian_vector_product -->
+<g id="proc~~trust_region_step~~CallsGraph_edge76" class="edge">
+<title>proc~hessian_dense&#45;&gt;proc~hessian_vector_product</title>
+<path fill="none" stroke="#000000" d="M1392.15,-1118.81C1397.33,-1116.44 1402.28,-1113.67 1406.85,-1110.42 1432.5,-1092.16 1421.76,-1072.79 1442.85,-1049.42 1471.06,-1018.16 1511.12,-990.65 1538.75,-973.6"/>
+<polygon fill="#000000" stroke="#000000" points="1540.28,-976.76 1547.03,-968.59 1536.66,-970.77 1540.28,-976.76"/>
+</g>
+<!-- proc~hessian_dense&#45;&gt;proc~factor_middle_matrix -->
+<g id="proc~~trust_region_step~~CallsGraph_edge75" class="edge">
+<title>proc~hessian_dense&#45;&gt;proc~factor_middle_matrix</title>
+<path fill="none" stroke="#000000" d="M1396.13,-1118.91C1399.99,-1116.48 1403.6,-1113.66 1406.85,-1110.42 1463.37,-1054.02 1388.07,-992.51 1442.85,-934.42 1466.26,-909.6 2064.22,-780.82 2065.89,-780.42 2112.98,-768.95 2166.15,-755.23 2205.57,-744.91"/>
+<polygon fill="#000000" stroke="#000000" points="2206.32,-748.33 2215.1,-742.41 2204.54,-741.56 2206.32,-748.33"/>
+</g>
+<!-- proc~hessian_dense&#45;&gt;proc~pair_col -->
+<g id="proc~~trust_region_step~~CallsGraph_edge77" class="edge">
+<title>proc~hessian_dense&#45;&gt;proc~pair_col</title>
+<path fill="none" stroke="#000000" d="M1369.92,-1118.79C1479.95,-1099.12 1706.36,-1063.42 1899.76,-1063.42 1899.76,-1063.42 1899.76,-1063.42 2266.15,-1063.42 2488.16,-1063.42 2547.75,-1012.6 2736.93,-896.42 2753.64,-886.16 2769.6,-870.8 2781.14,-858.32"/>
+<polygon fill="#000000" stroke="#000000" points="2783.64,-860.78 2787.7,-850.99 2778.42,-856.11 2783.64,-860.78"/>
+</g>
+<!-- proc~inertia_correct&#45;&gt;proc~hessian_size -->
+<g id="proc~~trust_region_step~~CallsGraph_edge78" class="edge">
+<title>proc~inertia_correct&#45;&gt;proc~hessian_size</title>
+<path fill="none" stroke="#000000" d="M1112.54,-463.93C1214.44,-458.57 1363.01,-457.48 1406.85,-492.42 1452.4,-528.71 1399.37,-579.67 1442.85,-618.42 1448.53,-623.48 1454.94,-627.57 1461.79,-630.85"/>
+<polygon fill="#000000" stroke="#000000" points="1460.12,-633.95 1470.7,-634.53 1462.79,-627.48 1460.12,-633.95"/>
+</g>
+<!-- proc~inertia_correct&#45;&gt;proc~kkt_factor -->
+<g id="proc~~trust_region_step~~CallsGraph_edge80" class="edge">
+<title>proc~inertia_correct&#45;&gt;proc~kkt_factor</title>
+<path fill="none" stroke="#000000" d="M1107.74,-458.82C1140.99,-454.45 1178.13,-449.57 1210.9,-445.27"/>
+<polygon fill="#000000" stroke="#000000" points="1211.33,-448.74 1220.79,-443.97 1210.42,-441.8 1211.33,-448.74"/>
+</g>
+<!-- proc~inertia_raise -->
+<g id="proc~~trust_region_step~~CallsGraph_node67" class="node">
+<title>proc~inertia_raise</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node67"><a xlink:href="../proc/inertia_raise.html" xlink:title="sqpopt_inertia_type%inertia_raise">
+<polygon fill="#d9534f" stroke="#d9534f" points="1397.85,-525.55 1206.33,-525.55 1206.33,-501.28 1397.85,-501.28 1397.85,-525.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1302.09" y="-509.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_inertia_type%inertia_raise</text>
+</a>
+</g>
+</g>
+<!-- proc~inertia_correct&#45;&gt;proc~inertia_raise -->
+<g id="proc~~trust_region_step~~CallsGraph_edge79" class="edge">
+<title>proc~inertia_correct&#45;&gt;proc~inertia_raise</title>
+<path fill="none" stroke="#000000" d="M1102.76,-484.05C1122.1,-486.78 1142.39,-489.67 1161.33,-492.42 1176.08,-494.56 1191.7,-496.87 1206.95,-499.15"/>
+<polygon fill="#000000" stroke="#000000" points="1206.06,-502.55 1216.47,-500.57 1207.1,-495.63 1206.06,-502.55"/>
+</g>
+<!-- proc~factor_values -->
+<g id="proc~~trust_region_step~~CallsGraph_node64" class="node">
+<title>proc~factor_values</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node64"><a xlink:href="../proc/factor_values.html" xlink:title="factor_values">
+<polygon fill="#d9534f" stroke="#d9534f" points="1612.62,-445.55 1529.85,-445.55 1529.85,-421.28 1612.62,-421.28 1612.62,-445.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1571.24" y="-429.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">factor_values</text>
+</a>
+</g>
+</g>
+<!-- proc~kkt_factor&#45;&gt;proc~factor_values -->
+<g id="proc~~trust_region_step~~CallsGraph_edge81" class="edge">
+<title>proc~kkt_factor&#45;&gt;proc~factor_values</title>
+<path fill="none" stroke="#000000" d="M1382.16,-433.42C1426.08,-433.42 1479.49,-433.42 1518.16,-433.42"/>
+<polygon fill="#000000" stroke="#000000" points="1518.14,-436.92 1528.14,-433.42 1518.14,-429.92 1518.14,-436.92"/>
+</g>
+<!-- proc~low_rank_update -->
+<g id="proc~~trust_region_step~~CallsGraph_node68" class="node">
+<title>proc~low_rank_update</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node68"><a xlink:href="../proc/low_rank_update.html" xlink:title="low_rank_update">
+<polygon fill="#d9534f" stroke="#d9534f" points="1622,-567.55 1520.48,-567.55 1520.48,-543.28 1622,-543.28 1622,-567.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1571.24" y="-551.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">low_rank_update</text>
+</a>
+</g>
+</g>
+<!-- proc~kkt_factor&#45;&gt;proc~low_rank_update -->
+<g id="proc~~trust_region_step~~CallsGraph_edge82" class="edge">
+<title>proc~kkt_factor&#45;&gt;proc~low_rank_update</title>
+<path fill="none" stroke="#000000" d="M1365.74,-446.05C1379.53,-449.67 1393.87,-454.11 1406.85,-459.42 1457.95,-480.33 1512.28,-515.08 1543.63,-536.54"/>
+<polygon fill="#000000" stroke="#000000" points="1541.51,-539.33 1551.73,-542.15 1545.5,-533.58 1541.51,-539.33"/>
+</g>
+<!-- proc~kkt_factor_identity&#45;&gt;proc~factor_values -->
+<g id="proc~~trust_region_step~~CallsGraph_edge83" class="edge">
+<title>proc~kkt_factor_identity&#45;&gt;proc~factor_values</title>
+<path fill="none" stroke="#000000" d="M1324.5,-289.92C1371.49,-317.36 1483.85,-382.97 1538.84,-415.09"/>
+<polygon fill="#000000" stroke="#000000" points="1537.02,-418.07 1547.42,-420.09 1540.55,-412.03 1537.02,-418.07"/>
+</g>
+<!-- proc~kkt_solve&#45;&gt;proc~dense_lu_solve -->
+<g id="proc~~trust_region_step~~CallsGraph_edge84" class="edge">
+<title>proc~kkt_solve&#45;&gt;proc~dense_lu_solve</title>
+<path fill="none" stroke="#000000" d="M1649.21,-594.94C1667.89,-598.1 1686.3,-604.96 1699.62,-618.42 1773.34,-692.89 1661.67,-777.18 1735.62,-851.42 1763.27,-879.18 1807.78,-884.8 1843.47,-883.96"/>
+<polygon fill="#000000" stroke="#000000" points="1843.36,-887.47 1853.2,-883.55 1843.06,-880.48 1843.36,-887.47"/>
+</g>
+<!-- proc~hessian_low_rank_multiply -->
+<g id="proc~~trust_region_step~~CallsGraph_node65" class="node">
+<title>proc~hessian_low_rank_multiply</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node65"><a xlink:href="../proc/hessian_low_rank_multiply.html" xlink:title="sqpopt_hessian_type%hessian_low_rank_multiply">
+<polygon fill="#d9534f" stroke="#d9534f" points="2736.93,-849.55 2464.41,-849.55 2464.41,-825.28 2736.93,-825.28 2736.93,-849.55"/>
+<text xml:space="preserve" text-anchor="middle" x="2600.67" y="-833.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_low_rank_multiply</text>
+</a>
+</g>
+</g>
+<!-- proc~kkt_solve&#45;&gt;proc~hessian_low_rank_multiply -->
+<g id="proc~~trust_region_step~~CallsGraph_edge85" class="edge">
+<title>proc~kkt_solve&#45;&gt;proc~hessian_low_rank_multiply</title>
+<path fill="none" stroke="#000000" d="M1649.29,-595.65C1667.75,-598.85 1686.03,-605.56 1699.62,-618.42 1753.2,-669.11 1679.64,-732.4 1735.62,-780.42 1839.78,-869.77 2234.86,-860.67 2452.91,-848.09"/>
+<polygon fill="#000000" stroke="#000000" points="2452.84,-851.6 2462.61,-847.52 2452.42,-844.62 2452.84,-851.6"/>
+</g>
+<!-- proc~hessian_low_rank_multiply_transpose -->
+<g id="proc~~trust_region_step~~CallsGraph_node66" class="node">
+<title>proc~hessian_low_rank_multiply_transpose</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node66"><a xlink:href="../proc/hessian_low_rank_multiply_transpose.html" xlink:title="sqpopt_hessian_type%hessian_low_rank_multiply_transpose">
+<polygon fill="#d9534f" stroke="#d9534f" points="2065.89,-771.55 1735.62,-771.55 1735.62,-747.28 2065.89,-747.28 2065.89,-771.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1900.76" y="-755.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_low_rank_multiply_transpose</text>
+</a>
+</g>
+</g>
+<!-- proc~kkt_solve&#45;&gt;proc~hessian_low_rank_multiply_transpose -->
+<g id="proc~~trust_region_step~~CallsGraph_edge86" class="edge">
+<title>proc~kkt_solve&#45;&gt;proc~hessian_low_rank_multiply_transpose</title>
+<path fill="none" stroke="#000000" d="M1649.32,-596.45C1667.57,-599.69 1685.73,-606.21 1699.62,-618.42 1741.43,-655.19 1693.15,-702.41 1735.62,-738.42 1736.43,-739.11 1737.26,-739.79 1738.1,-740.45"/>
+<polygon fill="#000000" stroke="#000000" points="1735.99,-743.24 1746.19,-746.08 1739.98,-737.49 1735.99,-743.24"/>
+</g>
+<!-- proc~symmetric_solver_solve -->
+<g id="proc~~trust_region_step~~CallsGraph_node69" class="node">
+<title>proc~symmetric_solver_solve</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node69"><a xlink:href="../proc/symmetric_solver_solve.html" xlink:title="sqpopt_symmetric_solver_type%symmetric_solver_solve">
+<polygon fill="#d9534f" stroke="#d9534f" points="2056.52,-609.55 1745,-609.55 1745,-585.28 2056.52,-585.28 2056.52,-609.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1900.76" y="-593.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_symmetric_solver_type%symmetric_solver_solve</text>
+</a>
+</g>
+</g>
+<!-- proc~kkt_solve&#45;&gt;proc~symmetric_solver_solve -->
+<g id="proc~~trust_region_step~~CallsGraph_edge87" class="edge">
+<title>proc~kkt_solve&#45;&gt;proc~symmetric_solver_solve</title>
+<path fill="none" stroke="#000000" d="M1649.44,-597.42C1674.76,-597.42 1703.96,-597.42 1733.27,-597.42"/>
+<polygon fill="#000000" stroke="#000000" points="1732.99,-600.92 1742.99,-597.42 1732.99,-593.92 1732.99,-600.92"/>
+</g>
+<!-- proc~middle_matrix&#45;&gt;proc~pair_col -->
+<g id="proc~~trust_region_step~~CallsGraph_edge88" class="edge">
+<title>proc~middle_matrix&#45;&gt;proc~pair_col</title>
+<path fill="none" stroke="#000000" d="M2644.92,-684.24C2673.62,-684.33 2710.69,-688.95 2736.93,-708.42 2771.66,-734.19 2787.82,-784.53 2794.61,-814.13"/>
+<polygon fill="#000000" stroke="#000000" points="2791.12,-814.52 2796.6,-823.59 2797.97,-813.08 2791.12,-814.52"/>
+</g>
+<!-- proc~working_set&#45;&gt;proc~resolved_mode -->
+<g id="proc~~trust_region_step~~CallsGraph_edge89" class="edge">
+<title>proc~working_set&#45;&gt;proc~resolved_mode</title>
+<path fill="none" stroke="#000000" d="M1113.81,-669.42C1157.73,-669.42 1207.43,-669.42 1244.58,-669.42"/>
+<polygon fill="#000000" stroke="#000000" points="1244.18,-672.92 1254.18,-669.42 1244.18,-665.92 1244.18,-672.92"/>
+</g>
+<!-- proc~kkt_negatives -->
+<g id="proc~~trust_region_step~~CallsGraph_node75" class="node">
+<title>proc~kkt_negatives</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node75"><a xlink:href="../proc/kkt_negatives.html" xlink:title="kkt_negatives">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="1942.89,-487.55 1858.62,-487.55 1858.62,-463.28 1942.89,-463.28 1942.89,-487.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1900.76" y="-471.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">kkt_negatives</text>
+</a>
+</g>
+</g>
+<!-- proc~factor_values&#45;&gt;proc~kkt_negatives -->
+<g id="proc~~trust_region_step~~CallsGraph_edge90" class="edge">
+<title>proc~factor_values&#45;&gt;proc~kkt_negatives</title>
+<path fill="none" stroke="#000000" d="M1612.86,-438.65C1645.91,-442.9 1693.78,-449.05 1735.62,-454.42 1772.8,-459.19 1814.72,-464.55 1846.88,-468.66"/>
+<polygon fill="#000000" stroke="#000000" points="1846.4,-472.13 1856.77,-469.93 1847.29,-465.19 1846.4,-472.13"/>
+</g>
+<!-- proc~symmetric_solver_factor -->
+<g id="proc~~trust_region_step~~CallsGraph_node76" class="node">
+<title>proc~symmetric_solver_factor</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node76"><a xlink:href="../proc/symmetric_solver_factor.html" xlink:title="sqpopt_symmetric_solver_type%symmetric_solver_factor">
+<polygon fill="#d9534f" stroke="#d9534f" points="2058.39,-445.55 1743.12,-445.55 1743.12,-421.28 2058.39,-421.28 2058.39,-445.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1900.76" y="-429.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_symmetric_solver_type%symmetric_solver_factor</text>
+</a>
+</g>
+</g>
+<!-- proc~factor_values&#45;&gt;proc~symmetric_solver_factor -->
+<g id="proc~~trust_region_step~~CallsGraph_edge91" class="edge">
+<title>proc~factor_values&#45;&gt;proc~symmetric_solver_factor</title>
+<path fill="none" stroke="#000000" d="M1613.05,-433.42C1643.48,-433.42 1687.26,-433.42 1731.48,-433.42"/>
+<polygon fill="#000000" stroke="#000000" points="1731.21,-436.92 1741.21,-433.42 1731.21,-429.92 1731.21,-436.92"/>
+</g>
+<!-- proc~hessian_low_rank_multiply&#45;&gt;proc~pair_col -->
+<g id="proc~~trust_region_step~~CallsGraph_edge92" class="edge">
+<title>proc~hessian_low_rank_multiply&#45;&gt;proc~pair_col</title>
+<path fill="none" stroke="#000000" d="M2737.33,-837.42C2745.74,-837.42 2753.73,-837.42 2761,-837.42"/>
+<polygon fill="#000000" stroke="#000000" points="2760.99,-840.92 2770.99,-837.42 2760.99,-833.92 2760.99,-840.92"/>
+</g>
+<!-- proc~hessian_low_rank_multiply_transpose&#45;&gt;proc~pair_col -->
+<g id="proc~~trust_region_step~~CallsGraph_edge93" class="edge">
+<title>proc~hessian_low_rank_multiply_transpose&#45;&gt;proc~pair_col</title>
+<path fill="none" stroke="#000000" d="M2066.25,-758.18C2235.89,-759.81 2507.31,-770.5 2736.93,-816.42 2745.13,-818.06 2753.73,-820.49 2761.84,-823.12"/>
+<polygon fill="#000000" stroke="#000000" points="2760.46,-826.35 2771.06,-826.29 2762.74,-819.73 2760.46,-826.35"/>
+</g>
+<!-- proc~inertia_raise&#45;&gt;proc~hessian_size -->
+<g id="proc~~trust_region_step~~CallsGraph_edge94" class="edge">
+<title>proc~inertia_raise&#45;&gt;proc~hessian_size</title>
+<path fill="none" stroke="#000000" d="M1327.95,-526.01C1349.88,-537.74 1382.11,-556.52 1406.85,-577.42 1425.37,-593.07 1421.65,-606.65 1442.85,-618.42 1448.83,-621.74 1455.19,-624.57 1461.77,-626.97"/>
+<polygon fill="#000000" stroke="#000000" points="1460.21,-630.14 1470.8,-629.94 1462.39,-623.49 1460.21,-630.14"/>
+</g>
+<!-- proc~low_rank_update&#45;&gt;proc~dense_lu_factor -->
+<g id="proc~~trust_region_step~~CallsGraph_edge95" class="edge">
+<title>proc~low_rank_update&#45;&gt;proc~dense_lu_factor</title>
+<path fill="none" stroke="#000000" d="M1622.27,-553.37C1647.6,-554.73 1677.56,-560.25 1699.62,-576.42 1728.16,-597.33 1706.31,-627.6 1735.62,-647.42 1799.63,-690.71 2351.56,-700.33 2428.41,-708.42 2465.98,-712.38 2508.11,-717.53 2541.17,-721.74"/>
+<polygon fill="#000000" stroke="#000000" points="2540.6,-725.2 2550.97,-723 2541.49,-718.26 2540.6,-725.2"/>
+</g>
+<!-- proc~low_rank_update&#45;&gt;proc~hessian_low_rank_multiply_transpose -->
+<g id="proc~~trust_region_step~~CallsGraph_edge99" class="edge">
+<title>proc~low_rank_update&#45;&gt;proc~hessian_low_rank_multiply_transpose</title>
+<path fill="none" stroke="#000000" d="M1622.49,-551.17C1648.67,-551.75 1679.35,-557.24 1699.62,-576.42 1753.2,-627.11 1681.14,-688.7 1735.62,-738.42 1736.26,-739 1736.9,-739.57 1737.55,-740.13"/>
+<polygon fill="#000000" stroke="#000000" points="1735.12,-742.68 1745.21,-745.91 1739.34,-737.09 1735.12,-742.68"/>
+</g>
+<!-- proc~low_rank_update&#45;&gt;proc~symmetric_solver_solve -->
+<g id="proc~~trust_region_step~~CallsGraph_edge102" class="edge">
+<title>proc~low_rank_update&#45;&gt;proc~symmetric_solver_solve</title>
+<path fill="none" stroke="#000000" d="M1622.29,-561.86C1654.63,-566.02 1697.61,-571.54 1735.62,-576.42 1753.2,-578.67 1771.84,-581.06 1790.01,-583.39"/>
+<polygon fill="#000000" stroke="#000000" points="1789.38,-586.83 1799.74,-584.63 1790.27,-579.89 1789.38,-586.83"/>
+</g>
+<!-- proc~dense_symmetric_inertia -->
+<g id="proc~~trust_region_step~~CallsGraph_node71" class="node">
+<title>proc~dense_symmetric_inertia</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node71"><a xlink:href="../proc/dense_symmetric_inertia.html" xlink:title="dense_symmetric_inertia">
+<polygon fill="#d9534f" stroke="#d9534f" points="1973.27,-567.55 1828.25,-567.55 1828.25,-543.28 1973.27,-543.28 1973.27,-567.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1900.76" y="-551.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">dense_symmetric_inertia</text>
+</a>
+</g>
+</g>
+<!-- proc~low_rank_update&#45;&gt;proc~dense_symmetric_inertia -->
+<g id="proc~~trust_region_step~~CallsGraph_edge96" class="edge">
+<title>proc~low_rank_update&#45;&gt;proc~dense_symmetric_inertia</title>
+<path fill="none" stroke="#000000" d="M1622.33,-555.42C1673.96,-555.42 1755.31,-555.42 1816.6,-555.42"/>
+<polygon fill="#000000" stroke="#000000" points="1816.28,-558.92 1826.28,-555.42 1816.28,-551.92 1816.28,-558.92"/>
+</g>
+<!-- proc~hessian_low_rank_column -->
+<g id="proc~~trust_region_step~~CallsGraph_node72" class="node">
+<title>proc~hessian_low_rank_column</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node72"><a xlink:href="../proc/hessian_low_rank_column.html" xlink:title="sqpopt_hessian_type%hessian_low_rank_column">
+<polygon fill="#d9534f" stroke="#d9534f" points="2735.43,-527.55 2465.91,-527.55 2465.91,-503.28 2735.43,-503.28 2735.43,-527.55"/>
+<text xml:space="preserve" text-anchor="middle" x="2600.67" y="-511.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_low_rank_column</text>
+</a>
+</g>
+</g>
+<!-- proc~low_rank_update&#45;&gt;proc~hessian_low_rank_column -->
+<g id="proc~~trust_region_step~~CallsGraph_edge97" class="edge">
+<title>proc~low_rank_update&#45;&gt;proc~hessian_low_rank_column</title>
+<path fill="none" stroke="#000000" d="M1622.15,-547.61C1654.43,-542.91 1697.41,-537.29 1735.62,-534.42 1987.68,-515.5 2282.18,-513.25 2454.1,-513.93"/>
+<polygon fill="#000000" stroke="#000000" points="2453.97,-517.43 2463.99,-513.97 2454,-510.43 2453.97,-517.43"/>
+</g>
+<!-- proc~hessian_low_rank_middle -->
+<g id="proc~~trust_region_step~~CallsGraph_node73" class="node">
+<title>proc~hessian_low_rank_middle</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node73"><a xlink:href="../proc/hessian_low_rank_middle.html" xlink:title="sqpopt_hessian_type%hessian_low_rank_middle">
+<polygon fill="#d9534f" stroke="#d9534f" points="2398.41,-651.55 2131.89,-651.55 2131.89,-627.28 2398.41,-627.28 2398.41,-651.55"/>
+<text xml:space="preserve" text-anchor="middle" x="2265.15" y="-635.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_low_rank_middle</text>
+</a>
+</g>
+</g>
+<!-- proc~low_rank_update&#45;&gt;proc~hessian_low_rank_middle -->
+<g id="proc~~trust_region_step~~CallsGraph_edge98" class="edge">
+<title>proc~low_rank_update&#45;&gt;proc~hessian_low_rank_middle</title>
+<path fill="none" stroke="#000000" d="M1622.36,-555.76C1646.97,-557.83 1676.28,-563.28 1699.62,-576.42 1721.04,-588.48 1713.49,-607.7 1735.62,-618.42 1800.97,-650.06 1987.27,-650.63 2120.15,-646.43"/>
+<polygon fill="#000000" stroke="#000000" points="2120.24,-649.93 2130.12,-646.1 2120.01,-642.93 2120.24,-649.93"/>
+</g>
+<!-- proc~hessian_low_rank_size -->
+<g id="proc~~trust_region_step~~CallsGraph_node74" class="node">
+<title>proc~hessian_low_rank_size</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node74"><a xlink:href="../proc/hessian_low_rank_size.html" xlink:title="sqpopt_hessian_type%hessian_low_rank_size">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="2025.77,-729.55 1775.75,-729.55 1775.75,-705.28 2025.77,-705.28 2025.77,-729.55"/>
+<text xml:space="preserve" text-anchor="middle" x="1900.76" y="-713.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_low_rank_size</text>
+</a>
+</g>
+</g>
+<!-- proc~low_rank_update&#45;&gt;proc~hessian_low_rank_size -->
+<g id="proc~~trust_region_step~~CallsGraph_edge100" class="edge">
+<title>proc~low_rank_update&#45;&gt;proc~hessian_low_rank_size</title>
+<path fill="none" stroke="#000000" d="M1622.49,-551.88C1648.34,-552.74 1678.73,-558.26 1699.62,-576.42 1740.05,-611.55 1695.08,-656.42 1735.62,-691.42 1744.39,-698.99 1754.45,-704.83 1765.18,-709.29"/>
+<polygon fill="#000000" stroke="#000000" points="1763.63,-712.45 1774.22,-712.63 1766.06,-705.88 1763.63,-712.45"/>
+</g>
+<!-- proc~low_rank_update&#45;&gt;proc~kkt_negatives -->
+<g id="proc~~trust_region_step~~CallsGraph_edge101" class="edge">
+<title>proc~low_rank_update&#45;&gt;proc~kkt_negatives</title>
+<path fill="none" stroke="#000000" d="M1604.95,-542.86C1637.61,-530.74 1689.46,-512.63 1735.62,-501.42 1772.49,-492.47 1814.79,-485.85 1847.21,-481.54"/>
+<polygon fill="#000000" stroke="#000000" points="1847.27,-485.06 1856.74,-480.3 1846.37,-478.12 1847.27,-485.06"/>
+</g>
+<!-- proc~symmetric_solver_solve&#45;&gt;proc~sqpopt_all_finite -->
+<g id="proc~~trust_region_step~~CallsGraph_edge104" class="edge">
+<title>proc~symmetric_solver_solve&#45;&gt;proc~sqpopt_all_finite</title>
+<path fill="none" stroke="#000000" d="M2055.1,-584.84C2058.89,-582.32 2062.5,-579.52 2065.89,-576.42 2120.95,-526.05 2063.11,-476.18 2101.89,-412.42 2133.83,-359.91 2193.57,-318.25 2230.97,-295.77"/>
+<polygon fill="#000000" stroke="#000000" points="2232.73,-298.8 2239.58,-290.71 2229.19,-292.76 2232.73,-298.8"/>
+</g>
+<!-- back_solve -->
+<g id="proc~~trust_region_step~~CallsGraph_node70" class="node">
+<title>back_solve</title>
+<polygon fill="#777777" stroke="#777777" points="2300.16,-609.55 2230.14,-609.55 2230.14,-585.28 2300.16,-585.28 2300.16,-609.55"/>
+<text xml:space="preserve" text-anchor="middle" x="2265.15" y="-593.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">back_solve</text>
+</g>
+<!-- proc~symmetric_solver_solve&#45;&gt;back_solve -->
+<g id="proc~~trust_region_step~~CallsGraph_edge103" class="edge">
+<title>proc~symmetric_solver_solve&#45;&gt;back_solve</title>
+<path fill="none" stroke="#000000" d="M2056.76,-597.42C2115.2,-597.42 2177.35,-597.42 2218.21,-597.42"/>
+<polygon fill="#000000" stroke="#000000" points="2218.15,-600.92 2228.15,-597.42 2218.15,-593.92 2218.15,-600.92"/>
+</g>
+<!-- proc~symmetric_solver_multiply -->
+<g id="proc~~trust_region_step~~CallsGraph_node77" class="node">
+<title>proc~symmetric_solver_multiply</title>
+<g id="a_proc~~trust_region_step~~CallsGraph_node77"><a xlink:href="../proc/symmetric_solver_multiply.html" xlink:title="sqpopt_symmetric_solver_type%symmetric_solver_multiply">
+<polygon fill="#d9534f" stroke="#d9534f" points="2428.41,-567.55 2101.89,-567.55 2101.89,-543.28 2428.41,-543.28 2428.41,-567.55"/>
+<text xml:space="preserve" text-anchor="middle" x="2265.15" y="-551.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_symmetric_solver_type%symmetric_solver_multiply</text>
+</a>
+</g>
+</g>
+<!-- proc~symmetric_solver_solve&#45;&gt;proc~symmetric_solver_multiply -->
+<g id="proc~~trust_region_step~~CallsGraph_edge105" class="edge">
+<title>proc~symmetric_solver_solve&#45;&gt;proc~symmetric_solver_multiply</title>
+<path fill="none" stroke="#000000" d="M2010.49,-584.82C2052.49,-579.95 2100.73,-574.36 2143.77,-569.37"/>
+<polygon fill="#000000" stroke="#000000" points="2144.15,-572.85 2153.68,-568.22 2143.34,-565.9 2144.15,-572.85"/>
+</g>
+<!-- proc~hessian_low_rank_column&#45;&gt;proc~pair_col -->
+<g id="proc~~trust_region_step~~CallsGraph_edge106" class="edge">
+<title>proc~hessian_low_rank_column&#45;&gt;proc~pair_col</title>
+<path fill="none" stroke="#000000" d="M2726.1,-527.89C2729.94,-530.39 2733.57,-533.22 2736.93,-536.42 2777.14,-574.7 2792.95,-749.68 2797.45,-813.79"/>
+<polygon fill="#000000" stroke="#000000" points="2793.95,-813.81 2798.11,-823.55 2800.93,-813.34 2793.95,-813.81"/>
+</g>
+<!-- proc~hessian_low_rank_middle&#45;&gt;proc~middle_matrix -->
+<g id="proc~~trust_region_step~~CallsGraph_edge107" class="edge">
+<title>proc~hessian_low_rank_middle&#45;&gt;proc~middle_matrix</title>
+<path fill="none" stroke="#000000" d="M2353.78,-652.03C2414.43,-660.76 2493.25,-672.1 2545.1,-679.57"/>
+<polygon fill="#000000" stroke="#000000" points="2544.48,-683.01 2554.88,-680.97 2545.48,-676.08 2544.48,-683.01"/>
+</g>
+<!-- proc~hessian_low_rank_size&#45;&gt;proc~factor_middle_matrix -->
+<g id="proc~~trust_region_step~~CallsGraph_edge108" class="edge">
+<title>proc~hessian_low_rank_size&#45;&gt;proc~factor_middle_matrix</title>
+<path fill="none" stroke="#000000" d="M2026.22,-721.54C2081.28,-723.36 2144.12,-725.44 2191.38,-727.01"/>
+<polygon fill="#000000" stroke="#000000" points="2191.12,-730.5 2201.23,-727.34 2191.35,-723.51 2191.12,-730.5"/>
+</g>
+<!-- refactor -->
+<g id="proc~~trust_region_step~~CallsGraph_node79" class="node">
+<title>refactor</title>
+<polygon fill="#777777" stroke="#777777" points="2292.15,-445.55 2238.15,-445.55 2238.15,-421.28 2292.15,-421.28 2292.15,-445.55"/>
+<text xml:space="preserve" text-anchor="middle" x="2265.15" y="-429.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">refactor</text>
+</g>
+<!-- proc~symmetric_solver_factor&#45;&gt;refactor -->
+<g id="proc~~trust_region_step~~CallsGraph_edge109" class="edge">
+<title>proc~symmetric_solver_factor&#45;&gt;refactor</title>
+<path fill="none" stroke="#000000" d="M2058.86,-433.42C2120.84,-433.42 2186.65,-433.42 2226.58,-433.42"/>
+<polygon fill="#000000" stroke="#000000" points="2226.35,-436.92 2236.35,-433.42 2226.35,-429.92 2226.35,-436.92"/>
+</g>
+<!-- multiply -->
+<g id="proc~~trust_region_step~~CallsGraph_node78" class="node">
+<title>multiply</title>
+<polygon fill="#777777" stroke="#777777" points="2627.81,-569.55 2573.53,-569.55 2573.53,-545.28 2627.81,-545.28 2627.81,-569.55"/>
+<text xml:space="preserve" text-anchor="middle" x="2600.67" y="-553.82" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">multiply</text>
+</g>
+<!-- proc~symmetric_solver_multiply&#45;&gt;multiply -->
+<g id="proc~~trust_region_step~~CallsGraph_edge110" class="edge">
+<title>proc~symmetric_solver_multiply&#45;&gt;multiply</title>
+<path fill="none" stroke="#000000" d="M2428.51,-556.39C2478.38,-556.69 2528.78,-556.99 2561.84,-557.19"/>
+<polygon fill="#000000" stroke="#000000" points="2561.67,-560.69 2571.69,-557.25 2561.71,-553.69 2561.67,-560.69"/>
+</g>
+</g>
+</svg>
+</div>                <script>
+                  var panproctrust_region_stepCallsGraph = svgPanZoom('#proctrust_region_stepCallsGraph',
+                    {zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true,}
+                  );
+                </script>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#CallsGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="CallsGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="641pt" height="28pt"
+ viewBox="0.00 0.00 641.00 28.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(0.873868 0.873868) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 729.52,-28.27 729.52,4 -4,4"/>
+<!-- Subroutine -->
+<g id="node1" class="node">
+<title>Subroutine</title>
+<polygon fill="#d9534f" stroke="#d9534f" points="69.27,-24.27 0,-24.27 0,0 69.27,0 69.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="34.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Subroutine</text>
+</g>
+<!-- Function -->
+<g id="node2" class="node">
+<title>Function</title>
+<polygon fill="#d94e8f" stroke="#d94e8f" points="143.89,-24.27 87.38,-24.27 87.38,0 143.89,0 143.89,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="115.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Function</text>
+</g>
+<!-- Interface -->
+<g id="node3" class="node">
+<title>Interface</title>
+<polygon fill="#a7506f" stroke="#a7506f" points="221.39,-24.27 161.88,-24.27 161.88,0 221.39,0 221.39,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="191.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Interface</text>
+</g>
+<!-- Type Bound Procedure -->
+<g id="node4" class="node">
+<title>Type Bound Procedure</title>
+<polygon fill="#a7506f" stroke="#a7506f" points="368.27,-24.27 239,-24.27 239,0 368.27,0 368.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="303.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Type Bound Procedure</text>
+</g>
+<!-- Unknown Procedure Type -->
+<g id="node5" class="node">
+<title>Unknown Procedure Type</title>
+<polygon fill="#777777" stroke="#777777" points="529.39,-24.27 385.88,-24.27 385.88,0 529.39,0 529.39,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="457.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Unknown Procedure Type</text>
+</g>
+<!-- Program -->
+<g id="node6" class="node">
+<title>Program</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="603.89,-24.27 547.38,-24.27 547.38,0 603.89,0 603.89,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="575.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Program</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node7" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="725.52,-24.27 621.75,-24.27 621.75,0 725.52,0 725.52,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="673.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a procedure to one which it calls. Dashed 
+arrows point from an interface to procedures which implement that interface.
+This could include the module procedures in a generic interface or the
+implementation in a submodule of an interface in a parent module.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+  <h3 class="card-title">Called by</h3>
+      </div>
+      <div class="card-body">
+  <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: proc~~trust_region_step~~CalledByGraph Pages: 1 -->
+<svg id="proctrust_region_stepCalledByGraph" width="641pt" height="27pt"
+ viewBox="0.00 0.00 641.00 27.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="proc~~trust_region_step~~CalledByGraph" class="graph" transform="scale(0.839467 0.839467) rotate(0) translate(4 28.27)">
+<title>proc~~trust_region_step~~CalledByGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 759.58,-28.27 759.58,4 -4,4"/>
+<!-- proc~trust_region_step -->
+<g id="proc~~trust_region_step~~CalledByGraph_node1" class="node">
+<title>proc~trust_region_step</title>
+<polygon fill="none" stroke="black" points="755.58,-24.27 510.81,-24.27 510.81,0 755.58,0 755.58,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="633.2" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_trust_region_type%trust_region_step</text>
+</g>
+<!-- proc~sqpopt_iterate -->
+<g id="proc~~trust_region_step~~CalledByGraph_node2" class="node">
+<title>proc~sqpopt_iterate</title>
+<g id="a_proc~~trust_region_step~~CalledByGraph_node2"><a xlink:href="../proc/sqpopt_iterate.html" xlink:title="sqpopt_iterate">
+<polygon fill="#d9534f" stroke="#d9534f" points="474.81,-24.27 386.79,-24.27 386.79,0 474.81,0 474.81,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="430.8" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_iterate</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~trust_region_step -->
+<g id="proc~~trust_region_step~~CalledByGraph_edge1" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~trust_region_step</title>
+<path fill="none" stroke="#000000" d="M475.28,-12.13C482.73,-12.13 490.79,-12.13 499.21,-12.13"/>
+<polygon fill="#000000" stroke="#000000" points="498.93,-15.64 508.93,-12.14 498.93,-8.64 498.93,-15.64"/>
+</g>
+<!-- proc~sqpopt_solve -->
+<g id="proc~~trust_region_step~~CalledByGraph_node3" class="node">
+<title>proc~sqpopt_solve</title>
+<g id="a_proc~~trust_region_step~~CalledByGraph_node3"><a xlink:href="../proc/sqpopt_solve.html" xlink:title="sqpopt_type%sqpopt_solve">
+<polygon fill="#d9534f" stroke="#d9534f" points="350.79,-24.27 196.02,-24.27 196.02,0 350.79,0 350.79,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="273.4" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_type%sqpopt_solve</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_solve&#45;&gt;proc~sqpopt_iterate -->
+<g id="proc~~trust_region_step~~CalledByGraph_edge2" class="edge">
+<title>proc~sqpopt_solve&#45;&gt;proc~sqpopt_iterate</title>
+<path fill="none" stroke="#000000" d="M351.19,-12.13C359.21,-12.13 367.25,-12.13 374.96,-12.13"/>
+<polygon fill="#000000" stroke="#000000" points="374.84,-15.64 384.84,-12.14 374.84,-8.64 374.84,-15.64"/>
+</g>
+<!-- proc~nlls_solve -->
+<g id="proc~~trust_region_step~~CalledByGraph_node4" class="node">
+<title>proc~nlls_solve</title>
+<g id="a_proc~~trust_region_step~~CalledByGraph_node4"><a xlink:href="../proc/nlls_solve.html" xlink:title="sqpopt_nlls_type%nlls_solve">
+<polygon fill="#d9534f" stroke="#d9534f" points="160.02,-24.27 0,-24.27 0,0 160.02,0 160.02,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="80.01" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_nlls_type%nlls_solve</text>
+</a>
+</g>
+</g>
+<!-- proc~nlls_solve&#45;&gt;proc~sqpopt_solve -->
+<g id="proc~~trust_region_step~~CalledByGraph_edge3" class="edge">
+<title>proc~nlls_solve&#45;&gt;proc~sqpopt_solve</title>
+<path fill="none" stroke="#000000" d="M160.52,-12.13C168.31,-12.13 176.26,-12.13 184.14,-12.13"/>
+<polygon fill="#000000" stroke="#000000" points="184.09,-15.64 194.09,-12.14 184.09,-8.64 184.09,-15.64"/>
+</g>
+</g>
+</svg>
+</div>                <script>
+                  var panproctrust_region_stepCalledByGraph = svgPanZoom('#proctrust_region_stepCalledByGraph',
+                    {zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true,}
+                  );
+                </script>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#CalledByGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="CalledByGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="641pt" height="28pt"
+ viewBox="0.00 0.00 641.00 28.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(0.873868 0.873868) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 729.52,-28.27 729.52,4 -4,4"/>
+<!-- Subroutine -->
+<g id="node1" class="node">
+<title>Subroutine</title>
+<polygon fill="#d9534f" stroke="#d9534f" points="69.27,-24.27 0,-24.27 0,0 69.27,0 69.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="34.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Subroutine</text>
+</g>
+<!-- Function -->
+<g id="node2" class="node">
+<title>Function</title>
+<polygon fill="#d94e8f" stroke="#d94e8f" points="143.89,-24.27 87.38,-24.27 87.38,0 143.89,0 143.89,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="115.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Function</text>
+</g>
+<!-- Interface -->
+<g id="node3" class="node">
+<title>Interface</title>
+<polygon fill="#a7506f" stroke="#a7506f" points="221.39,-24.27 161.88,-24.27 161.88,0 221.39,0 221.39,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="191.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Interface</text>
+</g>
+<!-- Type Bound Procedure -->
+<g id="node4" class="node">
+<title>Type Bound Procedure</title>
+<polygon fill="#a7506f" stroke="#a7506f" points="368.27,-24.27 239,-24.27 239,0 368.27,0 368.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="303.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Type Bound Procedure</text>
+</g>
+<!-- Unknown Procedure Type -->
+<g id="node5" class="node">
+<title>Unknown Procedure Type</title>
+<polygon fill="#777777" stroke="#777777" points="529.39,-24.27 385.88,-24.27 385.88,0 529.39,0 529.39,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="457.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Unknown Procedure Type</text>
+</g>
+<!-- Program -->
+<g id="node6" class="node">
+<title>Program</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="603.89,-24.27 547.38,-24.27 547.38,0 603.89,0 603.89,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="575.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Program</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node7" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="725.52,-24.27 621.75,-24.27 621.75,0 725.52,0 725.52,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="673.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a procedure to one which it calls. Dashed 
+arrows point from an interface to procedures which implement that interface.
+This could include the module procedures in a generic interface or the
+implementation in a submodule of an interface in a parent module.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <br>
+
+
+    
+    
+
+    
+    
+
+
+
+    
+    <section>
+    <h2><span class="anchor" id="src"></span>Source Code</h2>
+    <div class="hl codehilite"><pre><span></span><span class="w">    </span><span class="k">subroutine </span><span class="n">trust_region_step</span><span class="p">(</span><span class="n">me</span><span class="p">,</span><span class="w"> </span><span class="n">problem</span><span class="p">,</span><span class="w"> </span><span class="n">hessian</span><span class="p">,</span><span class="w"> </span><span class="n">qp_solver</span><span class="p">,</span><span class="w"> </span><span class="n">linesearch</span><span class="p">,</span><span class="w"> </span><span class="p">&amp;</span><span class="w"></span>
+<span class="w">                                  </span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">g</span><span class="p">,</span><span class="w"> </span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">jac</span><span class="p">,</span><span class="w"> </span><span class="n">x_new</span><span class="p">,</span><span class="w"> </span><span class="n">new_lambda</span><span class="p">,</span><span class="w"> </span><span class="n">alpha</span><span class="p">,</span><span class="w"> </span><span class="n">istat</span><span class="p">,</span><span class="w"> </span><span class="n">kkt</span><span class="p">,</span><span class="w"> </span><span class="n">inertia</span><span class="p">,</span><span class="w"> </span><span class="n">least_squares</span><span class="p">)</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">class</span><span class="p">(</span><span class="n">sqpopt_trust_region_type</span><span class="p">),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">me</span><span class="w"></span>
+<span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_problem_type</span><span class="p">),</span><span class="w">      </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">problem</span><span class="w">    </span><span class="c">!! problem definition</span>
+<span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_hessian_type</span><span class="p">),</span><span class="w">      </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">hessian</span><span class="w">    </span><span class="c">!! matrix-free Hessian approximation</span>
+<span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_qp_solver_type</span><span class="p">),</span><span class="w">    </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">qp_solver</span><span class="w">  </span><span class="c">!! QP subproblem solver</span>
+<span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_linesearch_type</span><span class="p">),</span><span class="w">   </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">linesearch</span><span class="w"> </span><span class="c">!! supplies the merit function (`merit`, ratio test) or</span>
+<span class="w">                                                                  </span><span class="c">!! the filter (`filter`, `mode==sqpopt_linesearch_filter`)</span>
+<span class="w">                                                                  </span><span class="c">!! or funnel (`funnel`, `mode==sqpopt_linesearch_funnel`)</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">         </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">x</span><span class="w">       </span><span class="c">!! current point `dimension(n)`</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">         </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">g</span><span class="w">       </span><span class="c">!! objective gradient at `x` `dimension(n)`</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">                       </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">f</span><span class="w">       </span><span class="c">!! objective value at `x`</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">         </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">c</span><span class="w">       </span><span class="c">!! constraint values at `x` `dimension(m)`</span>
+<span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_sparse_matrix</span><span class="p">),</span><span class="w">     </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">jac</span><span class="w">     </span><span class="c">!! constraint Jacobian at `x`, `dimension(m,n)`</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">         </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">x_new</span><span class="w">      </span><span class="c">!! new point `dimension(n)` (`x` if no retry was accepted)</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">         </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">new_lambda</span><span class="w"> </span><span class="c">!! new multipliers `dimension(m)`, from the QP solve that produced `x_new`</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">                       </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">alpha</span><span class="w">      </span><span class="c">!! `1` if a step was accepted, `0` otherwise (informational only -- there</span>
+<span class="w">                                                               </span><span class="c">!! is no line-search step length under trust-region globalization)</span>
+<span class="w">    </span><span class="kt">integer</span><span class="p">,</span><span class="w">                        </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">istat</span><span class="w">      </span><span class="c">!! status code (see [[sqpopt_types_module]])</span>
+<span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_kkt_type</span><span class="p">),</span><span class="w"> </span><span class="k">optional</span><span class="p">,</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">kkt</span><span class="w">     </span><span class="c">!! the KKT matrix, for the QP solver&#39;s direct method</span>
+<span class="w">                                                              </span><span class="c">!! (see [[solve_qp_subproblem]])</span>
+<span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_inertia_type</span><span class="p">),</span><span class="w"> </span><span class="k">optional</span><span class="p">,</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">inertia</span><span class="w"> </span><span class="c">!! the inertia control, for the same</span>
+<span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_least_squares_type</span><span class="p">),</span><span class="w"> </span><span class="k">optional</span><span class="p">,</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">least_squares</span><span class="w"> </span><span class="c">!! the direct least-squares solver, for</span>
+<span class="w">                                                              </span><span class="c">!! the second-order correction (see [[soc_step]])</span>
+
+<span class="w">    </span><span class="kt">integer</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">retry</span><span class="p">,</span><span class="w"> </span><span class="n">qp_istat</span><span class="w"></span>
+<span class="w">    </span><span class="kt">logical</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">use_filter</span><span class="p">,</span><span class="w"> </span><span class="n">use_funnel</span><span class="p">,</span><span class="w"> </span><span class="k">accept</span><span class="p">,</span><span class="w"> </span><span class="n">ok</span><span class="p">,</span><span class="w"> </span><span class="n">soc_ok</span><span class="p">,</span><span class="w"> </span><span class="n">f_type</span><span class="w"></span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">allocatable</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">p_soc</span><span class="p">,</span><span class="w"> </span><span class="n">x_lb2</span><span class="p">,</span><span class="w"> </span><span class="n">x_ub2</span><span class="p">,</span><span class="w"> </span><span class="n">hp</span><span class="w"></span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">allocatable</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">jp</span><span class="p">,</span><span class="w"> </span><span class="n">c_trial</span><span class="p">,</span><span class="w"> </span><span class="n">c_lin</span><span class="w"></span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">f_trial</span><span class="p">,</span><span class="w"> </span><span class="n">h0</span><span class="p">,</span><span class="w"> </span><span class="n">h_trial</span><span class="p">,</span><span class="w"> </span><span class="n">q</span><span class="p">,</span><span class="w"> </span><span class="n">pred</span><span class="p">,</span><span class="w"> </span><span class="n">ratio</span><span class="p">,</span><span class="w"> </span><span class="n">phi0</span><span class="p">,</span><span class="w"> </span><span class="n">phi_model</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">allocate</span><span class="p">(</span><span class="n">p</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">x</span><span class="p">)),</span><span class="w"> </span><span class="n">p_soc</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">x</span><span class="p">)),</span><span class="w"> </span><span class="n">x_lb2</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">x</span><span class="p">)),</span><span class="w"> </span><span class="n">x_ub2</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">x</span><span class="p">)),</span><span class="w"> </span><span class="n">hp</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">x</span><span class="p">)))</span><span class="w"></span>
+<span class="w">    </span><span class="k">allocate</span><span class="p">(</span><span class="n">jp</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)),</span><span class="w"> </span><span class="n">c_trial</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)),</span><span class="w"> </span><span class="n">c_lin</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)))</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(.</span><span class="nb">not</span><span class="p">.</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">ready</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<span class="k">        </span><span class="n">me</span><span class="p">%</span><span class="n">radius</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">radius0</span><span class="w"></span>
+<span class="w">        </span><span class="n">me</span><span class="p">%</span><span class="n">ready</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">true</span><span class="p">.</span><span class="w"></span>
+<span class="w">    </span><span class="k">end if</span>
+
+<span class="k">    </span><span class="n">me</span><span class="p">%</span><span class="n">used_soc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"></span>
+<span class="w">    </span><span class="n">use_funnel</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">linesearch</span><span class="p">%</span><span class="n">mode</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">sqpopt_linesearch_funnel</span><span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="n">use_filter</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">linesearch</span><span class="p">%</span><span class="n">mode</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">sqpopt_linesearch_filter</span><span class="p">)</span><span class="w"> </span><span class="p">.</span><span class="nb">or</span><span class="p">.</span><span class="w"> </span><span class="n">use_funnel</span><span class="w"> </span><span class="c">!! (no merit function in either)</span>
+<span class="w">    </span><span class="n">h0</span><span class="w">         </span><span class="o">=</span><span class="w"> </span><span class="n">l1_violation</span><span class="p">(</span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">problem</span><span class="p">%</span><span class="n">c_lb</span><span class="p">,</span><span class="w"> </span><span class="n">problem</span><span class="p">%</span><span class="n">c_ub</span><span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">use_funnel</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<span class="k">        call </span><span class="n">linesearch</span><span class="p">%</span><span class="n">funnel</span><span class="p">%</span><span class="n">prepare</span><span class="p">(</span><span class="n">h0</span><span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="k">else if</span><span class="w"> </span><span class="p">(</span><span class="n">use_filter</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<span class="k">        call </span><span class="n">linesearch</span><span class="p">%</span><span class="n">filter</span><span class="p">%</span><span class="n">prepare</span><span class="p">(</span><span class="n">h0</span><span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="k">end if</span>
+
+<span class="k">    do </span><span class="n">retry</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">max_retries</span><span class="w"></span>
+
+<span class="w">        </span><span class="c">! (the box, within the variables&#39; bounds and their step limits, if any)</span>
+<span class="w">        </span><span class="k">call </span><span class="n">problem</span><span class="p">%</span><span class="n">step_bounds</span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">x_lb2</span><span class="p">,</span><span class="w"> </span><span class="n">x_ub2</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="n">x_lb2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="n">x_lb2</span><span class="p">,</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">radius</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="n">x_ub2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">min</span><span class="p">(</span><span class="n">x_ub2</span><span class="p">,</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">radius</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="c">! the trust region controls the step length, so the QP solver&#39;s own</span>
+<span class="w">        </span><span class="c">! (line-search) cap on it, `max_step*step_scale`, must not bind inside</span>
+<span class="w">        </span><span class="c">! the box (whose steps are at most `sqrt(n)*radius` long): otherwise</span>
+<span class="w">        </span><span class="c">! every step is cut to `max_step`, never uses the full radius, and the</span>
+<span class="w">        </span><span class="c">! radius can&#39;t grow either (e.g. TP220, which starts 25000 away from</span>
+<span class="w">        </span><span class="c">! its solution, crawled 2 per iteration)</span>
+<span class="w">        </span><span class="n">qp_solver</span><span class="p">%</span><span class="n">step_scale</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="n">qp_solver</span><span class="p">%</span><span class="n">step_scale</span><span class="p">,</span><span class="w"> </span><span class="mf">1.01_wp</span><span class="o">*</span><span class="nb">sqrt</span><span class="p">(</span><span class="kt">real</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">x</span><span class="p">),</span><span class="w"> </span><span class="n">wp</span><span class="p">))</span><span class="o">*</span><span class="n">me</span><span class="p">%</span><span class="n">radius</span><span class="o">/</span><span class="n">qp_solver</span><span class="p">%</span><span class="n">max_step</span><span class="p">)</span><span class="w"></span>
+
+<span class="w">        </span><span class="k">call </span><span class="n">qp_solver</span><span class="p">%</span><span class="n">solve</span><span class="p">(</span><span class="n">hessian</span><span class="p">,</span><span class="w"> </span><span class="n">jac</span><span class="p">,</span><span class="w"> </span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">g</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">x_lb2</span><span class="p">,</span><span class="w"> </span><span class="n">x_ub2</span><span class="p">,</span><span class="w"> </span><span class="n">problem</span><span class="p">%</span><span class="n">c_lb</span><span class="p">,</span><span class="w"> </span><span class="n">problem</span><span class="p">%</span><span class="n">c_ub</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">new_lambda</span><span class="p">,</span><span class="w"> </span><span class="n">qp_istat</span><span class="p">,</span><span class="w"> </span><span class="p">&amp;</span><span class="w"></span>
+<span class="w">                             </span><span class="n">kkt</span><span class="o">=</span><span class="n">kkt</span><span class="p">,</span><span class="w"> </span><span class="n">inertia</span><span class="o">=</span><span class="n">inertia</span><span class="p">)</span><span class="w"></span>
+
+<span class="w">        </span><span class="c">! keep the merit function&#39;s penalty parameter dominating the current</span>
+<span class="w">        </span><span class="c">! multiplier estimates, same rule as the line-search path (needed for</span>
+<span class="w">        </span><span class="c">! `merit%eval`&#39;s ared/pred to be meaningful in the merit-ratio test):</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">new_lambda</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="n">linesearch</span><span class="p">%</span><span class="n">merit</span><span class="p">%</span><span class="n">penalty</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="n">linesearch</span><span class="p">%</span><span class="n">merit</span><span class="p">%</span><span class="n">penalty</span><span class="p">,</span><span class="w"> </span><span class="nb">maxval</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">new_lambda</span><span class="p">))</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mf">1.0_wp</span><span class="p">)</span><span class="w"></span>
+
+<span class="w">        </span><span class="c">! the model&#39;s predicted decrease in `f`, and in the merit function: the</span>
+<span class="w">        </span><span class="c">! merit function (whichever `merit_mode` is selected) evaluated at the</span>
+<span class="w">        </span><span class="c">! QP model&#39;s objective `f-q` and linearized constraints `c+Jp` (for</span>
+<span class="w">        </span><span class="c">! `sqpopt_merit_l1` this is the classical `q + penalty*(h(c)-h(c+Jp))`):</span>
+<span class="w">        </span><span class="k">call </span><span class="n">hessian</span><span class="p">%</span><span class="n">hv_product</span><span class="p">(</span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">hp</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="n">q</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">-</span><span class="p">(</span><span class="nb">dot_product</span><span class="p">(</span><span class="n">g</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mf">0.5_wp</span><span class="o">*</span><span class="nb">dot_product</span><span class="p">(</span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">hp</span><span class="p">))</span><span class="w"></span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(.</span><span class="nb">not</span><span class="p">.</span><span class="w"> </span><span class="n">use_filter</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<span class="k">            call </span><span class="n">sparse_matvec</span><span class="p">(</span><span class="n">jac</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">jp</span><span class="p">)</span><span class="w"></span>
+<span class="w">            </span><span class="n">c_lin</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">jp</span><span class="w"></span>
+<span class="w">            </span><span class="k">call </span><span class="n">linesearch</span><span class="p">%</span><span class="n">merit</span><span class="p">%</span><span class="n">eval</span><span class="p">(</span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">problem</span><span class="p">%</span><span class="n">c_lb</span><span class="p">,</span><span class="w"> </span><span class="n">problem</span><span class="p">%</span><span class="n">c_ub</span><span class="p">,</span><span class="w"> </span><span class="n">new_lambda</span><span class="p">,</span><span class="w"> </span><span class="n">phi0</span><span class="p">)</span><span class="w"></span>
+<span class="w">            </span><span class="k">call </span><span class="n">linesearch</span><span class="p">%</span><span class="n">merit</span><span class="p">%</span><span class="n">eval</span><span class="p">(</span><span class="n">f</span><span class="o">-</span><span class="n">q</span><span class="p">,</span><span class="w"> </span><span class="n">c_lin</span><span class="p">,</span><span class="w"> </span><span class="n">problem</span><span class="p">%</span><span class="n">c_lb</span><span class="p">,</span><span class="w"> </span><span class="n">problem</span><span class="p">%</span><span class="n">c_ub</span><span class="p">,</span><span class="w"> </span><span class="n">new_lambda</span><span class="p">,</span><span class="w"> </span><span class="n">phi_model</span><span class="p">)</span><span class="w"></span>
+<span class="w">            </span><span class="n">pred</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">phi0</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">phi_model</span><span class="w"></span>
+<span class="w">        </span><span class="k">end if</span>
+
+<span class="k">        </span><span class="n">x_new</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">p</span><span class="w">   </span><span class="c">! (the trial point)</span>
+<span class="w">        </span><span class="k">call </span><span class="n">evaluate</span><span class="p">(</span><span class="n">x_new</span><span class="p">,</span><span class="w"> </span><span class="k">accept</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="k">call </span><span class="n">log_trial</span><span class="p">(</span><span class="s1">&#39;tr  radius &#39;</span><span class="o">//</span><span class="n">fmt_e</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">radius</span><span class="p">)</span><span class="o">//</span><span class="s1">&#39;, QP &#39;</span><span class="o">//</span><span class="n">qp_status_text</span><span class="p">(</span><span class="n">qp_istat</span><span class="p">)</span><span class="o">//</span><span class="s1">&#39;: &#39;</span><span class="p">)</span><span class="w"></span>
+
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(.</span><span class="nb">not</span><span class="p">.</span><span class="w"> </span><span class="k">accept</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="n">ok</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="n">problem</span><span class="p">%</span><span class="n">m</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<span class="k">            if</span><span class="w"> </span><span class="p">(</span><span class="n">h_trial</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">h0</span><span class="p">)</span><span class="w"> </span><span class="k">then</span><span class="w"></span>
+<span class="w">                </span><span class="c">! the step didn&#39;t reduce the constraint violation, so its</span>
+<span class="w">                </span><span class="c">! rejection may be due to constraint curvature (the Maratos</span>
+<span class="w">                </span><span class="c">! effect): try the second-order-corrected step (kept inside</span>
+<span class="w">                </span><span class="c">! the trust region) before shrinking the radius:</span>
+<span class="w">                </span><span class="k">call </span><span class="n">soc_step</span><span class="p">(</span><span class="n">jac</span><span class="p">,</span><span class="w"> </span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">c_trial</span><span class="p">,</span><span class="w"> </span><span class="n">problem</span><span class="p">%</span><span class="n">c_lb</span><span class="p">,</span><span class="w"> </span><span class="n">problem</span><span class="p">%</span><span class="n">c_ub</span><span class="p">,</span><span class="w"> </span><span class="n">x_lb2</span><span class="p">,</span><span class="w"> </span><span class="n">x_ub2</span><span class="p">,</span><span class="w"> </span><span class="n">p_soc</span><span class="p">,</span><span class="w"> </span><span class="n">soc_ok</span><span class="p">,</span><span class="w"> </span><span class="p">&amp;</span><span class="w"></span>
+<span class="w">                              </span><span class="n">least_squares</span><span class="o">=</span><span class="n">least_squares</span><span class="p">)</span><span class="w"></span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">soc_ok</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<span class="k">                    </span><span class="n">x_new</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">p_soc</span><span class="w"></span>
+<span class="w">                    </span><span class="k">call </span><span class="n">evaluate</span><span class="p">(</span><span class="n">x_new</span><span class="p">,</span><span class="w"> </span><span class="k">accept</span><span class="p">)</span><span class="w"></span>
+<span class="w">                    </span><span class="k">call </span><span class="n">log_trial</span><span class="p">(</span><span class="s1">&#39;tr  second-order correction: &#39;</span><span class="p">)</span><span class="w"></span>
+<span class="w">                    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="k">accept</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<span class="k">                        </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p_soc</span><span class="w"></span>
+<span class="w">                        </span><span class="n">me</span><span class="p">%</span><span class="n">used_soc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">true</span><span class="p">.</span><span class="w"></span>
+<span class="w">                    </span><span class="k">end if</span>
+<span class="k">                end if</span>
+<span class="k">            end if</span>
+<span class="k">        end if</span>
+
+<span class="k">        if</span><span class="w"> </span><span class="p">(</span><span class="k">accept</span><span class="p">)</span><span class="w"> </span><span class="k">then</span><span class="w"></span>
+
+<span class="w">            </span><span class="c">! (a step that isn&#39;t f-type adds the current point to the filter,</span>
+<span class="w">            </span><span class="c">! or shrinks the funnel)</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">use_funnel</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="p">.</span><span class="nb">not</span><span class="p">.</span><span class="w"> </span><span class="n">f_type</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<span class="k">                call </span><span class="n">linesearch</span><span class="p">%</span><span class="n">funnel</span><span class="p">%</span><span class="n">record</span><span class="p">(</span><span class="n">h0</span><span class="p">,</span><span class="w"> </span><span class="n">h_trial</span><span class="p">)</span><span class="w"></span>
+<span class="w">            </span><span class="k">else if</span><span class="w"> </span><span class="p">(</span><span class="n">use_filter</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="p">.</span><span class="nb">not</span><span class="p">.</span><span class="w"> </span><span class="n">f_type</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<span class="k">                call </span><span class="n">linesearch</span><span class="p">%</span><span class="n">filter</span><span class="p">%</span><span class="n">record</span><span class="p">(</span><span class="n">h0</span><span class="p">,</span><span class="w"> </span><span class="n">f</span><span class="p">)</span><span class="w"></span>
+<span class="w">            </span><span class="k">end if</span>
+
+<span class="k">            if</span><span class="w"> </span><span class="p">(</span><span class="nb">maxval</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">p</span><span class="p">))</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mf">0.99_wp</span><span class="o">*</span><span class="n">me</span><span class="p">%</span><span class="n">radius</span><span class="p">)</span><span class="w"> </span><span class="k">then</span><span class="w"></span>
+<span class="w">                </span><span class="c">! the step used (approximately) the full trust region --</span>
+<span class="w">                </span><span class="c">! grow it for next time, gated on ratio quality for the</span>
+<span class="w">                </span><span class="c">! merit-ratio branch (Nocedal &amp; Wright&#39;s textbook rule),</span>
+<span class="w">                </span><span class="c">! or unconditionally for the filter branch (Fletcher &amp;</span>
+<span class="w">                </span><span class="c">! Leyffer&#39;s simpler &quot;accepted implies possibly grow&quot; rule):</span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">use_filter</span><span class="w"> </span><span class="p">.</span><span class="nb">or</span><span class="p">.</span><span class="w"> </span><span class="n">ratio</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">eta2</span><span class="p">)</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">radius</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">min</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">radius</span><span class="o">*</span><span class="n">me</span><span class="p">%</span><span class="n">expand_factor</span><span class="p">,</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">radius_max</span><span class="p">)</span><span class="w"></span>
+<span class="w">            </span><span class="k">end if</span>
+
+<span class="k">            </span><span class="n">x_new</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">p</span><span class="w"></span>
+<span class="w">            </span><span class="n">alpha</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">1.0_wp</span><span class="w"></span>
+<span class="w">            </span><span class="n">istat</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sqpopt_success</span><span class="w"></span>
+<span class="w">            </span><span class="k">return</span>
+
+<span class="k">        else</span>
+
+<span class="k">            </span><span class="n">me</span><span class="p">%</span><span class="n">radius</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">radius</span><span class="o">*</span><span class="n">me</span><span class="p">%</span><span class="n">shrink_factor</span><span class="p">,</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">radius_min</span><span class="p">)</span><span class="w"></span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">radius</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">radius_min</span><span class="p">)</span><span class="w"> </span><span class="k">exit</span>
+
+<span class="k">        end if</span>
+
+<span class="k">    end do</span><span class="w"></span>
+
+<span class="w">    </span><span class="c">! every retry was rejected (or the radius floor was reached): no step</span>
+<span class="w">    </span><span class="c">! is taken. The next major iteration starts from the (small) radius</span>
+<span class="w">    </span><span class="c">! reached here, with a reset Hessian approximation (see</span>
+<span class="w">    </span><span class="c">! [[sqpopt_iterate_module]]), so it won&#39;t repeat the same retries:</span>
+<span class="w">    </span><span class="k">call </span><span class="n">me</span><span class="p">%</span><span class="nb">log</span><span class="p">%</span><span class="n">put</span><span class="p">(</span><span class="n">sqpopt_log_detail</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;tr  no acceptable step (radius &#39;</span><span class="o">//</span><span class="n">fmt_e</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">radius</span><span class="p">)</span><span class="o">//</span><span class="s1">&#39;)&#39;</span><span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="n">x_new</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">x</span><span class="w"></span>
+<span class="w">    </span><span class="n">alpha</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="w"></span>
+<span class="w">    </span><span class="n">istat</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sqpopt_line_search_failed</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">contains</span>
+
+<span class="k">        subroutine </span><span class="n">log_trial</span><span class="p">(</span><span class="n">prefix</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="c">!! the detailed log&#39;s line for the last evaluated trial point</span>
+<span class="w">        </span><span class="kt">character</span><span class="p">(</span><span class="nb">len</span><span class="o">=*</span><span class="p">),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">prefix</span><span class="w"> </span><span class="c">!! the start of the line (what was tried)</span>
+<span class="w">        </span><span class="kt">character</span><span class="p">(</span><span class="nb">len</span><span class="o">=</span><span class="p">:),</span><span class="w"> </span><span class="k">allocatable</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">line</span><span class="w"></span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(.</span><span class="nb">not</span><span class="p">.</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="nb">log</span><span class="p">%</span><span class="n">on</span><span class="p">(</span><span class="n">sqpopt_log_detail</span><span class="p">))</span><span class="w"> </span><span class="k">return</span>
+<span class="k">        if</span><span class="w"> </span><span class="p">(.</span><span class="nb">not</span><span class="p">.</span><span class="w"> </span><span class="n">ok</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<span class="k">            </span><span class="n">line</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prefix</span><span class="o">//</span><span class="s1">&#39;non-finite function value, rejected&#39;</span><span class="w"></span>
+<span class="w">        </span><span class="k">else if</span><span class="w"> </span><span class="p">(</span><span class="n">use_filter</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<span class="k">            </span><span class="n">line</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prefix</span><span class="o">//</span><span class="s1">&#39;violation &#39;</span><span class="o">//</span><span class="n">fmt_e</span><span class="p">(</span><span class="n">h_trial</span><span class="p">)</span><span class="o">//</span><span class="s1">&#39;, objective &#39;</span><span class="o">//</span><span class="n">fmt_g</span><span class="p">(</span><span class="n">f_trial</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="k">else</span>
+<span class="k">            </span><span class="n">line</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prefix</span><span class="o">//</span><span class="s1">&#39;ratio &#39;</span><span class="o">//</span><span class="n">fmt_e</span><span class="p">(</span><span class="n">ratio</span><span class="p">)</span><span class="o">//</span><span class="s1">&#39; (actual/predicted merit decrease)&#39;</span><span class="w"></span>
+<span class="w">        </span><span class="k">end if</span>
+<span class="k">        if</span><span class="w"> </span><span class="p">(</span><span class="n">ok</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<span class="k">            if</span><span class="w"> </span><span class="p">(</span><span class="k">accept</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<span class="k">                </span><span class="n">line</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">line</span><span class="o">//</span><span class="s1">&#39;, accepted&#39;</span><span class="w"></span>
+<span class="w">            </span><span class="k">else</span>
+<span class="k">                </span><span class="n">line</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">line</span><span class="o">//</span><span class="s1">&#39;, rejected&#39;</span><span class="w"></span>
+<span class="w">            </span><span class="k">end if</span>
+<span class="k">        end if</span>
+<span class="k">        call </span><span class="n">me</span><span class="p">%</span><span class="nb">log</span><span class="p">%</span><span class="n">put</span><span class="p">(</span><span class="n">sqpopt_log_detail</span><span class="p">,</span><span class="w"> </span><span class="n">line</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="k">end subroutine </span><span class="n">log_trial</span><span class="w"></span>
+
+
+<span class="w">        </span><span class="k">subroutine </span><span class="n">evaluate</span><span class="p">(</span><span class="n">x_trial</span><span class="p">,</span><span class="w"> </span><span class="k">accept</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="c">!! evaluate the trial point `x_trial` (setting `f_trial`, `c_trial`,</span>
+<span class="w">        </span><span class="c">!! `h_trial`, `ok`, and `ratio`), and whether it is acceptable. A</span>
+<span class="w">        </span><span class="c">!! trial point where `f` or `c` is not finite is never acceptable.</span>
+<span class="w">        </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">x_trial</span><span class="w"> </span><span class="c">!! the trial point `dimension(n)`</span>
+<span class="w">        </span><span class="kt">logical</span><span class="p">,</span><span class="w">                </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="k">accept</span><span class="w">  </span><span class="c">!! whether it is acceptable</span>
+<span class="w">        </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">phi_trial</span><span class="p">,</span><span class="w"> </span><span class="n">ared</span><span class="w"></span>
+
+<span class="w">        </span><span class="k">call </span><span class="n">problem</span><span class="p">%</span><span class="n">f</span><span class="p">(</span><span class="n">x_trial</span><span class="p">,</span><span class="w"> </span><span class="n">f_trial</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="k">call </span><span class="n">problem</span><span class="p">%</span><span class="n">c</span><span class="p">(</span><span class="n">x_trial</span><span class="p">,</span><span class="w"> </span><span class="n">c_trial</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="n">ok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sqpopt_all_finite</span><span class="p">([</span><span class="n">f_trial</span><span class="p">])</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="n">sqpopt_all_finite</span><span class="p">(</span><span class="n">c_trial</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="k">accept</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"></span>
+<span class="w">        </span><span class="n">f_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"></span>
+<span class="w">        </span><span class="n">ratio</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="o">-</span><span class="mf">1.0_wp</span><span class="w"></span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(.</span><span class="nb">not</span><span class="p">.</span><span class="w"> </span><span class="n">ok</span><span class="p">)</span><span class="w"> </span><span class="k">return</span>
+<span class="k">        </span><span class="n">h_trial</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">l1_violation</span><span class="p">(</span><span class="n">c_trial</span><span class="p">,</span><span class="w"> </span><span class="n">problem</span><span class="p">%</span><span class="n">c_lb</span><span class="p">,</span><span class="w"> </span><span class="n">problem</span><span class="p">%</span><span class="n">c_ub</span><span class="p">)</span><span class="w"></span>
+
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">use_filter</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+
+<span class="k">            if</span><span class="w"> </span><span class="p">(</span><span class="n">use_funnel</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<span class="k">                accept</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">linesearch</span><span class="p">%</span><span class="n">funnel</span><span class="p">%</span><span class="k">accept</span><span class="p">(</span><span class="n">h0</span><span class="p">,</span><span class="w"> </span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="n">q</span><span class="p">,</span><span class="w"> </span><span class="n">h_trial</span><span class="p">,</span><span class="w"> </span><span class="n">f_trial</span><span class="p">,</span><span class="w"> </span><span class="n">f_type</span><span class="p">)</span><span class="w"></span>
+<span class="w">            </span><span class="k">else</span>
+<span class="k">                accept</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">linesearch</span><span class="p">%</span><span class="n">filter</span><span class="p">%</span><span class="k">accept</span><span class="p">(</span><span class="n">h0</span><span class="p">,</span><span class="w"> </span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="o">-</span><span class="n">q</span><span class="p">,</span><span class="w"> </span><span class="mf">1.0_wp</span><span class="p">,</span><span class="w"> </span><span class="n">h_trial</span><span class="p">,</span><span class="w"> </span><span class="n">f_trial</span><span class="p">,</span><span class="w"> </span><span class="n">f_type</span><span class="p">)</span><span class="w"></span>
+<span class="w">            </span><span class="k">end if</span>
+<span class="k">            </span><span class="n">ratio</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">1.0_wp</span><span class="w"> </span><span class="c">!! not used for the ratio test in this branch, only for the &quot;grow radius&quot; gate</span>
+
+<span class="w">        </span><span class="k">else</span>
+
+<span class="k">            call </span><span class="n">linesearch</span><span class="p">%</span><span class="n">merit</span><span class="p">%</span><span class="n">eval</span><span class="p">(</span><span class="n">f_trial</span><span class="p">,</span><span class="w"> </span><span class="n">c_trial</span><span class="p">,</span><span class="w"> </span><span class="n">problem</span><span class="p">%</span><span class="n">c_lb</span><span class="p">,</span><span class="w"> </span><span class="n">problem</span><span class="p">%</span><span class="n">c_ub</span><span class="p">,</span><span class="w"> </span><span class="n">new_lambda</span><span class="p">,</span><span class="w"> </span><span class="n">phi_trial</span><span class="p">)</span><span class="w"></span>
+<span class="w">            </span><span class="n">ared</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">phi0</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">phi_trial</span><span class="w"> </span><span class="c">!! actual decrease in the merit function</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">pred</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">1.0e-12_wp</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<span class="k">                </span><span class="n">ratio</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ared</span><span class="o">/</span><span class="n">pred</span><span class="w"></span>
+<span class="w">            </span><span class="k">else</span><span class="w"></span>
+<span class="w">                </span><span class="c">! the model doesn&#39;t even predict improvement: fall back to</span>
+<span class="w">                </span><span class="c">! whether the true merit function improved anyway:</span>
+<span class="w">                </span><span class="n">ratio</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">merge</span><span class="p">(</span><span class="mf">1.0_wp</span><span class="p">,</span><span class="w"> </span><span class="o">-</span><span class="mf">1.0_wp</span><span class="p">,</span><span class="w"> </span><span class="n">ared</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="p">)</span><span class="w"></span>
+<span class="w">            </span><span class="k">end if</span>
+<span class="k">            accept</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ratio</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">eta1</span><span class="w"></span>
+
+<span class="w">        </span><span class="k">end if</span>
+
+<span class="k">        end subroutine </span><span class="n">evaluate</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">end subroutine </span><span class="n">trust_region_step</span><span class="w"></span>
+</pre></div>
+
+    </section>
+    <br>
+    
+    </div>
+  </div>
+
+      <hr>
+    </div> <!-- /container -->
+    <footer>
+      <div class="container">
+        <div class="row justify-content-between">
+          <div class="col">
+            <p>
+              sqpopt
+ was developed by Jacob Williams<br>              &copy; 2026 
+</p>
+          </div>
+          <div class="col">
+            <p class="text-end">
+              Documentation generated by
+              <a href="https://github.com/Fortran-FOSS-Programmers/ford">FORD</a>
+            </p>
+          </div>
+        </div>
+        <br>
+      </div> <!-- /container -->
+    </footer>
+    <!-- sqpopt theme: the button switches the theme, and remembers it for the guide too -->
+    <script>
+      document.querySelector('.theme-toggle').addEventListener('click', function () {
+        var root = document.documentElement;
+        var next = root.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-bs-theme', next);
+        try { localStorage.setItem('sqpopt-theme', next); } catch (e) {}
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,1134 @@
+<!-- -*- mode: jinja2 -*- -->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- sqpopt theme: set before the page is drawn; the guide's choice (the same
+         localStorage key, on the same site), or else the system's -->
+    <script>
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('sqpopt-theme'); } catch (e) {}
+        if (t !== 'dark' && t !== 'light') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-bs-theme', t);
+      })();
+    </script>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta name="description" content="Modern Fortran SQP OPTimizer">
+    <meta name="author" content="Jacob Williams" >
+    <link rel="icon" href="../favicon.png">
+
+    <title>sqpopt_convergence_module &ndash; sqpopt</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <!-- Font Awesome -->
+    <link href="../css/fontawesome.min.css" rel="stylesheet">
+    <link href="../css/brands.min.css" rel="stylesheet">
+    <link href="../css/regular.min.css" rel="stylesheet">
+    <link href="../css/solid.min.css" rel="stylesheet">
+    <link href="../css/v4-font-face.min.css" rel="stylesheet">
+    <link href="../css/v4-shims.min.css" rel="stylesheet">
+    <!-- MathJax -->
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        TeX: { equationNumbers: { autoNumber: "AMS" } }
+      });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@2.7.9/MathJax.js?config=TeX-AMS-MML_HTMLorMML" async
+            integrity="sha256-DViIOMYdwlM/axqoGDPeUyf0urLoHMN4QACBKyB58Uw=" crossorigin="anonymous"></script>
+    <!-- Other scripts and stylesheets -->
+    <link href="../css/local.css" rel="stylesheet">
+    <link href="../css/pygments.css" rel="stylesheet">
+      <link href="../css/user.css" rel="stylesheet">
+    <script src="../js/svg-pan-zoom.min.js"></script>
+  </head>
+
+  <body>
+
+    <!-- Fixed navbar -->
+    <div class="container-fluid mb-sm-4 mb-xl-2">
+      <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+          <a class="navbar-brand" href="../index.html">sqpopt </a>
+          <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbar"
+                  aria-expanded="false" aria-controls="navbar" aria-label="Toggle navigation">
+                  <span class="navbar-toggler-icon">
+          </button>
+
+          <div id="navbar" class="navbar-collapse collapse">
+            <ul class="navbar-nav">
+                  <li class="nav-item">
+                    <a class="nav-link" href="../lists/files.html">Source Files</a>
+                  </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/modules.html">Modules</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/procedures.html">Procedures</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/absint.html">Abstract Interfaces</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/types.html">Derived Types</a>
+                </li>
+            </ul>
+              <div class="d-flex align-items-end flex-grow-1">
+                <form action="../search.html" role="search" class="ms-auto">
+                  <input type="text" class="form-control" aria-label="Search" placeholder="Search" name="q" id="tipue_search_input" autocomplete="off" required>
+                </form>
+              </div>
+            <!-- sqpopt theme: the light/dark button -->
+            <button type="button" class="btn nav-link theme-toggle ms-lg-3" aria-label="Toggle dark mode" title="Toggle dark mode">
+              <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg>
+              <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div><!--/.nav-collapse -->
+        </div>
+      </nav>
+    </div>
+
+    <div class="container">
+  <div class="row">
+    <h1>sqpopt_convergence_module
+      <small>Module</small>
+      
+    </h1>
+      <div class="container p-2 mb-4 bg-light border rounded-3">
+    <div class="row align-items-center justify-content-between" id="info-bar">
+      <div class="col">
+        <ul class="list-inline" style="margin-bottom:0px;display:inline">
+            <li class="list-inline-item" id="meta-author"><i class="fa fa-pencil"></i> Jacob Williams</li>
+            <li class="list-inline-item" id="meta-license"><i class="fa fa-legal"></i> MIT</li>
+
+            <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
+              <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
+                 title=" 1.2% of total for modules and submodules.">117 statements</a>
+            </li>
+
+            <li class="list-inline-item" id="source-file">
+              <i class="fa fa-code"></i>
+              <a href="../src/sqpopt_convergence_module.f90"> Source File</a>
+            </li>
+        </ul>
+      </div>
+      <div class="col">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb justify-content-end mb-0">
+                <li class="breadcrumb-item"><a href='../sourcefile/sqpopt_convergence_module.f90.html'>sqpopt_convergence_module.f90</a></li>
+            <li class="breadcrumb-item active" aria-current="page">sqpopt_convergence_module</li>
+          </ol>
+        </nav>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Enable Bootstrap tooltips
+    (function () {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+      const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+    })();
+  </script>
+
+  </div>
+
+  <div class="row">
+    <div class="col-md-3">
+        <div id="sidebar">
+      <h3>Contents</h3>
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+      <div class="card mb-4">
+      <a data-bs-toggle="collapse" href="#funcs-0"
+         aria-expanded="false" aria-controls="funcs-0">
+         <h4 class="card-header bg-primary text-white">Functions</h4>
+      </a>
+      <div id="funcs-0" class="collapse">
+        <div class="list-group list-group-flush">
+            <a class="list-group-item" href="../module/sqpopt_convergence_module.html#proc-projected_inf_norm">projected_inf_norm</a>
+        </div>
+      </div>
+    </div>
+
+      <div class="card mb-4">
+      <a data-bs-toggle="collapse" href="#subs-0"
+         aria-expanded="false" aria-controls="subs-0">
+         <h4 class="card-header bg-primary text-white">Subroutines</h4>
+      </a>
+      <div id="subs-0" class="collapse">
+        <div class="list-group list-group-flush">
+            <a class="list-group-item" href="../module/sqpopt_convergence_module.html#proc-check_convergence">check_convergence</a>
+        </div>
+      </div>
+    </div>
+
+  
+  
+  
+  
+  
+  
+  
+
+
+  </div>
+
+    </div>
+
+    <div class="col-md-9" id='text'>
+      <p>Stopping criteria for the SQP algorithm, based on the Karush-Kuhn-Tucker
+(KKT) optimality conditions and feasibility of the constraints and
+bounds, plus the stalled-progress and local-infeasibility tests.</p>
+<br>          <div class="card mb-4">
+      <h3 class="card-header card-title bg-light">Uses</h3>
+      <div class="card-body">
+        <ul class="list-group list-group-flush">
+            <li class="list-group-item">
+              <ul class="list-inline">
+                  <li class="list-inline-item"><a href='sqpopt_types_module.html'>sqpopt_types_module</a></li>
+                  <li class="list-inline-item"><a href='sqpopt_kinds.html'>sqpopt_kinds</a></li>
+                  <li class="list-inline-item"><a href='sqpopt_linalg_module.html'>sqpopt_linalg_module</a></li>
+              </ul>
+            </li>
+            <li class="list-group-item">
+              <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: module~~sqpopt_convergence_module~~UsesGraph Pages: 1 -->
+<svg id="modulesqpopt_convergence_moduleUsesGraph" width="641pt" height="122pt"
+ viewBox="0.00 0.00 641.00 122.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="module~~sqpopt_convergence_module~~UsesGraph" class="graph" transform="scale(0.839995 0.839995) rotate(0) translate(4 141.73)">
+<title>module~~sqpopt_convergence_module~~UsesGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-141.73 759.1,-141.73 759.1,4 -4,4"/>
+<!-- module~sqpopt_convergence_module -->
+<g id="module~~sqpopt_convergence_module~~UsesGraph_node1" class="node">
+<title>module~sqpopt_convergence_module</title>
+<polygon fill="none" stroke="black" points="755.1,-97.27 586.83,-97.27 586.83,-73 755.1,-73 755.1,-97.27"/>
+<text xml:space="preserve" text-anchor="middle" x="670.96" y="-81.54" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_convergence_module</text>
+</g>
+<!-- module~sqpopt_kinds -->
+<g id="module~~sqpopt_convergence_module~~UsesGraph_node2" class="node">
+<title>module~sqpopt_kinds</title>
+<g id="a_module~~sqpopt_convergence_module~~UsesGraph_node2"><a xlink:href="../module/sqpopt_kinds.html" xlink:title="sqpopt_kinds">
+<polygon fill="#337ab7" stroke="#337ab7" points="216.91,-107.27 136.39,-107.27 136.39,-83 216.91,-83 216.91,-107.27"/>
+<text xml:space="preserve" text-anchor="middle" x="176.65" y="-91.54" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_kinds</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_convergence_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_convergence_module~~UsesGraph_edge1" class="edge">
+<title>module~sqpopt_convergence_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M625.24,-97.71C559.64,-114.8 433.32,-142.53 324.55,-136.13"/>
+</g>
+<!-- module~sqpopt_linalg_module -->
+<g id="module~~sqpopt_convergence_module~~UsesGraph_node3" class="node">
+<title>module~sqpopt_linalg_module</title>
+<g id="a_module~~sqpopt_convergence_module~~UsesGraph_node3"><a xlink:href="../module/sqpopt_linalg_module.html" xlink:title="sqpopt_linalg_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="550.83,-97.27 423.06,-97.27 423.06,-73 550.83,-73 550.83,-97.27"/>
+<text xml:space="preserve" text-anchor="middle" x="486.94" y="-81.54" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_linalg_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_convergence_module&#45;&gt;module~sqpopt_linalg_module -->
+<g id="module~~sqpopt_convergence_module~~UsesGraph_edge2" class="edge">
+<title>module~sqpopt_convergence_module&#45;&gt;module~sqpopt_linalg_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M586.41,-85.14C578.44,-85.14 570.39,-85.14 562.51,-85.14"/>
+<polygon fill="#000000" stroke="#000000" points="562.62,-81.64 552.62,-85.14 562.62,-88.64 562.62,-81.64"/>
+</g>
+<!-- module~sqpopt_types_module -->
+<g id="module~~sqpopt_convergence_module~~UsesGraph_node4" class="node">
+<title>module~sqpopt_types_module</title>
+<g id="a_module~~sqpopt_convergence_module~~UsesGraph_node4"><a xlink:href="../module/sqpopt_types_module.html" xlink:title="sqpopt_types_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="387.06,-24.27 260.04,-24.27 260.04,0 387.06,0 387.06,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="323.55" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_types_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_convergence_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_convergence_module~~UsesGraph_edge3" class="edge">
+<title>module~sqpopt_convergence_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M610.19,-72.5C550.45,-59.88 458.59,-40.46 395.26,-27.08"/>
+<polygon fill="#000000" stroke="#000000" points="396.16,-23.69 385.65,-25.05 394.71,-30.54 396.16,-23.69"/>
+</g>
+<!-- iso_fortran_env -->
+<g id="module~~sqpopt_convergence_module~~UsesGraph_node6" class="node">
+<title>iso_fortran_env</title>
+<g id="a_module~~sqpopt_convergence_module~~UsesGraph_node6"><a xlink:href="http://fortranwiki.org/fortran/show/iso_fortran_env" xlink:title="iso_fortran_env">
+<polygon fill="#337ab7" stroke="#337ab7" points="93.27,-107.27 0,-107.27 0,-83 93.27,-83 93.27,-107.27"/>
+<text xml:space="preserve" text-anchor="middle" x="46.63" y="-91.54" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">iso_fortran_env</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_kinds&#45;&gt;iso_fortran_env -->
+<g id="module~~sqpopt_convergence_module~~UsesGraph_edge4" class="edge">
+<title>module~sqpopt_kinds&#45;&gt;iso_fortran_env</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M136.2,-95.14C126.27,-95.14 115.42,-95.14 104.81,-95.14"/>
+<polygon fill="#000000" stroke="#000000" points="104.98,-91.64 94.98,-95.14 104.98,-98.64 104.98,-91.64"/>
+</g>
+<!-- module~sqpopt_linalg_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_convergence_module~~UsesGraph_edge7" class="edge">
+<title>module~sqpopt_linalg_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M463.9,-97.72C433.43,-113.78 376.33,-139.18 324.55,-136.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M322.55,-136.13C286.22,-134 246.55,-122.06 217.92,-111.61"/>
+<polygon fill="#000000" stroke="#000000" points="219.53,-108.48 208.94,-108.24 217.07,-115.03 219.53,-108.48"/>
+</g>
+<!-- module~sqpopt_linalg_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_convergence_module~~UsesGraph_edge8" class="edge">
+<title>module~sqpopt_linalg_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M464.44,-72.54C444.73,-61.31 414.52,-44.88 387.06,-33.13 383.48,-31.6 379.74,-30.11 375.96,-28.67"/>
+<polygon fill="#000000" stroke="#000000" points="377.27,-25.42 366.68,-25.28 374.87,-31.99 377.27,-25.42"/>
+</g>
+<!-- lusol -->
+<g id="module~~sqpopt_convergence_module~~UsesGraph_node7" class="node">
+<title>lusol</title>
+<g id="a_module~~sqpopt_convergence_module~~UsesGraph_node7"><a xlink:href="https://github.com/jacobwilliams/lusol" xlink:title="lusol">
+<polygon fill="#337ab7" stroke="#337ab7" points="350.55,-108.27 296.55,-108.27 296.55,-84 350.55,-84 350.55,-108.27"/>
+<text xml:space="preserve" text-anchor="middle" x="323.55" y="-92.54" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">lusol</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_linalg_module&#45;&gt;lusol -->
+<g id="module~~sqpopt_convergence_module~~UsesGraph_edge5" class="edge">
+<title>module~sqpopt_linalg_module&#45;&gt;lusol</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M422.62,-89.45C402.14,-90.85 380.1,-92.35 362.11,-93.58"/>
+<polygon fill="#000000" stroke="#000000" points="361.9,-90.08 352.16,-94.25 362.38,-97.06 361.9,-90.08"/>
+</g>
+<!-- lusol_precision -->
+<g id="module~~sqpopt_convergence_module~~UsesGraph_node8" class="node">
+<title>lusol_precision</title>
+<g id="a_module~~sqpopt_convergence_module~~UsesGraph_node8"><a xlink:href="https://github.com/jacobwilliams/lusol" xlink:title="lusol_precision">
+<polygon fill="#337ab7" stroke="#337ab7" points="368.31,-66.27 278.79,-66.27 278.79,-42 368.31,-42 368.31,-66.27"/>
+<text xml:space="preserve" text-anchor="middle" x="323.55" y="-50.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">lusol_precision</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_linalg_module&#45;&gt;lusol_precision -->
+<g id="module~~sqpopt_convergence_module~~UsesGraph_edge6" class="edge">
+<title>module~sqpopt_linalg_module&#45;&gt;lusol_precision</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M422.62,-72.97C408.55,-70.27 393.73,-67.42 380,-64.79"/>
+<polygon fill="#000000" stroke="#000000" points="380.73,-61.36 370.25,-62.91 379.41,-68.24 380.73,-61.36"/>
+</g>
+<!-- module~sqpopt_types_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_convergence_module~~UsesGraph_edge10" class="edge">
+<title>module~sqpopt_types_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M279.09,-24.71C272.56,-27.18 266.02,-29.99 260.04,-33.13 238.06,-44.71 215.7,-61.95 199.83,-75.32"/>
+<polygon fill="#000000" stroke="#000000" points="197.74,-72.5 192.44,-81.68 202.3,-77.81 197.74,-72.5"/>
+</g>
+<!-- ieee_arithmetic -->
+<g id="module~~sqpopt_convergence_module~~UsesGraph_node5" class="node">
+<title>ieee_arithmetic</title>
+<g id="a_module~~sqpopt_convergence_module~~UsesGraph_node5"><a xlink:href="http://fortranwiki.org/fortran/show/ieee_arithmetic" xlink:title="ieee_arithmetic">
+<polygon fill="#337ab7" stroke="#337ab7" points="224.04,-24.27 129.27,-24.27 129.27,0 224.04,0 224.04,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="176.65" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">ieee_arithmetic</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_types_module&#45;&gt;ieee_arithmetic -->
+<g id="module~~sqpopt_convergence_module~~UsesGraph_edge9" class="edge">
+<title>module~sqpopt_types_module&#45;&gt;ieee_arithmetic</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M259.84,-12.13C251.82,-12.13 243.64,-12.13 235.71,-12.13"/>
+<polygon fill="#000000" stroke="#000000" points="235.81,-8.64 225.81,-12.14 235.81,-15.64 235.81,-8.64"/>
+</g>
+</g>
+</svg>
+</div>                <script>
+                  var panmodulesqpopt_convergence_moduleUsesGraph = svgPanZoom('#modulesqpopt_convergence_moduleUsesGraph',
+                    {zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true,}
+                  );
+                </script>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#UsesGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="UsesGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="511pt" height="32pt"
+ viewBox="0.00 0.00 511.00 32.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 506.88,-28.27 506.88,4 -4,4"/>
+<!-- Module -->
+<g id="node1" class="node">
+<title>Module</title>
+<polygon fill="#337ab7" stroke="#337ab7" points="54,-24.27 0,-24.27 0,0 54,0 54,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="27" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Module</text>
+</g>
+<!-- Submodule -->
+<g id="node2" class="node">
+<title>Submodule</title>
+<polygon fill="#5bc0de" stroke="#5bc0de" points="144.13,-24.27 71.87,-24.27 71.87,0 144.13,0 144.13,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="108" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Submodule</text>
+</g>
+<!-- Subroutine -->
+<g id="node3" class="node">
+<title>Subroutine</title>
+<polygon fill="#d9534f" stroke="#d9534f" points="231.63,-24.27 162.37,-24.27 162.37,0 231.63,0 231.63,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="197" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Subroutine</text>
+</g>
+<!-- Function -->
+<g id="node4" class="node">
+<title>Function</title>
+<polygon fill="#d94e8f" stroke="#d94e8f" points="306.26,-24.27 249.74,-24.27 249.74,0 306.26,0 306.26,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="278" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Function</text>
+</g>
+<!-- Program -->
+<g id="node5" class="node">
+<title>Program</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="381.26,-24.27 324.74,-24.27 324.74,0 381.26,0 381.26,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="353" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Program</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node6" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="502.88,-24.27 399.12,-24.27 399.12,0 502.88,0 502.88,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="451" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a submodule to the (sub)module which it is
+descended from. Dashed arrows point from a module or program unit to 
+modules which it uses.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+            </li>
+        </ul>
+      </div>
+    </div>
+
+          <div class="card">
+      <h3 class="card-header card-title bg-light">Used by</h3>
+      <div class="card-body">
+        <ul class="list-group list-group-flush">
+            <li class="list-group-item">
+              <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: module~~sqpopt_convergence_module~~UsedByGraph Pages: 1 -->
+<svg id="modulesqpopt_convergence_moduleUsedByGraph" width="628pt" height="32pt"
+ viewBox="0.00 0.00 628.00 32.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="module~~sqpopt_convergence_module~~UsedByGraph" class="graph" transform="scale(1 1) rotate(0) translate(4 28.27)">
+<title>module~~sqpopt_convergence_module~~UsedByGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 623.83,-28.27 623.83,4 -4,4"/>
+<!-- module~sqpopt_convergence_module -->
+<g id="module~~sqpopt_convergence_module~~UsedByGraph_node1" class="node">
+<title>module~sqpopt_convergence_module</title>
+<polygon fill="none" stroke="black" points="168.27,-24.27 0,-24.27 0,0 168.27,0 168.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="84.14" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_convergence_module</text>
+</g>
+<!-- module~sqpopt_iterate_module -->
+<g id="module~~sqpopt_convergence_module~~UsedByGraph_node2" class="node">
+<title>module~sqpopt_iterate_module</title>
+<g id="a_module~~sqpopt_convergence_module~~UsedByGraph_node2"><a xlink:href="../module/sqpopt_iterate_module.html" xlink:title="sqpopt_iterate_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="338.04,-24.27 204.27,-24.27 204.27,0 338.04,0 338.04,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="271.16" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_iterate_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_iterate_module&#45;&gt;module~sqpopt_convergence_module -->
+<g id="module~~sqpopt_convergence_module~~UsedByGraph_edge1" class="edge">
+<title>module~sqpopt_iterate_module&#45;&gt;module~sqpopt_convergence_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M203.88,-12.13C196.13,-12.13 188.11,-12.13 180.06,-12.13"/>
+<polygon fill="#000000" stroke="#000000" points="180.21,-8.64 170.21,-12.14 180.21,-15.64 180.21,-8.64"/>
+</g>
+<!-- module~sqpopt_module -->
+<g id="module~~sqpopt_convergence_module~~UsedByGraph_node3" class="node">
+<title>module~sqpopt_module</title>
+<g id="a_module~~sqpopt_convergence_module~~UsedByGraph_node3"><a xlink:href="../module/sqpopt_module.html" xlink:title="sqpopt_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="467.31,-24.27 374.04,-24.27 374.04,0 467.31,0 467.31,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="420.68" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_iterate_module -->
+<g id="module~~sqpopt_convergence_module~~UsedByGraph_edge2" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_iterate_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M373.81,-12.13C366.07,-12.13 357.86,-12.13 349.58,-12.13"/>
+<polygon fill="#000000" stroke="#000000" points="349.81,-8.64 339.81,-12.14 349.81,-15.64 349.81,-8.64"/>
+</g>
+<!-- module~sqpopt_nlls_module -->
+<g id="module~~sqpopt_convergence_module~~UsedByGraph_node4" class="node">
+<title>module~sqpopt_nlls_module</title>
+<g id="a_module~~sqpopt_convergence_module~~UsedByGraph_node4"><a xlink:href="../module/sqpopt_nlls_module.html" xlink:title="sqpopt_nlls_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="619.83,-24.27 503.31,-24.27 503.31,0 619.83,0 619.83,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="561.57" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_nlls_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_nlls_module&#45;&gt;module~sqpopt_module -->
+<g id="module~~sqpopt_convergence_module~~UsedByGraph_edge3" class="edge">
+<title>module~sqpopt_nlls_module&#45;&gt;module~sqpopt_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M502.87,-12.13C494.96,-12.13 486.84,-12.13 478.93,-12.13"/>
+<polygon fill="#000000" stroke="#000000" points="479.07,-8.64 469.07,-12.14 479.07,-15.64 479.07,-8.64"/>
+</g>
+</g>
+</svg>
+</div>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#UsedByGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="UsedByGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="511pt" height="32pt"
+ viewBox="0.00 0.00 511.00 32.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 506.88,-28.27 506.88,4 -4,4"/>
+<!-- Module -->
+<g id="node1" class="node">
+<title>Module</title>
+<polygon fill="#337ab7" stroke="#337ab7" points="54,-24.27 0,-24.27 0,0 54,0 54,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="27" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Module</text>
+</g>
+<!-- Submodule -->
+<g id="node2" class="node">
+<title>Submodule</title>
+<polygon fill="#5bc0de" stroke="#5bc0de" points="144.13,-24.27 71.87,-24.27 71.87,0 144.13,0 144.13,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="108" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Submodule</text>
+</g>
+<!-- Subroutine -->
+<g id="node3" class="node">
+<title>Subroutine</title>
+<polygon fill="#d9534f" stroke="#d9534f" points="231.63,-24.27 162.37,-24.27 162.37,0 231.63,0 231.63,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="197" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Subroutine</text>
+</g>
+<!-- Function -->
+<g id="node4" class="node">
+<title>Function</title>
+<polygon fill="#d94e8f" stroke="#d94e8f" points="306.26,-24.27 249.74,-24.27 249.74,0 306.26,0 306.26,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="278" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Function</text>
+</g>
+<!-- Program -->
+<g id="node5" class="node">
+<title>Program</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="381.26,-24.27 324.74,-24.27 324.74,0 381.26,0 381.26,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="353" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Program</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node6" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="502.88,-24.27 399.12,-24.27 399.12,0 502.88,0 502.88,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="451" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a submodule to the (sub)module which it is
+descended from. Dashed arrows point from a module or program unit to 
+modules which it uses.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+            </li>
+        </ul>
+      </div>
+    </div>
+
+      <br>
+
+
+
+
+
+
+
+        <section>
+          <h2>Functions</h2>
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-projected_inf_norm"></span> <h3>private pure function <a href='../proc/projected_inf_norm.html'>projected_inf_norm</a>(r, x, x_lb, x_ub, tol) result(res)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>the infinity norm of the gradient <code>r</code>, projected onto the variable
+ bounds: a component only counts if moving along <code>-r</code> would stay feasible
+ (free variable, or at a bound but pointing into the interior).</p><a href="../proc/projected_inf_norm.html" class="pull-right"><emph>Read more&hellip;</emph></a>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-r~7"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>r</strong></td>
+            <td>
+<p>gradient <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x~16"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x</strong></td>
+            <td>
+<p>current point <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x_lb~4"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x_lb</strong></td>
+            <td>
+<p>variable lower bounds <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x_ub~4"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x_ub</strong></td>
+            <td>
+<p>variable upper bounds <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-tol~10"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>tol</strong></td>
+            <td>
+<p>distance within which a bound counts as active</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+    <h4>
+    Return Value
+    <small>real(kind=wp)</small>
+    </h4>
+    
+
+    </div>
+  </div>
+
+        </section>
+        <br>
+
+        <section>
+          <h2>Subroutines</h2>
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-check_convergence"></span> <h3>public  subroutine <a href='../proc/check_convergence.html'>check_convergence</a>(x, g, jac, c, x_lb, x_ub, c_lb, c_ub, lambda, ktol, ctol, converged, istat, f, f_prev, x_prev, ftol, xtol, kkt_error, feas_error, viol_prev, dual_inf_tol, f_scale, stat_error)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>check whether the solver should stop at the current iterate, and why:</p><a href="../proc/check_convergence.html" class="pull-right"><emph>Read more&hellip;</emph></a>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x~15"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x</strong></td>
+            <td>
+<p>current point <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-g~6"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>g</strong></td>
+            <td>
+<p>objective gradient at <code>x</code> <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-jac~8"></span>
+              type(<a href='../type/sqpopt_sparse_matrix.html'>sqpopt_sparse_matrix</a>),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>jac</strong></td>
+            <td>
+<p>constraint Jacobian at <code>x</code>, <code>dimension(m,n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c~9"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c</strong></td>
+            <td>
+<p>constraint values at <code>x</code> <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x_lb~3"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x_lb</strong></td>
+            <td>
+<p>variable lower bounds <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x_ub~3"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x_ub</strong></td>
+            <td>
+<p>variable upper bounds <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_lb~4"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_lb</strong></td>
+            <td>
+<p>constraint lower bounds <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_ub~4"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_ub</strong></td>
+            <td>
+<p>constraint upper bounds <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-lambda~7"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>lambda</strong></td>
+            <td>
+<p>Lagrange multipliers <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-ktol"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>ktol</strong></td>
+            <td>
+<p>KKT optimality tolerance</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-ctol"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>ctol</strong></td>
+            <td>
+<p>feasibility tolerance</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-converged"></span>
+              logical,
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>converged</strong></td>
+            <td>
+<p>true if the solver should stop at <code>x</code> (see <code>istat</code> for why)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-istat~7"></span>
+              integer,
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>istat</strong></td>
+            <td>
+<p>the reason: <code>sqpopt_success</code>, <code>sqpopt_stalled</code>, or <code>sqpopt_infeasible</code>
+if <code>converged</code>, else <code>sqpopt_success</code> (see <a href="../module/sqpopt_types_module.html">sqpopt_types_module</a>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-f~6"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>f</strong></td>
+            <td>
+<p>objective value at <code>x</code> (enables the stalled-progress test with <code>f_prev</code>/<code>ftol</code>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-f_prev~3"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>f_prev</strong></td>
+            <td>
+<p>objective value at the previous iterate</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x_prev~3"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td>optional,</td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x_prev</strong></td>
+            <td>
+<p>the previous iterate <code>dimension(n)</code> (enables the
+stalled-progress test with <code>xtol</code>, and the infeasibility test)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-ftol"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>ftol</strong></td>
+            <td>
+<p>relative objective-change tolerance for the stalled-progress test</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-xtol"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>xtol</strong></td>
+            <td>
+<p>relative variable-change tolerance for the stalled-progress test</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-kkt_error~2"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>kkt_error</strong></td>
+            <td>
+<p>the KKT error: the larger of the stationarity and
+complementarity residuals, divided by their scaling
+(so it is directly comparable to <code>ktol</code>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-feas_error"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>feas_error</strong></td>
+            <td>
+<p>the largest violation of a constraint or variable bound</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-viol_prev~2"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>viol_prev</strong></td>
+            <td>
+<p>the largest constraint violation at <code>x_prev</code>
+(enables the no-progress condition of the
+infeasibility test)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-dual_inf_tol"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>dual_inf_tol</strong></td>
+            <td>
+<p>if present (with <code>f_scale</code>), the KKT test
+also requires the stationarity residual of
+the <em>unscaled</em> problem to be at most this
+(as IPOPT's <code>dual_inf_tol</code>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-f_scale"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>f_scale</strong></td>
+            <td>
+<p>the objective's scale factor: the unscaled
+stationarity residual is the scaled one
+divided by it</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-stat_error"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>stat_error</strong></td>
+            <td>
+<p>the (projected) stationarity residual of the
+scaled problem, without the multiplier scaling</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+        </section>
+        <br>
+
+
+
+    </div>
+  </div>
+
+      <hr>
+    </div> <!-- /container -->
+    <footer>
+      <div class="container">
+        <div class="row justify-content-between">
+          <div class="col">
+            <p>
+              sqpopt
+ was developed by Jacob Williams<br>              &copy; 2026 
+</p>
+          </div>
+          <div class="col">
+            <p class="text-end">
+              Documentation generated by
+              <a href="https://github.com/Fortran-FOSS-Programmers/ford">FORD</a>
+            </p>
+          </div>
+        </div>
+        <br>
+      </div> <!-- /container -->
+    </footer>
+    <!-- sqpopt theme: the button switches the theme, and remembers it for the guide too -->
+    <script>
+      document.querySelector('.theme-toggle').addEventListener('click', function () {
+        var root = document.documentElement;
+        var next = root.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-bs-theme', next);
+        try { localStorage.setItem('sqpopt-theme', next); } catch (e) {}
+      });
+    </script>
+  </body>
+</html>

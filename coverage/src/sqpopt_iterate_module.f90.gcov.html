@@ -1,0 +1,1230 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - coverage.info - src/sqpopt_iterate_module.f90</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../index.html" title="Click to go to top-level">top level</a> - <a href="index.html" title="Click to go to directory src">src</a> - sqpopt_iterate_module.f90<span style="font-size: 80%;"> (source / <a href="sqpopt_iterate_module.f90.func-c.html" title="Click to go to function table">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">coverage.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryMed">82.8&nbsp;%</td>
+            <td class="headerCovTableEntry">489</td>
+            <td class="headerCovTableEntry">405</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2026-10-03 21:13:48</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryHi">94.1&nbsp;%</td>
+            <td class="headerCovTableEntry">17</td>
+            <td class="headerCovTableEntry">16</td>
+          </tr>
+                  <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : !*******************************************************************************</span>
+<span id="L2"><span class="lineNum">       2</span>              : !&gt; author: Jacob Williams</span>
+<span id="L3"><span class="lineNum">       3</span>              : !  license: MIT</span>
+<span id="L4"><span class="lineNum">       4</span>              : !</span>
+<span id="L5"><span class="lineNum">       5</span>              : !  The core SQP major iteration ([[sqpopt_iterate]]): evaluates the problem</span>
+<span id="L6"><span class="lineNum">       6</span>              : !  functions, tests for convergence, updates the Hessian approximation</span>
+<span id="L7"><span class="lineNum">       7</span>              : !  (limited-memory quasi-Newton, or the user's exact Hessian with an</span>
+<span id="L8"><span class="lineNum">       8</span>              : !  inertia-correcting shift, found from the QP solver's tests or, with</span>
+<span id="L9"><span class="lineNum">       9</span>              : !  `options%inertia_control`, from a factorization, which also corrects</span>
+<span id="L10"><span class="lineNum">      10</span>              : !  SR1: see [[sqpopt_inertia_module]]; before the exact Hessian is</span>
+<span id="L11"><span class="lineNum">      11</span>              : !  evaluated, multipliers that came from a QP with a large shift are</span>
+<span id="L12"><span class="lineNum">      12</span>              : !  re-estimated by least squares), solves the QP subproblem for the</span>
+<span id="L13"><span class="lineNum">      13</span>              : !  search direction (directly, if it can, with `options%direct_qp`: see</span>
+<span id="L14"><span class="lineNum">      14</span>              : !  [[sqpopt_qp_direct_module]]; and re-solving it with diverging-multiplier</span>
+<span id="L15"><span class="lineNum">      15</span>              : !  constraints elastic, see `options%elastic_multiplier_limit`), and takes</span>
+<span id="L16"><span class="lineNum">      16</span>              : !  the step: by a line</span>
+<span id="L17"><span class="lineNum">      17</span>              : !  search (with second-order corrections), or a trust-region step, or, when</span>
+<span id="L18"><span class="lineNum">      18</span>              : !  no acceptable step is found at an infeasible point or the QP is</span>
+<span id="L19"><span class="lineNum">      19</span>              : !  inconsistent, a feasibility restoration step or phase (see</span>
+<span id="L20"><span class="lineNum">      20</span>              : !  [[sqpopt_restoration_module]]). What happened is returned in a</span>
+<span id="L21"><span class="lineNum">      21</span>              : !  [[sqpopt_iter_info]], for the iteration log (see `options%print_level`);</span>
+<span id="L22"><span class="lineNum">      22</span>              : !  at `print_level &gt;= 3`, the details are also written to the detailed log</span>
+<span id="L23"><span class="lineNum">      23</span>              : !  (see [[sqpopt_log_module]]). No dense `n x n` or `m x n` matrix is ever</span>
+<span id="L24"><span class="lineNum">      24</span>              : !  formed (except by the dense QP solver).</span>
+<span id="L25"><span class="lineNum">      25</span>              : </span>
+<span id="L26"><span class="lineNum">      26</span>              :     module sqpopt_iterate_module</span>
+<span id="L27"><span class="lineNum">      27</span>              : </span>
+<span id="L28"><span class="lineNum">      28</span>              :     use sqpopt_kinds,             only: wp =&gt; sqpopt_module_wp</span>
+<span id="L29"><span class="lineNum">      29</span>              :     use sqpopt_types_module,      only: sqpopt_sparse_matrix, sqpopt_success, sqpopt_user_requested_stop, sqpopt_report_func, &amp;</span>
+<span id="L30"><span class="lineNum">      30</span>              :                                          sqpopt_infeasible, sqpopt_function_error, sqpopt_all_finite, sqpopt_unbounded, &amp;</span>
+<span id="L31"><span class="lineNum">      31</span>              :                                          sqpopt_acceptable, sqpopt_infinity, sqpopt_stalled, sqpopt_qp_solve_failed, &amp;</span>
+<span id="L32"><span class="lineNum">      32</span>              :                                          sqpopt_out_of_memory, sqpopt_iter_info</span>
+<span id="L33"><span class="lineNum">      33</span>              :     use sqpopt_problem_module,    only: sqpopt_problem_type, sqpopt_derivatives_fast, sqpopt_derivatives_accurate</span>
+<span id="L34"><span class="lineNum">      34</span>              :     use sqpopt_options_module,    only: sqpopt_options_type</span>
+<span id="L35"><span class="lineNum">      35</span>              :     use sqpopt_hessian_module,    only: sqpopt_hessian_type, sqpopt_hessian_sr1, sqpopt_hessian_exact</span>
+<span id="L36"><span class="lineNum">      36</span>              :     use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type</span>
+<span id="L37"><span class="lineNum">      37</span>              :     use sqpopt_linesearch_module, only: sqpopt_linesearch_type, sqpopt_linesearch_filter, sqpopt_linesearch_funnel, &amp;</span>
+<span id="L38"><span class="lineNum">      38</span>              :                                          l1_violation</span>
+<span id="L39"><span class="lineNum">      39</span>              :     use sqpopt_linalg_module,     only: sparse_matvec_transpose</span>
+<span id="L40"><span class="lineNum">      40</span>              :     use sqpopt_convergence_module, only: check_convergence</span>
+<span id="L41"><span class="lineNum">      41</span>              :     use sqpopt_soc_module,        only: soc_step</span>
+<span id="L42"><span class="lineNum">      42</span>              :     use sqpopt_log_module,        only: sqpopt_log_type, sqpopt_log_detail, fmt_e, fmt_i, plural, qp_status_text</span>
+<span id="L43"><span class="lineNum">      43</span>              :     use sqpopt_trust_region_module, only: sqpopt_trust_region_type</span>
+<span id="L44"><span class="lineNum">      44</span>              :     use sqpopt_restoration_module,  only: restoration_step, escape_step, &amp;</span>
+<span id="L45"><span class="lineNum">      45</span>              :                                           sqpopt_restoration_type, &amp;</span>
+<span id="L46"><span class="lineNum">      46</span>              :                                           sqpopt_restoration_phase</span>
+<span id="L47"><span class="lineNum">      47</span>              :     use sqpopt_inertia_module,      only: sqpopt_inertia_type</span>
+<span id="L48"><span class="lineNum">      48</span>              :     use sqpopt_kkt_module,          only: sqpopt_kkt_type</span>
+<span id="L49"><span class="lineNum">      49</span>              :     use sqpopt_least_squares_module, only: sqpopt_least_squares_type, multiplier_estimate</span>
+<span id="L50"><span class="lineNum">      50</span>              :     use sqpopt_qp_direct_module,    only: direct_outcome_text</span>
+<span id="L51"><span class="lineNum">      51</span>              :     use sqpopt_diagnostics_module,  only: sqpopt_diagnostics_type</span>
+<span id="L52"><span class="lineNum">      52</span>              : </span>
+<span id="L53"><span class="lineNum">      53</span>              :     implicit none</span>
+<span id="L54"><span class="lineNum">      54</span>              : </span>
+<span id="L55"><span class="lineNum">      55</span>              :     private</span>
+<span id="L56"><span class="lineNum">      56</span>              : </span>
+<span id="L57"><span class="lineNum">      57</span>              :     public :: sqpopt_iterate, sqpopt_evaluate_point</span>
+<span id="L58"><span class="lineNum">      58</span>              : </span>
+<span id="L59"><span class="lineNum">      59</span>              :     contains</span>
+<span id="L60"><span class="lineNum">      60</span>              : !*******************************************************************************</span>
+<span id="L61"><span class="lineNum">      61</span>              : </span>
+<span id="L62"><span class="lineNum">      62</span>              : !*******************************************************************************</span>
+<span id="L63"><span class="lineNum">      63</span>              : !&gt;</span>
+<span id="L64"><span class="lineNum">      64</span>              : !  perform one major SQP iteration, updating `x` and `lambda` in place.</span>
+<span id="L65"><span class="lineNum">      65</span>              : !  `x_prev`/`gl_prev`/`f_prev` hold the previous point, the Lagrangian</span>
+<span id="L66"><span class="lineNum">      66</span>              : !  gradient there (evaluated with the multipliers passed back out in</span>
+<span id="L67"><span class="lineNum">      67</span>              : !  `lambda`, as the quasi-Newton update requires), and the objective value.</span>
+<span id="L68"><span class="lineNum">      68</span>              : !  They are used to form the quasi-Newton `(s,y)` pair and for the</span>
+<span id="L69"><span class="lineNum">      69</span>              : !  stalled-progress and infeasibility tests. Pass them in *unallocated*</span>
+<span id="L70"><span class="lineNum">      70</span>              : !  before the first call. The Hessian update and those two tests are</span>
+<span id="L71"><span class="lineNum">      71</span>              : !  skipped on the first iteration, since there is no previous point yet.</span>
+<span id="L72"><span class="lineNum">      72</span>              : !</span>
+<span id="L73"><span class="lineNum">      73</span>              : !  On exit, `done` is true if the solver should stop at the (unchanged)</span>
+<span id="L74"><span class="lineNum">      74</span>              : !  input point `x`, with the reason in `istat`: `sqpopt_success`,</span>
+<span id="L75"><span class="lineNum">      75</span>              : !  `sqpopt_stalled`, or `sqpopt_infeasible` (from [[check_convergence]]; or</span>
+<span id="L76"><span class="lineNum">      76</span>              : !  `sqpopt_infeasible` because the restoration steps of the last two</span>
+<span id="L77"><span class="lineNum">      77</span>              : !  iterations, the last one with damping, found no decrease of the</span>
+<span id="L78"><span class="lineNum">      78</span>              : !  violation),</span>
+<span id="L79"><span class="lineNum">      79</span>              : !  `sqpopt_acceptable` (the acceptable-level test held for</span>
+<span id="L80"><span class="lineNum">      80</span>              : !  `options%acceptable_iter` consecutive iterations, counted in</span>
+<span id="L81"><span class="lineNum">      81</span>              : !  `n_acceptable`), `sqpopt_unbounded` (the objective is below</span>
+<span id="L82"><span class="lineNum">      82</span>              : !  `options%obj_lower_limit` at a feasible point),</span>
+<span id="L83"><span class="lineNum">      83</span>              : !  `sqpopt_user_requested_stop` (from the `report` callback, or a user</span>
+<span id="L84"><span class="lineNum">      84</span>              : !  function returning `status&lt;0`), `sqpopt_function_error` (a problem</span>
+<span id="L85"><span class="lineNum">      85</span>              : !  function returned a non-finite value, or failed, at `x`), or</span>
+<span id="L86"><span class="lineNum">      86</span>              : !  `sqpopt_out_of_memory` (a QP solve couldn't allocate its matrices, or a</span>
+<span id="L87"><span class="lineNum">      87</span>              : !  factorization ran out of memory).</span>
+<span id="L88"><span class="lineNum">      88</span>              : !  Otherwise `istat` reports</span>
+<span id="L89"><span class="lineNum">      89</span>              : !  how the step went: `sqpopt_success`, `sqpopt_qp_solve_failed` (the QP</span>
+<span id="L90"><span class="lineNum">      90</span>              : !  solver hit its iteration limit, and its last step was used anyway), or</span>
+<span id="L91"><span class="lineNum">      91</span>              : !  `sqpopt_line_search_failed` (no acceptable step was found, so `x` is</span>
+<span id="L92"><span class="lineNum">      92</span>              : !  unchanged). After a failed step the Hessian approximation is reset, so</span>
+<span id="L93"><span class="lineNum">      93</span>              : !  the next iteration tries a different direction, and `f_prev` is</span>
+<span id="L94"><span class="lineNum">      94</span>              : !  deallocated, so the stalled-progress test (which would otherwise see</span>
+<span id="L95"><span class="lineNum">      95</span>              : !  &quot;no change&quot;) is skipped on the next iteration. `info` describes the</span>
+<span id="L96"><span class="lineNum">      96</span>              : !  iteration (its measures and events), for the iteration log.</span>
+<span id="L97"><span class="lineNum">      97</span>              : </span>
+<span id="L98"><span class="lineNum">      98</span> <span class="tlaGNC">       49820 :     subroutine sqpopt_iterate(problem, options, hessian, qp_solver, linesearch, trust_region, &amp;</span></span>
+<span id="L99"><span class="lineNum">      99</span> <span class="tlaGNC">       24910 :                                x, lambda, x_prev, gl_prev, f_prev, viol_prev, jac, n_acceptable, n_stalled, n_escape, &amp;</span></span>
+<span id="L100"><span class="lineNum">     100</span>              :                                restoration, inertia, kkt, least_squares, diagnostics, iter, report, done, &amp;</span>
+<span id="L101"><span class="lineNum">     101</span>              :                                istat, info)</span>
+<span id="L102"><span class="lineNum">     102</span>              : </span>
+<span id="L103"><span class="lineNum">     103</span>              :     type(sqpopt_problem_type),    intent(inout)   :: problem      !! problem definition</span>
+<span id="L104"><span class="lineNum">     104</span>              :     type(sqpopt_options_type),    intent(in)      :: options      !! solver options</span>
+<span id="L105"><span class="lineNum">     105</span>              :     type(sqpopt_hessian_type),    intent(inout)   :: hessian      !! Hessian of the Lagrangian approximation</span>
+<span id="L106"><span class="lineNum">     106</span>              :     type(sqpopt_qp_solver_type),  intent(inout)   :: qp_solver    !! QP subproblem solver</span>
+<span id="L107"><span class="lineNum">     107</span>              :     type(sqpopt_linesearch_type), intent(inout)   :: linesearch   !! merit function / line search</span>
+<span id="L108"><span class="lineNum">     108</span>              :     type(sqpopt_trust_region_type), intent(inout) :: trust_region !! trust-region globalization (used instead of</span>
+<span id="L109"><span class="lineNum">     109</span>              :                                                                    !! `linesearch` when `trust_region%enabled`)</span>
+<span id="L110"><span class="lineNum">     110</span>              :     real(wp), dimension(:), intent(inout) :: x       !! current point, updated on exit `dimension(n)`</span>
+<span id="L111"><span class="lineNum">     111</span>              :     real(wp), dimension(:), intent(inout) :: lambda  !! current Lagrange multipliers, updated on exit `dimension(m)`</span>
+<span id="L112"><span class="lineNum">     112</span>              :     real(wp), dimension(:), allocatable, intent(inout) :: x_prev  !! previous point (unallocated before the 1st call)</span>
+<span id="L113"><span class="lineNum">     113</span>              :     real(wp), dimension(:), allocatable, intent(inout) :: gl_prev !! previous Lagrangian gradient (unallocated before the 1st call)</span>
+<span id="L114"><span class="lineNum">     114</span>              :     real(wp),               allocatable, intent(inout) :: f_prev  !! previous objective value (unallocated before the 1st call)</span>
+<span id="L115"><span class="lineNum">     115</span>              :     real(wp),               allocatable, intent(inout) :: viol_prev !! previous constraint violation (unallocated before the 1st call)</span>
+<span id="L116"><span class="lineNum">     116</span>              :     type(sqpopt_sparse_matrix),          intent(inout) :: jac     !! workspace for the constraint Jacobian: its sparsity</span>
+<span id="L117"><span class="lineNum">     117</span>              :                                                                   !! structure is set on the first call (when `jac%val` is</span>
+<span id="L118"><span class="lineNum">     118</span>              :                                                                   !! unallocated) and reused, and its values are updated</span>
+<span id="L119"><span class="lineNum">     119</span>              :     integer,                intent(inout) :: n_stalled    !! number of consecutive iterations (so far) at which the</span>
+<span id="L120"><span class="lineNum">     120</span>              :                                                           !! stalled-progress test has held (`0` before the 1st call)</span>
+<span id="L121"><span class="lineNum">     121</span>              :     integer,                intent(inout) :: n_acceptable !! number of consecutive iterations (so far) at which the</span>
+<span id="L122"><span class="lineNum">     122</span>              :                                                           !! acceptable-level test has held (`0` before the 1st call)</span>
+<span id="L123"><span class="lineNum">     123</span>              :     integer,                intent(inout) :: n_escape     !! number of second-order escapes from a stationary point of</span>
+<span id="L124"><span class="lineNum">     124</span>              :                                                           !! the violation taken so far (`0` before the 1st call)</span>
+<span id="L125"><span class="lineNum">     125</span>              :     type(sqpopt_restoration_type), intent(inout) :: restoration !! feasibility restoration phase state (see</span>
+<span id="L126"><span class="lineNum">     126</span>              :                                                                 !! [[sqpopt_restoration_module]])</span>
+<span id="L127"><span class="lineNum">     127</span>              :     type(sqpopt_inertia_type), intent(inout) :: inertia !! inertia control of the exact or SR1 Hessian (used if</span>
+<span id="L128"><span class="lineNum">     128</span>              :                                                         !! `inertia%enabled`, see [[sqpopt_inertia_module]])</span>
+<span id="L129"><span class="lineNum">     129</span>              :     type(sqpopt_kkt_type),     intent(inout) :: kkt     !! the KKT matrix of the QP's working set, for the inertia</span>
+<span id="L130"><span class="lineNum">     130</span>              :                                                         !! control and the QP solver's direct method (used if</span>
+<span id="L131"><span class="lineNum">     131</span>              :                                                         !! `kkt%enabled`, see [[sqpopt_kkt_module]])</span>
+<span id="L132"><span class="lineNum">     132</span>              :     type(sqpopt_least_squares_type), intent(inout) :: least_squares !! direct least-squares solver, for the</span>
+<span id="L133"><span class="lineNum">     133</span>              :                                                         !! restoration steps and second-order corrections (used</span>
+<span id="L134"><span class="lineNum">     134</span>              :                                                         !! if `least_squares%enabled`, see</span>
+<span id="L135"><span class="lineNum">     135</span>              :                                                         !! [[sqpopt_least_squares_module]])</span>
+<span id="L136"><span class="lineNum">     136</span>              :     type(sqpopt_diagnostics_type), intent(inout) :: diagnostics !! the diagnostics of the solve, which note each</span>
+<span id="L137"><span class="lineNum">     137</span>              :                                                         !! iterate (see `options%diagnostic_level` and</span>
+<span id="L138"><span class="lineNum">     138</span>              :                                                         !! [[sqpopt_diagnostics_module]])</span>
+<span id="L139"><span class="lineNum">     139</span>              :     integer,                intent(in)    :: iter      !! major iteration number (starts at 1), passed to `report`</span>
+<span id="L140"><span class="lineNum">     140</span>              :     procedure(sqpopt_report_func), optional, pointer :: report !! optional user progress-reporting callback (see [[sqpopt_types_module]])</span>
+<span id="L141"><span class="lineNum">     141</span>              :     logical,                 intent(out)   :: done      !! true if the solver should stop at `x` (see `istat` for why)</span>
+<span id="L142"><span class="lineNum">     142</span>              :     integer,                 intent(out)   :: istat     !! status code (see above and [[sqpopt_types_module]])</span>
+<span id="L143"><span class="lineNum">     143</span>              :     type(sqpopt_iter_info),  intent(out)   :: info      !! information about this iteration, for the log</span>
+<span id="L144"><span class="lineNum">     144</span>              : </span>
+<span id="L145"><span class="lineNum">     145</span>              :     real(wp) :: f !! current objective function value</span>
+<span id="L146"><span class="lineNum">     146</span> <span class="tlaGNC">       24910 :     real(wp), dimension(:), allocatable :: g, gl, p, x_new</span></span>
+<span id="L147"><span class="lineNum">     147</span> <span class="tlaGNC">       24910 :     real(wp), dimension(:), allocatable :: c, new_lambda</span></span>
+<span id="L148"><span class="lineNum">     148</span>              :     real(wp) :: alpha</span>
+<span id="L149"><span class="lineNum">     149</span>              :     integer :: qp_istat, step_istat</span>
+<span id="L150"><span class="lineNum">     150</span>              :     logical :: restore</span>
+<span id="L151"><span class="lineNum">     151</span>              : </span>
+<span id="L152"><span class="lineNum">     152</span>              :     integer, parameter :: max_escape = 3 !! maximum number of second-order escapes (see [[escape_step]])</span>
+<span id="L153"><span class="lineNum">     153</span>              :     type(sqpopt_log_type) :: lg !! the detailed log</span>
+<span id="L154"><span class="lineNum">     154</span>              :     real(wp) :: stat_err</span>
+<span id="L155"><span class="lineNum">     155</span>              :     integer :: n_stalled0 !! `n_stalled` on entry</span>
+<span id="L156"><span class="lineNum">     156</span>              :     logical :: slow       !! whether the objective changed little from the previous iterate (see</span>
+<span id="L157"><span class="lineNum">     157</span>              :                           !! `options%acceptable_obj_change_tol`)</span>
+<span id="L158"><span class="lineNum">     158</span>              :     real(wp) :: shift_floor !! with inertia control: the Hessian's shift at the start of the iteration (the part</span>
+<span id="L159"><span class="lineNum">     159</span>              :                             !! of it that is carried over from failed steps)</span>
+<span id="L160"><span class="lineNum">     160</span>              :     logical :: keep_shift   !! with inertia control: whether the step failed, so the shift it was computed with</span>
+<span id="L161"><span class="lineNum">     161</span>              :                             !! is carried over (increased) to the next iteration</span>
+<span id="L162"><span class="lineNum">     162</span>              : </span>
+<span id="L163"><span class="lineNum">     163</span> <span class="tlaGNC">       24910 :     allocate(g(problem%n), gl(problem%n), p(problem%n), x_new(problem%n), c(problem%m), new_lambda(problem%m))</span></span>
+<span id="L164"><span class="lineNum">     164</span>              : </span>
+<span id="L165"><span class="lineNum">     165</span> <span class="tlaGNC">       24910 :     done = .false.</span></span>
+<span id="L166"><span class="lineNum">     166</span> <span class="tlaGNC">       24910 :     lg = linesearch%log   ! (the detailed log, set up by `solve`)</span></span>
+<span id="L167"><span class="lineNum">     167</span>              : </span>
+<span id="L168"><span class="lineNum">     168</span>              :     ! evaluate the problem functions and the sparse Jacobian at the current point:</span>
+<span id="L169"><span class="lineNum">     169</span> <span class="tlaGNC">       24910 :     call problem%f(x, f)</span></span>
+<span id="L170"><span class="lineNum">     170</span> <span class="tlaGNC">       24910 :     call problem%g(x, g)</span></span>
+<span id="L171"><span class="lineNum">     171</span> <span class="tlaGNC">       24910 :     call problem%c(x, c)</span></span>
+<span id="L172"><span class="lineNum">     172</span> <span class="tlaGNC">       24910 :     if (.not. allocated(jac%val)) then</span></span>
+<span id="L173"><span class="lineNum">     173</span> <span class="tlaGNC">         839 :         jac%nrows = problem%m</span></span>
+<span id="L174"><span class="lineNum">     174</span> <span class="tlaGNC">         839 :         jac%ncols = problem%n</span></span>
+<span id="L175"><span class="lineNum">     175</span> <span class="tlaGNC">         839 :         jac%nnz   = problem%jac_nnz</span></span>
+<span id="L176"><span class="lineNum">     176</span> <span class="tlaGNC">      239344 :         jac%irow  = problem%jac_irow</span></span>
+<span id="L177"><span class="lineNum">     177</span> <span class="tlaGNC">      239344 :         jac%icol  = problem%jac_icol</span></span>
+<span id="L178"><span class="lineNum">     178</span> <span class="tlaGNC">         839 :         allocate(jac%val(problem%jac_nnz))</span></span>
+<span id="L179"><span class="lineNum">     179</span>              :     end if</span>
+<span id="L180"><span class="lineNum">     180</span> <span class="tlaGNC">       24910 :     call problem%jac(x, jac%val)</span></span>
+<span id="L181"><span class="lineNum">     181</span> <span class="tlaGNC">       24910 :     info%f = f</span></span>
+<span id="L182"><span class="lineNum">     182</span>              : </span>
+<span id="L183"><span class="lineNum">     183</span>              :     ! (the factorizations kept from the previous iteration no longer apply:</span>
+<span id="L184"><span class="lineNum">     184</span>              :     ! `estimate_multipliers`, below, may use the least-squares one)</span>
+<span id="L185"><span class="lineNum">     185</span> <span class="tlaGNC">       24910 :     call kkt%new_matrices()</span></span>
+<span id="L186"><span class="lineNum">     186</span> <span class="tlaGNC">       24910 :     call least_squares%new_matrices()</span></span>
+<span id="L187"><span class="lineNum">     187</span>              : </span>
+<span id="L188"><span class="lineNum">     188</span>              :     ! a user function asked to stop:</span>
+<span id="L189"><span class="lineNum">     189</span> <span class="tlaGNC">       24910 :     if (problem%stop_requested) then</span></span>
+<span id="L190"><span class="lineNum">     190</span> <span class="tlaUNC">           0 :         istat = sqpopt_user_requested_stop</span></span>
+<span id="L191"><span class="lineNum">     191</span> <span class="tlaUNC">           0 :         done  = .true.</span></span>
+<span id="L192"><span class="lineNum">     192</span> <span class="tlaGNC">         828 :         return</span></span>
+<span id="L193"><span class="lineNum">     193</span>              :     end if</span>
+<span id="L194"><span class="lineNum">     194</span>              : </span>
+<span id="L195"><span class="lineNum">     195</span>              :     ! every accepted trial point had finite `f` and `c`, so a non-finite</span>
+<span id="L196"><span class="lineNum">     196</span>              :     ! value (or a failed evaluation) here is either at the starting point or</span>
+<span id="L197"><span class="lineNum">     197</span>              :     ! in the derivatives:</span>
+<span id="L198"><span class="lineNum">     198</span> <span class="tlaGNC">       49820 :     if (.not. (sqpopt_all_finite([f]) .and. sqpopt_all_finite(g) .and. &amp;</span></span>
+<span id="L199"><span class="lineNum">     199</span>              :                sqpopt_all_finite(c) .and. sqpopt_all_finite(jac%val))) then</span>
+<span id="L200"><span class="lineNum">     200</span> <span class="tlaGNC">           4 :         istat = sqpopt_function_error</span></span>
+<span id="L201"><span class="lineNum">     201</span> <span class="tlaGNC">           4 :         done  = .true.</span></span>
+<span id="L202"><span class="lineNum">     202</span> <span class="tlaGNC">           4 :         return</span></span>
+<span id="L203"><span class="lineNum">     203</span>              :     end if</span>
+<span id="L204"><span class="lineNum">     204</span>              : </span>
+<span id="L205"><span class="lineNum">     205</span>              :     ! (the diagnostics check the functions' changes since the previous</span>
+<span id="L206"><span class="lineNum">     206</span>              :     ! iterate against their derivatives)</span>
+<span id="L207"><span class="lineNum">     207</span> <span class="tlaGNC">       24906 :     call diagnostics%point(x, f, g, c, jac)</span></span>
+<span id="L208"><span class="lineNum">     208</span>              : </span>
+<span id="L209"><span class="lineNum">     209</span>              :     ! with the exact Hessian: if the last step's shift dominated it, the QP's</span>
+<span id="L210"><span class="lineNum">     210</span>              :     ! multipliers are mostly an artifact of the shift, and the Hessian that</span>
+<span id="L211"><span class="lineNum">     211</span>              :     ! is about to be evaluated with them would be too (see `estimate_multipliers`)</span>
+<span id="L212"><span class="lineNum">     212</span> <span class="tlaGNC">       24906 :     if (hessian%shift_dominant) call estimate_multipliers()</span></span>
+<span id="L213"><span class="lineNum">     213</span> <span class="tlaGNC">       24906 :     hessian%shift_dominant = .false.</span></span>
+<span id="L214"><span class="lineNum">     214</span>              : </span>
+<span id="L215"><span class="lineNum">     215</span>              :     ! report progress on the current iterate, if the user has supplied a</span>
+<span id="L216"><span class="lineNum">     216</span>              :     ! callback, before doing any further work this iteration -- this</span>
+<span id="L217"><span class="lineNum">     217</span>              :     ! reports every major iterate, including the initial guess (iter=1,</span>
+<span id="L218"><span class="lineNum">     218</span>              :     ! before any step has been taken) and the final, converged point.</span>
+<span id="L219"><span class="lineNum">     219</span>              :     ! The values are converted back to the original (unscaled) problem:</span>
+<span id="L220"><span class="lineNum">     220</span> <span class="tlaGNC">       24906 :     if (present(report)) then</span></span>
+<span id="L221"><span class="lineNum">     221</span> <span class="tlaGNC">       24906 :         if (associated(report)) then</span></span>
+<span id="L222"><span class="lineNum">     222</span>              :             block</span>
+<span id="L223"><span class="lineNum">     223</span>              :                 logical :: user_stop</span>
+<span id="L224"><span class="lineNum">     224</span> <span class="tlaGNC">         372 :                 real(wp), dimension(:), allocatable :: c_user, lambda_user   ! (of the original problem)</span></span>
+<span id="L225"><span class="lineNum">     225</span> <span class="tlaGNC">         372 :                 allocate(c_user(problem%m), lambda_user(problem%m))</span></span>
+<span id="L226"><span class="lineNum">     226</span> <span class="tlaGNC">        1059 :                 c_user      = c/problem%c_scale</span></span>
+<span id="L227"><span class="lineNum">     227</span> <span class="tlaGNC">        1059 :                 lambda_user = lambda*problem%c_scale/problem%f_scale</span></span>
+<span id="L228"><span class="lineNum">     228</span> <span class="tlaGNC">         372 :                 user_stop = .false.</span></span>
+<span id="L229"><span class="lineNum">     229</span> <span class="tlaGNC">         372 :                 if (associated(problem%user_data)) then</span></span>
+<span id="L230"><span class="lineNum">     230</span> <span class="tlaGNC">           4 :                     call report(iter, x, f/problem%f_scale, c_user, lambda_user, user_stop, problem%user_data)</span></span>
+<span id="L231"><span class="lineNum">     231</span>              :                 else</span>
+<span id="L232"><span class="lineNum">     232</span> <span class="tlaGNC">         368 :                     call report(iter, x, f/problem%f_scale, c_user, lambda_user, user_stop)</span></span>
+<span id="L233"><span class="lineNum">     233</span>              :                 end if</span>
+<span id="L234"><span class="lineNum">     234</span> <span class="tlaGNC">         744 :                 if (user_stop) then</span></span>
+<span id="L235"><span class="lineNum">     235</span> <span class="tlaUNC">           0 :                     istat = sqpopt_user_requested_stop</span></span>
+<span id="L236"><span class="lineNum">     236</span> <span class="tlaUNC">           0 :                     done  = .true.</span></span>
+<span id="L237"><span class="lineNum">     237</span> <span class="tlaUNC">           0 :                     return</span></span>
+<span id="L238"><span class="lineNum">     238</span>              :                 end if</span>
+<span id="L239"><span class="lineNum">     239</span>              :             end block</span>
+<span id="L240"><span class="lineNum">     240</span>              :         end if</span>
+<span id="L241"><span class="lineNum">     241</span>              :     end if</span>
+<span id="L242"><span class="lineNum">     242</span>              : </span>
+<span id="L243"><span class="lineNum">     243</span>              :     ! check convergence at the current point before taking a step. The</span>
+<span id="L244"><span class="lineNum">     244</span>              :     ! stalled-progress test also needs `f_prev`/`x_prev`, and the</span>
+<span id="L245"><span class="lineNum">     245</span>              :     ! infeasibility test `x_prev`, so neither is done on the first iteration;</span>
+<span id="L246"><span class="lineNum">     246</span>              :     ! the stalled-progress test is also skipped right after a failed step,</span>
+<span id="L247"><span class="lineNum">     247</span>              :     ! when `f_prev` is deallocated (an unallocated actual argument counts as</span>
+<span id="L248"><span class="lineNum">     248</span>              :     ! absent for an optional dummy argument):</span>
+<span id="L249"><span class="lineNum">     249</span>              :     ! With fast derivatives (see `options%derivative_accuracy`), switch to</span>
+<span id="L250"><span class="lineNum">     250</span>              :     ! accurate ones, for the rest of the solve, as soon as the point is near</span>
+<span id="L251"><span class="lineNum">     251</span>              :     ! a solution (the KKT and feasibility errors are below</span>
+<span id="L252"><span class="lineNum">     252</span>              :     ! `derivative_switch_tol`), or the solver would stop here (convergence,</span>
+<span id="L253"><span class="lineNum">     253</span>              :     ! acceptable level, or infeasibility, which inaccurate derivatives may</span>
+<span id="L254"><span class="lineNum">     254</span>              :     ! fake), or progress has stalled; then redo the tests with them:</span>
+<span id="L255"><span class="lineNum">     255</span> <span class="tlaGNC">       24906 :     n_stalled0 = n_stalled</span></span>
+<span id="L256"><span class="lineNum">     256</span> <span class="tlaGNC">           1 :     do</span></span>
+<span id="L257"><span class="lineNum">     257</span> <span class="tlaGNC">       24907 :         call convergence_tests()</span></span>
+<span id="L258"><span class="lineNum">     258</span> <span class="tlaGNC">       24907 :         if (problem%derivative_accuracy /= sqpopt_derivatives_fast) exit</span></span>
+<span id="L259"><span class="lineNum">     259</span> <span class="tlaGNC">          15 :         if (.not. (done .or. n_stalled &gt; 0 .or. &amp;</span></span>
+<span id="L260"><span class="lineNum">     260</span>              :                    (info%kkt &lt;= options%derivative_switch_tol .and. info%feas &lt;= options%derivative_switch_tol) .or. &amp;</span>
+<span id="L261"><span class="lineNum">     261</span>              :                    (options%acceptable_iter &gt; 0 .and. n_acceptable + 1 &gt;= options%acceptable_iter .and. &amp;</span>
+<span id="L262"><span class="lineNum">     262</span> <span class="tlaGNC">          14 :                     info%kkt &lt;= options%acceptable_ktol .and. info%feas &lt;= options%acceptable_ctol))) exit</span></span>
+<span id="L263"><span class="lineNum">     263</span> <span class="tlaGNC">           1 :         call problem%set_derivative_accuracy(sqpopt_derivatives_accurate)</span></span>
+<span id="L264"><span class="lineNum">     264</span> <span class="tlaGNC">           1 :         info%derivatives = .true.</span></span>
+<span id="L265"><span class="lineNum">     265</span>              :         call lg%put(sqpopt_log_detail, 'switched to accurate derivatives (KKT error '//fmt_e(info%kkt)// &amp;</span>
+<span id="L266"><span class="lineNum">     266</span> <span class="tlaGNC">           1 :                     ', feasibility error '//fmt_e(info%feas)//'): gradient and Jacobian re-evaluated')</span></span>
+<span id="L267"><span class="lineNum">     267</span> <span class="tlaGNC">           1 :         call problem%g(x, g)</span></span>
+<span id="L268"><span class="lineNum">     268</span> <span class="tlaGNC">           1 :         call problem%jac(x, jac%val)</span></span>
+<span id="L269"><span class="lineNum">     269</span> <span class="tlaGNC">           1 :         call kkt%new_matrices()</span></span>
+<span id="L270"><span class="lineNum">     270</span> <span class="tlaGNC">           1 :         call least_squares%new_matrices()</span></span>
+<span id="L271"><span class="lineNum">     271</span> <span class="tlaGNC">           1 :         if (problem%stop_requested) then</span></span>
+<span id="L272"><span class="lineNum">     272</span> <span class="tlaUNC">           0 :             istat = sqpopt_user_requested_stop</span></span>
+<span id="L273"><span class="lineNum">     273</span> <span class="tlaUNC">           0 :             done  = .true.</span></span>
+<span id="L274"><span class="lineNum">     274</span> <span class="tlaUNC">           0 :             return</span></span>
+<span id="L275"><span class="lineNum">     275</span>              :         end if</span>
+<span id="L276"><span class="lineNum">     276</span> <span class="tlaGNC">           1 :         if (.not. (sqpopt_all_finite(g) .and. sqpopt_all_finite(jac%val))) then</span></span>
+<span id="L277"><span class="lineNum">     277</span> <span class="tlaUNC">           0 :             istat = sqpopt_function_error</span></span>
+<span id="L278"><span class="lineNum">     278</span> <span class="tlaUNC">           0 :             done  = .true.</span></span>
+<span id="L279"><span class="lineNum">     279</span> <span class="tlaUNC">           0 :             return</span></span>
+<span id="L280"><span class="lineNum">     280</span>              :         end if</span>
+<span id="L281"><span class="lineNum">     281</span> <span class="tlaGNC">           1 :         call diagnostics%point(x, f, g, c, jac)   ! (the derivatives it keeps are now the accurate ones)</span></span>
+<span id="L282"><span class="lineNum">     282</span> <span class="tlaGNC">           1 :         done      = .false.</span></span>
+<span id="L283"><span class="lineNum">     283</span> <span class="tlaGNC">           1 :         n_stalled = n_stalled0</span></span>
+<span id="L284"><span class="lineNum">     284</span>              :     end do</span>
+<span id="L285"><span class="lineNum">     285</span>              : </span>
+<span id="L286"><span class="lineNum">     286</span>              :     ! a point that is stationary for the violation may still be a saddle of</span>
+<span id="L287"><span class="lineNum">     287</span>              :     ! it (e.g. on a symmetry plane of the problem, which exactly computed</span>
+<span id="L288"><span class="lineNum">     288</span>              :     ! steps never leave): before declaring the problem infeasible, look for a</span>
+<span id="L289"><span class="lineNum">     289</span>              :     ! second-order decrease of the violation (see [[escape_step]]), and if</span>
+<span id="L290"><span class="lineNum">     290</span>              :     ! one is found, continue from there (a limited number of times):</span>
+<span id="L291"><span class="lineNum">     291</span> <span class="tlaGNC">       24906 :     if (done .and. istat == sqpopt_infeasible .and. n_escape &lt; max_escape) then</span></span>
+<span id="L292"><span class="lineNum">     292</span> <span class="tlaGNC">          15 :         call escape_step(problem, jac, x, c, options%ktol, x_new, step_istat)</span></span>
+<span id="L293"><span class="lineNum">     293</span> <span class="tlaGNC">          15 :         if (step_istat == sqpopt_success) then</span></span>
+<span id="L294"><span class="lineNum">     294</span>              :             call lg%put(sqpopt_log_detail, 'escape step from a stationary point of the violation '// &amp;</span>
+<span id="L295"><span class="lineNum">     295</span> <span class="tlaUNC">           0 :                         '(the Hessian approximation is reset)')</span></span>
+<span id="L296"><span class="lineNum">     296</span> <span class="tlaUNC">           0 :             info%escape     = .true.</span></span>
+<span id="L297"><span class="lineNum">     297</span> <span class="tlaUNC">           0 :             info%hess_reset = .true.</span></span>
+<span id="L298"><span class="lineNum">     298</span> <span class="tlaUNC">           0 :             n_escape = n_escape + 1</span></span>
+<span id="L299"><span class="lineNum">     299</span> <span class="tlaUNC">           0 :             done  = .false.</span></span>
+<span id="L300"><span class="lineNum">     300</span> <span class="tlaUNC">           0 :             istat = sqpopt_success</span></span>
+<span id="L301"><span class="lineNum">     301</span> <span class="tlaUNC">           0 :             x_prev = x</span></span>
+<span id="L302"><span class="lineNum">     302</span> <span class="tlaUNC">           0 :             if (allocated(f_prev)) deallocate(f_prev)</span></span>
+<span id="L303"><span class="lineNum">     303</span> <span class="tlaUNC">           0 :             viol_prev = maxval(max(problem%c_lb-c, 0.0_wp) + max(c-problem%c_ub, 0.0_wp))</span></span>
+<span id="L304"><span class="lineNum">     304</span> <span class="tlaUNC">           0 :             block</span></span>
+<span id="L305"><span class="lineNum">     305</span> <span class="tlaUNC">           0 :                 real(wp), dimension(:), allocatable :: jtlam</span></span>
+<span id="L306"><span class="lineNum">     306</span> <span class="tlaUNC">           0 :                 allocate(jtlam(problem%n))</span></span>
+<span id="L307"><span class="lineNum">     307</span> <span class="tlaUNC">           0 :                 call sparse_matvec_transpose(jac, lambda, jtlam)</span></span>
+<span id="L308"><span class="lineNum">     308</span> <span class="tlaUNC">           0 :                 gl_prev = g - jtlam</span></span>
+<span id="L309"><span class="lineNum">     309</span>              :             end block</span>
+<span id="L310"><span class="lineNum">     310</span> <span class="tlaUNC">           0 :             call hessian%reset()</span></span>
+<span id="L311"><span class="lineNum">     311</span> <span class="tlaUNC">           0 :             info%stepped     = .true.</span></span>
+<span id="L312"><span class="lineNum">     312</span> <span class="tlaUNC">           0 :             info%alpha       = 1.0_wp</span></span>
+<span id="L313"><span class="lineNum">     313</span> <span class="tlaUNC">           0 :             info%step_norm   = norm2(x_new - x)</span></span>
+<span id="L314"><span class="lineNum">     314</span> <span class="tlaUNC">           0 :             info%penalty     = linesearch%merit%penalty</span></span>
+<span id="L315"><span class="lineNum">     315</span> <span class="tlaUNC">           0 :             info%restoration = .true.</span></span>
+<span id="L316"><span class="lineNum">     316</span> <span class="tlaUNC">           0 :             x = x_new</span></span>
+<span id="L317"><span class="lineNum">     317</span> <span class="tlaUNC">           0 :             return</span></span>
+<span id="L318"><span class="lineNum">     318</span>              :         end if</span>
+<span id="L319"><span class="lineNum">     319</span>              :     end if</span>
+<span id="L320"><span class="lineNum">     320</span> <span class="tlaGNC">       24906 :     if (done) return</span></span>
+<span id="L321"><span class="lineNum">     321</span>              : </span>
+<span id="L322"><span class="lineNum">     322</span>              :     ! unbounded: the objective is below its limit at a feasible point:</span>
+<span id="L323"><span class="lineNum">     323</span> <span class="tlaGNC">       24109 :     if (options%obj_lower_limit &gt; -sqpopt_infinity .and. info%feas &lt;= options%ctol) then</span></span>
+<span id="L324"><span class="lineNum">     324</span> <span class="tlaGNC">           4 :         if (f/problem%f_scale &lt; options%obj_lower_limit) then</span></span>
+<span id="L325"><span class="lineNum">     325</span> <span class="tlaGNC">           1 :             istat = sqpopt_unbounded</span></span>
+<span id="L326"><span class="lineNum">     326</span> <span class="tlaGNC">           1 :             done  = .true.</span></span>
+<span id="L327"><span class="lineNum">     327</span> <span class="tlaGNC">           1 :             return</span></span>
+<span id="L328"><span class="lineNum">     328</span>              :         end if</span>
+<span id="L329"><span class="lineNum">     329</span>              :     end if</span>
+<span id="L330"><span class="lineNum">     330</span>              : </span>
+<span id="L331"><span class="lineNum">     331</span>              :     ! acceptable-level convergence (as in IPOPT): the looser tolerances have</span>
+<span id="L332"><span class="lineNum">     332</span>              :     ! held for `acceptable_iter` consecutive iterations, during which the</span>
+<span id="L333"><span class="lineNum">     333</span>              :     ! objective (of the original problem) no longer changed much:</span>
+<span id="L334"><span class="lineNum">     334</span> <span class="tlaGNC">       24108 :     if (options%acceptable_iter &gt; 0) then</span></span>
+<span id="L335"><span class="lineNum">     335</span> <span class="tlaGNC">       24108 :         slow = .true.</span></span>
+<span id="L336"><span class="lineNum">     336</span> <span class="tlaGNC">       24108 :         if (allocated(f_prev)) slow = abs(f - f_prev) &lt;= &amp;</span></span>
+<span id="L337"><span class="lineNum">     337</span> <span class="tlaGNC">       23259 :                                       options%acceptable_obj_change_tol*max(problem%f_scale, abs(f))</span></span>
+<span id="L338"><span class="lineNum">     338</span> <span class="tlaGNC">       24108 :         if (info%kkt &lt;= options%acceptable_ktol .and. info%feas &lt;= options%acceptable_ctol .and. slow) then</span></span>
+<span id="L339"><span class="lineNum">     339</span> <span class="tlaGNC">        1314 :             n_acceptable = n_acceptable + 1</span></span>
+<span id="L340"><span class="lineNum">     340</span>              :         else</span>
+<span id="L341"><span class="lineNum">     341</span> <span class="tlaGNC">       22794 :             n_acceptable = 0</span></span>
+<span id="L342"><span class="lineNum">     342</span>              :         end if</span>
+<span id="L343"><span class="lineNum">     343</span> <span class="tlaGNC">       24108 :         if (n_acceptable &gt;= options%acceptable_iter) then</span></span>
+<span id="L344"><span class="lineNum">     344</span> <span class="tlaGNC">          24 :             istat = sqpopt_acceptable</span></span>
+<span id="L345"><span class="lineNum">     345</span> <span class="tlaGNC">          24 :             done  = .true.</span></span>
+<span id="L346"><span class="lineNum">     346</span> <span class="tlaGNC">          24 :             return</span></span>
+<span id="L347"><span class="lineNum">     347</span>              :         end if</span>
+<span id="L348"><span class="lineNum">     348</span>              :     end if</span>
+<span id="L349"><span class="lineNum">     349</span>              : </span>
+<span id="L350"><span class="lineNum">     350</span>              :     ! Lagrangian gradient at the current point, with the current multipliers</span>
+<span id="L351"><span class="lineNum">     351</span>              :     ! (the multipliers the previous iteration's `gl_prev` was also formed with):</span>
+<span id="L352"><span class="lineNum">     352</span> <span class="tlaGNC">       24084 :     block</span></span>
+<span id="L353"><span class="lineNum">     353</span> <span class="tlaGNC">       24084 :         real(wp), dimension(:), allocatable :: jtlam</span></span>
+<span id="L354"><span class="lineNum">     354</span> <span class="tlaGNC">       24084 :         allocate(jtlam(problem%n))</span></span>
+<span id="L355"><span class="lineNum">     355</span> <span class="tlaGNC">       24084 :         call sparse_matvec_transpose(jac, lambda, jtlam)</span></span>
+<span id="L356"><span class="lineNum">     356</span> <span class="tlaGNC">    18732310 :         gl = g - jtlam</span></span>
+<span id="L357"><span class="lineNum">     357</span>              :     end block</span>
+<span id="L358"><span class="lineNum">     358</span>              : </span>
+<span id="L359"><span class="lineNum">     359</span> <span class="tlaGNC">       24084 :     if (options%hessian_mode == sqpopt_hessian_exact) then</span></span>
+<span id="L360"><span class="lineNum">     360</span>              :         ! the user's exact Hessian of the Lagrangian, at the current point</span>
+<span id="L361"><span class="lineNum">     361</span>              :         ! with the current multipliers (see [[sqpopt_hessian_module]]):</span>
+<span id="L362"><span class="lineNum">     362</span>              :         block</span>
+<span id="L363"><span class="lineNum">     363</span> <span class="tlaGNC">        5518 :             real(wp), dimension(:), allocatable :: hval</span></span>
+<span id="L364"><span class="lineNum">     364</span> <span class="tlaGNC">        5518 :             allocate(hval(problem%hess_nnz))</span></span>
+<span id="L365"><span class="lineNum">     365</span> <span class="tlaGNC">        5518 :             call problem%hess(x, lambda, hval)</span></span>
+<span id="L366"><span class="lineNum">     366</span> <span class="tlaGNC">        5518 :             if (problem%stop_requested) then</span></span>
+<span id="L367"><span class="lineNum">     367</span> <span class="tlaUNC">           0 :                 istat = sqpopt_user_requested_stop</span></span>
+<span id="L368"><span class="lineNum">     368</span> <span class="tlaUNC">           0 :                 done  = .true.</span></span>
+<span id="L369"><span class="lineNum">     369</span> <span class="tlaUNC">           0 :                 return</span></span>
+<span id="L370"><span class="lineNum">     370</span>              :             end if</span>
+<span id="L371"><span class="lineNum">     371</span> <span class="tlaGNC">        5518 :             if (.not. sqpopt_all_finite(hval)) then</span></span>
+<span id="L372"><span class="lineNum">     372</span> <span class="tlaUNC">           0 :                 istat = sqpopt_function_error</span></span>
+<span id="L373"><span class="lineNum">     373</span> <span class="tlaUNC">           0 :                 done  = .true.</span></span>
+<span id="L374"><span class="lineNum">     374</span> <span class="tlaUNC">           0 :                 return</span></span>
+<span id="L375"><span class="lineNum">     375</span>              :             end if</span>
+<span id="L376"><span class="lineNum">     376</span>              :             ! (the shift is decreased only after a good step: not after a</span>
+<span id="L377"><span class="lineNum">     377</span>              :             ! failed one, or during a run of very short ones)</span>
+<span id="L378"><span class="lineNum">     378</span> <span class="tlaGNC">       11036 :             call hessian%set_values(hval, decay=qp_solver%n_short == 0 .and. allocated(f_prev))</span></span>
+<span id="L379"><span class="lineNum">     379</span>              :         end block</span>
+<span id="L380"><span class="lineNum">     380</span> <span class="tlaGNC">       18566 :     else if (allocated(x_prev) .and. .not. info%derivatives) then</span></span>
+<span id="L381"><span class="lineNum">     381</span>              :         ! update the quasi-Newton Hessian approximation using the previous step</span>
+<span id="L382"><span class="lineNum">     382</span>              :         ! (skipped on the very first iteration, since there is no previous point,</span>
+<span id="L383"><span class="lineNum">     383</span>              :         ! and when the derivatives were just switched to accurate ones, since</span>
+<span id="L384"><span class="lineNum">     384</span>              :         ! `gl_prev` was formed with the fast ones):</span>
+<span id="L385"><span class="lineNum">     385</span> <span class="tlaGNC">       35850 :         block</span></span>
+<span id="L386"><span class="lineNum">     386</span> <span class="tlaGNC">       17925 :             real(wp), dimension(:), allocatable :: s, y   ! (the quasi-Newton pair)</span></span>
+<span id="L387"><span class="lineNum">     387</span> <span class="tlaGNC">       17925 :             allocate(s(problem%n), y(problem%n))</span></span>
+<span id="L388"><span class="lineNum">     388</span> <span class="tlaGNC">     8251697 :             s = x - x_prev</span></span>
+<span id="L389"><span class="lineNum">     389</span> <span class="tlaGNC">     8251697 :             y = gl - gl_prev</span></span>
+<span id="L390"><span class="lineNum">     390</span> <span class="tlaGNC">       71700 :             if (options%hessian_mode == sqpopt_hessian_sr1) then</span></span>
+<span id="L391"><span class="lineNum">     391</span> <span class="tlaGNC">         185 :                 call hessian%update_sr1(s, y)</span></span>
+<span id="L392"><span class="lineNum">     392</span>              :             else</span>
+<span id="L393"><span class="lineNum">     393</span> <span class="tlaGNC">       17740 :                 call hessian%update_bfgs(s, y)</span></span>
+<span id="L394"><span class="lineNum">     394</span>              :             end if</span>
+<span id="L395"><span class="lineNum">     395</span>              :         end block</span>
+<span id="L396"><span class="lineNum">     396</span>              :     end if</span>
+<span id="L397"><span class="lineNum">     397</span>              : </span>
+<span id="L398"><span class="lineNum">     398</span>              :     ! (the Hessian has changed, so a factorization with it no longer applies)</span>
+<span id="L399"><span class="lineNum">     399</span> <span class="tlaGNC">       24084 :     call kkt%new_matrices()</span></span>
+<span id="L400"><span class="lineNum">     400</span>              : </span>
+<span id="L401"><span class="lineNum">     401</span> <span class="tlaGNC">       24084 :     qp_istat = sqpopt_success</span></span>
+<span id="L402"><span class="lineNum">     402</span> <span class="tlaGNC">       24084 :     restore  = .false.</span></span>
+<span id="L403"><span class="lineNum">     403</span> <span class="tlaGNC">       24084 :     shift_floor = hessian%shift</span></span>
+<span id="L404"><span class="lineNum">     404</span> <span class="tlaGNC">       24084 :     keep_shift  = .false.</span></span>
+<span id="L405"><span class="lineNum">     405</span>              : </span>
+<span id="L406"><span class="lineNum">     406</span> <span class="tlaGNC">       24084 :     if (restoration%active) then</span></span>
+<span id="L407"><span class="lineNum">     407</span>              : </span>
+<span id="L408"><span class="lineNum">     408</span>              :         ! in a feasibility restoration phase: minimize the violation, keeping</span>
+<span id="L409"><span class="lineNum">     409</span>              :         ! the current multipliers (see [[sqpopt_restoration_module]]):</span>
+<span id="L410"><span class="lineNum">     410</span> <span class="tlaGNC">          71 :         restore    = .true.</span></span>
+<span id="L411"><span class="lineNum">     411</span> <span class="tlaGNC">       13748 :         new_lambda = lambda</span></span>
+<span id="L412"><span class="lineNum">     412</span> <span class="tlaGNC">          71 :         linesearch%merit%joint_active = .false.</span></span>
+<span id="L413"><span class="lineNum">     413</span> <span class="tlaGNC">          71 :         info%phase = .true.</span></span>
+<span id="L414"><span class="lineNum">     414</span> <span class="tlaGNC">          71 :         call restoration_phase_iteration()</span></span>
+<span id="L415"><span class="lineNum">     415</span>              : </span>
+<span id="L416"><span class="lineNum">     416</span> <span class="tlaGNC">       24013 :     else if (trust_region%enabled) then</span></span>
+<span id="L417"><span class="lineNum">     417</span>              : </span>
+<span id="L418"><span class="lineNum">     418</span>              :         ! with inertia control, first shift the exact Hessian as the working</span>
+<span id="L419"><span class="lineNum">     419</span>              :         ! set that the QP starts from needs (the trust region's QPs are not</span>
+<span id="L420"><span class="lineNum">     420</span>              :         ! re-solved for the working set they end with: its bounds on the step</span>
+<span id="L421"><span class="lineNum">     421</span>              :         ! keep them bounded):</span>
+<span id="L422"><span class="lineNum">     422</span> <span class="tlaGNC">         579 :         if (inertia%enabled) then</span></span>
+<span id="L423"><span class="lineNum">     423</span>              :             block</span>
+<span id="L424"><span class="lineNum">     424</span>              :                 logical :: shifted, inertia_ok</span>
+<span id="L425"><span class="lineNum">     425</span> <span class="tlaGNC">         110 :                 call correct_inertia(.true., shifted, inertia_ok)</span></span>
+<span id="L426"><span class="lineNum">     426</span>              :             end block</span>
+<span id="L427"><span class="lineNum">     427</span>              :         end if</span>
+<span id="L428"><span class="lineNum">     428</span>              : </span>
+<span id="L429"><span class="lineNum">     429</span>              :         ! trust-region globalization: re-solves the QP as needed with a</span>
+<span id="L430"><span class="lineNum">     430</span>              :         ! shrinking radius and its own accept/reject test (merit-ratio,</span>
+<span id="L431"><span class="lineNum">     431</span>              :         ! filter, or funnel, depending on `linesearch%mode`) instead of a line</span>
+<span id="L432"><span class="lineNum">     432</span>              :         ! search along one fixed `p` -- see [[sqpopt_trust_region_module]]:</span>
+<span id="L433"><span class="lineNum">     433</span>              :         call trust_region%step(problem, hessian, qp_solver, linesearch, x, g, f, c, jac, x_new, new_lambda, alpha, &amp;</span>
+<span id="L434"><span class="lineNum">     434</span> <span class="tlaGNC">         579 :                                step_istat, kkt=kkt, inertia=inertia, least_squares=least_squares)</span></span>
+<span id="L435"><span class="lineNum">     435</span> <span class="tlaGNC">         579 :         if (hessian%shift &gt; shift_floor) info%hess_reset = .true.</span></span>
+<span id="L436"><span class="lineNum">     436</span> <span class="tlaGNC">         579 :         info%soc = trust_region%used_soc</span></span>
+<span id="L437"><span class="lineNum">     437</span>              : </span>
+<span id="L438"><span class="lineNum">     438</span>              :         ! if no step was acceptable at an infeasible point, start a</span>
+<span id="L439"><span class="lineNum">     439</span>              :         ! restoration phase (as in Fletcher &amp; Leyffer's trust-region filter SQP):</span>
+<span id="L440"><span class="lineNum">     440</span> <span class="tlaGNC">         579 :         if (step_istat /= sqpopt_success .and. options%restoration_mode == sqpopt_restoration_phase) then</span></span>
+<span id="L441"><span class="lineNum">     441</span>              :             ! (only if infeasible beyond `ctol`, as the convergence test measures it:</span>
+<span id="L442"><span class="lineNum">     442</span>              :             ! a round-off violation has nothing for restoration to reduce)</span>
+<span id="L443"><span class="lineNum">     443</span> <span class="tlaGNC">           3 :             if (info%feas &gt; options%ctol) then</span></span>
+<span id="L444"><span class="lineNum">     444</span> <span class="tlaGNC">           3 :                 restore    = .true.</span></span>
+<span id="L445"><span class="lineNum">     445</span> <span class="tlaGNC">          12 :                 new_lambda = lambda</span></span>
+<span id="L446"><span class="lineNum">     446</span> <span class="tlaGNC">           3 :                 call start_restoration_phase(record=.true.)</span></span>
+<span id="L447"><span class="lineNum">     447</span>              :             end if</span>
+<span id="L448"><span class="lineNum">     448</span>              :         end if</span>
+<span id="L449"><span class="lineNum">     449</span>              : </span>
+<span id="L450"><span class="lineNum">     450</span>              :     else</span>
+<span id="L451"><span class="lineNum">     451</span>              : </span>
+<span id="L452"><span class="lineNum">     452</span>              :         ! with inertia control, first shift the Hessian as the working set</span>
+<span id="L453"><span class="lineNum">     453</span>              :         ! that the QP will most likely end with needs (the one it starts</span>
+<span id="L454"><span class="lineNum">     454</span>              :         ! from), so that the QP usually has to be solved only once:</span>
+<span id="L455"><span class="lineNum">     455</span> <span class="tlaGNC">       23434 :         if (inertia%enabled) then</span></span>
+<span id="L456"><span class="lineNum">     456</span>              :             block</span>
+<span id="L457"><span class="lineNum">     457</span>              :                 logical :: shifted, inertia_ok</span>
+<span id="L458"><span class="lineNum">     458</span> <span class="tlaGNC">        2969 :                 call correct_inertia(.true., shifted, inertia_ok)</span></span>
+<span id="L459"><span class="lineNum">     459</span>              :             end block</span>
+<span id="L460"><span class="lineNum">     460</span>              :         end if</span>
+<span id="L461"><span class="lineNum">     461</span>              : </span>
+<span id="L462"><span class="lineNum">     462</span>              :         ! solve the linearized QP subproblem for the search direction and multipliers:</span>
+<span id="L463"><span class="lineNum">     463</span> <span class="tlaGNC">       23434 :         call solve_qp()</span></span>
+<span id="L464"><span class="lineNum">     464</span> <span class="tlaGNC">       23434 :         if (qp_istat == sqpopt_out_of_memory) then</span></span>
+<span id="L465"><span class="lineNum">     465</span>              :             ! (there is no step to search along: stop here, see below)</span>
+<span id="L466"><span class="lineNum">     466</span> <span class="tlaGNC">           1 :             istat = sqpopt_out_of_memory</span></span>
+<span id="L467"><span class="lineNum">     467</span> <span class="tlaGNC">           1 :             done  = .true.</span></span>
+<span id="L468"><span class="lineNum">     468</span> <span class="tlaGNC">           1 :             return</span></span>
+<span id="L469"><span class="lineNum">     469</span>              :         end if</span>
+<span id="L470"><span class="lineNum">     470</span> <span class="tlaGNC">       23433 :         restore = qp_istat == sqpopt_infeasible</span></span>
+<span id="L471"><span class="lineNum">     471</span> <span class="tlaGNC">       23433 :         if (.not. restore) call elastic_resolve()</span></span>
+<span id="L472"><span class="lineNum">     472</span>              : </span>
+<span id="L473"><span class="lineNum">     473</span> <span class="tlaGNC">       23433 :         if (.not. restore) then</span></span>
+<span id="L474"><span class="lineNum">     474</span>              : </span>
+<span id="L475"><span class="lineNum">     475</span> <span class="tlaGNC">       23350 :             call update_penalty()</span></span>
+<span id="L476"><span class="lineNum">     476</span>              : </span>
+<span id="L477"><span class="lineNum">     477</span>              :             ! safeguard (as in `slsqp`): if `p` is not a descent direction for the</span>
+<span id="L478"><span class="lineNum">     478</span>              :             ! merit function (the linearized QP solve is not always guaranteed to</span>
+<span id="L479"><span class="lineNum">     479</span>              :             ! produce one), reset the Hessian approximation to the identity and</span>
+<span id="L480"><span class="lineNum">     480</span>              :             ! recompute `p` once from scratch. With the exact Hessian, which may</span>
+<span id="L481"><span class="lineNum">     481</span>              :             ! be indefinite, &quot;reset&quot; increases its shift instead (see</span>
+<span id="L482"><span class="lineNum">     482</span>              :             ! [[sqpopt_hessian_module]]), and the QP is re-solved as often as</span>
+<span id="L483"><span class="lineNum">     483</span>              :             ! needed, also when it failed or found negative curvature (a</span>
+<span id="L484"><span class="lineNum">     484</span>              :             ! nonconvex QP: this is the inertia correction). With inertia</span>
+<span id="L485"><span class="lineNum">     485</span>              :             ! control (for the exact or the SR1 Hessian), the test for a</span>
+<span id="L486"><span class="lineNum">     486</span>              :             ! nonconvex QP is instead the inertia of the KKT matrix of the QP's</span>
+<span id="L487"><span class="lineNum">     487</span>              :             ! final working set, which also gives the shift (see</span>
+<span id="L488"><span class="lineNum">     488</span>              :             ! [[sqpopt_inertia_module]]):</span>
+<span id="L489"><span class="lineNum">     489</span>              :             block</span>
+<span id="L490"><span class="lineNum">     490</span>              :                 real(wp) :: dphi0</span>
+<span id="L491"><span class="lineNum">     491</span>              :                 integer :: n_shift</span>
+<span id="L492"><span class="lineNum">     492</span>              :                 logical :: shifted, inertia_ok, unusable</span>
+<span id="L493"><span class="lineNum">     493</span>              :                 integer, parameter :: max_shift = 15 !! (from the smallest shift to the largest, x10 each time)</span>
+<span id="L494"><span class="lineNum">     494</span> <span class="tlaGNC">       23350 :                 n_shift = 0</span></span>
+<span id="L495"><span class="lineNum">     495</span> <span class="tlaGNC">         217 :                 do</span></span>
+<span id="L496"><span class="lineNum">     496</span> <span class="tlaGNC">       23567 :                     call linesearch%merit%directional_derivative(jac, g, p, c, problem%c_lb, problem%c_ub, new_lambda, dphi0)</span></span>
+<span id="L497"><span class="lineNum">     497</span> <span class="tlaGNC">       23567 :                     shifted = .false.</span></span>
+<span id="L498"><span class="lineNum">     498</span> <span class="tlaGNC">       23567 :                     if (options%hessian_mode == sqpopt_hessian_exact .or. inertia%enabled) then</span></span>
+<span id="L499"><span class="lineNum">     499</span> <span class="tlaGNC">        5653 :                         inertia_ok = .false.</span></span>
+<span id="L500"><span class="lineNum">     500</span> <span class="tlaGNC">        5653 :                         if (inertia%enabled .and. n_shift &lt; max_shift) call correct_inertia(.false., shifted, inertia_ok)</span></span>
+<span id="L501"><span class="lineNum">     501</span> <span class="tlaGNC">        5653 :                         unusable = shifted .or. dphi0 &gt;= 0.0_wp .or. qp_istat == sqpopt_qp_solve_failed</span></span>
+<span id="L502"><span class="lineNum">     502</span>              :                         ! (negative curvature that the QP met before its final working</span>
+<span id="L503"><span class="lineNum">     503</span>              :                         ! set is not a reason to shift, if the inertia there is right)</span>
+<span id="L504"><span class="lineNum">     504</span> <span class="tlaGNC">        5653 :                         if (.not. inertia_ok) unusable = unusable .or. qp_solver%negative_curvature</span></span>
+<span id="L505"><span class="lineNum">     505</span> <span class="tlaGNC">        5653 :                         if (.not. unusable .or. n_shift &gt;= max_shift) exit</span></span>
+<span id="L506"><span class="lineNum">     506</span> <span class="tlaGNC">         168 :                         n_shift = n_shift + 1</span></span>
+<span id="L507"><span class="lineNum">     507</span>              :                     else</span>
+<span id="L508"><span class="lineNum">     508</span> <span class="tlaGNC">       17914 :                         if (.not. (dphi0 &gt;= 0.0_wp) .or. n_shift &gt;= 1) exit</span></span>
+<span id="L509"><span class="lineNum">     509</span> <span class="tlaGNC">          49 :                         n_shift = 1</span></span>
+<span id="L510"><span class="lineNum">     510</span>              :                     end if</span>
+<span id="L511"><span class="lineNum">     511</span> <span class="tlaGNC">         217 :                     info%hess_reset = .true.</span></span>
+<span id="L512"><span class="lineNum">     512</span> <span class="tlaGNC">         217 :                     if (shifted) then</span></span>
+<span id="L513"><span class="lineNum">     513</span> <span class="tlaUNC">           0 :                         call lg%put(sqpopt_log_detail, 'QP re-solved with the shifted Hessian')</span></span>
+<span id="L514"><span class="lineNum">     514</span> <span class="tlaGNC">         217 :                     else if (inertia%enabled) then</span></span>
+<span id="L515"><span class="lineNum">     515</span> <span class="tlaGNC">          35 :                         call inertia%raise(hessian)</span></span>
+<span id="L516"><span class="lineNum">     516</span>              :                         call lg%put(sqpopt_log_detail, 'QP step not usable (failed, or not a descent '// &amp;</span>
+<span id="L517"><span class="lineNum">     517</span> <span class="tlaGNC">          35 :                                     'direction): Hessian shift increased to '//fmt_e(hessian%shift)//', QP re-solved')</span></span>
+<span id="L518"><span class="lineNum">     518</span> <span class="tlaGNC">         182 :                     else if (options%hessian_mode == sqpopt_hessian_exact) then</span></span>
+<span id="L519"><span class="lineNum">     519</span> <span class="tlaGNC">         133 :                         call hessian%reset()</span></span>
+<span id="L520"><span class="lineNum">     520</span>              :                         call lg%put(sqpopt_log_detail, 'QP step not usable (nonconvex, failed, or not a descent '// &amp;</span>
+<span id="L521"><span class="lineNum">     521</span> <span class="tlaGNC">         133 :                                     'direction): Hessian shift increased to '//fmt_e(hessian%shift)//', QP re-solved')</span></span>
+<span id="L522"><span class="lineNum">     522</span>              :                     else</span>
+<span id="L523"><span class="lineNum">     523</span> <span class="tlaGNC">          49 :                         call hessian%reset()</span></span>
+<span id="L524"><span class="lineNum">     524</span> <span class="tlaGNC">          49 :                         call kkt%new_matrices()   ! (the factorization kept was for the pairs just discarded)</span></span>
+<span id="L525"><span class="lineNum">     525</span>              :                         call lg%put(sqpopt_log_detail, 'QP step is not a descent direction: Hessian approximation '// &amp;</span>
+<span id="L526"><span class="lineNum">     526</span> <span class="tlaGNC">          49 :                                     'reset, QP re-solved')</span></span>
+<span id="L527"><span class="lineNum">     527</span>              :                     end if</span>
+<span id="L528"><span class="lineNum">     528</span> <span class="tlaGNC">         217 :                     call solve_qp()</span></span>
+<span id="L529"><span class="lineNum">     529</span> <span class="tlaGNC">         217 :                     restore = qp_istat == sqpopt_infeasible</span></span>
+<span id="L530"><span class="lineNum">     530</span> <span class="tlaGNC">         217 :                     if (restore) exit</span></span>
+<span id="L531"><span class="lineNum">     531</span> <span class="tlaGNC">         217 :                     call update_penalty()</span></span>
+<span id="L532"><span class="lineNum">     532</span>              :                 end do</span>
+<span id="L533"><span class="lineNum">     533</span>              :             end block</span>
+<span id="L534"><span class="lineNum">     534</span>              : </span>
+<span id="L535"><span class="lineNum">     535</span>              :         end if</span>
+<span id="L536"><span class="lineNum">     536</span>              : </span>
+<span id="L537"><span class="lineNum">     537</span> <span class="tlaGNC">       23433 :         if (restore) then</span></span>
+<span id="L538"><span class="lineNum">     538</span>              : </span>
+<span id="L539"><span class="lineNum">     539</span>              :             ! the linearized constraints are inconsistent, so the QP step can't</span>
+<span id="L540"><span class="lineNum">     540</span>              :             ! be trusted: start a restoration phase, or take a step toward</span>
+<span id="L541"><span class="lineNum">     541</span>              :             ! feasibility, keeping the current multipliers (see</span>
+<span id="L542"><span class="lineNum">     542</span>              :             ! [[sqpopt_restoration_module]]):</span>
+<span id="L543"><span class="lineNum">     543</span> <span class="tlaGNC">         475 :             new_lambda = lambda</span></span>
+<span id="L544"><span class="lineNum">     544</span> <span class="tlaGNC">          83 :             linesearch%merit%joint_active = .false.</span></span>
+<span id="L545"><span class="lineNum">     545</span> <span class="tlaGNC">          83 :             call lg%put(sqpopt_log_detail, 'linearized constraints are inconsistent: restoration step')</span></span>
+<span id="L546"><span class="lineNum">     546</span>              :             call restoration_step(problem, jac, x, c, qp_solver%max_step*qp_solver%step_scale, x_new, alpha, step_istat, &amp;</span>
+<span id="L547"><span class="lineNum">     547</span> <span class="tlaGNC">          83 :                                   least_squares=least_squares)</span></span>
+<span id="L548"><span class="lineNum">     548</span> <span class="tlaGNC">          83 :             call note_restoration_step('Gauss-Newton')</span></span>
+<span id="L549"><span class="lineNum">     549</span>              :             ! adapt the step-length cap as after a line search (see below): a</span>
+<span id="L550"><span class="lineNum">     550</span>              :             ! full step that the cap cut short doubles it (so that a feasible</span>
+<span id="L551"><span class="lineNum">     551</span>              :             ! point far away isn't approached by steps of `max_step`), and a</span>
+<span id="L552"><span class="lineNum">     552</span>              :             ! step that had to be shortened halves it</span>
+<span id="L553"><span class="lineNum">     553</span> <span class="tlaGNC">          83 :             if (step_istat == sqpopt_success .and. alpha &gt;= 1.0_wp) then</span></span>
+<span id="L554"><span class="lineNum">     554</span> <span class="tlaGNC">         223 :                 if (norm2(x_new - x) &gt;= 0.99_wp*qp_solver%max_step*qp_solver%step_scale) then</span></span>
+<span id="L555"><span class="lineNum">     555</span> <span class="tlaGNC">          14 :                     qp_solver%step_scale = min(2.0_wp*qp_solver%step_scale, 1.0e10_wp)</span></span>
+<span id="L556"><span class="lineNum">     556</span>              :                 end if</span>
+<span id="L557"><span class="lineNum">     557</span> <span class="tlaGNC">          20 :             else if (step_istat == sqpopt_success) then</span></span>
+<span id="L558"><span class="lineNum">     558</span> <span class="tlaGNC">           2 :                 qp_solver%step_scale = max(1.0_wp, 0.5_wp*qp_solver%step_scale)</span></span>
+<span id="L559"><span class="lineNum">     559</span>              :             end if</span>
+<span id="L560"><span class="lineNum">     560</span> <span class="tlaGNC">         291 :             if (step_istat /= sqpopt_success .and. norm2(p) &gt; 0.0_wp) then</span></span>
+<span id="L561"><span class="lineNum">     561</span>              :                 ! no first-order decrease of the violation is possible from `x`</span>
+<span id="L562"><span class="lineNum">     562</span>              :                 ! (it is stationary for the violation, e.g. `J=0` at a maximum</span>
+<span id="L563"><span class="lineNum">     563</span>              :                 ! of it): try the QP's elastic step instead, along which the</span>
+<span id="L564"><span class="lineNum">     564</span>              :                 ! violation may still decrease to second order. If this fails</span>
+<span id="L565"><span class="lineNum">     565</span>              :                 ! too, the next iteration's infeasibility test stops at `x`.</span>
+<span id="L566"><span class="lineNum">     566</span>              :                 call restoration_step(problem, jac, x, c, qp_solver%max_step*qp_solver%step_scale, &amp;</span>
+<span id="L567"><span class="lineNum">     567</span> <span class="tlaGNC">          18 :                                       x_new, alpha, step_istat, direction=p)</span></span>
+<span id="L568"><span class="lineNum">     568</span> <span class="tlaGNC">          18 :                 call note_restoration_step('along the elastic QP step')</span></span>
+<span id="L569"><span class="lineNum">     569</span>              :             end if</span>
+<span id="L570"><span class="lineNum">     570</span>              : </span>
+<span id="L571"><span class="lineNum">     571</span>              :         else</span>
+<span id="L572"><span class="lineNum">     572</span>              : </span>
+<span id="L573"><span class="lineNum">     573</span>              :             ! line search along `p` to (approximately) minimize the merit function</span>
+<span id="L574"><span class="lineNum">     574</span>              :             ! (or, in `sqpopt_linesearch_filter`/`_funnel` mode, to find a point acceptable</span>
+<span id="L575"><span class="lineNum">     575</span>              :             ! to the filter). If the full step is rejected because of constraint</span>
+<span id="L576"><span class="lineNum">     576</span>              :             ! curvature (the Maratos effect), the line search also tries its</span>
+<span id="L577"><span class="lineNum">     577</span>              :             ! second-order correction (see `soc` below):</span>
+<span id="L578"><span class="lineNum">     578</span> <span class="tlaGNC">       23350 :             if (problem%m &gt; 0) then</span></span>
+<span id="L579"><span class="lineNum">     579</span>              :                 call linesearch%search(eval_f_cached, eval_c_cached, x, p, f, g, c, jac, new_lambda, &amp;</span>
+<span id="L580"><span class="lineNum">     580</span> <span class="tlaGNC">        7524 :                                         problem%c_lb, problem%c_ub, alpha, x_new, step_istat, soc=soc)</span></span>
+<span id="L581"><span class="lineNum">     581</span>              :             else</span>
+<span id="L582"><span class="lineNum">     582</span>              :                 call linesearch%search(eval_f_cached, eval_c_cached, x, p, f, g, c, jac, new_lambda, &amp;</span>
+<span id="L583"><span class="lineNum">     583</span> <span class="tlaGNC">       15826 :                                         problem%c_lb, problem%c_ub, alpha, x_new, step_istat)</span></span>
+<span id="L584"><span class="lineNum">     584</span>              :             end if</span>
+<span id="L585"><span class="lineNum">     585</span>              : </span>
+<span id="L586"><span class="lineNum">     586</span> <span class="tlaGNC">       23350 :             info%soc         = linesearch%used_soc</span></span>
+<span id="L587"><span class="lineNum">     587</span> <span class="tlaGNC">       23350 :             info%nonmonotone = linesearch%used_nonmonotone</span></span>
+<span id="L588"><span class="lineNum">     588</span> <span class="tlaGNC">       23350 :             info%relaxed     = linesearch%used_relaxed</span></span>
+<span id="L589"><span class="lineNum">     589</span>              : </span>
+<span id="L590"><span class="lineNum">     590</span>              :             ! with the augmented Lagrangian's joint step, the new multipliers are</span>
+<span id="L591"><span class="lineNum">     591</span>              :             ! those along the step, not the QP's (see [[update_penalty_parameter]]):</span>
+<span id="L592"><span class="lineNum">     592</span> <span class="tlaGNC">       23362 :             if (linesearch%merit%joint_active) new_lambda = lambda + alpha*(new_lambda - lambda)</span></span>
+<span id="L593"><span class="lineNum">     593</span>              : </span>
+<span id="L594"><span class="lineNum">     594</span>              :             ! adapt the step-length cap like a trust radius (see [[sqpopt_qp_solver_module]]):</span>
+<span id="L595"><span class="lineNum">     595</span> <span class="tlaGNC">       23350 :             if (step_istat == sqpopt_success .and. qp_solver%capped .and. alpha &gt;= 1.0_wp) then</span></span>
+<span id="L596"><span class="lineNum">     596</span> <span class="tlaGNC">        1046 :                 qp_solver%step_scale = min(2.0_wp*qp_solver%step_scale, 1.0e10_wp)</span></span>
+<span id="L597"><span class="lineNum">     597</span> <span class="tlaGNC">       22304 :             else if (alpha &lt; 1.0_wp) then</span></span>
+<span id="L598"><span class="lineNum">     598</span> <span class="tlaGNC">        3742 :                 qp_solver%step_scale = max(1.0_wp, 0.5_wp*qp_solver%step_scale)</span></span>
+<span id="L599"><span class="lineNum">     599</span>              :             end if</span>
+<span id="L600"><span class="lineNum">     600</span>              :             ! a run of very short steps means the quasi-Newton model is poor</span>
+<span id="L601"><span class="lineNum">     601</span>              :             ! (e.g. the search is crawling along a curved constraint): start</span>
+<span id="L602"><span class="lineNum">     602</span>              :             ! it afresh, as after a failed step</span>
+<span id="L603"><span class="lineNum">     603</span> <span class="tlaGNC">       23350 :             if (step_istat == sqpopt_success .and. alpha &lt; 1.0e-2_wp) then</span></span>
+<span id="L604"><span class="lineNum">     604</span> <span class="tlaGNC">          52 :                 qp_solver%n_short = qp_solver%n_short + 1</span></span>
+<span id="L605"><span class="lineNum">     605</span>              :             else</span>
+<span id="L606"><span class="lineNum">     606</span> <span class="tlaGNC">       23298 :                 qp_solver%n_short = 0</span></span>
+<span id="L607"><span class="lineNum">     607</span>              :             end if</span>
+<span id="L608"><span class="lineNum">     608</span> <span class="tlaGNC">       23350 :             if (qp_solver%n_short &gt;= 3) then</span></span>
+<span id="L609"><span class="lineNum">     609</span> <span class="tlaGNC">          11 :                 call hessian%reset()</span></span>
+<span id="L610"><span class="lineNum">     610</span> <span class="tlaGNC">          11 :                 keep_shift = .true.</span></span>
+<span id="L611"><span class="lineNum">     611</span> <span class="tlaGNC">          11 :                 info%hess_reset = .true.</span></span>
+<span id="L612"><span class="lineNum">     612</span> <span class="tlaGNC">          11 :                 call lg%put(sqpopt_log_detail, '3 very short steps in a row: Hessian approximation reset')</span></span>
+<span id="L613"><span class="lineNum">     613</span> <span class="tlaGNC">          11 :                 qp_solver%n_short = 0</span></span>
+<span id="L614"><span class="lineNum">     614</span>              :             end if</span>
+<span id="L615"><span class="lineNum">     615</span>              : </span>
+<span id="L616"><span class="lineNum">     616</span> <span class="tlaGNC">       23350 :             if (step_istat /= sqpopt_success .and. (linesearch%mode == sqpopt_linesearch_filter .or. &amp;</span></span>
+<span id="L617"><span class="lineNum">     617</span>              :                                                      linesearch%mode == sqpopt_linesearch_funnel)) then</span>
+<span id="L618"><span class="lineNum">     618</span>              :                 ! the filter (or funnel) line search failed (no acceptable step</span>
+<span id="L619"><span class="lineNum">     619</span>              :                 ! length): as in Wächter &amp; Biegler's method, add the current</span>
+<span id="L620"><span class="lineNum">     620</span>              :                 ! point to the filter (or shrink the funnel toward it) and, if</span>
+<span id="L621"><span class="lineNum">     621</span>              :                 ! infeasible, take a feasibility restoration step instead</span>
+<span id="L622"><span class="lineNum">     622</span>              :                 ! (keeping the current multipliers):</span>
+<span id="L623"><span class="lineNum">     623</span>              :                 block</span>
+<span id="L624"><span class="lineNum">     624</span>              :                     real(wp) :: theta</span>
+<span id="L625"><span class="lineNum">     625</span> <span class="tlaGNC">          32 :                     theta = l1_violation(c, problem%c_lb, problem%c_ub)</span></span>
+<span id="L626"><span class="lineNum">     626</span> <span class="tlaGNC">          32 :                     if (linesearch%mode == sqpopt_linesearch_funnel) then</span></span>
+<span id="L627"><span class="lineNum">     627</span> <span class="tlaUNC">           0 :                         call linesearch%funnel%restoration(theta)</span></span>
+<span id="L628"><span class="lineNum">     628</span>              :                         call lg%put(sqpopt_log_detail, 'no acceptable step: funnel tightened to width '// &amp;</span>
+<span id="L629"><span class="lineNum">     629</span> <span class="tlaUNC">           0 :                                     fmt_e(linesearch%funnel%width))</span></span>
+<span id="L630"><span class="lineNum">     630</span>              :                     else</span>
+<span id="L631"><span class="lineNum">     631</span> <span class="tlaGNC">          32 :                         call linesearch%filter%record(theta, f)</span></span>
+<span id="L632"><span class="lineNum">     632</span> <span class="tlaGNC">          32 :                         call lg%put(sqpopt_log_detail, 'no acceptable step: the current point is added to the filter')</span></span>
+<span id="L633"><span class="lineNum">     633</span>              :                     end if</span>
+<span id="L634"><span class="lineNum">     634</span>              :                     ! (restoration only if infeasible beyond `ctol`, as the convergence</span>
+<span id="L635"><span class="lineNum">     635</span>              :                     ! test measures it: a round-off violation has nothing to reduce)</span>
+<span id="L636"><span class="lineNum">     636</span> <span class="tlaGNC">          32 :                     if (info%feas &gt; options%ctol) then</span></span>
+<span id="L637"><span class="lineNum">     637</span> <span class="tlaGNC">           5 :                         restore    = .true.</span></span>
+<span id="L638"><span class="lineNum">     638</span> <span class="tlaGNC">        1010 :                         new_lambda = lambda</span></span>
+<span id="L639"><span class="lineNum">     639</span> <span class="tlaGNC">           5 :                         if (options%restoration_mode == sqpopt_restoration_phase) then</span></span>
+<span id="L640"><span class="lineNum">     640</span> <span class="tlaGNC">           5 :                             call start_restoration_phase(record=.false.)</span></span>
+<span id="L641"><span class="lineNum">     641</span>              :                         else</span>
+<span id="L642"><span class="lineNum">     642</span>              :                             call restoration_step(problem, jac, x, c, qp_solver%max_step*qp_solver%step_scale, &amp;</span>
+<span id="L643"><span class="lineNum">     643</span> <span class="tlaUNC">           0 :                                                   x_new, alpha, step_istat, least_squares=least_squares)</span></span>
+<span id="L644"><span class="lineNum">     644</span> <span class="tlaUNC">           0 :                             call note_restoration_step('Gauss-Newton')</span></span>
+<span id="L645"><span class="lineNum">     645</span>              :                         end if</span>
+<span id="L646"><span class="lineNum">     646</span>              :                     end if</span>
+<span id="L647"><span class="lineNum">     647</span>              :                 end block</span>
+<span id="L648"><span class="lineNum">     648</span>              :             end if</span>
+<span id="L649"><span class="lineNum">     649</span>              : </span>
+<span id="L650"><span class="lineNum">     650</span>              :         end if</span>
+<span id="L651"><span class="lineNum">     651</span>              : </span>
+<span id="L652"><span class="lineNum">     652</span>              :     end if</span>
+<span id="L653"><span class="lineNum">     653</span>              : </span>
+<span id="L654"><span class="lineNum">     654</span>              :     ! a user function asked to stop during the step (the point is left unchanged):</span>
+<span id="L655"><span class="lineNum">     655</span> <span class="tlaGNC">       24083 :     if (problem%stop_requested) then</span></span>
+<span id="L656"><span class="lineNum">     656</span> <span class="tlaGNC">           1 :         istat = sqpopt_user_requested_stop</span></span>
+<span id="L657"><span class="lineNum">     657</span> <span class="tlaGNC">           1 :         done  = .true.</span></span>
+<span id="L658"><span class="lineNum">     658</span> <span class="tlaGNC">           1 :         return</span></span>
+<span id="L659"><span class="lineNum">     659</span>              :     end if</span>
+<span id="L660"><span class="lineNum">     660</span>              : </span>
+<span id="L661"><span class="lineNum">     661</span>              :     ! a QP solve of the step (any of them: a re-solve, or one of the trust</span>
+<span id="L662"><span class="lineNum">     662</span>              :     ! region's or the restoration phase's) couldn't allocate its matrices, or</span>
+<span id="L663"><span class="lineNum">     663</span>              :     ! a factorization ran out of memory (the point is left unchanged):</span>
+<span id="L664"><span class="lineNum">     664</span>              :     if (qp_solver%out_of_memory .or. restoration%qp%out_of_memory .or. &amp;</span>
+<span id="L665"><span class="lineNum">     665</span> <span class="tlaGNC">       24082 :         kkt%solver%out_of_memory .or. least_squares%kkt%solver%out_of_memory) then</span></span>
+<span id="L666"><span class="lineNum">     666</span> <span class="tlaUNC">           0 :         istat = sqpopt_out_of_memory</span></span>
+<span id="L667"><span class="lineNum">     667</span> <span class="tlaUNC">           0 :         done  = .true.</span></span>
+<span id="L668"><span class="lineNum">     668</span> <span class="tlaUNC">           0 :         return</span></span>
+<span id="L669"><span class="lineNum">     669</span>              :     end if</span>
+<span id="L670"><span class="lineNum">     670</span>              : </span>
+<span id="L671"><span class="lineNum">     671</span>              :     ! save the current point/objective for the next stalled-progress test,</span>
+<span id="L672"><span class="lineNum">     672</span>              :     ! and the Lagrangian gradient at the current point *evaluated with the</span>
+<span id="L673"><span class="lineNum">     673</span>              :     ! new multipliers*, so that the next quasi-Newton pair is</span>
+<span id="L674"><span class="lineNum">     674</span>              :     ! y = grad L(x_new, lambda_new) - grad L(x, lambda_new):</span>
+<span id="L675"><span class="lineNum">     675</span> <span class="tlaGNC">    12707393 :     x_prev = x</span></span>
+<span id="L676"><span class="lineNum">     676</span> <span class="tlaGNC">       24082 :     f_prev = f</span></span>
+<span id="L677"><span class="lineNum">     677</span> <span class="tlaGNC">       24082 :     viol_prev = 0.0_wp</span></span>
+<span id="L678"><span class="lineNum">     678</span> <span class="tlaGNC">      964233 :     if (problem%m &gt; 0) viol_prev = maxval(max(problem%c_lb-c, 0.0_wp) + max(c-problem%c_ub, 0.0_wp))</span></span>
+<span id="L679"><span class="lineNum">     679</span> <span class="tlaGNC">       24082 :     block</span></span>
+<span id="L680"><span class="lineNum">     680</span> <span class="tlaGNC">       24082 :         real(wp), dimension(:), allocatable :: jtlam</span></span>
+<span id="L681"><span class="lineNum">     681</span> <span class="tlaGNC">       24082 :         allocate(jtlam(problem%n))</span></span>
+<span id="L682"><span class="lineNum">     682</span> <span class="tlaGNC">       24082 :         call sparse_matvec_transpose(jac, new_lambda, jtlam)</span></span>
+<span id="L683"><span class="lineNum">     683</span> <span class="tlaGNC">    12731475 :         gl_prev = g - jtlam</span></span>
+<span id="L684"><span class="lineNum">     684</span>              :     end block</span>
+<span id="L685"><span class="lineNum">     685</span>              : </span>
+<span id="L686"><span class="lineNum">     686</span>              :     ! update the point and multipliers: `x_new` is always well-defined here</span>
+<span id="L687"><span class="lineNum">     687</span>              :     ! (even when `step_istat==sqpopt_line_search_failed`, e.g. the `alpha_min`</span>
+<span id="L688"><span class="lineNum">     688</span>              :     ! floor is deliberately still accepted -- see `armijo_line_search` --</span>
+<span id="L689"><span class="lineNum">     689</span>              :     ! or, in `sqpopt_linesearch_watchdog` mode, `x_new` may instead be an</span>
+<span id="L690"><span class="lineNum">     690</span>              :     ! earlier best point on backtrack). This update is never skipped based</span>
+<span id="L691"><span class="lineNum">     691</span>              :     ! on the status, since `alpha`/`x_new` are always meaningful regardless of</span>
+<span id="L692"><span class="lineNum">     692</span>              :     ! whether the sufficient-decrease test was satisfied:</span>
+<span id="L693"><span class="lineNum">     693</span> <span class="tlaGNC">       24082 :     info%stepped     = .true.</span></span>
+<span id="L694"><span class="lineNum">     694</span> <span class="tlaGNC">       24082 :     info%alpha       = alpha</span></span>
+<span id="L695"><span class="lineNum">     695</span> <span class="tlaGNC">    12684138 :     info%step_norm   = norm2(x_new - x)</span></span>
+<span id="L696"><span class="lineNum">     696</span> <span class="tlaGNC">       24082 :     info%penalty     = linesearch%merit%penalty</span></span>
+<span id="L697"><span class="lineNum">     697</span> <span class="tlaGNC">       24082 :     info%qp_istat    = qp_istat</span></span>
+<span id="L698"><span class="lineNum">     698</span> <span class="tlaGNC">       24082 :     info%qp_iter     = qp_solver%n_iter</span></span>
+<span id="L699"><span class="lineNum">     699</span> <span class="tlaGNC">       24082 :     info%restoration = restore</span></span>
+<span id="L700"><span class="lineNum">     700</span> <span class="tlaGNC">      964233 :     if (problem%m &gt; 0) info%lam_max = maxval(abs(new_lambda*problem%c_scale))/problem%f_scale</span></span>
+<span id="L701"><span class="lineNum">     701</span> <span class="tlaGNC">       24082 :     info%glob         = glob_value()</span></span>
+<span id="L702"><span class="lineNum">     702</span> <span class="tlaGNC">       24082 :     info%hess_measure = merge(hessian%shift, real(hessian%n_history, wp), options%hessian_mode == sqpopt_hessian_exact)</span></span>
+<span id="L703"><span class="lineNum">     703</span>              : </span>
+<span id="L704"><span class="lineNum">     704</span>              :     ! (see `estimate_multipliers`: the shift's term of the QP's stationarity</span>
+<span id="L705"><span class="lineNum">     705</span>              :     ! condition, against the gradient's)</span>
+<span id="L706"><span class="lineNum">     706</span>              :     hessian%shift_dominant = options%hessian_mode == sqpopt_hessian_exact .and. .not. restore .and. problem%m &gt; 0 .and. &amp;</span>
+<span id="L707"><span class="lineNum">     707</span> <span class="tlaGNC">    25344194 :                              hessian%shift*maxval(abs(x_new - x)) &gt;= max(1.0_wp, maxval(abs(g)))</span></span>
+<span id="L708"><span class="lineNum">     708</span>              : </span>
+<span id="L709"><span class="lineNum">     709</span> <span class="tlaGNC">    12684138 :     x      = x_new</span></span>
+<span id="L710"><span class="lineNum">     710</span> <span class="tlaGNC">      964233 :     lambda = new_lambda</span></span>
+<span id="L711"><span class="lineNum">     711</span>              : </span>
+<span id="L712"><span class="lineNum">     712</span> <span class="tlaGNC">       24082 :     if (step_istat /= sqpopt_success) then</span></span>
+<span id="L713"><span class="lineNum">     713</span>              :         ! no (acceptable) step was found along this direction: start the</span>
+<span id="L714"><span class="lineNum">     714</span>              :         ! next iteration from a fresh Hessian approximation, so it computes</span>
+<span id="L715"><span class="lineNum">     715</span>              :         ! a different direction, and don't let the stalled-progress test</span>
+<span id="L716"><span class="lineNum">     716</span>              :         ! mistake &quot;no step taken&quot; for convergence:</span>
+<span id="L717"><span class="lineNum">     717</span> <span class="tlaGNC">          39 :         call hessian%reset()</span></span>
+<span id="L718"><span class="lineNum">     718</span> <span class="tlaGNC">          39 :         keep_shift = .true.</span></span>
+<span id="L719"><span class="lineNum">     719</span> <span class="tlaGNC">          39 :         info%hess_reset = .true.</span></span>
+<span id="L720"><span class="lineNum">     720</span> <span class="tlaGNC">          39 :         call lg%put(sqpopt_log_detail, 'no acceptable step: Hessian approximation reset')</span></span>
+<span id="L721"><span class="lineNum">     721</span> <span class="tlaGNC">          39 :         if (allocated(f_prev)) deallocate(f_prev)</span></span>
+<span id="L722"><span class="lineNum">     722</span> <span class="tlaGNC">          39 :         if (problem%derivative_accuracy == sqpopt_derivatives_fast) then</span></span>
+<span id="L723"><span class="lineNum">     723</span>              :             ! (the failure may be due to the inaccurate derivatives: use accurate</span>
+<span id="L724"><span class="lineNum">     724</span>              :             ! ones from the next iteration on; `x_prev` is dropped, since</span>
+<span id="L725"><span class="lineNum">     725</span>              :             ! `gl_prev` was formed with the fast ones)</span>
+<span id="L726"><span class="lineNum">     726</span> <span class="tlaUNC">           0 :             call problem%set_derivative_accuracy(sqpopt_derivatives_accurate)</span></span>
+<span id="L727"><span class="lineNum">     727</span> <span class="tlaUNC">           0 :             info%derivatives = .true.</span></span>
+<span id="L728"><span class="lineNum">     728</span> <span class="tlaUNC">           0 :             call lg%put(sqpopt_log_detail, 'switched to accurate derivatives (from the next iteration)')</span></span>
+<span id="L729"><span class="lineNum">     729</span> <span class="tlaUNC">           0 :             if (allocated(x_prev)) deallocate(x_prev)</span></span>
+<span id="L730"><span class="lineNum">     730</span>              :         end if</span>
+<span id="L731"><span class="lineNum">     731</span>              :     end if</span>
+<span id="L732"><span class="lineNum">     732</span>              : </span>
+<span id="L733"><span class="lineNum">     733</span>              :     ! with inertia control, the shift that this step needed is found again at</span>
+<span id="L734"><span class="lineNum">     734</span>              :     ! the next iteration (starting from a third of it): only the increases</span>
+<span id="L735"><span class="lineNum">     735</span>              :     ! after a failed step, or a run of very short ones, are carried over</span>
+<span id="L736"><span class="lineNum">     736</span> <span class="tlaGNC">       24082 :     if (inertia%enabled) then</span></span>
+<span id="L737"><span class="lineNum">     737</span> <span class="tlaGNC">        3141 :         if (hessian%shift &gt; 0.0_wp) inertia%shift_last = hessian%shift</span></span>
+<span id="L738"><span class="lineNum">     738</span> <span class="tlaGNC">        3141 :         if (.not. keep_shift) hessian%shift = shift_floor</span></span>
+<span id="L739"><span class="lineNum">     739</span>              :     end if</span>
+<span id="L740"><span class="lineNum">     740</span>              : </span>
+<span id="L741"><span class="lineNum">     741</span>              :     ! report the first failure, if any (a QP that stopped at its iteration</span>
+<span id="L742"><span class="lineNum">     742</span>              :     ! limit still produced a usable step, so it's reported below a line-search</span>
+<span id="L743"><span class="lineNum">     743</span>              :     ! failure):</span>
+<span id="L744"><span class="lineNum">     744</span> <span class="tlaGNC">       73902 :     if (step_istat /= sqpopt_success) then</span></span>
+<span id="L745"><span class="lineNum">     745</span> <span class="tlaGNC">          39 :         istat = step_istat</span></span>
+<span id="L746"><span class="lineNum">     746</span> <span class="tlaGNC">       24043 :     else if (qp_istat /= sqpopt_success .and. .not. restore) then</span></span>
+<span id="L747"><span class="lineNum">     747</span> <span class="tlaGNC">          13 :         istat = qp_istat</span></span>
+<span id="L748"><span class="lineNum">     748</span>              :     else</span>
+<span id="L749"><span class="lineNum">     749</span> <span class="tlaGNC">       24030 :         istat = sqpopt_success</span></span>
+<span id="L750"><span class="lineNum">     750</span>              :     end if</span>
+<span id="L751"><span class="lineNum">     751</span>              : </span>
+<span id="L752"><span class="lineNum">     752</span>              :     contains</span>
+<span id="L753"><span class="lineNum">     753</span>              : </span>
+<span id="L754"><span class="lineNum">     754</span> <span class="tlaGNC">         425 :         subroutine estimate_multipliers()</span></span>
+<span id="L755"><span class="lineNum">     755</span>              :         !! replace the constraint multipliers by their least-squares estimate at</span>
+<span id="L756"><span class="lineNum">     756</span>              :         !! the current point (see [[multiplier_estimate]]), over the equality</span>
+<span id="L757"><span class="lineNum">     757</span>              :         !! constraints and the inequalities whose multiplier is nonzero, in the</span>
+<span id="L758"><span class="lineNum">     758</span>              :         !! variables that are not at a bound. An inequality's multiplier is only</span>
+<span id="L759"><span class="lineNum">     759</span>              :         !! replaced if the estimate has the same sign.</span>
+<span id="L760"><span class="lineNum">     760</span>              :         !!</span>
+<span id="L761"><span class="lineNum">     761</span>              :         !! This is for the exact Hessian, after a step whose shift</span>
+<span id="L762"><span class="lineNum">     762</span>              :         !! \( \delta \) dominated it</span>
+<span id="L763"><span class="lineNum">     763</span>              :         !! (\( \delta \lVert p \rVert_\infty \ge \max(1, \lVert g \rVert_\infty) \)).</span>
+<span id="L764"><span class="lineNum">     764</span>              :         !! The QP's multipliers satisfy \( g + (H + \delta I)p = J^T\lambda \),</span>
+<span id="L765"><span class="lineNum">     765</span>              :         !! so they then mostly balance the shift's term \( \delta p \), and can</span>
+<span id="L766"><span class="lineNum">     766</span>              :         !! be orders of magnitude too large. The exact Hessian is evaluated with</span>
+<span id="L767"><span class="lineNum">     767</span>              :         !! the multipliers, so it would be too, and need a still larger shift:</span>
+<span id="L768"><span class="lineNum">     768</span>              :         !! on a hanging-chain problem this fed on itself until the multipliers</span>
+<span id="L769"><span class="lineNum">     769</span>              :         !! were `1e13`, the steps `1e-9`, and the solver stopped as stalled far</span>
+<span id="L770"><span class="lineNum">     770</span>              :         !! from the solution. The estimate doesn't depend on the shift.</span>
+<span id="L771"><span class="lineNum">     771</span> <span class="tlaGNC">         425 :         logical, dimension(:), allocatable :: rows, free</span></span>
+<span id="L772"><span class="lineNum">     772</span> <span class="tlaGNC">         425 :         real(wp), dimension(:), allocatable :: estimate</span></span>
+<span id="L773"><span class="lineNum">     773</span>              :         logical :: ok</span>
+<span id="L774"><span class="lineNum">     774</span>              :         integer :: i</span>
+<span id="L775"><span class="lineNum">     775</span> <span class="tlaGNC">         425 :         allocate(rows(problem%m), estimate(problem%m), free(problem%n))</span></span>
+<span id="L776"><span class="lineNum">     776</span> <span class="tlaGNC">       79910 :         rows = (problem%c_ub - problem%c_lb &lt;= 0.0_wp) .or. lambda /= 0.0_wp</span></span>
+<span id="L777"><span class="lineNum">     777</span> <span class="tlaGNC">      159760 :         free = x &gt; problem%x_lb .and. x &lt; problem%x_ub</span></span>
+<span id="L778"><span class="lineNum">     778</span> <span class="tlaGNC">       79910 :         estimate = lambda</span></span>
+<span id="L779"><span class="lineNum">     779</span> <span class="tlaGNC">         425 :         call multiplier_estimate(jac, rows, free, g, estimate, ok, least_squares=least_squares)</span></span>
+<span id="L780"><span class="lineNum">     780</span> <span class="tlaGNC">         425 :         if (.not. ok) return</span></span>
+<span id="L781"><span class="lineNum">     781</span> <span class="tlaGNC">       75465 :         do i = 1, problem%m</span></span>
+<span id="L782"><span class="lineNum">     782</span> <span class="tlaGNC">       75465 :             if (problem%c_ub(i) - problem%c_lb(i) &lt;= 0.0_wp .or. estimate(i)*lambda(i) &gt; 0.0_wp) lambda(i) = estimate(i)</span></span>
+<span id="L783"><span class="lineNum">     783</span>              :         end do</span>
+<span id="L784"><span class="lineNum">     784</span>              :         call lg%put(sqpopt_log_detail, 'multipliers re-estimated by least squares (the Hessian''s shift dominated '// &amp;</span>
+<span id="L785"><span class="lineNum">     785</span> <span class="tlaGNC">       75060 :                     'the last step): largest '//fmt_e(maxval(abs(lambda))))</span></span>
+<span id="L786"><span class="lineNum">     786</span> <span class="tlaGNC">         850 :         end subroutine estimate_multipliers</span></span>
+<span id="L787"><span class="lineNum">     787</span>              : </span>
+<span id="L788"><span class="lineNum">     788</span> <span class="tlaGNC">       24907 :         subroutine convergence_tests()</span></span>
+<span id="L789"><span class="lineNum">     789</span>              :         !! the convergence tests at the current point, setting `done` and `istat`</span>
+<span id="L790"><span class="lineNum">     790</span>              :         !! (see [[check_convergence]]), and the count of consecutive stalled iterations</span>
+<span id="L791"><span class="lineNum">     791</span>              :         call check_convergence(x, g, jac, c, problem%x_lb, problem%x_ub, problem%c_lb, problem%c_ub, &amp;</span>
+<span id="L792"><span class="lineNum">     792</span>              :                                 lambda, options%ktol, options%ctol, done, istat, &amp;</span>
+<span id="L793"><span class="lineNum">     793</span>              :                                 f=f, f_prev=f_prev, x_prev=x_prev, ftol=options%ftol, xtol=options%xtol, &amp;</span>
+<span id="L794"><span class="lineNum">     794</span>              :                                 kkt_error=info%kkt, feas_error=info%feas, viol_prev=viol_prev, &amp;</span>
+<span id="L795"><span class="lineNum">     795</span> <span class="tlaGNC">       24907 :                                 dual_inf_tol=options%dual_inf_tol, f_scale=problem%f_scale, stat_error=stat_err)</span></span>
+<span id="L796"><span class="lineNum">     796</span> <span class="tlaGNC">       24907 :         info%stat_unscaled = stat_err/problem%f_scale</span></span>
+<span id="L797"><span class="lineNum">     797</span>              :         ! the stalled-progress test must hold for `stall_iter` consecutive</span>
+<span id="L798"><span class="lineNum">     798</span>              :         ! iterations: a single negligible step (e.g. a short line-search step on a</span>
+<span id="L799"><span class="lineNum">     799</span>              :         ! badly scaled problem) is not a stall, and stopping on it made results</span>
+<span id="L800"><span class="lineNum">     800</span>              :         ! depend on last-bit differences between platforms</span>
+<span id="L801"><span class="lineNum">     801</span> <span class="tlaGNC">       24907 :         if (done .and. istat == sqpopt_stalled) then</span></span>
+<span id="L802"><span class="lineNum">     802</span> <span class="tlaGNC">          66 :             n_stalled = n_stalled + 1</span></span>
+<span id="L803"><span class="lineNum">     803</span> <span class="tlaGNC">          66 :             if (n_stalled &lt; options%stall_iter) then</span></span>
+<span id="L804"><span class="lineNum">     804</span> <span class="tlaGNC">          55 :                 done  = .false.</span></span>
+<span id="L805"><span class="lineNum">     805</span> <span class="tlaGNC">          55 :                 istat = sqpopt_success</span></span>
+<span id="L806"><span class="lineNum">     806</span>              :             end if</span>
+<span id="L807"><span class="lineNum">     807</span>              :         else</span>
+<span id="L808"><span class="lineNum">     808</span> <span class="tlaGNC">       24841 :             n_stalled = 0</span></span>
+<span id="L809"><span class="lineNum">     809</span>              :         end if</span>
+<span id="L810"><span class="lineNum">     810</span> <span class="tlaGNC">       24907 :         end subroutine convergence_tests</span></span>
+<span id="L811"><span class="lineNum">     811</span>              : </span>
+<span id="L812"><span class="lineNum">     812</span> <span class="tlaGNC">       23651 :         subroutine solve_qp()</span></span>
+<span id="L813"><span class="lineNum">     813</span>              :         !! solve the linearized QP subproblem for the search direction `p` and</span>
+<span id="L814"><span class="lineNum">     814</span>              :         !! the multipliers `new_lambda` (see [[solve_qp_subproblem]]). Its</span>
+<span id="L815"><span class="lineNum">     815</span>              :         !! direct method, if in use, may raise the exact Hessian's shift.</span>
+<span id="L816"><span class="lineNum">     816</span>              :         real(wp) :: shift0</span>
+<span id="L817"><span class="lineNum">     817</span> <span class="tlaGNC">       23651 :         real(wp), dimension(:), allocatable :: lb, ub</span></span>
+<span id="L818"><span class="lineNum">     818</span> <span class="tlaGNC">       23651 :         allocate(lb(size(x)), ub(size(x)))</span></span>
+<span id="L819"><span class="lineNum">     819</span> <span class="tlaGNC">       23651 :         shift0 = hessian%shift</span></span>
+<span id="L820"><span class="lineNum">     820</span>              :         ! (the variables' bounds, and the limits on their steps if any: see `set_max_step`)</span>
+<span id="L821"><span class="lineNum">     821</span> <span class="tlaGNC">       23651 :         call problem%step_bounds(x, lb, ub)</span></span>
+<span id="L822"><span class="lineNum">     822</span>              :         call qp_solver%solve(hessian, jac, x, g, c, lb, ub, &amp;</span>
+<span id="L823"><span class="lineNum">     823</span> <span class="tlaGNC">       23651 :                               problem%c_lb, problem%c_ub, p, new_lambda, qp_istat, kkt=kkt, inertia=inertia)</span></span>
+<span id="L824"><span class="lineNum">     824</span> <span class="tlaGNC">       23651 :         if (hessian%shift &gt; shift0) then</span></span>
+<span id="L825"><span class="lineNum">     825</span> <span class="tlaUNC">           0 :             info%hess_reset = .true.</span></span>
+<span id="L826"><span class="lineNum">     826</span>              :             call lg%put(sqpopt_log_detail, 'direct QP: nonconvex face, Hessian shift '//fmt_e(shift0)//' -&gt; '// &amp;</span>
+<span id="L827"><span class="lineNum">     827</span> <span class="tlaUNC">           0 :                         fmt_e(hessian%shift))</span></span>
+<span id="L828"><span class="lineNum">     828</span>              :         end if</span>
+<span id="L829"><span class="lineNum">     829</span> <span class="tlaGNC">       23651 :         call note_qp()</span></span>
+<span id="L830"><span class="lineNum">     830</span> <span class="tlaGNC">       23651 :         end subroutine solve_qp</span></span>
+<span id="L831"><span class="lineNum">     831</span>              : </span>
+<span id="L832"><span class="lineNum">     832</span> <span class="tlaGNC">       23709 :         subroutine note_qp()</span></span>
+<span id="L833"><span class="lineNum">     833</span>              :         !! the detailed log's line for the QP solve just done</span>
+<span id="L834"><span class="lineNum">     834</span> <span class="tlaGNC">       23709 :         if (.not. lg%on(sqpopt_log_detail)) return</span></span>
+<span id="L835"><span class="lineNum">     835</span> <span class="tlaGNC">          15 :         if (qp_solver%unconstrained_used) then</span></span>
+<span id="L836"><span class="lineNum">     836</span> <span class="tlaGNC">           7 :             call lg%put(sqpopt_log_detail, 'QP: the unconstrained quasi-Newton step is feasible (no QP solver run)')</span></span>
+<span id="L837"><span class="lineNum">     837</span> <span class="tlaGNC">           7 :             return</span></span>
+<span id="L838"><span class="lineNum">     838</span>              :         end if</span>
+<span id="L839"><span class="lineNum">     839</span> <span class="tlaGNC">           8 :         if (qp_solver%direct_used) then</span></span>
+<span id="L840"><span class="lineNum">     840</span>              :             call lg%put(sqpopt_log_detail, 'direct QP: '//plural(qp_solver%n_iter, 'change', 'changes')// &amp;</span>
+<span id="L841"><span class="lineNum">     841</span> <span class="tlaUNC">           0 :                         ' of the working set, working set '//fmt_i(qp_solver%n_working)//', ok')</span></span>
+<span id="L842"><span class="lineNum">     842</span> <span class="tlaUNC">           0 :             return</span></span>
+<span id="L843"><span class="lineNum">     843</span>              :         end if</span>
+<span id="L844"><span class="lineNum">     844</span> <span class="tlaGNC">           8 :         if (qp_solver%direct_outcome &gt;= 0) then</span></span>
+<span id="L845"><span class="lineNum">     845</span>              :             call lg%put(sqpopt_log_detail, 'direct QP: gave up after '// &amp;</span>
+<span id="L846"><span class="lineNum">     846</span>              :                         plural(qp_solver%direct_changes, 'change', 'changes')//' of the working set ('// &amp;</span>
+<span id="L847"><span class="lineNum">     847</span> <span class="tlaUNC">           0 :                         direct_outcome_text(qp_solver%direct_outcome)//')')</span></span>
+<span id="L848"><span class="lineNum">     848</span>              :         end if</span>
+<span id="L849"><span class="lineNum">     849</span>              :         call lg%put(sqpopt_log_detail, qp_solver%mode_name(problem%n)//': '// &amp;</span>
+<span id="L850"><span class="lineNum">     850</span>              :                     plural(qp_solver%n_iter, 'iteration', 'iterations')//', working set '//fmt_i(qp_solver%n_working)// &amp;</span>
+<span id="L851"><span class="lineNum">     851</span>              :                     ', '//plural(qp_solver%n_slacks, 'elastic slack', 'elastic slacks')//', '//qp_status_text(qp_istat)// &amp;</span>
+<span id="L852"><span class="lineNum">     852</span> <span class="tlaGNC">           8 :                     trim(merge(', negative curvature', '                    ', qp_solver%negative_curvature)))</span></span>
+<span id="L853"><span class="lineNum">     853</span>              :         end subroutine note_qp</span>
+<span id="L854"><span class="lineNum">     854</span>              : </span>
+<span id="L855"><span class="lineNum">     855</span> <span class="tlaGNC">        6083 :         subroutine correct_inertia(predicted, shifted, ok)</span></span>
+<span id="L856"><span class="lineNum">     856</span>              :         !! inertia control: increase the Hessian's shift, if necessary,</span>
+<span id="L857"><span class="lineNum">     857</span>              :         !! until it has no negative curvature on the null space of the QP</span>
+<span id="L858"><span class="lineNum">     858</span>              :         !! solver's working set (see [[inertia_correct]]): before the</span>
+<span id="L859"><span class="lineNum">     859</span>              :         !! iteration's QP solve, the one that solve will start from (see</span>
+<span id="L860"><span class="lineNum">     860</span>              :         !! [[starting_working_set]]), and after it, the one it ended with.</span>
+<span id="L861"><span class="lineNum">     861</span>              :         logical, intent(in)  :: predicted !! whether this is before the iteration's QP solve (else after it)</span>
+<span id="L862"><span class="lineNum">     862</span>              :         logical, intent(out) :: shifted   !! whether the shift was increased</span>
+<span id="L863"><span class="lineNum">     863</span>              :         logical, intent(out) :: ok        !! whether no negative curvature is left</span>
+<span id="L864"><span class="lineNum">     864</span> <span class="tlaGNC">        6083 :         integer, dimension(:), allocatable :: status</span></span>
+<span id="L865"><span class="lineNum">     865</span>              :         real(wp) :: shift0</span>
+<span id="L866"><span class="lineNum">     866</span>              :         integer  :: n_negative, n_factor0</span>
+<span id="L867"><span class="lineNum">     867</span> <span class="tlaGNC">        6083 :         shifted = .false.</span></span>
+<span id="L868"><span class="lineNum">     868</span> <span class="tlaGNC">        6083 :         ok      = .false.</span></span>
+<span id="L869"><span class="lineNum">     869</span> <span class="tlaGNC">        6083 :         if (predicted) then</span></span>
+<span id="L870"><span class="lineNum">     870</span> <span class="tlaGNC">        3079 :             call qp_solver%starting_working_set(problem%x_lb, problem%x_ub, problem%c_lb, problem%c_ub, status)</span></span>
+<span id="L871"><span class="lineNum">     871</span>              :         else</span>
+<span id="L872"><span class="lineNum">     872</span> <span class="tlaGNC">        3004 :             call qp_solver%working_set(problem%n, problem%m, status)</span></span>
+<span id="L873"><span class="lineNum">     873</span> <span class="tlaGNC">        3004 :             if (.not. allocated(status)) return</span></span>
+<span id="L874"><span class="lineNum">     874</span>              :         end if</span>
+<span id="L875"><span class="lineNum">     875</span> <span class="tlaGNC">        6083 :         shift0    = hessian%shift</span></span>
+<span id="L876"><span class="lineNum">     876</span> <span class="tlaGNC">        6083 :         n_factor0 = kkt%solver%n_factor</span></span>
+<span id="L877"><span class="lineNum">     877</span> <span class="tlaGNC">        6083 :         call inertia%correct(kkt, hessian, jac, status, shifted, ok, n_negative)</span></span>
+<span id="L878"><span class="lineNum">     878</span> <span class="tlaGNC">        6083 :         if (shifted) info%hess_reset = .true.</span></span>
+<span id="L879"><span class="lineNum">     879</span> <span class="tlaGNC">        6083 :         if (.not. lg%on(sqpopt_log_detail)) return</span></span>
+<span id="L880"><span class="lineNum">     880</span> <span class="tlaUNC">           0 :         if (.not. inertia%enabled) then</span></span>
+<span id="L881"><span class="lineNum">     881</span> <span class="tlaUNC">           0 :             call lg%put(sqpopt_log_detail, 'inertia control: the factorization failed, continuing without it')</span></span>
+<span id="L882"><span class="lineNum">     882</span> <span class="tlaUNC">           0 :         else if (shifted) then</span></span>
+<span id="L883"><span class="lineNum">     883</span>              :             call lg%put(sqpopt_log_detail, 'inertia control ('//trim(merge('starting', 'final   ', predicted))// &amp;</span>
+<span id="L884"><span class="lineNum">     884</span>              :                         ' working set): '//plural(n_negative, 'direction', 'directions')// &amp;</span>
+<span id="L885"><span class="lineNum">     885</span>              :                         ' of negative curvature, Hessian shift '//fmt_e(shift0)//' -&gt; '//fmt_e(hessian%shift)//' ('// &amp;</span>
+<span id="L886"><span class="lineNum">     886</span> <span class="tlaUNC">           0 :                         plural(kkt%solver%n_factor - n_factor0, 'factorization', 'factorizations')//')')</span></span>
+<span id="L887"><span class="lineNum">     887</span> <span class="tlaUNC">           0 :             if (.not. ok) call lg%put(sqpopt_log_detail, 'inertia control: negative curvature is left at the largest shift')</span></span>
+<span id="L888"><span class="lineNum">     888</span>              :         end if</span>
+<span id="L889"><span class="lineNum">     889</span> <span class="tlaGNC">        6083 :         end subroutine correct_inertia</span></span>
+<span id="L890"><span class="lineNum">     890</span>              : </span>
+<span id="L891"><span class="lineNum">     891</span> <span class="tlaGNC">         101 :         subroutine note_restoration_step(how)</span></span>
+<span id="L892"><span class="lineNum">     892</span>              :         !! the detailed log's line for a single restoration step just taken (or not)</span>
+<span id="L893"><span class="lineNum">     893</span>              :         character(len=*), intent(in) :: how !! which kind of step it was, for the message</span>
+<span id="L894"><span class="lineNum">     894</span> <span class="tlaGNC">         101 :         real(wp), dimension(:), allocatable :: c_new</span></span>
+<span id="L895"><span class="lineNum">     895</span> <span class="tlaGNC">         101 :         if (.not. lg%on(sqpopt_log_detail)) return</span></span>
+<span id="L896"><span class="lineNum">     896</span> <span class="tlaUNC">           0 :         if (step_istat == sqpopt_success) then</span></span>
+<span id="L897"><span class="lineNum">     897</span> <span class="tlaUNC">           0 :             allocate(c_new(problem%m))</span></span>
+<span id="L898"><span class="lineNum">     898</span> <span class="tlaUNC">           0 :             call problem%c(x_new, c_new)</span></span>
+<span id="L899"><span class="lineNum">     899</span>              :             call lg%put(sqpopt_log_detail, 'restoration step ('//how//'): violation '// &amp;</span>
+<span id="L900"><span class="lineNum">     900</span>              :                         fmt_e(l1_violation(c, problem%c_lb, problem%c_ub))//' -&gt; '// &amp;</span>
+<span id="L901"><span class="lineNum">     901</span> <span class="tlaUNC">           0 :                         fmt_e(l1_violation(c_new, problem%c_lb, problem%c_ub)))</span></span>
+<span id="L902"><span class="lineNum">     902</span>              :         else</span>
+<span id="L903"><span class="lineNum">     903</span> <span class="tlaUNC">           0 :             call lg%put(sqpopt_log_detail, 'restoration step ('//how//'): no decrease of the violation found')</span></span>
+<span id="L904"><span class="lineNum">     904</span>              :         end if</span>
+<span id="L905"><span class="lineNum">     905</span> <span class="tlaGNC">         202 :         end subroutine note_restoration_step</span></span>
+<span id="L906"><span class="lineNum">     906</span>              : </span>
+<span id="L907"><span class="lineNum">     907</span> <span class="tlaGNC">       24082 :         function glob_value() result(v)</span></span>
+<span id="L908"><span class="lineNum">     908</span>              :         !! the globalization's state (see `sqpopt_iter_info%glob`)</span>
+<span id="L909"><span class="lineNum">     909</span>              :         real(wp) :: v</span>
+<span id="L910"><span class="lineNum">     910</span> <span class="tlaGNC">       24082 :         if (trust_region%enabled) then</span></span>
+<span id="L911"><span class="lineNum">     911</span> <span class="tlaGNC">         582 :             v = trust_region%radius</span></span>
+<span id="L912"><span class="lineNum">     912</span> <span class="tlaGNC">       23500 :         else if (linesearch%mode == sqpopt_linesearch_filter) then</span></span>
+<span id="L913"><span class="lineNum">     913</span> <span class="tlaGNC">       22890 :             v = 0.0_wp</span></span>
+<span id="L914"><span class="lineNum">     914</span> <span class="tlaGNC">       22890 :             if (allocated(linesearch%filter%theta)) v = real(size(linesearch%filter%theta), wp)</span></span>
+<span id="L915"><span class="lineNum">     915</span> <span class="tlaGNC">         610 :         else if (linesearch%mode == sqpopt_linesearch_funnel) then</span></span>
+<span id="L916"><span class="lineNum">     916</span> <span class="tlaGNC">         176 :             v = linesearch%funnel%width</span></span>
+<span id="L917"><span class="lineNum">     917</span>              :         else</span>
+<span id="L918"><span class="lineNum">     918</span> <span class="tlaGNC">         434 :             v = linesearch%merit%penalty</span></span>
+<span id="L919"><span class="lineNum">     919</span>              :         end if</span>
+<span id="L920"><span class="lineNum">     920</span> <span class="tlaGNC">       24082 :         end function glob_value</span></span>
+<span id="L921"><span class="lineNum">     921</span>              : </span>
+<span id="L922"><span class="lineNum">     922</span> <span class="tlaUNC">           0 :         pure function glob_name() result(name)</span></span>
+<span id="L923"><span class="lineNum">     923</span>              :         !! what the restoration phase's exit test uses</span>
+<span id="L924"><span class="lineNum">     924</span>              :         character(len=6) :: name</span>
+<span id="L925"><span class="lineNum">     925</span> <span class="tlaUNC">           0 :         name = merge('funnel', 'filter', linesearch%mode == sqpopt_linesearch_funnel)</span></span>
+<span id="L926"><span class="lineNum">     926</span> <span class="tlaUNC">           0 :         end function glob_name</span></span>
+<span id="L927"><span class="lineNum">     927</span>              : </span>
+<span id="L928"><span class="lineNum">     928</span> <span class="tlaGNC">       29324 :         subroutine eval_f_cached(xx, ff)</span></span>
+<span id="L929"><span class="lineNum">     929</span>              :         !! `f`, through the problem's evaluation cache (see [[sqpopt_problem_module]])</span>
+<span id="L930"><span class="lineNum">     930</span>              :         real(wp), dimension(:), intent(in)  :: xx !! point `dimension(n)`</span>
+<span id="L931"><span class="lineNum">     931</span>              :         real(wp),               intent(out) :: ff !! scaled objective at `xx`</span>
+<span id="L932"><span class="lineNum">     932</span> <span class="tlaGNC">       29324 :         call problem%f(xx, ff)</span></span>
+<span id="L933"><span class="lineNum">     933</span> <span class="tlaGNC">       29324 :         end subroutine eval_f_cached</span></span>
+<span id="L934"><span class="lineNum">     934</span>              : </span>
+<span id="L935"><span class="lineNum">     935</span> <span class="tlaGNC">       29324 :         subroutine eval_c_cached(xx, cc)</span></span>
+<span id="L936"><span class="lineNum">     936</span>              :         !! `c`, through the problem's evaluation cache (see [[sqpopt_problem_module]])</span>
+<span id="L937"><span class="lineNum">     937</span>              :         real(wp), dimension(:), intent(in)  :: xx !! point `dimension(n)`</span>
+<span id="L938"><span class="lineNum">     938</span>              :         real(wp), dimension(:), intent(out) :: cc !! scaled constraints at `xx` `dimension(m)`</span>
+<span id="L939"><span class="lineNum">     939</span> <span class="tlaGNC">       29324 :         call problem%c(xx, cc)</span></span>
+<span id="L940"><span class="lineNum">     940</span> <span class="tlaGNC">       29324 :         end subroutine eval_c_cached</span></span>
+<span id="L941"><span class="lineNum">     941</span>              : </span>
+<span id="L942"><span class="lineNum">     942</span> <span class="tlaGNC">         930 :         subroutine soc(p_trial, c_trial, p_soc, ok)</span></span>
+<span id="L943"><span class="lineNum">     943</span>              :         !! the second-order correction of a rejected trial step, given to</span>
+<span id="L944"><span class="lineNum">     944</span>              :         !! the line search (see [[sqpopt_soc_module]])</span>
+<span id="L945"><span class="lineNum">     945</span>              :         real(wp), dimension(:), intent(in)  :: p_trial !! the rejected trial step</span>
+<span id="L946"><span class="lineNum">     946</span>              :         real(wp), dimension(:), intent(in)  :: c_trial !! constraint values at `x+p_trial`</span>
+<span id="L947"><span class="lineNum">     947</span>              :         real(wp), dimension(:), intent(out) :: p_soc   !! the corrected step</span>
+<span id="L948"><span class="lineNum">     948</span>              :         logical,                intent(out) :: ok      !! true if `p_soc` is usable</span>
+<span id="L949"><span class="lineNum">     949</span> <span class="tlaGNC">         930 :         real(wp), dimension(:), allocatable :: lb, ub</span></span>
+<span id="L950"><span class="lineNum">     950</span> <span class="tlaGNC">         930 :         allocate(lb(size(x)), ub(size(x)))</span></span>
+<span id="L951"><span class="lineNum">     951</span> <span class="tlaGNC">         930 :         call problem%step_bounds(x, lb, ub)</span></span>
+<span id="L952"><span class="lineNum">     952</span>              :         call soc_step(jac, x, p_trial, c, c_trial, problem%c_lb, problem%c_ub, lb, ub, p_soc, ok, &amp;</span>
+<span id="L953"><span class="lineNum">     953</span> <span class="tlaGNC">         930 :                       least_squares=least_squares)</span></span>
+<span id="L954"><span class="lineNum">     954</span> <span class="tlaGNC">         930 :         end subroutine soc</span></span>
+<span id="L955"><span class="lineNum">     955</span>              : </span>
+<span id="L956"><span class="lineNum">     956</span> <span class="tlaGNC">           8 :         subroutine start_restoration_phase(record)</span></span>
+<span id="L957"><span class="lineNum">     957</span>              :         !! start a feasibility restoration phase at `x`, and take its first</span>
+<span id="L958"><span class="lineNum">     958</span>              :         !! iteration. If `record`, first add `x` to the filter (or tighten the</span>
+<span id="L959"><span class="lineNum">     959</span>              :         !! funnel toward it), so the iterations can't cycle back to it (a</span>
+<span id="L960"><span class="lineNum">     960</span>              :         !! failed filter or funnel line search has already done so).</span>
+<span id="L961"><span class="lineNum">     961</span>              :         logical, intent(in) :: record !! whether to first add `x` to the filter (or tighten the funnel toward it)</span>
+<span id="L962"><span class="lineNum">     962</span>              :         real(wp) :: theta</span>
+<span id="L963"><span class="lineNum">     963</span> <span class="tlaGNC">           8 :         theta = l1_violation(c, problem%c_lb, problem%c_ub)</span></span>
+<span id="L964"><span class="lineNum">     964</span> <span class="tlaGNC">           8 :         if (record) then</span></span>
+<span id="L965"><span class="lineNum">     965</span> <span class="tlaGNC">           3 :             if (linesearch%mode == sqpopt_linesearch_funnel) then</span></span>
+<span id="L966"><span class="lineNum">     966</span> <span class="tlaUNC">           0 :                 call linesearch%funnel%restoration(theta)</span></span>
+<span id="L967"><span class="lineNum">     967</span> <span class="tlaGNC">           3 :             else if (linesearch%mode == sqpopt_linesearch_filter) then</span></span>
+<span id="L968"><span class="lineNum">     968</span> <span class="tlaGNC">           3 :                 call linesearch%filter%record(theta, f)</span></span>
+<span id="L969"><span class="lineNum">     969</span>              :             end if</span>
+<span id="L970"><span class="lineNum">     970</span>              :         end if</span>
+<span id="L971"><span class="lineNum">     971</span> <span class="tlaGNC">           8 :         call restoration%enter(x, theta, qp_solver)</span></span>
+<span id="L972"><span class="lineNum">     972</span> <span class="tlaGNC">           8 :         call lg%put(sqpopt_log_detail, 'restoration phase started, at violation '//fmt_e(theta))</span></span>
+<span id="L973"><span class="lineNum">     973</span> <span class="tlaGNC">           8 :         info%phase = .true.</span></span>
+<span id="L974"><span class="lineNum">     974</span> <span class="tlaGNC">           8 :         call restoration_phase_iteration()</span></span>
+<span id="L975"><span class="lineNum">     975</span> <span class="tlaGNC">           8 :         end subroutine start_restoration_phase</span></span>
+<span id="L976"><span class="lineNum">     976</span>              : </span>
+<span id="L977"><span class="lineNum">     977</span> <span class="tlaGNC">          79 :         subroutine restoration_phase_iteration()</span></span>
+<span id="L978"><span class="lineNum">     978</span>              :         !! one iteration of the restoration phase (falling back to a</span>
+<span id="L979"><span class="lineNum">     979</span>              :         !! Gauss-Newton step if it fails), and end the phase if the new point</span>
+<span id="L980"><span class="lineNum">     980</span>              :         !! is good enough (see [[restoration_phase_done]]). If both steps</span>
+<span id="L981"><span class="lineNum">     981</span>              :         !! fail, the phase also ends, so that the next iteration tries the</span>
+<span id="L982"><span class="lineNum">     982</span>              :         !! optimality QP again instead of retrying the phase from the same point.</span>
+<span id="L983"><span class="lineNum">     983</span>              :         !! If the feasibility QP ran out of memory, nothing else is tried (the</span>
+<span id="L984"><span class="lineNum">     984</span>              :         !! out-of-memory test after the step stops the solve).</span>
+<span id="L985"><span class="lineNum">     985</span>              :         real(wp) :: f_new, theta0, theta_new</span>
+<span id="L986"><span class="lineNum">     986</span> <span class="tlaGNC">          79 :         real(wp), dimension(:), allocatable :: c_new</span></span>
+<span id="L987"><span class="lineNum">     987</span>              :         logical :: ended</span>
+<span id="L988"><span class="lineNum">     988</span> <span class="tlaGNC">          79 :         character(len=:), allocatable :: how</span></span>
+<span id="L989"><span class="lineNum">     989</span> <span class="tlaGNC">          79 :         allocate(c_new(problem%m))</span></span>
+<span id="L990"><span class="lineNum">     990</span> <span class="tlaGNC">          79 :         theta0 = l1_violation(c, problem%c_lb, problem%c_ub)</span></span>
+<span id="L991"><span class="lineNum">     991</span> <span class="tlaGNC">          79 :         how = 'feasibility QP'</span></span>
+<span id="L992"><span class="lineNum">     992</span> <span class="tlaGNC">          79 :         call restoration%step(problem, jac, x, c, x_new, alpha, step_istat)</span></span>
+<span id="L993"><span class="lineNum">     993</span> <span class="tlaGNC">          79 :         if (step_istat == sqpopt_out_of_memory) return</span></span>
+<span id="L994"><span class="lineNum">     994</span> <span class="tlaGNC">          79 :         if (step_istat /= sqpopt_success) then</span></span>
+<span id="L995"><span class="lineNum">     995</span> <span class="tlaGNC">           6 :             how = 'Gauss-Newton fallback'</span></span>
+<span id="L996"><span class="lineNum">     996</span>              :             call restoration_step(problem, jac, x, c, qp_solver%max_step*qp_solver%step_scale, x_new, alpha, step_istat, &amp;</span>
+<span id="L997"><span class="lineNum">     997</span> <span class="tlaGNC">           6 :                                   least_squares=least_squares)</span></span>
+<span id="L998"><span class="lineNum">     998</span>              :         end if</span>
+<span id="L999"><span class="lineNum">     999</span> <span class="tlaGNC">          79 :         if (step_istat == sqpopt_success) then</span></span>
+<span id="L1000"><span class="lineNum">    1000</span> <span class="tlaGNC">          76 :             call problem%f(x_new, f_new)</span></span>
+<span id="L1001"><span class="lineNum">    1001</span> <span class="tlaGNC">          76 :             call problem%c(x_new, c_new)</span></span>
+<span id="L1002"><span class="lineNum">    1002</span> <span class="tlaGNC">          76 :             theta_new = l1_violation(c_new, problem%c_lb, problem%c_ub)</span></span>
+<span id="L1003"><span class="lineNum">    1003</span>              :             ended = restoration%done(linesearch, theta_new, f_new, &amp;</span>
+<span id="L1004"><span class="lineNum">    1004</span> <span class="tlaGNC">          76 :                                      options%restoration_exit_factor, options%ctol, options%restoration_max_iter)</span></span>
+<span id="L1005"><span class="lineNum">    1005</span> <span class="tlaGNC">          76 :             if (lg%on(sqpopt_log_detail)) then</span></span>
+<span id="L1006"><span class="lineNum">    1006</span>              :                 call lg%put(sqpopt_log_detail, 'restoration phase iteration '//fmt_i(restoration%n_iter)//' ('//how// &amp;</span>
+<span id="L1007"><span class="lineNum">    1007</span> <span class="tlaUNC">           0 :                             '): violation '//fmt_e(theta0)//' -&gt; '//fmt_e(theta_new))</span></span>
+<span id="L1008"><span class="lineNum">    1008</span> <span class="tlaUNC">           0 :                 if (ended) then</span></span>
+<span id="L1009"><span class="lineNum">    1009</span> <span class="tlaUNC">           0 :                     if (theta_new &lt;= options%ctol) then</span></span>
+<span id="L1010"><span class="lineNum">    1010</span> <span class="tlaUNC">           0 :                         how = 'feasible'</span></span>
+<span id="L1011"><span class="lineNum">    1011</span> <span class="tlaUNC">           0 :                     else if (restoration%n_iter &gt;= options%restoration_max_iter) then</span></span>
+<span id="L1012"><span class="lineNum">    1012</span> <span class="tlaUNC">           0 :                         how = 'iteration limit'</span></span>
+<span id="L1013"><span class="lineNum">    1013</span>              :                     else</span>
+<span id="L1014"><span class="lineNum">    1014</span> <span class="tlaUNC">           0 :                         how = 'violation reduced, and acceptable to the '//trim(glob_name())</span></span>
+<span id="L1015"><span class="lineNum">    1015</span>              :                     end if</span>
+<span id="L1016"><span class="lineNum">    1016</span> <span class="tlaUNC">           0 :                     call lg%put(sqpopt_log_detail, 'restoration phase ended ('//how//')')</span></span>
+<span id="L1017"><span class="lineNum">    1017</span>              :                 end if</span>
+<span id="L1018"><span class="lineNum">    1018</span>              :             end if</span>
+<span id="L1019"><span class="lineNum">    1019</span>              :         else</span>
+<span id="L1020"><span class="lineNum">    1020</span> <span class="tlaGNC">           3 :             restoration%active = .false.</span></span>
+<span id="L1021"><span class="lineNum">    1021</span> <span class="tlaGNC">           3 :             call lg%put(sqpopt_log_detail, 'restoration phase ended (no step reduces the violation)')</span></span>
+<span id="L1022"><span class="lineNum">    1022</span>              :         end if</span>
+<span id="L1023"><span class="lineNum">    1023</span> <span class="tlaGNC">          79 :         end subroutine restoration_phase_iteration</span></span>
+<span id="L1024"><span class="lineNum">    1024</span>              : </span>
+<span id="L1025"><span class="lineNum">    1025</span> <span class="tlaGNC">       23350 :         subroutine elastic_resolve()</span></span>
+<span id="L1026"><span class="lineNum">    1026</span>              :         !! if a constraint's multiplier is diverging, re-solve the QP with that</span>
+<span id="L1027"><span class="lineNum">    1027</span>              :         !! constraint elastic (SNOPT-style elastic mode). At a point where the</span>
+<span id="L1028"><span class="lineNum">    1028</span>              :         !! constraint qualification fails (e.g. a constraint tangent to a</span>
+<span id="L1029"><span class="lineNum">    1029</span>              :         !! bound), the linearization lets each step cover only a fraction of</span>
+<span id="L1030"><span class="lineNum">    1030</span>              :         !! the distance to it, so the iterates creep toward the point with a</span>
+<span id="L1031"><span class="lineNum">    1031</span>              :         !! multiplier that grows every iteration, and may converge there to a</span>
+<span id="L1032"><span class="lineNum">    1032</span>              :         !! point that is not a minimizer. An \( \ell_1 \) penalty with a</span>
+<span id="L1033"><span class="lineNum">    1033</span>              :         !! bounded weight on the constraint (the elastic slack) caps its</span>
+<span id="L1034"><span class="lineNum">    1034</span>              :         !! multiplier, and lets the step relax the linearization and leave.</span>
+<span id="L1035"><span class="lineNum">    1035</span>              :         !!</span>
+<span id="L1036"><span class="lineNum">    1036</span>              :         !! A constraint `i` triggers it when its multiplier's &quot;push&quot;</span>
+<span id="L1037"><span class="lineNum">    1037</span>              :         !! \( |\lambda_i| \lVert \nabla c_i \rVert_\infty \) exceeds</span>
+<span id="L1038"><span class="lineNum">    1038</span>              :         !! `options%elastic_multiplier_limit` \( \times \max(1, \lVert g \rVert_\infty) \)</span>
+<span id="L1039"><span class="lineNum">    1039</span>              :         !! both now and at the previous iterate, and has grown by more than</span>
+<span id="L1040"><span class="lineNum">    1040</span>              :         !! `growth` since then. The re-solve is done at most `max_resolves`</span>
+<span id="L1041"><span class="lineNum">    1041</span>              :         !! times per solve: at a solution that itself has an unbounded</span>
+<span id="L1042"><span class="lineNum">    1042</span>              :         !! multiplier (e.g. a cusp), it would otherwise keep pushing the</span>
+<span id="L1043"><span class="lineNum">    1043</span>              :         !! iterates away.</span>
+<span id="L1044"><span class="lineNum">    1044</span>              :         real(wp), parameter :: growth       = 1.5_wp !! the multiplier growth that indicates divergence</span>
+<span id="L1045"><span class="lineNum">    1045</span>              :         integer,  parameter :: max_resolves = 3      !! maximum elastic re-solves per solve</span>
+<span id="L1046"><span class="lineNum">    1046</span>              :         real(wp) :: lim, wmax</span>
+<span id="L1047"><span class="lineNum">    1047</span> <span class="tlaGNC">       23350 :         real(wp), dimension(:), allocatable :: rownorm, lb_step, ub_step</span></span>
+<span id="L1048"><span class="lineNum">    1048</span> <span class="tlaGNC">       23350 :         integer,  dimension(:), allocatable :: sgn</span></span>
+<span id="L1049"><span class="lineNum">    1049</span>              :         integer  :: k, i</span>
+<span id="L1050"><span class="lineNum">    1050</span> <span class="tlaGNC">       23350 :         if (options%elastic_multiplier_limit &lt;= 0.0_wp .or. problem%m == 0 .or. &amp;</span></span>
+<span id="L1051"><span class="lineNum">    1051</span> <span class="tlaGNC">       16703 :             qp_solver%n_elastic &gt;= max_resolves) return</span></span>
+<span id="L1052"><span class="lineNum">    1052</span> <span class="tlaGNC">        6647 :         allocate(rownorm(problem%m), sgn(problem%m), lb_step(problem%n), ub_step(problem%n))</span></span>
+<span id="L1053"><span class="lineNum">    1053</span> <span class="tlaGNC">     1223157 :         lim = options%elastic_multiplier_limit*max(1.0_wp, maxval(abs(g)))</span></span>
+<span id="L1054"><span class="lineNum">    1054</span> <span class="tlaGNC">        6647 :         rownorm = 0.0_wp</span></span>
+<span id="L1055"><span class="lineNum">    1055</span> <span class="tlaGNC">     2145172 :         do k = 1, jac%nnz</span></span>
+<span id="L1056"><span class="lineNum">    1056</span> <span class="tlaGNC">     2145172 :             rownorm(jac%irow(k)) = max(rownorm(jac%irow(k)), abs(jac%val(k)))</span></span>
+<span id="L1057"><span class="lineNum">    1057</span>              :         end do</span>
+<span id="L1058"><span class="lineNum">    1058</span> <span class="tlaGNC">        6647 :         sgn  = 0</span></span>
+<span id="L1059"><span class="lineNum">    1059</span> <span class="tlaGNC">        6647 :         wmax = 0.0_wp</span></span>
+<span id="L1060"><span class="lineNum">    1060</span> <span class="tlaGNC">      759575 :         do i = 1, problem%m</span></span>
+<span id="L1061"><span class="lineNum">    1061</span> <span class="tlaGNC">      752928 :             if (abs(new_lambda(i))*rownorm(i) &gt; lim .and. abs(lambda(i))*rownorm(i) &gt; lim .and. &amp;</span></span>
+<span id="L1062"><span class="lineNum">    1062</span> <span class="tlaGNC">        6647 :                 abs(new_lambda(i)) &gt; growth*abs(lambda(i))) then</span></span>
+<span id="L1063"><span class="lineNum">    1063</span> <span class="tlaGNC">        1605 :                 sgn(i) = merge(1, -1, new_lambda(i) &gt; 0.0_wp)   ! (the side of the row that is active)</span></span>
+<span id="L1064"><span class="lineNum">    1064</span> <span class="tlaGNC">        1605 :                 wmax   = max(wmax, rownorm(i))</span></span>
+<span id="L1065"><span class="lineNum">    1065</span>              :             end if</span>
+<span id="L1066"><span class="lineNum">    1066</span>              :         end do</span>
+<span id="L1067"><span class="lineNum">    1067</span> <span class="tlaGNC">      757028 :         if (all(sgn == 0)) return</span></span>
+<span id="L1068"><span class="lineNum">    1068</span> <span class="tlaGNC">          58 :         qp_solver%n_elastic = qp_solver%n_elastic + 1</span></span>
+<span id="L1069"><span class="lineNum">    1069</span> <span class="tlaGNC">          58 :         info%elastic = .true.</span></span>
+<span id="L1070"><span class="lineNum">    1070</span>              :         call lg%put(sqpopt_log_detail, 'elastic re-solve: '// &amp;</span>
+<span id="L1071"><span class="lineNum">    1071</span>              :                     plural(count(sgn /= 0), 'constraint', 'constraints')//' with a diverging multiplier, weight '// &amp;</span>
+<span id="L1072"><span class="lineNum">    1072</span> <span class="tlaGNC">        2665 :                     fmt_e(lim/wmax))</span></span>
+<span id="L1073"><span class="lineNum">    1073</span>              :         ! (the weight caps each elastic row's push at about the limit)</span>
+<span id="L1074"><span class="lineNum">    1074</span> <span class="tlaGNC">          58 :         call problem%step_bounds(x, lb_step, ub_step)</span></span>
+<span id="L1075"><span class="lineNum">    1075</span>              :         call qp_solver%solve(hessian, jac, x, g, c, lb_step, ub_step, &amp;</span>
+<span id="L1076"><span class="lineNum">    1076</span>              :                               problem%c_lb, problem%c_ub, p, new_lambda, qp_istat, &amp;</span>
+<span id="L1077"><span class="lineNum">    1077</span> <span class="tlaGNC">          58 :                               elastic_sign=sgn, elastic_weight=lim/wmax)</span></span>
+<span id="L1078"><span class="lineNum">    1078</span> <span class="tlaGNC">          58 :         call note_qp()</span></span>
+<span id="L1079"><span class="lineNum">    1079</span> <span class="tlaGNC">          58 :         restore = qp_istat == sqpopt_infeasible</span></span>
+<span id="L1080"><span class="lineNum">    1080</span> <span class="tlaGNC">       23350 :         end subroutine elastic_resolve</span></span>
+<span id="L1081"><span class="lineNum">    1081</span>              : </span>
+<span id="L1082"><span class="lineNum">    1082</span> <span class="tlaGNC">       23567 :         subroutine update_penalty()</span></span>
+<span id="L1083"><span class="lineNum">    1083</span>              :         !! update the merit function's penalty parameter for the QP step `p`</span>
+<span id="L1084"><span class="lineNum">    1084</span>              :         !! and multipliers `new_lambda` (see [[update_penalty_parameter]])</span>
+<span id="L1085"><span class="lineNum">    1085</span> <span class="tlaGNC">       23567 :         real(wp), dimension(:), allocatable :: hp</span></span>
+<span id="L1086"><span class="lineNum">    1086</span> <span class="tlaGNC">       23567 :         allocate(hp(problem%n))</span></span>
+<span id="L1087"><span class="lineNum">    1087</span> <span class="tlaGNC">       23567 :         call hessian%hv_product(p, hp)</span></span>
+<span id="L1088"><span class="lineNum">    1088</span>              :         call linesearch%merit%update_penalty(jac, g, p, dot_product(p, hp), c, problem%c_lb, problem%c_ub, &amp;</span>
+<span id="L1089"><span class="lineNum">    1089</span> <span class="tlaGNC">    12658148 :                                        lambda, new_lambda)</span></span>
+<span id="L1090"><span class="lineNum">    1090</span> <span class="tlaGNC">       23567 :         end subroutine update_penalty</span></span>
+<span id="L1091"><span class="lineNum">    1091</span>              : </span>
+<span id="L1092"><span class="lineNum">    1092</span>              :     end subroutine sqpopt_iterate</span>
+<span id="L1093"><span class="lineNum">    1093</span>              : !*******************************************************************************</span>
+<span id="L1094"><span class="lineNum">    1094</span>              : </span>
+<span id="L1095"><span class="lineNum">    1095</span>              : !*******************************************************************************</span>
+<span id="L1096"><span class="lineNum">    1096</span>              : !&gt;</span>
+<span id="L1097"><span class="lineNum">    1097</span>              : !  evaluate the (scaled) problem at `x`, and the resulting KKT and</span>
+<span id="L1098"><span class="lineNum">    1098</span>              : !  feasibility errors and variable-bound multipliers `z` (with the</span>
+<span id="L1099"><span class="lineNum">    1099</span>              : !  constraint multipliers `lambda`): \( z = g - J^T\lambda \) for a variable</span>
+<span id="L1100"><span class="lineNum">    1100</span>              : !  at one of its bounds, zero otherwise (for the Lagrangian</span>
+<span id="L1101"><span class="lineNum">    1101</span>              : !  \( f - \lambda^Tc - z^Tx \)). Used to report the final state of a solve.</span>
+<span id="L1102"><span class="lineNum">    1102</span>              : </span>
+<span id="L1103"><span class="lineNum">    1103</span> <span class="tlaGNC">         839 :     subroutine sqpopt_evaluate_point(problem, options, x, lambda, jac, f, c, kkt, feas, z, stat_error)</span></span>
+<span id="L1104"><span class="lineNum">    1104</span>              : </span>
+<span id="L1105"><span class="lineNum">    1105</span>              :     type(sqpopt_problem_type),  intent(inout) :: problem    !! problem definition</span>
+<span id="L1106"><span class="lineNum">    1106</span>              :     type(sqpopt_options_type),  intent(in)    :: options    !! solver options</span>
+<span id="L1107"><span class="lineNum">    1107</span>              :     real(wp), dimension(:),     intent(in)    :: x          !! point `dimension(n)`</span>
+<span id="L1108"><span class="lineNum">    1108</span>              :     real(wp), dimension(:),     intent(in)    :: lambda     !! constraint multipliers `dimension(m)`</span>
+<span id="L1109"><span class="lineNum">    1109</span>              :     type(sqpopt_sparse_matrix), intent(inout) :: jac        !! Jacobian workspace (as for [[sqpopt_iterate]])</span>
+<span id="L1110"><span class="lineNum">    1110</span>              :     real(wp),                   intent(out)   :: f          !! objective at `x`</span>
+<span id="L1111"><span class="lineNum">    1111</span>              :     real(wp), dimension(:),     intent(out)   :: c          !! constraints at `x` `dimension(m)`</span>
+<span id="L1112"><span class="lineNum">    1112</span>              :     real(wp),                   intent(out)   :: kkt        !! KKT error at `x`</span>
+<span id="L1113"><span class="lineNum">    1113</span>              :     real(wp),                   intent(out)   :: feas       !! feasibility error at `x`</span>
+<span id="L1114"><span class="lineNum">    1114</span>              :     real(wp), dimension(:),     intent(out)   :: z          !! variable-bound multipliers `dimension(n)`</span>
+<span id="L1115"><span class="lineNum">    1115</span>              :     real(wp), optional,         intent(out)   :: stat_error !! the stationarity residual (of the scaled problem,</span>
+<span id="L1116"><span class="lineNum">    1116</span>              :                                                              !! without the multiplier scaling; see [[check_convergence]])</span>
+<span id="L1117"><span class="lineNum">    1117</span>              : </span>
+<span id="L1118"><span class="lineNum">    1118</span> <span class="tlaGNC">         839 :     real(wp), dimension(:), allocatable :: g, jtlam</span></span>
+<span id="L1119"><span class="lineNum">    1119</span>              :     logical :: converged</span>
+<span id="L1120"><span class="lineNum">    1120</span>              :     integer :: istat, j</span>
+<span id="L1121"><span class="lineNum">    1121</span>              : </span>
+<span id="L1122"><span class="lineNum">    1122</span> <span class="tlaGNC">         839 :     allocate(g(size(x)), jtlam(size(x)))</span></span>
+<span id="L1123"><span class="lineNum">    1123</span>              : </span>
+<span id="L1124"><span class="lineNum">    1124</span> <span class="tlaGNC">         839 :     call problem%f(x, f)</span></span>
+<span id="L1125"><span class="lineNum">    1125</span> <span class="tlaGNC">         839 :     call problem%g(x, g)</span></span>
+<span id="L1126"><span class="lineNum">    1126</span> <span class="tlaGNC">         839 :     call problem%c(x, c)</span></span>
+<span id="L1127"><span class="lineNum">    1127</span> <span class="tlaGNC">         839 :     if (.not. allocated(jac%val)) then</span></span>
+<span id="L1128"><span class="lineNum">    1128</span> <span class="tlaUNC">           0 :         jac%nrows = problem%m</span></span>
+<span id="L1129"><span class="lineNum">    1129</span> <span class="tlaUNC">           0 :         jac%ncols = problem%n</span></span>
+<span id="L1130"><span class="lineNum">    1130</span> <span class="tlaUNC">           0 :         jac%nnz   = problem%jac_nnz</span></span>
+<span id="L1131"><span class="lineNum">    1131</span> <span class="tlaUNC">           0 :         jac%irow  = problem%jac_irow</span></span>
+<span id="L1132"><span class="lineNum">    1132</span> <span class="tlaUNC">           0 :         jac%icol  = problem%jac_icol</span></span>
+<span id="L1133"><span class="lineNum">    1133</span> <span class="tlaUNC">           0 :         allocate(jac%val(problem%jac_nnz))</span></span>
+<span id="L1134"><span class="lineNum">    1134</span>              :     end if</span>
+<span id="L1135"><span class="lineNum">    1135</span> <span class="tlaGNC">         839 :     call problem%jac(x, jac%val)</span></span>
+<span id="L1136"><span class="lineNum">    1136</span>              : </span>
+<span id="L1137"><span class="lineNum">    1137</span>              :     call check_convergence(x, g, jac, c, problem%x_lb, problem%x_ub, problem%c_lb, problem%c_ub, &amp;</span>
+<span id="L1138"><span class="lineNum">    1138</span>              :                             lambda, options%ktol, options%ctol, converged, istat, &amp;</span>
+<span id="L1139"><span class="lineNum">    1139</span> <span class="tlaGNC">         839 :                             kkt_error=kkt, feas_error=feas, stat_error=stat_error)</span></span>
+<span id="L1140"><span class="lineNum">    1140</span>              : </span>
+<span id="L1141"><span class="lineNum">    1141</span> <span class="tlaGNC">         839 :     call sparse_matvec_transpose(jac, lambda, jtlam)</span></span>
+<span id="L1142"><span class="lineNum">    1142</span> <span class="tlaGNC">     6172325 :     z = 0.0_wp</span></span>
+<span id="L1143"><span class="lineNum">    1143</span> <span class="tlaGNC">     6172325 :     do j = 1, size(x)</span></span>
+<span id="L1144"><span class="lineNum">    1144</span> <span class="tlaGNC">     6172325 :         if (x(j) - problem%x_lb(j) &lt;= options%ctol .or. problem%x_ub(j) - x(j) &lt;= options%ctol) then</span></span>
+<span id="L1145"><span class="lineNum">    1145</span> <span class="tlaGNC">        5556 :             z(j) = g(j) - jtlam(j)</span></span>
+<span id="L1146"><span class="lineNum">    1146</span>              :         end if</span>
+<span id="L1147"><span class="lineNum">    1147</span>              :     end do</span>
+<span id="L1148"><span class="lineNum">    1148</span>              : </span>
+<span id="L1149"><span class="lineNum">    1149</span> <span class="tlaGNC">         839 :     end subroutine sqpopt_evaluate_point</span></span>
+<span id="L1150"><span class="lineNum">    1150</span>              : !*******************************************************************************</span>
+<span id="L1151"><span class="lineNum">    1151</span>              : </span>
+<span id="L1152"><span class="lineNum">    1152</span>              : </span>
+<span id="L1153"><span class="lineNum">    1153</span>              :     end module sqpopt_iterate_module</span>
+<span id="L1154"><span class="lineNum">    1154</span>              : !*******************************************************************************</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com/linux-test-project/lcov" target="_parent">LCOV version 2.5-0</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

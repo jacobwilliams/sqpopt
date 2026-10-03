@@ -1,0 +1,1532 @@
+<!-- -*- mode: jinja2 -*- -->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- sqpopt theme: set before the page is drawn; the guide's choice (the same
+         localStorage key, on the same site), or else the system's -->
+    <script>
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('sqpopt-theme'); } catch (e) {}
+        if (t !== 'dark' && t !== 'light') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-bs-theme', t);
+      })();
+    </script>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta name="description" content="Modern Fortran SQP OPTimizer">
+    <meta name="author" content="Jacob Williams" >
+    <link rel="icon" href="../favicon.png">
+
+    <title>sqpopt_trust_region_module.f90 &ndash; sqpopt</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <!-- Font Awesome -->
+    <link href="../css/fontawesome.min.css" rel="stylesheet">
+    <link href="../css/brands.min.css" rel="stylesheet">
+    <link href="../css/regular.min.css" rel="stylesheet">
+    <link href="../css/solid.min.css" rel="stylesheet">
+    <link href="../css/v4-font-face.min.css" rel="stylesheet">
+    <link href="../css/v4-shims.min.css" rel="stylesheet">
+    <!-- MathJax -->
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        TeX: { equationNumbers: { autoNumber: "AMS" } }
+      });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@2.7.9/MathJax.js?config=TeX-AMS-MML_HTMLorMML" async
+            integrity="sha256-DViIOMYdwlM/axqoGDPeUyf0urLoHMN4QACBKyB58Uw=" crossorigin="anonymous"></script>
+    <!-- Other scripts and stylesheets -->
+    <link href="../css/local.css" rel="stylesheet">
+    <link href="../css/pygments.css" rel="stylesheet">
+      <link href="../css/user.css" rel="stylesheet">
+    <script src="../js/svg-pan-zoom.min.js"></script>
+  </head>
+
+  <body>
+
+    <!-- Fixed navbar -->
+    <div class="container-fluid mb-sm-4 mb-xl-2">
+      <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+          <a class="navbar-brand" href="../index.html">sqpopt </a>
+          <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbar"
+                  aria-expanded="false" aria-controls="navbar" aria-label="Toggle navigation">
+                  <span class="navbar-toggler-icon">
+          </button>
+
+          <div id="navbar" class="navbar-collapse collapse">
+            <ul class="navbar-nav">
+                  <li class="nav-item">
+                    <a class="nav-link" href="../lists/files.html">Source Files</a>
+                  </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/modules.html">Modules</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/procedures.html">Procedures</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/absint.html">Abstract Interfaces</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/types.html">Derived Types</a>
+                </li>
+            </ul>
+              <div class="d-flex align-items-end flex-grow-1">
+                <form action="../search.html" role="search" class="ms-auto">
+                  <input type="text" class="form-control" aria-label="Search" placeholder="Search" name="q" id="tipue_search_input" autocomplete="off" required>
+                </form>
+              </div>
+            <!-- sqpopt theme: the light/dark button -->
+            <button type="button" class="btn nav-link theme-toggle ms-lg-3" aria-label="Toggle dark mode" title="Toggle dark mode">
+              <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg>
+              <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div><!--/.nav-collapse -->
+        </div>
+      </nav>
+    </div>
+
+    <div class="container">
+  <div class="row">
+    <h1>sqpopt_trust_region_module.f90
+      <small>Source File</small>
+      
+    </h1>
+      <div class="container p-2 mb-4 bg-light border rounded-3">
+    <div class="row align-items-center justify-content-between" id="info-bar">
+      <div class="col">
+        <ul class="list-inline" style="margin-bottom:0px;display:inline">
+
+            <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
+              <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
+                 title=" 1.8% of total for source files.">179 statements</a>
+            </li>
+
+            <li class="list-inline-item" id="source-file">
+              <i class="fa fa-code"></i>
+              <a href="../src/sqpopt_trust_region_module.f90"> Source File</a>
+            </li>
+        </ul>
+      </div>
+      <div class="col">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb justify-content-end mb-0">
+            <li class="breadcrumb-item active" aria-current="page">sqpopt_trust_region_module.f90</li>
+          </ol>
+        </nav>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Enable Bootstrap tooltips
+    (function () {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+      const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+    })();
+  </script>
+
+  </div>
+  <div class="row">
+    <div class="col-md-3 hidden-xs hidden-sm visible-md visible-lg">
+        <div id="sidebar">
+      <h3>Contents</h3>
+  
+  
+  
+  
+  
+      <div class="card mb-4">
+      <a data-bs-toggle="collapse" href="#mods-0"
+         aria-expanded="false" aria-controls="mods-0">
+         <h4 class="card-header bg-primary text-white">Modules</h4>
+      </a>
+      <div id="mods-0" class="collapse">
+        <div class="list-group list-group-flush">
+            <a class="list-group-item" href="../module/sqpopt_trust_region_module.html">sqpopt_trust_region_module</a>
+        </div>
+      </div>
+    </div>
+
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+    <div class="card card-primary">
+      <div class="card-header text-left"><h3 class="card-title">Source Code</h3></div>
+      <div class="list-group">
+        <a class="list-group-item" href="../sourcefile/sqpopt_trust_region_module.f90.html#src">sqpopt_trust_region_module.f90</a>
+      </div>
+    </div>
+
+
+  </div>
+
+    </div>
+    <div class="col-md-9" id='text'>
+      
+      <br>
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">This file depends on</h3>
+          </div>
+          <div class="card-body">
+            <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph Pages: 1 -->
+<svg id="sourcefilesqpopt_trust_region_modulef90EfferentGraph" width="641pt" height="311pt"
+ viewBox="0.00 0.00 641.00 311.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph" class="graph" transform="scale(0.342153 0.342153) rotate(0) translate(4 904.94)">
+<title>sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-904.94 1869.43,-904.94 1869.43,4 -4,4"/>
+<!-- sourcefile~sqpopt_trust_region_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node1" class="node">
+<title>sourcefile~sqpopt_trust_region_module.f90</title>
+<polygon fill="none" stroke="black" points="1865.43,-646.27 1683.66,-646.27 1683.66,-622 1865.43,-622 1865.43,-646.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1774.54" y="-630.53" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_trust_region_module.f90</text>
+</g>
+<!-- sourcefile~sqpopt_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node2" class="node">
+<title>sourcefile~sqpopt_hessian_module.f90</title>
+<g id="a_sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node2"><a xlink:href="../sourcefile/sqpopt_hessian_module.f90.html" xlink:title="sqpopt_hessian_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="529.56,-610.27 370.29,-610.27 370.29,-586 529.56,-586 529.56,-610.27"/>
+<text xml:space="preserve" text-anchor="middle" x="449.92" y="-594.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge1" class="edge">
+<title>sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1561.77,-742.13C1469.18,-768.17 1454.46,-805.31 1359.13,-818.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1357.13,-818.13C1313.12,-824.06 614.19,-673.58 575.31,-652.13 557.73,-642.44 558.81,-629.72 539.51,-616.42"/>
+<polygon fill="#000000" stroke="#000000" points="541.56,-613.57 531.18,-611.46 537.99,-619.58 541.56,-613.57"/>
+</g>
+<!-- sourcefile~sqpopt_inertia_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node3" class="node">
+<title>sourcefile~sqpopt_inertia_module.f90</title>
+<g id="a_sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node3"><a xlink:href="../sourcefile/sqpopt_inertia_module.f90.html" xlink:title="sqpopt_inertia_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1219.62,-686.27 1066.35,-686.27 1066.35,-662 1219.62,-662 1219.62,-686.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1142.98" y="-670.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_inertia_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge2" class="edge">
+<title>sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1755.54,-646.75C1720.54,-670.5 1640.04,-721.3 1563.77,-742.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1561.77,-742.13C1545.57,-746.56 1339.37,-709.97 1222.85,-688.7"/>
+<polygon fill="#000000" stroke="#000000" points="1223.82,-685.32 1213.36,-686.97 1222.56,-692.21 1223.82,-685.32"/>
+</g>
+<!-- sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node4" class="node">
+<title>sourcefile~sqpopt_kinds.f90</title>
+<g id="a_sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node4"><a xlink:href="../sourcefile/sqpopt_kinds.f90.html" xlink:title="sqpopt_kinds.F90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="103.02,-610.27 0,-610.27 0,-586 103.02,-586 103.02,-610.27"/>
+<text xml:space="preserve" text-anchor="middle" x="51.51" y="-594.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_kinds.F90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge3" class="edge">
+<title>sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1357.13,-818.13C1263.27,-830.96 1238.62,-813.85 1143.98,-818.13"/>
+</g>
+<!-- sourcefile~sqpopt_kkt_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node5" class="node">
+<title>sourcefile~sqpopt_kkt_module.f90</title>
+<g id="a_sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node5"><a xlink:href="../sourcefile/sqpopt_kkt_module.f90.html" xlink:title="sqpopt_kkt_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="992.1,-686.27 857.58,-686.27 857.58,-662 992.1,-662 992.1,-686.27"/>
+<text xml:space="preserve" text-anchor="middle" x="924.84" y="-670.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_kkt_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge4" class="edge">
+<title>sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1561.77,-742.13C1475.07,-766.51 1448.77,-733.45 1359.13,-742.13"/>
+</g>
+<!-- sourcefile~sqpopt_least_squares_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node6" class="node">
+<title>sourcefile~sqpopt_least_squares_module.f90</title>
+<g id="a_sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node6"><a xlink:href="../sourcefile/sqpopt_least_squares_module.f90.html" xlink:title="sqpopt_least_squares_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1238.37,-340.27 1047.6,-340.27 1047.6,-316 1238.37,-316 1238.37,-340.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1142.98" y="-324.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_least_squares_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_least_squares_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge5" class="edge">
+<title>sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_least_squares_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1357.13,-288.13C1306.49,-292.96 1249.93,-303.84 1207.81,-313.03"/>
+<polygon fill="#000000" stroke="#000000" points="1207.09,-309.61 1198.08,-315.18 1208.6,-316.44 1207.09,-309.61"/>
+</g>
+<!-- sourcefile~sqpopt_linalg_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node7" class="node">
+<title>sourcefile~sqpopt_linalg_module.f90</title>
+<g id="a_sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node7"><a xlink:href="../sourcefile/sqpopt_linalg_module.f90.html" xlink:title="sqpopt_linalg_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="523.93,-359.27 375.91,-359.27 375.91,-335 523.93,-335 523.93,-359.27"/>
+<text xml:space="preserve" text-anchor="middle" x="449.92" y="-343.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_linalg_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_linalg_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge6" class="edge">
+<title>sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_linalg_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1561.77,-268.13C1524.4,-242.62 1404.18,-283.84 1359.13,-288.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1357.13,-288.13C1219.92,-301.22 1184.62,-292.27 1047.6,-307.13 993.15,-313.04 980.61,-325.37 925.84,-326.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M923.84,-326.13C819.78,-325.98 793.63,-331.3 689.69,-326.13"/>
+</g>
+<!-- sourcefile~sqpopt_linesearch_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node8" class="node">
+<title>sourcefile~sqpopt_linesearch_module.f90</title>
+<g id="a_sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node8"><a xlink:href="../sourcefile/sqpopt_linesearch_module.f90.html" xlink:title="sqpopt_linesearch_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1011.6,-107.27 838.08,-107.27 838.08,-83 1011.6,-83 1011.6,-107.27"/>
+<text xml:space="preserve" text-anchor="middle" x="924.84" y="-91.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_linesearch_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_linesearch_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge7" class="edge">
+<title>sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_linesearch_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1141.98,-98.13C1103.57,-91.25 1060.7,-89.46 1023.33,-89.77"/>
+<polygon fill="#000000" stroke="#000000" points="1023.38,-86.27 1013.43,-89.9 1023.48,-93.26 1023.38,-86.27"/>
+</g>
+<!-- sourcefile~sqpopt_log_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node9" class="node">
+<title>sourcefile~sqpopt_log_module.f90</title>
+<g id="a_sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node9"><a xlink:href="../sourcefile/sqpopt_log_module.f90.html" xlink:title="sqpopt_log_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="756.33,-222.27 621.06,-222.27 621.06,-198 756.33,-198 756.33,-222.27"/>
+<text xml:space="preserve" text-anchor="middle" x="688.69" y="-206.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_log_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_log_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge8" class="edge">
+<title>sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_log_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1141.98,-98.13C1108.06,-92.05 869.89,-146.89 838.08,-160.13 820.33,-167.53 819.73,-176.51 802.08,-184.13 791.17,-188.85 779.28,-192.77 767.45,-196.02"/>
+<polygon fill="#000000" stroke="#000000" points="766.91,-192.55 758.1,-198.44 768.66,-199.32 766.91,-192.55"/>
+</g>
+<!-- sourcefile~sqpopt_problem_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node10" class="node">
+<title>sourcefile~sqpopt_problem_module.f90</title>
+<g id="a_sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node10"><a xlink:href="../sourcefile/sqpopt_problem_module.f90.html" xlink:title="sqpopt_problem_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="531.43,-24.27 368.41,-24.27 368.41,0 531.43,0 531.43,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="449.92" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_problem_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_problem_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge9" class="edge">
+<title>sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_problem_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1770.62,-621.69C1757.46,-568.66 1698.35,-360.02 1563.77,-268.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1561.77,-268.13C1479.78,-212.15 1453.9,-203.73 1359.13,-174.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1357.13,-174.13C1261.13,-144.15 1243.03,-115.57 1143.98,-98.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1141.98,-98.13C1083.95,-87.92 1069.89,-82.71 1011.6,-74.13 846.97,-49.91 653.88,-30.53 542.64,-20.24"/>
+<polygon fill="#000000" stroke="#000000" points="543.26,-16.78 532.98,-19.35 542.61,-23.75 543.26,-16.78"/>
+</g>
+<!-- sourcefile~sqpopt_qp_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node11" class="node">
+<title>sourcefile~sqpopt_qp_solver_module.f90</title>
+<g id="a_sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node11"><a xlink:href="../sourcefile/sqpopt_qp_solver_module.f90.html" xlink:title="sqpopt_qp_solver_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1647.66,-646.27 1477.89,-646.27 1477.89,-622 1647.66,-622 1647.66,-646.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1562.77" y="-630.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qp_solver_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge10" class="edge">
+<title>sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1683.37,-634.13C1675.37,-634.13 1667.25,-634.13 1659.21,-634.13"/>
+<polygon fill="#000000" stroke="#000000" points="1659.42,-630.64 1649.42,-634.14 1659.42,-637.64 1659.42,-630.64"/>
+</g>
+<!-- sourcefile~sqpopt_soc_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node12" class="node">
+<title>sourcefile~sqpopt_soc_module.f90</title>
+<g id="a_sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node12"><a xlink:href="../sourcefile/sqpopt_soc_module.f90.html" xlink:title="sqpopt_soc_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1426.51,-260.27 1289.74,-260.27 1289.74,-236 1426.51,-236 1426.51,-260.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1358.13" y="-244.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_soc_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_soc_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge11" class="edge">
+<title>sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_soc_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1561.77,-268.13C1526.09,-243.77 1478.29,-238.11 1438.07,-238.85"/>
+<polygon fill="#000000" stroke="#000000" points="1438.07,-235.35 1428.19,-239.18 1438.3,-242.35 1438.07,-235.35"/>
+</g>
+<!-- sourcefile~sqpopt_types_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node13" class="node">
+<title>sourcefile~sqpopt_types_module.f90</title>
+<g id="a_sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node13"><a xlink:href="../sourcefile/sqpopt_types_module.f90.html" xlink:title="sqpopt_types_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="305.41,-359.27 158.14,-359.27 158.14,-335 305.41,-335 305.41,-359.27"/>
+<text xml:space="preserve" text-anchor="middle" x="231.78" y="-343.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_types_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge12" class="edge">
+<title>sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1357.13,-174.13C1173.45,-116.77 1116.33,-184.89 925.84,-212.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M923.84,-212.13C885.63,-217.76 873.48,-210.69 838.08,-226.13 819.5,-234.24 820.08,-244.82 802.08,-254.13 755.73,-278.11 741.74,-284.37 689.69,-288.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M687.69,-288.13C582.74,-295.73 552.47,-260.51 450.92,-288.13"/>
+</g>
+<!-- sourcefile~sqpopt_hessian_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge14" class="edge">
+<title>sourcefile~sqpopt_hessian_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M402.77,-585.51C389.09,-581.51 374.13,-576.89 360.54,-572.13 302.67,-551.9 291.95,-504.09 232.78,-520.13"/>
+</g>
+<!-- sourcefile~sqpopt_dense_linalg_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node14" class="node">
+<title>sourcefile~sqpopt_dense_linalg_module.f90</title>
+<g id="a_sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node14"><a xlink:href="../sourcefile/sqpopt_dense_linalg_module.f90.html" xlink:title="sqpopt_dense_linalg_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="324.54,-610.27 139.02,-610.27 139.02,-586 324.54,-586 324.54,-610.27"/>
+<text xml:space="preserve" text-anchor="middle" x="231.78" y="-594.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_dense_linalg_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_hessian_module.f90&#45;&gt;sourcefile~sqpopt_dense_linalg_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge13" class="edge">
+<title>sourcefile~sqpopt_hessian_module.f90&#45;&gt;sourcefile~sqpopt_dense_linalg_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M369.97,-598.13C358.94,-598.13 347.47,-598.13 336.07,-598.13"/>
+<polygon fill="#000000" stroke="#000000" points="336.22,-594.64 326.22,-598.14 336.22,-601.64 336.22,-594.64"/>
+</g>
+<!-- sourcefile~sqpopt_inertia_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge15" class="edge">
+<title>sourcefile~sqpopt_inertia_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1085.41,-661.56C1041.98,-652.41 980.42,-640.56 925.84,-634.13"/>
+</g>
+<!-- sourcefile~sqpopt_inertia_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge16" class="edge">
+<title>sourcefile~sqpopt_inertia_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1131.39,-686.31C1102.44,-718.31 1017.99,-803.32 925.84,-818.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M923.84,-818.13C821.09,-834.65 789.96,-790.27 689.69,-818.13"/>
+</g>
+<!-- sourcefile~sqpopt_inertia_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge17" class="edge">
+<title>sourcefile~sqpopt_inertia_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1066.08,-674.13C1045.96,-674.13 1024.2,-674.13 1003.95,-674.13"/>
+<polygon fill="#000000" stroke="#000000" points="1004.08,-670.64 994.08,-674.14 1004.08,-677.64 1004.08,-670.64"/>
+</g>
+<!-- sourcefile~sqpopt_inertia_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge18" class="edge">
+<title>sourcefile~sqpopt_inertia_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1111.54,-661.5C1038.76,-631.1 859.14,-554.87 838.08,-534.13 811.73,-508.2 831.62,-481.38 802.08,-459.13 761.61,-428.66 736.04,-460.6 689.69,-440.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M687.69,-440.13C589.9,-398.46 555.56,-424.96 450.92,-406.13"/>
+</g>
+<!-- sourcefile~sqpopt_kkt_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge20" class="edge">
+<title>sourcefile~sqpopt_kkt_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M857.15,-662.6C810.39,-654.83 746.37,-644.82 689.69,-638.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M687.69,-638.13C633.38,-631.73 572.56,-621.38 526.16,-612.82"/>
+<polygon fill="#000000" stroke="#000000" points="526.95,-609.41 516.48,-611.02 525.67,-616.29 526.95,-609.41"/>
+</g>
+<!-- sourcefile~sqpopt_kkt_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge21" class="edge">
+<title>sourcefile~sqpopt_kkt_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M915.84,-686.58C898.55,-712.34 854.93,-771.42 802.08,-799.13 757.22,-822.66 738.5,-804.57 689.69,-818.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M687.69,-818.13C583.1,-847.2 558.07,-860.66 450.92,-878.13"/>
+</g>
+<!-- sourcefile~sqpopt_kkt_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge23" class="edge">
+<title>sourcefile~sqpopt_kkt_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M898.6,-661.62C879.14,-650.67 853.09,-632.95 838.08,-610.13 800.16,-552.5 852.46,-506.27 802.08,-459.13 765.09,-424.53 736.04,-460.6 689.69,-440.13"/>
+</g>
+<!-- sourcefile~sqpopt_kkt_module.f90&#45;&gt;sourcefile~sqpopt_dense_linalg_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge19" class="edge">
+<title>sourcefile~sqpopt_kkt_module.f90&#45;&gt;sourcefile~sqpopt_dense_linalg_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M687.69,-638.13C543.05,-621.07 505.3,-635.19 360.54,-619.13 344.84,-617.39 328.13,-615.03 312.15,-612.51"/>
+<polygon fill="#000000" stroke="#000000" points="313.15,-609.12 302.72,-610.98 312.03,-616.03 313.15,-609.12"/>
+</g>
+<!-- sourcefile~sqpopt_symmetric_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node21" class="node">
+<title>sourcefile~sqpopt_symmetric_solver_module.f90</title>
+<g id="a_sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node21"><a xlink:href="../sourcefile/sqpopt_symmetric_solver_module.f90.html" xlink:title="sqpopt_symmetric_solver_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="794.95,-790.27 582.43,-790.27 582.43,-766 794.95,-766 794.95,-790.27"/>
+<text xml:space="preserve" text-anchor="middle" x="688.69" y="-774.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_symmetric_solver_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_kkt_module.f90&#45;&gt;sourcefile~sqpopt_symmetric_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge22" class="edge">
+<title>sourcefile~sqpopt_kkt_module.f90&#45;&gt;sourcefile~sqpopt_symmetric_solver_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M895.6,-686.68C853.85,-705.22 775.53,-740.01 728.44,-760.93"/>
+<polygon fill="#000000" stroke="#000000" points="727.14,-757.67 719.42,-764.93 729.98,-764.07 727.14,-757.67"/>
+</g>
+<!-- sourcefile~sqpopt_least_squares_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge24" class="edge">
+<title>sourcefile~sqpopt_least_squares_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1064.45,-340.76C936.55,-361.66 673.34,-405.06 450.92,-444.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M448.92,-444.13C348.62,-461.71 331.06,-493.48 232.78,-520.13"/>
+</g>
+<!-- sourcefile~sqpopt_least_squares_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge25" class="edge">
+<title>sourcefile~sqpopt_least_squares_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1137.68,-340.45C1118,-396.46 1036.48,-625.45 1011.6,-648.13 1008.11,-651.32 1004.24,-654.11 1000.13,-656.56"/>
+<polygon fill="#000000" stroke="#000000" points="998.8,-653.31 991.51,-661 1002,-659.53 998.8,-653.31"/>
+</g>
+<!-- sourcefile~sqpopt_least_squares_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge26" class="edge">
+<title>sourcefile~sqpopt_least_squares_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1077.23,-315.55C989.45,-300.07 827.8,-277.09 689.69,-288.13"/>
+</g>
+<!-- sourcefile~sqpopt_linalg_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge27" class="edge">
+<title>sourcefile~sqpopt_linalg_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M436.32,-359.53C397.91,-396.91 281.95,-506.8 232.78,-520.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M230.78,-520.13C177.89,-534.48 120.45,-561.96 85.46,-580.18"/>
+<polygon fill="#000000" stroke="#000000" points="83.9,-577.04 76.69,-584.8 87.17,-583.23 83.9,-577.04"/>
+</g>
+<!-- sourcefile~sqpopt_linalg_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge28" class="edge">
+<title>sourcefile~sqpopt_linalg_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M375.45,-347.13C356.71,-347.13 336.42,-347.13 317.19,-347.13"/>
+<polygon fill="#000000" stroke="#000000" points="317.2,-343.64 307.2,-347.14 317.2,-350.64 317.2,-343.64"/>
+</g>
+<!-- sourcefile~sqpopt_linesearch_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge31" class="edge">
+<title>sourcefile~sqpopt_linesearch_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M837.67,-92.62C793.44,-91.5 738.69,-90.38 689.69,-90.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M687.69,-90.13C542.05,-89.41 497.89,-22.67 360.54,-71.13 291.76,-95.41 288.19,-126.71 232.78,-174.13"/>
+</g>
+<!-- sourcefile~sqpopt_linesearch_module.f90&#45;&gt;sourcefile~sqpopt_log_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge32" class="edge">
+<title>sourcefile~sqpopt_linesearch_module.f90&#45;&gt;sourcefile~sqpopt_log_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M861.95,-107.64C853.4,-111.1 845.14,-115.51 838.08,-121.13 812.86,-141.24 827.96,-164.89 802.08,-184.13 791.89,-191.72 779.85,-197.14 767.5,-201"/>
+<polygon fill="#000000" stroke="#000000" points="766.78,-197.57 758.07,-203.61 768.64,-204.32 766.78,-197.57"/>
+</g>
+<!-- sourcefile~sqpopt_linesearch_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge34" class="edge">
+<title>sourcefile~sqpopt_linesearch_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M870.35,-107.73C859.35,-111.31 848.08,-115.74 838.08,-121.13 819.75,-131.02 821.01,-142.45 802.08,-151.13 709.21,-193.77 660.64,-132.9 575.31,-189.13 550.61,-205.42 561.43,-225.49 539.31,-245.13 506.64,-274.14 493.08,-276.67 450.92,-288.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M448.92,-288.13C394.89,-302.84 333.27,-319.66 289.69,-331.57"/>
+<polygon fill="#000000" stroke="#000000" points="288.92,-328.15 280.19,-334.17 290.76,-334.91 288.92,-328.15"/>
+</g>
+<!-- sourcefile~sqpopt_filter_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node15" class="node">
+<title>sourcefile~sqpopt_filter_module.f90</title>
+<g id="a_sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node15"><a xlink:href="../sourcefile/sqpopt_filter_module.f90.html" xlink:title="sqpopt_filter_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="521.68,-146.27 378.16,-146.27 378.16,-122 521.68,-122 521.68,-146.27"/>
+<text xml:space="preserve" text-anchor="middle" x="449.92" y="-130.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_filter_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_linesearch_module.f90&#45;&gt;sourcefile~sqpopt_filter_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge29" class="edge">
+<title>sourcefile~sqpopt_linesearch_module.f90&#45;&gt;sourcefile~sqpopt_filter_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M687.69,-90.13C655.14,-89.97 574.59,-106.29 516.48,-119.09"/>
+<polygon fill="#000000" stroke="#000000" points="516.02,-115.61 507.02,-121.19 517.54,-122.44 516.02,-115.61"/>
+</g>
+<!-- sourcefile~sqpopt_funnel_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node16" class="node">
+<title>sourcefile~sqpopt_funnel_module.f90</title>
+<g id="a_sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node16"><a xlink:href="../sourcefile/sqpopt_funnel_module.f90.html" xlink:title="sqpopt_funnel_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="526.18,-104.27 373.66,-104.27 373.66,-80 526.18,-80 526.18,-104.27"/>
+<text xml:space="preserve" text-anchor="middle" x="449.92" y="-88.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_funnel_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_linesearch_module.f90&#45;&gt;sourcefile~sqpopt_funnel_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge30" class="edge">
+<title>sourcefile~sqpopt_linesearch_module.f90&#45;&gt;sourcefile~sqpopt_funnel_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M687.69,-90.13C638.16,-89.89 582.79,-90.32 538.06,-90.84"/>
+<polygon fill="#000000" stroke="#000000" points="538.1,-87.34 528.15,-90.96 538.19,-94.34 538.1,-87.34"/>
+</g>
+<!-- sourcefile~sqpopt_merit_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node17" class="node">
+<title>sourcefile~sqpopt_merit_module.f90</title>
+<g id="a_sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node17"><a xlink:href="../sourcefile/sqpopt_merit_module.f90.html" xlink:title="sqpopt_merit_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="762.33,-142.27 615.06,-142.27 615.06,-118 762.33,-118 762.33,-142.27"/>
+<text xml:space="preserve" text-anchor="middle" x="688.69" y="-126.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_merit_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_linesearch_module.f90&#45;&gt;sourcefile~sqpopt_merit_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge33" class="edge">
+<title>sourcefile~sqpopt_linesearch_module.f90&#45;&gt;sourcefile~sqpopt_merit_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M839.64,-107.72C818.3,-110.91 795.38,-114.34 774.03,-117.53"/>
+<polygon fill="#000000" stroke="#000000" points="773.57,-114.06 764.19,-119 774.6,-120.98 773.57,-114.06"/>
+</g>
+<!-- sourcefile~sqpopt_log_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge35" class="edge">
+<title>sourcefile~sqpopt_log_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M636.77,-197.6C589.05,-186.99 515.58,-173.59 450.92,-174.13"/>
+</g>
+<!-- sourcefile~sqpopt_log_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge36" class="edge">
+<title>sourcefile~sqpopt_log_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M653.53,-222.65C607.82,-239.1 524.01,-268.25 450.92,-288.13"/>
+</g>
+<!-- sourcefile~sqpopt_problem_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge37" class="edge">
+<title>sourcefile~sqpopt_problem_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M389.99,-24.7C379.76,-28.2 369.53,-32.6 360.54,-38.13 289.9,-81.58 295.79,-120.21 232.78,-174.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M230.78,-174.13C102.3,-284.1 64.39,-502.3 55.13,-574.4"/>
+<polygon fill="#000000" stroke="#000000" points="51.66,-573.9 53.94,-584.25 58.61,-574.74 51.66,-573.9"/>
+</g>
+<!-- sourcefile~sqpopt_problem_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge38" class="edge">
+<title>sourcefile~sqpopt_problem_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M420.43,-24.74C400.96,-34.72 375.97,-50.42 360.54,-71.13 328.03,-114.76 346.27,-138.26 324.54,-188.13 302.1,-239.62 267.08,-295.57 247.42,-325.44"/>
+<polygon fill="#000000" stroke="#000000" points="244.62,-323.34 242,-333.6 250.45,-327.21 244.62,-323.34"/>
+</g>
+<!-- sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge39" class="edge">
+<title>sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1357.13,-634.13C1165.46,-636.48 1116.21,-656.55 925.84,-634.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M923.84,-634.13C819.51,-620.96 794.75,-595.47 689.69,-600.13"/>
+</g>
+<!-- sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge40" class="edge">
+<title>sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1357.13,-634.13C1328.73,-633.34 1259.73,-647.39 1207.88,-659.05"/>
+<polygon fill="#000000" stroke="#000000" points="1207.22,-655.61 1198.24,-661.24 1208.77,-662.44 1207.22,-655.61"/>
+</g>
+<!-- sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge41" class="edge">
+<title>sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1551.18,-646.63C1527.05,-674.78 1468.09,-741.84 1441.89,-756.13 1382.54,-788.53 1211.54,-815.16 1143.98,-818.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1141.98,-818.13C1046.02,-822.48 1020.69,-802.89 925.84,-818.13"/>
+</g>
+<!-- sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge42" class="edge">
+<title>sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1547.34,-646.69C1515.82,-672.93 1437.41,-731.98 1359.13,-742.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1357.13,-742.13C1216.41,-760.39 1050.88,-715.59 972.06,-690.19"/>
+<polygon fill="#000000" stroke="#000000" points="973.56,-686.99 962.97,-687.21 971.38,-693.65 973.56,-686.99"/>
+</g>
+<!-- sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_linalg_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge43" class="edge">
+<title>sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_linalg_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1357.13,-368.13C1327.31,-350.88 1081.79,-353.4 1047.6,-349.13 992.95,-342.32 980.91,-326.39 925.84,-326.13"/>
+</g>
+<!-- sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge47" class="edge">
+<title>sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1556.5,-621.68C1537.39,-578.22 1467.14,-432.42 1359.13,-368.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1357.13,-368.13C1269.55,-316.01 1026.53,-196.33 925.84,-212.13"/>
+</g>
+<!-- sourcefile~sqpopt_qp_dense_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node18" class="node">
+<title>sourcefile~sqpopt_qp_dense_module.f90</title>
+<g id="a_sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node18"><a xlink:href="../sourcefile/sqpopt_qp_dense_module.f90.html" xlink:title="sqpopt_qp_dense_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="773.58,-572.27 603.81,-572.27 603.81,-548 773.58,-548 773.58,-572.27"/>
+<text xml:space="preserve" text-anchor="middle" x="688.69" y="-556.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qp_dense_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_qp_dense_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge44" class="edge">
+<title>sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_qp_dense_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1477.46,-635.18C1441.06,-635.37 1397.99,-635.22 1359.13,-634.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1357.13,-634.13C1304,-632.65 1291.18,-626.13 1238.37,-620.13 1079.51,-602.09 894.67,-582.08 785.18,-570.33"/>
+<polygon fill="#000000" stroke="#000000" points="785.67,-566.86 775.35,-569.28 784.92,-573.82 785.67,-566.86"/>
+</g>
+<!-- sourcefile~sqpopt_qp_direct_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node19" class="node">
+<title>sourcefile~sqpopt_qp_direct_module.f90</title>
+<g id="a_sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node19"><a xlink:href="../sourcefile/sqpopt_qp_direct_module.f90.html" xlink:title="sqpopt_qp_direct_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1441.89,-606.27 1274.37,-606.27 1274.37,-582 1441.89,-582 1441.89,-606.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1358.13" y="-590.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qp_direct_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_qp_direct_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge45" class="edge">
+<title>sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_qp_direct_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1497.94,-621.53C1477.68,-617.53 1455.09,-613.08 1434.12,-608.94"/>
+<polygon fill="#000000" stroke="#000000" points="1434.97,-605.54 1424.48,-607.03 1433.61,-612.41 1434.97,-605.54"/>
+</g>
+<!-- sourcefile~sqpopt_qp_reduced_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node20" class="node">
+<title>sourcefile~sqpopt_qp_reduced_hessian_module.f90</title>
+<g id="a_sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node20"><a xlink:href="../sourcefile/sqpopt_qp_reduced_hessian_module.f90.html" xlink:title="sqpopt_qp_reduced_hessian_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="802.08,-492.27 575.31,-492.27 575.31,-468 802.08,-468 802.08,-492.27"/>
+<text xml:space="preserve" text-anchor="middle" x="688.69" y="-476.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qp_reduced_hessian_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_qp_reduced_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge46" class="edge">
+<title>sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_qp_reduced_hessian_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1357.13,-368.13C1344.16,-361.22 943.66,-433.55 769.4,-465.46"/>
+<polygon fill="#000000" stroke="#000000" points="768.95,-461.98 759.74,-467.23 770.21,-468.87 768.95,-461.98"/>
+</g>
+<!-- sourcefile~sqpopt_soc_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge48" class="edge">
+<title>sourcefile~sqpopt_soc_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1334.79,-235.53C1311.54,-223.2 1273.67,-205.26 1238.37,-198.13 1063.98,-162.92 1003.88,-133.64 838.08,-198.13 817.85,-206 822.31,-223.27 802.08,-231.13 708.15,-267.67 675.75,-239.44 575.31,-231.13 556.08,-229.55 247.48,-161.65 232.78,-174.13"/>
+</g>
+<!-- sourcefile~sqpopt_soc_module.f90&#45;&gt;sourcefile~sqpopt_least_squares_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge49" class="edge">
+<title>sourcefile~sqpopt_soc_module.f90&#45;&gt;sourcefile~sqpopt_least_squares_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1314.79,-260.65C1301.74,-264.71 1287.39,-269.4 1274.37,-274.13 1243.14,-285.48 1208.4,-299.96 1182.64,-311.07"/>
+<polygon fill="#000000" stroke="#000000" points="1181.36,-307.81 1173.58,-315.01 1184.14,-314.24 1181.36,-307.81"/>
+</g>
+<!-- sourcefile~sqpopt_soc_module.f90&#45;&gt;sourcefile~sqpopt_linalg_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge50" class="edge">
+<title>sourcefile~sqpopt_soc_module.f90&#45;&gt;sourcefile~sqpopt_linalg_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1141.98,-212.13C934.84,-203.96 896.84,-334.15 689.69,-326.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M687.69,-326.13C637.16,-323.62 580.72,-328.33 535.62,-333.93"/>
+<polygon fill="#000000" stroke="#000000" points="535.39,-330.43 525.91,-335.17 536.28,-337.37 535.39,-330.43"/>
+</g>
+<!-- sourcefile~sqpopt_soc_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge51" class="edge">
+<title>sourcefile~sqpopt_soc_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1307.57,-235.54C1264.62,-225.65 1200.64,-213.34 1143.98,-212.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1141.98,-212.13C1045.94,-210.1 1020.74,-197.24 925.84,-212.13"/>
+</g>
+<!-- sourcefile~sqpopt_types_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge52" class="edge">
+<title>sourcefile~sqpopt_types_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M221.94,-359.58C193.49,-399.64 104.03,-525.59 67.89,-576.48"/>
+<polygon fill="#000000" stroke="#000000" points="65.22,-574.2 62.28,-584.38 70.92,-578.25 65.22,-574.2"/>
+</g>
+<!-- sourcefile~sqpopt_dense_linalg_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge53" class="edge">
+<title>sourcefile~sqpopt_dense_linalg_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M138.77,-598.13C130.54,-598.13 122.33,-598.13 114.44,-598.13"/>
+<polygon fill="#000000" stroke="#000000" points="114.65,-594.64 104.65,-598.14 114.65,-601.64 114.65,-594.64"/>
+</g>
+<!-- sourcefile~sqpopt_filter_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge54" class="edge">
+<title>sourcefile~sqpopt_filter_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M377.73,-130C331.39,-131.11 272.43,-140.2 232.78,-174.13"/>
+</g>
+<!-- sourcefile~sqpopt_filter_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge55" class="edge">
+<title>sourcefile~sqpopt_filter_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M428.95,-146.64C410.34,-158.73 382.28,-178.11 360.54,-198.13 315.76,-239.38 271.26,-295.63 248.45,-325.85"/>
+<polygon fill="#000000" stroke="#000000" points="245.93,-323.38 242.75,-333.48 251.54,-327.57 245.93,-323.38"/>
+</g>
+<!-- sourcefile~sqpopt_funnel_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge56" class="edge">
+<title>sourcefile~sqpopt_funnel_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M382.79,-104.76C336.54,-116.35 275.62,-137.47 232.78,-174.13"/>
+</g>
+<!-- sourcefile~sqpopt_funnel_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge57" class="edge">
+<title>sourcefile~sqpopt_funnel_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M373.79,-104.74C369.07,-107.1 364.59,-109.87 360.54,-113.13 331.75,-136.33 341.79,-155.43 324.54,-188.13 298.33,-237.81 264.73,-294.44 246.32,-324.91"/>
+<polygon fill="#000000" stroke="#000000" points="243.46,-322.88 241.27,-333.25 249.45,-326.51 243.46,-322.88"/>
+</g>
+<!-- sourcefile~sqpopt_merit_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge58" class="edge">
+<title>sourcefile~sqpopt_merit_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M614.72,-140.43C601.58,-142.5 588.02,-144.77 575.31,-147.13 519.7,-157.51 507.49,-173.66 450.92,-174.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M448.92,-174.13C352.86,-174.94 305.76,-111.67 232.78,-174.13"/>
+</g>
+<!-- sourcefile~sqpopt_merit_module.f90&#45;&gt;sourcefile~sqpopt_linalg_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge59" class="edge">
+<title>sourcefile~sqpopt_merit_module.f90&#45;&gt;sourcefile~sqpopt_linalg_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M647.02,-142.67C623.08,-151.97 593.93,-166.93 575.31,-189.13 541.44,-229.52 573.43,-261.96 539.31,-302.13 529.27,-313.95 515.36,-323.02 501.54,-329.82"/>
+<polygon fill="#000000" stroke="#000000" points="500.1,-326.63 492.44,-333.95 502.99,-333.01 500.1,-326.63"/>
+</g>
+<!-- sourcefile~sqpopt_merit_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge60" class="edge">
+<title>sourcefile~sqpopt_merit_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M614.76,-141.41C601.21,-145.05 587.5,-149.84 575.31,-156.13 556.29,-165.96 557.13,-176.27 539.31,-188.13 465.93,-237.01 438.59,-233.13 360.54,-274.13 326.95,-291.78 289.33,-313.53 263.66,-328.67"/>
+<polygon fill="#000000" stroke="#000000" points="261.9,-325.65 255.08,-333.76 265.46,-331.67 261.9,-325.65"/>
+</g>
+<!-- sourcefile~sqpopt_qp_dense_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge62" class="edge">
+<title>sourcefile~sqpopt_qp_dense_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M609.18,-572.74C587.3,-576.25 563.37,-580.09 540.88,-583.7"/>
+<polygon fill="#000000" stroke="#000000" points="540.44,-580.22 531.12,-585.26 541.55,-587.13 540.44,-580.22"/>
+</g>
+<!-- sourcefile~sqpopt_qp_dense_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge63" class="edge">
+<title>sourcefile~sqpopt_qp_dense_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M603.32,-559.15C558.12,-558.7 501.49,-558.23 450.92,-558.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M448.92,-558.13C351.39,-557.95 326.92,-494.6 232.78,-520.13"/>
+</g>
+<!-- sourcefile~sqpopt_qp_dense_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge64" class="edge">
+<title>sourcefile~sqpopt_qp_dense_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M655.1,-547.63C595.62,-524.49 465.91,-472.57 360.54,-420.13 326.37,-403.13 288.56,-381.11 263.01,-365.72"/>
+<polygon fill="#000000" stroke="#000000" points="264.84,-362.74 254.48,-360.55 261.22,-368.72 264.84,-362.74"/>
+</g>
+<!-- sourcefile~sqpopt_qp_dense_module.f90&#45;&gt;sourcefile~sqpopt_dense_linalg_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge61" class="edge">
+<title>sourcefile~sqpopt_qp_dense_module.f90&#45;&gt;sourcefile~sqpopt_dense_linalg_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M448.92,-558.13C392.58,-558.03 329.33,-571.35 285.88,-582.65"/>
+<polygon fill="#000000" stroke="#000000" points="285.23,-579.2 276.47,-585.15 287.03,-585.96 285.23,-579.2"/>
+</g>
+<!-- sourcefile~sqpopt_qp_direct_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge65" class="edge">
+<title>sourcefile~sqpopt_qp_direct_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M923.84,-520.13C863.51,-515.31 859.61,-562.33 802.08,-581.13 753.93,-596.88 740.3,-597.89 689.69,-600.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M687.69,-600.13C639.34,-602.28 585.37,-602.03 541.19,-601.13"/>
+<polygon fill="#000000" stroke="#000000" points="541.47,-597.64 531.4,-600.92 541.32,-604.64 541.47,-597.64"/>
+</g>
+<!-- sourcefile~sqpopt_qp_direct_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge66" class="edge">
+<title>sourcefile~sqpopt_qp_direct_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1314.79,-606.65C1301.74,-610.71 1287.39,-615.4 1274.37,-620.13 1243.14,-631.48 1208.4,-645.96 1182.64,-657.07"/>
+<polygon fill="#000000" stroke="#000000" points="1181.36,-653.81 1173.58,-661.01 1184.14,-660.24 1181.36,-653.81"/>
+</g>
+<!-- sourcefile~sqpopt_qp_direct_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge67" class="edge">
+<title>sourcefile~sqpopt_qp_direct_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M923.84,-520.13C847.92,-508.62 306.89,-500.04 232.78,-520.13"/>
+</g>
+<!-- sourcefile~sqpopt_qp_direct_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge68" class="edge">
+<title>sourcefile~sqpopt_qp_direct_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1289.27,-606.72C1211.78,-621.1 1085.25,-644.57 1003.78,-659.68"/>
+<polygon fill="#000000" stroke="#000000" points="1003.28,-656.21 994.09,-661.48 1004.56,-663.09 1003.28,-656.21"/>
+</g>
+<!-- sourcefile~sqpopt_qp_direct_module.f90&#45;&gt;sourcefile~sqpopt_linalg_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge69" class="edge">
+<title>sourcefile~sqpopt_qp_direct_module.f90&#45;&gt;sourcefile~sqpopt_linalg_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1302.72,-581.55C1221.31,-563.46 1062.72,-531.08 925.84,-520.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M923.84,-520.13C790.22,-499.87 824.67,-332.84 689.69,-326.13"/>
+</g>
+<!-- sourcefile~sqpopt_qp_direct_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge70" class="edge">
+<title>sourcefile~sqpopt_qp_direct_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1337.27,-581.59C1314.25,-567.54 1274.82,-544.94 1238.37,-531.13 1051.85,-460.51 999.39,-455.26 802.08,-426.13 647.43,-403.31 604.78,-433.82 450.92,-406.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M448.92,-406.13C392.32,-393.63 328.37,-375.69 284.81,-362.88"/>
+<polygon fill="#000000" stroke="#000000" points="285.95,-359.57 275.37,-360.09 283.96,-366.28 285.95,-359.57"/>
+</g>
+<!-- sourcefile~sqpopt_qp_reduced_hessian_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge71" class="edge">
+<title>sourcefile~sqpopt_qp_reduced_hessian_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M658.81,-492.76C635.38,-503.59 601.99,-520.38 575.31,-539.13 557.55,-551.62 558.21,-561.46 539.31,-572.13 532.76,-575.83 525.63,-579.05 518.36,-581.84"/>
+<polygon fill="#000000" stroke="#000000" points="517.35,-578.49 509.09,-585.12 519.68,-585.09 517.35,-578.49"/>
+</g>
+<!-- sourcefile~sqpopt_qp_reduced_hessian_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge72" class="edge">
+<title>sourcefile~sqpopt_qp_reduced_hessian_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M632.28,-467.53C573.57,-454.92 484.76,-438.19 450.92,-444.13"/>
+</g>
+<!-- sourcefile~sqpopt_qp_reduced_hessian_module.f90&#45;&gt;sourcefile~sqpopt_linalg_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge73" class="edge">
+<title>sourcefile~sqpopt_qp_reduced_hessian_module.f90&#45;&gt;sourcefile~sqpopt_linalg_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M667.77,-467.76C639.51,-450.34 586.02,-417.84 539.31,-392.13 522.23,-382.74 502.98,-372.85 486.81,-364.75"/>
+<polygon fill="#000000" stroke="#000000" points="488.55,-361.7 478.03,-360.38 485.42,-367.97 488.55,-361.7"/>
+</g>
+<!-- sourcefile~sqpopt_qp_reduced_hessian_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge74" class="edge">
+<title>sourcefile~sqpopt_qp_reduced_hessian_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M615.71,-467.55C602.01,-464.03 588,-459.61 575.31,-454.13 557.66,-446.51 556.82,-438.09 539.31,-430.13 502.25,-413.29 490.99,-413.34 450.92,-406.13"/>
+</g>
+<!-- sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge76" class="edge">
+<title>sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M601.58,-790.73C592.26,-794.19 583.28,-798.58 575.31,-804.13 551.35,-820.85 563.4,-842.6 539.31,-859.13 506.18,-881.87 490.58,-871.67 450.92,-878.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M448.92,-878.13C354.11,-893.6 319.13,-920.24 232.78,-878.13"/>
+</g>
+<!-- sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge80" class="edge">
+<title>sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M601.2,-765.56C592,-762.09 583.15,-757.7 575.31,-752.13 550.88,-734.79 562.14,-714.55 539.31,-695.13 473.54,-639.2 418.67,-682.97 360.54,-619.13 325.05,-580.16 345.84,-554.35 324.54,-506.13 301.85,-454.76 266.92,-398.77 247.35,-368.87"/>
+<polygon fill="#000000" stroke="#000000" points="250.38,-367.1 241.95,-360.69 244.54,-370.96 250.38,-367.1"/>
+</g>
+<!-- sourcefile~sqpopt_dense_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node22" class="node">
+<title>sourcefile~sqpopt_dense_ldl_module.f90</title>
+<g id="a_sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node22"><a xlink:href="../sourcefile/sqpopt_dense_ldl_module.f90.html" xlink:title="sqpopt_dense_ldl_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="534.43,-728.27 365.41,-728.27 365.41,-704 534.43,-704 534.43,-728.27"/>
+<text xml:space="preserve" text-anchor="middle" x="449.92" y="-712.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_dense_ldl_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_dense_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge75" class="edge">
+<title>sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_dense_ldl_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M624.77,-765.53C608.51,-761.74 591.13,-757.22 575.31,-752.13 558.81,-746.83 555.8,-742.49 539.31,-737.13 533.26,-735.17 526.91,-733.3 520.53,-731.55"/>
+<polygon fill="#000000" stroke="#000000" points="521.8,-728.26 511.24,-729.1 520.01,-735.03 521.8,-728.26"/>
+</g>
+<!-- sourcefile~sqpopt_mumps_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node23" class="node">
+<title>sourcefile~sqpopt_mumps_ldl_module.f90</title>
+<g id="a_sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node23"><a xlink:href="../sourcefile/sqpopt_mumps_ldl_module.f90.html" xlink:title="sqpopt_mumps_ldl_module.F90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="539.31,-770.27 360.54,-770.27 360.54,-746 539.31,-746 539.31,-770.27"/>
+<text xml:space="preserve" text-anchor="middle" x="449.92" y="-754.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_mumps_ldl_module.F90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_mumps_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge77" class="edge">
+<title>sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_mumps_ldl_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M582.12,-769.22C571.71,-768.34 561.16,-767.45 550.8,-766.57"/>
+<polygon fill="#000000" stroke="#000000" points="551.43,-763.11 541.17,-765.76 550.84,-770.09 551.43,-763.11"/>
+</g>
+<!-- sourcefile~sqpopt_qdldl_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node24" class="node">
+<title>sourcefile~sqpopt_qdldl_ldl_module.f90</title>
+<g id="a_sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node24"><a xlink:href="../sourcefile/sqpopt_qdldl_ldl_module.f90.html" xlink:title="sqpopt_qdldl_ldl_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="531.43,-850.27 368.41,-850.27 368.41,-826 531.43,-826 531.43,-850.27"/>
+<text xml:space="preserve" text-anchor="middle" x="449.92" y="-834.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qdldl_ldl_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_qdldl_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge78" class="edge">
+<title>sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_qdldl_ldl_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M631.28,-790.73C613.35,-794.85 593.47,-799.56 575.31,-804.13 552.67,-809.85 527.82,-816.55 506.33,-822.49"/>
+<polygon fill="#000000" stroke="#000000" points="505.59,-819.06 496.89,-825.11 507.46,-825.81 505.59,-819.06"/>
+</g>
+<!-- sourcefile~sqpopt_sparse_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node25" class="node">
+<title>sourcefile~sqpopt_sparse_ldl_module.f90</title>
+<g id="a_sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_node25"><a xlink:href="../sourcefile/sqpopt_sparse_ldl_module.f90.html" xlink:title="sqpopt_sparse_ldl_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="317.79,-770.27 145.77,-770.27 145.77,-746 317.79,-746 317.79,-770.27"/>
+<text xml:space="preserve" text-anchor="middle" x="231.78" y="-754.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_sparse_ldl_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_sparse_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge79" class="edge">
+<title>sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_sparse_ldl_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M582.17,-782.97C517.99,-784.79 434.42,-785.17 360.54,-779.13 343.45,-777.74 325.2,-775.31 308,-772.59"/>
+<polygon fill="#000000" stroke="#000000" points="308.8,-769.17 298.36,-771.01 307.66,-776.08 308.8,-769.17"/>
+</g>
+<!-- sourcefile~sqpopt_dense_ldl_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge82" class="edge">
+<title>sourcefile~sqpopt_dense_ldl_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M372.84,-728.76C330.45,-732.79 277.4,-732.79 232.78,-717.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M230.78,-717.13C168.14,-695.16 106.24,-646.03 74.46,-618.25"/>
+<polygon fill="#000000" stroke="#000000" points="76.89,-615.73 67.09,-611.71 72.24,-620.97 76.89,-615.73"/>
+</g>
+<!-- sourcefile~sqpopt_dense_ldl_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge84" class="edge">
+<title>sourcefile~sqpopt_dense_ldl_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M378.51,-703.55C371.79,-700.08 365.6,-695.69 360.54,-690.13 304.42,-628.54 353.76,-584.17 324.54,-506.13 304.94,-453.8 269.15,-398.57 248.54,-368.96"/>
+<polygon fill="#000000" stroke="#000000" points="251.43,-366.99 242.8,-360.84 245.71,-371.03 251.43,-366.99"/>
+</g>
+<!-- sourcefile~sqpopt_dense_ldl_module.f90&#45;&gt;sourcefile~sqpopt_dense_linalg_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge81" class="edge">
+<title>sourcefile~sqpopt_dense_ldl_module.f90&#45;&gt;sourcefile~sqpopt_dense_linalg_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M395.48,-703.57C383.68,-699.94 371.46,-695.48 360.54,-690.13 320.48,-670.53 279.59,-638.55 255.2,-617.93"/>
+<polygon fill="#000000" stroke="#000000" points="257.71,-615.47 247.84,-611.61 253.15,-620.78 257.71,-615.47"/>
+</g>
+<!-- sourcefile~sqpopt_dense_ldl_module.f90&#45;&gt;sourcefile~sqpopt_sparse_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge83" class="edge">
+<title>sourcefile~sqpopt_dense_ldl_module.f90&#45;&gt;sourcefile~sqpopt_sparse_ldl_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M384.07,-728.74C360.35,-733.35 333.3,-738.6 308.7,-743.38"/>
+<polygon fill="#000000" stroke="#000000" points="308.22,-739.91 299.07,-745.25 309.55,-746.78 308.22,-739.91"/>
+</g>
+<!-- sourcefile~sqpopt_mumps_ldl_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge85" class="edge">
+<title>sourcefile~sqpopt_mumps_ldl_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M376.53,-745.51C319.14,-735.32 246.39,-721.91 232.78,-717.13"/>
+</g>
+<!-- sourcefile~sqpopt_mumps_ldl_module.f90&#45;&gt;sourcefile~sqpopt_sparse_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge86" class="edge">
+<title>sourcefile~sqpopt_mumps_ldl_module.f90&#45;&gt;sourcefile~sqpopt_sparse_ldl_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M360.07,-758.13C350.01,-758.13 339.71,-758.13 329.55,-758.13"/>
+<polygon fill="#000000" stroke="#000000" points="329.66,-754.64 319.66,-758.14 329.66,-761.64 329.66,-754.64"/>
+</g>
+<!-- sourcefile~sqpopt_qdldl_ldl_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge87" class="edge">
+<title>sourcefile~sqpopt_qdldl_ldl_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M398.37,-850.74C339.23,-864.98 247.47,-885.3 232.78,-878.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M230.78,-878.13C124.88,-826.5 74.42,-678.74 58.4,-621.34"/>
+<polygon fill="#000000" stroke="#000000" points="61.86,-620.74 55.89,-611.99 55.1,-622.55 61.86,-620.74"/>
+</g>
+<!-- sourcefile~sqpopt_qdldl_ldl_module.f90&#45;&gt;sourcefile~sqpopt_sparse_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge88" class="edge">
+<title>sourcefile~sqpopt_qdldl_ldl_module.f90&#45;&gt;sourcefile~sqpopt_sparse_ldl_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M402.73,-825.62C389.05,-821.63 374.1,-816.98 360.54,-812.13 329.58,-801.08 295.32,-786.46 270.07,-775.22"/>
+<polygon fill="#000000" stroke="#000000" points="271.78,-772.15 261.22,-771.25 268.91,-778.54 271.78,-772.15"/>
+</g>
+<!-- sourcefile~sqpopt_sparse_ldl_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~EfferentGraph_edge89" class="edge">
+<title>sourcefile~sqpopt_sparse_ldl_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M166.31,-745.54C156.61,-741.89 147.14,-737.19 139.02,-731.13 100.4,-702.38 74.19,-650.88 61.44,-621.11"/>
+<polygon fill="#000000" stroke="#000000" points="64.7,-619.82 57.66,-611.91 58.23,-622.49 64.7,-619.82"/>
+</g>
+</g>
+</svg>
+</div>                <script>
+                  var pansourcefilesqpopt_trust_region_modulef90EfferentGraph = svgPanZoom('#sourcefilesqpopt_trust_region_modulef90EfferentGraph',
+                    {zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true,}
+                  );
+                </script>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#EfferentGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="EfferentGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="200pt" height="32pt"
+ viewBox="0.00 0.00 200.00 32.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 195.52,-28.27 195.52,4 -4,4"/>
+<!-- Source File -->
+<g id="node1" class="node">
+<title>Source File</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="69.27,-24.27 0,-24.27 0,0 69.27,0 69.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="34.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Source File</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node2" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="191.52,-24.27 87.75,-24.27 87.75,0 191.52,0 191.52,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="139.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a file to a file which it depends on. A file
+is dependent upon another if the latter must be compiled before the former
+can be.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Files dependent on this one</h3>
+          </div>
+          <div class="card-body">
+            <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: sourcefile~~sqpopt_trust_region_module.f90~~AfferentGraph Pages: 1 -->
+<svg id="sourcefilesqpopt_trust_region_modulef90AfferentGraph" width="641pt" height="55pt"
+ viewBox="0.00 0.00 641.00 55.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~AfferentGraph" class="graph" transform="scale(0.910085 0.910085) rotate(0) translate(4 56.3)">
+<title>sourcefile~~sqpopt_trust_region_module.f90~~AfferentGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-56.3 700.33,-56.3 700.33,4 -4,4"/>
+<!-- sourcefile~sqpopt_trust_region_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~AfferentGraph_node1" class="node">
+<title>sourcefile~sqpopt_trust_region_module.f90</title>
+<polygon fill="none" stroke="black" points="181.77,-44.27 0,-44.27 0,-20 181.77,-20 181.77,-44.27"/>
+<text xml:space="preserve" text-anchor="middle" x="90.89" y="-28.53" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_trust_region_module.f90</text>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~AfferentGraph_node2" class="node">
+<title>sourcefile~sqpopt_iterate_module.f90</title>
+<g id="a_sourcefile~~sqpopt_trust_region_module.f90~~AfferentGraph_node2"><a xlink:href="../sourcefile/sqpopt_iterate_module.f90.html" xlink:title="sqpopt_iterate_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="371.79,-24.27 217.77,-24.27 217.77,0 371.79,0 371.79,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="294.78" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_iterate_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_trust_region_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~AfferentGraph_edge1" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_trust_region_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M217.45,-19.7C209.63,-20.47 201.61,-21.27 193.57,-22.06"/>
+<polygon fill="#000000" stroke="#000000" points="193.35,-18.57 183.74,-23.04 194.04,-25.53 193.35,-18.57"/>
+</g>
+<!-- sourcefile~sqpopt_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~AfferentGraph_node3" class="node">
+<title>sourcefile~sqpopt_module.f90</title>
+<g id="a_sourcefile~~sqpopt_trust_region_module.f90~~AfferentGraph_node3"><a xlink:href="../sourcefile/sqpopt_module.f90.html" xlink:title="sqpopt_module.F90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="523.56,-24.27 407.79,-24.27 407.79,0 523.56,0 523.56,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="465.68" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_module.F90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_trust_region_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~AfferentGraph_edge2" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_trust_region_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M431.26,-24.71C397.58,-36.27 343.84,-51.69 295.78,-52.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M293.78,-52.13C259.45,-52.46 221.99,-49.63 188.76,-46.01"/>
+<polygon fill="#000000" stroke="#000000" points="189.5,-42.57 179.17,-44.93 188.71,-49.53 189.5,-42.57"/>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_iterate_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~AfferentGraph_edge4" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_iterate_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M407.49,-12.13C399.75,-12.13 391.67,-12.13 383.55,-12.13"/>
+<polygon fill="#000000" stroke="#000000" points="383.58,-8.64 373.58,-12.14 383.58,-15.64 383.58,-8.64"/>
+</g>
+<!-- sourcefile~sqpopt_nlls_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~AfferentGraph_node4" class="node">
+<title>sourcefile~sqpopt_nlls_module.f90</title>
+<g id="a_sourcefile~~sqpopt_trust_region_module.f90~~AfferentGraph_node4"><a xlink:href="../sourcefile/sqpopt_nlls_module.f90.html" xlink:title="sqpopt_nlls_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="696.33,-44.27 559.56,-44.27 559.56,-20 696.33,-20 696.33,-44.27"/>
+<text xml:space="preserve" text-anchor="middle" x="627.95" y="-28.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_nlls_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_trust_region_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~AfferentGraph_edge3" class="edge">
+<title>sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_trust_region_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M559.15,-38.26C492.26,-43.82 387.07,-51.28 295.78,-52.13"/>
+</g>
+<!-- sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_module.f90 -->
+<g id="sourcefile~~sqpopt_trust_region_module.f90~~AfferentGraph_edge5" class="edge">
+<title>sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M559.44,-23.71C551.42,-22.71 543.22,-21.69 535.18,-20.68"/>
+<polygon fill="#000000" stroke="#000000" points="535.82,-17.24 525.46,-19.47 534.95,-24.18 535.82,-17.24"/>
+</g>
+</g>
+</svg>
+</div>                <script>
+                  var pansourcefilesqpopt_trust_region_modulef90AfferentGraph = svgPanZoom('#sourcefilesqpopt_trust_region_modulef90AfferentGraph',
+                    {zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true,}
+                  );
+                </script>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#AfferentGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="AfferentGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="200pt" height="32pt"
+ viewBox="0.00 0.00 200.00 32.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 195.52,-28.27 195.52,4 -4,4"/>
+<!-- Source File -->
+<g id="node1" class="node">
+<title>Source File</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="69.27,-24.27 0,-24.27 0,0 69.27,0 69.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="34.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Source File</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node2" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="191.52,-24.27 87.75,-24.27 87.75,0 191.52,0 191.52,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="139.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a file to a file which it depends on. A file
+is dependent upon another if the latter must be compiled before the former
+can be.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+          </div>
+        </div>
+<br>
+      <section>
+        <h2><span class="anchor" id="src"></span>Source Code</h2>
+        <div class="hl codehilite"><pre><span></span><a id="ln-1" name="ln-1" href="#ln-1"></a><span class="c">!*******************************************************************************</span>
+<a id="ln-2" name="ln-2" href="#ln-2"></a><span class="c">!&gt; author: Jacob Williams</span>
+<a id="ln-3" name="ln-3" href="#ln-3"></a><span class="c">!  license: MIT</span>
+<a id="ln-4" name="ln-4" href="#ln-4"></a><span class="c">!</span>
+<a id="ln-5" name="ln-5" href="#ln-5"></a><span class="c">!  Opt-in **trust-region** globalization strategy for the SQP major</span>
+<a id="ln-6" name="ln-6" href="#ln-6"></a><span class="c">!  iteration -- an alternative to the line-search-based approach in</span>
+<a id="ln-7" name="ln-7" href="#ln-7"></a><span class="c">!  [[sqpopt_linesearch_module]] (see `plan/TRUST_REGION_PLAN.md` for the</span>
+<a id="ln-8" name="ln-8" href="#ln-8"></a><span class="c">!  full design rationale). Disabled by default (`sqpopt_trust_region_type</span>
+<a id="ln-9" name="ln-9" href="#ln-9"></a><span class="c">!  %enabled = .false.`), in which case `sqpopt_iterate_module` behaves</span>
+<a id="ln-10" name="ln-10" href="#ln-10"></a><span class="c">!  exactly as if this module did not exist.</span>
+<a id="ln-11" name="ln-11" href="#ln-11"></a><span class="c">!</span>
+<a id="ln-12" name="ln-12" href="#ln-12"></a><span class="c">!  When enabled, a major iteration no longer solves the linearized QP</span>
+<a id="ln-13" name="ln-13" href="#ln-13"></a><span class="c">!  once and then searches for a step length `alpha` along the resulting</span>
+<a id="ln-14" name="ln-14" href="#ln-14"></a><span class="c">!  `p`. Instead, the QP is re-solved as needed with a **trust-region</span>
+<a id="ln-15" name="ln-15" href="#ln-15"></a><span class="c">!  radius**: the variable bounds passed to `qp_solver%solve` are</span>
+<a id="ln-16" name="ln-16" href="#ln-16"></a><span class="c">!  temporarily tightened to `max(x_lb,x-radius)`/`min(x_ub,x+radius)`</span>
+<a id="ln-17" name="ln-17" href="#ln-17"></a><span class="c">!  (an \( \ell_\infty \) ball around `x`, intersected with the problem&#39;s</span>
+<a id="ln-18" name="ln-18" href="#ln-18"></a><span class="c">!  own bounds -- exactly the box constraint Fletcher &amp; Leyffer&#39;s own</span>
+<a id="ln-19" name="ln-19" href="#ln-19"></a><span class="c">!  trust-region QP uses, and for the same reason: it keeps the QP a</span>
+<a id="ln-20" name="ln-20" href="#ln-20"></a><span class="c">!  simple bound-constrained problem, not a genuinely quadratically-</span>
+<a id="ln-21" name="ln-21" href="#ln-21"></a><span class="c">!  constrained one). No changes are needed to any of the three</span>
+<a id="ln-22" name="ln-22" href="#ln-22"></a><span class="c">!  `qp_solver_mode`s to support this, since they all already enforce</span>
+<a id="ln-23" name="ln-23" href="#ln-23"></a><span class="c">!  variable bounds.</span>
+<a id="ln-24" name="ln-24" href="#ln-24"></a><span class="c">!</span>
+<a id="ln-25" name="ln-25" href="#ln-25"></a><span class="c">!  The resulting step `p` is tested for acceptance (and, if it is rejected</span>
+<a id="ln-26" name="ln-26" href="#ln-26"></a><span class="c">!  without reducing the constraint violation, so is its second-order</span>
+<a id="ln-27" name="ln-27" href="#ln-27"></a><span class="c">!  correction, see [[sqpopt_soc_module]]), and the radius is grown or</span>
+<a id="ln-28" name="ln-28" href="#ln-28"></a><span class="c">!  shrunk accordingly:</span>
+<a id="ln-29" name="ln-29" href="#ln-29"></a><span class="c">!</span>
+<a id="ln-30" name="ln-30" href="#ln-30"></a><span class="c">!  * if `linesearch%mode == sqpopt_linesearch_filter`, acceptance uses the</span>
+<a id="ln-31" name="ln-31" href="#ln-31"></a><span class="c">!    same filter test as the filter line search (`linesearch%filter%accept`,</span>
+<a id="ln-32" name="ln-32" href="#ln-32"></a><span class="c">!    with the quadratic model&#39;s predicted decrease `q` in place of</span>
+<a id="ln-33" name="ln-33" href="#ln-33"></a><span class="c">!    \( g^Tp \) in the switching condition) -- a trust-region filter-SQP</span>
+<a id="ln-34" name="ln-34" href="#ln-34"></a><span class="c">!    method in the spirit of Fletcher &amp; Leyffer (`references/fletcher.pdf`).</span>
+<a id="ln-35" name="ln-35" href="#ln-35"></a><span class="c">!  * if `linesearch%mode == sqpopt_linesearch_funnel`, acceptance uses the</span>
+<a id="ln-36" name="ln-36" href="#ln-36"></a><span class="c">!    funnel test of the funnel line search (`linesearch%funnel%accept`,</span>
+<a id="ln-37" name="ln-37" href="#ln-37"></a><span class="c">!    with `q` as the predicted decrease) -- the trust-region funnel SQP</span>
+<a id="ln-38" name="ln-38" href="#ln-38"></a><span class="c">!    method of Kiessling, Leyffer &amp; Vanaret (Uno&#39;s `funnelsqp` preset).</span>
+<a id="ln-39" name="ln-39" href="#ln-39"></a><span class="c">!  * otherwise, acceptance uses the classical trust-region-SQP ratio test</span>
+<a id="ln-40" name="ln-40" href="#ln-40"></a><span class="c">!    (Nocedal &amp; Wright, *Numerical Optimization*, Ch. 18): \( \rho =</span>
+<a id="ln-41" name="ln-41" href="#ln-41"></a><span class="c">!    \text{ared}/\text{pred} \), the ratio of the actual to the</span>
+<a id="ln-42" name="ln-42" href="#ln-42"></a><span class="c">!    predicted decrease in the merit function selected by</span>
+<a id="ln-43" name="ln-43" href="#ln-43"></a><span class="c">!    `linesearch%merit%mode`, accepted when \( \rho \ge \eta_1 \).</span>
+<a id="ln-44" name="ln-44" href="#ln-44"></a><span class="c">!</span>
+<a id="ln-45" name="ln-45" href="#ln-45"></a><span class="c">!  If a step is rejected, the radius is shrunk (`shrink_factor`) and the</span>
+<a id="ln-46" name="ln-46" href="#ln-46"></a><span class="c">!  QP is re-solved (bounded by `max_retries` retries per major iteration)</span>
+<a id="ln-47" name="ln-47" href="#ln-47"></a><span class="c">!  -- there is no `alpha` to backtrack along, since a genuinely different</span>
+<a id="ln-48" name="ln-48" href="#ln-48"></a><span class="c">!  `p` is computed each time. Trial points where `f` or `c` is not finite</span>
+<a id="ln-49" name="ln-49" href="#ln-49"></a><span class="c">!  are always rejected. If every retry is rejected, no step is taken</span>
+<a id="ln-50" name="ln-50" href="#ln-50"></a><span class="c">!  (`istat=sqpopt_line_search_failed`), as for a failed line search.</span>
+<a id="ln-51" name="ln-51" href="#ln-51"></a><span class="c">!</span>
+<a id="ln-52" name="ln-52" href="#ln-52"></a><span class="c">!  Because this bypasses `linesearch%search` entirely, the line-search-</span>
+<a id="ln-53" name="ln-53" href="#ln-53"></a><span class="c">!  specific options (`major_step_limit`, `alpha_min`/`sigma`/`backtrack`/</span>
+<a id="ln-54" name="ln-54" href="#ln-54"></a><span class="c">!  `max_ls_iter`, and the watchdog fields) are not used when trust region</span>
+<a id="ln-55" name="ln-55" href="#ln-55"></a><span class="c">!  is enabled -- there is no `alpha`, so nothing to cap or backtrack.</span>
+<a id="ln-56" name="ln-56" href="#ln-56"></a><span class="c">!</span>
+<a id="ln-57" name="ln-57" href="#ln-57"></a><span class="c">!  At `options%print_level &gt;= 3`, every QP re-solve (radius, QP status, and</span>
+<a id="ln-58" name="ln-58" href="#ln-58"></a><span class="c">!  the trial point&#39;s ratio, or violation and objective, and whether it was</span>
+<a id="ln-59" name="ln-59" href="#ln-59"></a><span class="c">!  accepted) is written to the detailed log (`log`, see</span>
+<a id="ln-60" name="ln-60" href="#ln-60"></a><span class="c">!  [[sqpopt_log_module]]).</span>
+<a id="ln-61" name="ln-61" href="#ln-61"></a>
+<a id="ln-62" name="ln-62" href="#ln-62"></a><span class="w">    </span><span class="k">module </span><span class="n">sqpopt_trust_region_module</span><span class="w"></span>
+<a id="ln-63" name="ln-63" href="#ln-63"></a>
+<a id="ln-64" name="ln-64" href="#ln-64"></a><span class="w">    </span><span class="k">use </span><span class="n">sqpopt_kinds</span><span class="p">,</span><span class="w">             </span><span class="k">only</span><span class="p">:</span><span class="w"> </span><span class="n">wp</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">sqpopt_module_wp</span><span class="w"></span>
+<a id="ln-65" name="ln-65" href="#ln-65"></a><span class="w">    </span><span class="k">use </span><span class="n">sqpopt_types_module</span><span class="p">,</span><span class="w">      </span><span class="k">only</span><span class="p">:</span><span class="w"> </span><span class="n">sqpopt_sparse_matrix</span><span class="p">,</span><span class="w"> </span><span class="n">sqpopt_success</span><span class="p">,</span><span class="w"> </span><span class="n">sqpopt_line_search_failed</span><span class="p">,</span><span class="w"> </span><span class="n">sqpopt_all_finite</span><span class="w"></span>
+<a id="ln-66" name="ln-66" href="#ln-66"></a><span class="w">    </span><span class="k">use </span><span class="n">sqpopt_problem_module</span><span class="p">,</span><span class="w">    </span><span class="k">only</span><span class="p">:</span><span class="w"> </span><span class="n">sqpopt_problem_type</span><span class="w"></span>
+<a id="ln-67" name="ln-67" href="#ln-67"></a><span class="w">    </span><span class="k">use </span><span class="n">sqpopt_hessian_module</span><span class="p">,</span><span class="w">    </span><span class="k">only</span><span class="p">:</span><span class="w"> </span><span class="n">sqpopt_hessian_type</span><span class="w"></span>
+<a id="ln-68" name="ln-68" href="#ln-68"></a><span class="w">    </span><span class="k">use </span><span class="n">sqpopt_qp_solver_module</span><span class="p">,</span><span class="w">  </span><span class="k">only</span><span class="p">:</span><span class="w"> </span><span class="n">sqpopt_qp_solver_type</span><span class="w"></span>
+<a id="ln-69" name="ln-69" href="#ln-69"></a><span class="w">    </span><span class="k">use </span><span class="n">sqpopt_linesearch_module</span><span class="p">,</span><span class="w"> </span><span class="k">only</span><span class="p">:</span><span class="w"> </span><span class="n">sqpopt_linesearch_type</span><span class="p">,</span><span class="w"> </span><span class="n">sqpopt_linesearch_filter</span><span class="p">,</span><span class="w"> </span><span class="n">sqpopt_linesearch_funnel</span><span class="p">,</span><span class="w"> </span><span class="p">&amp;</span><span class="w"></span>
+<a id="ln-70" name="ln-70" href="#ln-70"></a><span class="w">                                         </span><span class="n">l1_violation</span><span class="w"></span>
+<a id="ln-71" name="ln-71" href="#ln-71"></a><span class="w">    </span><span class="k">use </span><span class="n">sqpopt_linalg_module</span><span class="p">,</span><span class="w">     </span><span class="k">only</span><span class="p">:</span><span class="w"> </span><span class="n">sparse_matvec</span><span class="w"></span>
+<a id="ln-72" name="ln-72" href="#ln-72"></a><span class="w">    </span><span class="k">use </span><span class="n">sqpopt_soc_module</span><span class="p">,</span><span class="w">        </span><span class="k">only</span><span class="p">:</span><span class="w"> </span><span class="n">soc_step</span><span class="w"></span>
+<a id="ln-73" name="ln-73" href="#ln-73"></a><span class="w">    </span><span class="k">use </span><span class="n">sqpopt_kkt_module</span><span class="p">,</span><span class="w">           </span><span class="k">only</span><span class="p">:</span><span class="w"> </span><span class="n">sqpopt_kkt_type</span><span class="w"></span>
+<a id="ln-74" name="ln-74" href="#ln-74"></a><span class="w">    </span><span class="k">use </span><span class="n">sqpopt_inertia_module</span><span class="p">,</span><span class="w">       </span><span class="k">only</span><span class="p">:</span><span class="w"> </span><span class="n">sqpopt_inertia_type</span><span class="w"></span>
+<a id="ln-75" name="ln-75" href="#ln-75"></a><span class="w">    </span><span class="k">use </span><span class="n">sqpopt_least_squares_module</span><span class="p">,</span><span class="w"> </span><span class="k">only</span><span class="p">:</span><span class="w"> </span><span class="n">sqpopt_least_squares_type</span><span class="w"></span>
+<a id="ln-76" name="ln-76" href="#ln-76"></a><span class="w">    </span><span class="k">use </span><span class="n">sqpopt_log_module</span><span class="p">,</span><span class="w">        </span><span class="k">only</span><span class="p">:</span><span class="w"> </span><span class="n">sqpopt_log_type</span><span class="p">,</span><span class="w"> </span><span class="n">sqpopt_log_detail</span><span class="p">,</span><span class="w"> </span><span class="n">fmt_e</span><span class="p">,</span><span class="w"> </span><span class="n">fmt_g</span><span class="p">,</span><span class="w"> </span><span class="n">qp_status_text</span><span class="w"></span>
+<a id="ln-77" name="ln-77" href="#ln-77"></a>
+<a id="ln-78" name="ln-78" href="#ln-78"></a><span class="w">    </span><span class="k">implicit none</span>
+<a id="ln-79" name="ln-79" href="#ln-79"></a>
+<a id="ln-80" name="ln-80" href="#ln-80"></a><span class="k">    private</span>
+<a id="ln-81" name="ln-81" href="#ln-81"></a>
+<a id="ln-82" name="ln-82" href="#ln-82"></a><span class="k">    type</span><span class="p">,</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">sqpopt_trust_region_type</span><span class="w"></span>
+<a id="ln-83" name="ln-83" href="#ln-83"></a><span class="w">        </span><span class="c">!! options and state for trust-region-based globalization</span>
+<a id="ln-84" name="ln-84" href="#ln-84"></a><span class="w">        </span><span class="c">!! (an alternative to `linesearch%search`, see module docs).</span>
+<a id="ln-85" name="ln-85" href="#ln-85"></a>
+<a id="ln-86" name="ln-86" href="#ln-86"></a><span class="w">        </span><span class="kt">logical</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">enabled</span><span class="w">       </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w">    </span><span class="c">!! if true, use trust-region radius management instead of a line search</span>
+<a id="ln-87" name="ln-87" href="#ln-87"></a><span class="w">        </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">radius0</span><span class="w">       </span><span class="o">=</span><span class="w"> </span><span class="mf">1.0_wp</span><span class="w">      </span><span class="c">!! initial trust-region radius</span>
+<a id="ln-88" name="ln-88" href="#ln-88"></a><span class="w">        </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">radius_min</span><span class="w">    </span><span class="o">=</span><span class="w"> </span><span class="mf">1.0e-8_wp</span><span class="w">   </span><span class="c">!! below this, a major iteration&#39;s retries give up (no step is taken)</span>
+<a id="ln-89" name="ln-89" href="#ln-89"></a><span class="w">        </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">radius_max</span><span class="w">    </span><span class="o">=</span><span class="w"> </span><span class="mf">1.0e3_wp</span><span class="w">    </span><span class="c">!! ceiling on the radius</span>
+<a id="ln-90" name="ln-90" href="#ln-90"></a><span class="w">        </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">eta1</span><span class="w">          </span><span class="o">=</span><span class="w"> </span><span class="mf">0.1_wp</span><span class="w">      </span><span class="c">!! ratio threshold to accept a step (merit-ratio acceptance only)</span>
+<a id="ln-91" name="ln-91" href="#ln-91"></a><span class="w">        </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">eta2</span><span class="w">          </span><span class="o">=</span><span class="w"> </span><span class="mf">0.75_wp</span><span class="w">     </span><span class="c">!! ratio threshold to also grow the radius (merit-ratio acceptance only)</span>
+<a id="ln-92" name="ln-92" href="#ln-92"></a><span class="w">        </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">shrink_factor</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.5_wp</span><span class="w">      </span><span class="c">!! `radius *= shrink_factor` on a rejected step</span>
+<a id="ln-93" name="ln-93" href="#ln-93"></a><span class="w">        </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">expand_factor</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">2.0_wp</span><span class="w">      </span><span class="c">!! `radius *= expand_factor` on a step that used the full radius and was accepted</span>
+<a id="ln-94" name="ln-94" href="#ln-94"></a><span class="w">        </span><span class="kt">integer</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">max_retries</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="mi">20</span><span class="w">          </span><span class="c">!! maximum QP re-solves (with a shrinking radius) per major iteration</span>
+<a id="ln-95" name="ln-95" href="#ln-95"></a>
+<a id="ln-96" name="ln-96" href="#ln-96"></a><span class="w">        </span><span class="c">! internal state (persists across major iterations, like the watchdog/filter state on `sqpopt_linesearch_type`):</span>
+<a id="ln-97" name="ln-97" href="#ln-97"></a><span class="w">        </span><span class="kt">logical</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">ready</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"> </span><span class="c">!! whether `radius` has been initialized from `radius0` yet</span>
+<a id="ln-98" name="ln-98" href="#ln-98"></a><span class="w">        </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">radius</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="w">  </span><span class="c">!! current trust-region radius</span>
+<a id="ln-99" name="ln-99" href="#ln-99"></a>
+<a id="ln-100" name="ln-100" href="#ln-100"></a><span class="w">        </span><span class="c">! the detailed log (set by `solve`), and whether the last step was second-order corrected (output):</span>
+<a id="ln-101" name="ln-101" href="#ln-101"></a><span class="w">        </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_log_type</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="nb">log</span>
+<a id="ln-102" name="ln-102" href="#ln-102"></a><span class="nb">        </span><span class="kt">logical</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">used_soc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"></span>
+<a id="ln-103" name="ln-103" href="#ln-103"></a>
+<a id="ln-104" name="ln-104" href="#ln-104"></a><span class="w">        </span><span class="k">contains</span>
+<a id="ln-105" name="ln-105" href="#ln-105"></a>
+<a id="ln-106" name="ln-106" href="#ln-106"></a><span class="k">        procedure</span><span class="p">,</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">step</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">trust_region_step</span><span class="w"></span>
+<a id="ln-107" name="ln-107" href="#ln-107"></a>
+<a id="ln-108" name="ln-108" href="#ln-108"></a><span class="w">    </span><span class="k">end type </span><span class="n">sqpopt_trust_region_type</span><span class="w"></span>
+<a id="ln-109" name="ln-109" href="#ln-109"></a>
+<a id="ln-110" name="ln-110" href="#ln-110"></a><span class="w">    </span><span class="k">contains</span><span class="w"></span>
+<a id="ln-111" name="ln-111" href="#ln-111"></a><span class="c">!*******************************************************************************</span>
+<a id="ln-112" name="ln-112" href="#ln-112"></a>
+<a id="ln-113" name="ln-113" href="#ln-113"></a><span class="c">!*******************************************************************************</span>
+<a id="ln-114" name="ln-114" href="#ln-114"></a><span class="c">!&gt;</span>
+<a id="ln-115" name="ln-115" href="#ln-115"></a><span class="c">!  attempt to find and accept a trust-region step, re-solving the QP</span>
+<a id="ln-116" name="ln-116" href="#ln-116"></a><span class="c">!  subproblem with a shrinking radius as needed (see the module-level</span>
+<a id="ln-117" name="ln-117" href="#ln-117"></a><span class="c">!  documentation for the full algorithm). Updates `me%radius` in place.</span>
+<a id="ln-118" name="ln-118" href="#ln-118"></a>
+<a id="ln-119" name="ln-119" href="#ln-119"></a><span class="w">    </span><span class="k">subroutine </span><span class="n">trust_region_step</span><span class="p">(</span><span class="n">me</span><span class="p">,</span><span class="w"> </span><span class="n">problem</span><span class="p">,</span><span class="w"> </span><span class="n">hessian</span><span class="p">,</span><span class="w"> </span><span class="n">qp_solver</span><span class="p">,</span><span class="w"> </span><span class="n">linesearch</span><span class="p">,</span><span class="w"> </span><span class="p">&amp;</span><span class="w"></span>
+<a id="ln-120" name="ln-120" href="#ln-120"></a><span class="w">                                  </span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">g</span><span class="p">,</span><span class="w"> </span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">jac</span><span class="p">,</span><span class="w"> </span><span class="n">x_new</span><span class="p">,</span><span class="w"> </span><span class="n">new_lambda</span><span class="p">,</span><span class="w"> </span><span class="n">alpha</span><span class="p">,</span><span class="w"> </span><span class="n">istat</span><span class="p">,</span><span class="w"> </span><span class="n">kkt</span><span class="p">,</span><span class="w"> </span><span class="n">inertia</span><span class="p">,</span><span class="w"> </span><span class="n">least_squares</span><span class="p">)</span><span class="w"></span>
+<a id="ln-121" name="ln-121" href="#ln-121"></a>
+<a id="ln-122" name="ln-122" href="#ln-122"></a><span class="w">    </span><span class="k">class</span><span class="p">(</span><span class="n">sqpopt_trust_region_type</span><span class="p">),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">me</span><span class="w"></span>
+<a id="ln-123" name="ln-123" href="#ln-123"></a><span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_problem_type</span><span class="p">),</span><span class="w">      </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">problem</span><span class="w">    </span><span class="c">!! problem definition</span>
+<a id="ln-124" name="ln-124" href="#ln-124"></a><span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_hessian_type</span><span class="p">),</span><span class="w">      </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">hessian</span><span class="w">    </span><span class="c">!! matrix-free Hessian approximation</span>
+<a id="ln-125" name="ln-125" href="#ln-125"></a><span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_qp_solver_type</span><span class="p">),</span><span class="w">    </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">qp_solver</span><span class="w">  </span><span class="c">!! QP subproblem solver</span>
+<a id="ln-126" name="ln-126" href="#ln-126"></a><span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_linesearch_type</span><span class="p">),</span><span class="w">   </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">linesearch</span><span class="w"> </span><span class="c">!! supplies the merit function (`merit`, ratio test) or</span>
+<a id="ln-127" name="ln-127" href="#ln-127"></a><span class="w">                                                                  </span><span class="c">!! the filter (`filter`, `mode==sqpopt_linesearch_filter`)</span>
+<a id="ln-128" name="ln-128" href="#ln-128"></a><span class="w">                                                                  </span><span class="c">!! or funnel (`funnel`, `mode==sqpopt_linesearch_funnel`)</span>
+<a id="ln-129" name="ln-129" href="#ln-129"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">         </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">x</span><span class="w">       </span><span class="c">!! current point `dimension(n)`</span>
+<a id="ln-130" name="ln-130" href="#ln-130"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">         </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">g</span><span class="w">       </span><span class="c">!! objective gradient at `x` `dimension(n)`</span>
+<a id="ln-131" name="ln-131" href="#ln-131"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">                       </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">f</span><span class="w">       </span><span class="c">!! objective value at `x`</span>
+<a id="ln-132" name="ln-132" href="#ln-132"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">         </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">c</span><span class="w">       </span><span class="c">!! constraint values at `x` `dimension(m)`</span>
+<a id="ln-133" name="ln-133" href="#ln-133"></a><span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_sparse_matrix</span><span class="p">),</span><span class="w">     </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">jac</span><span class="w">     </span><span class="c">!! constraint Jacobian at `x`, `dimension(m,n)`</span>
+<a id="ln-134" name="ln-134" href="#ln-134"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">         </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">x_new</span><span class="w">      </span><span class="c">!! new point `dimension(n)` (`x` if no retry was accepted)</span>
+<a id="ln-135" name="ln-135" href="#ln-135"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">         </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">new_lambda</span><span class="w"> </span><span class="c">!! new multipliers `dimension(m)`, from the QP solve that produced `x_new`</span>
+<a id="ln-136" name="ln-136" href="#ln-136"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">                       </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">alpha</span><span class="w">      </span><span class="c">!! `1` if a step was accepted, `0` otherwise (informational only -- there</span>
+<a id="ln-137" name="ln-137" href="#ln-137"></a><span class="w">                                                               </span><span class="c">!! is no line-search step length under trust-region globalization)</span>
+<a id="ln-138" name="ln-138" href="#ln-138"></a><span class="w">    </span><span class="kt">integer</span><span class="p">,</span><span class="w">                        </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">istat</span><span class="w">      </span><span class="c">!! status code (see [[sqpopt_types_module]])</span>
+<a id="ln-139" name="ln-139" href="#ln-139"></a><span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_kkt_type</span><span class="p">),</span><span class="w"> </span><span class="k">optional</span><span class="p">,</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">kkt</span><span class="w">     </span><span class="c">!! the KKT matrix, for the QP solver&#39;s direct method</span>
+<a id="ln-140" name="ln-140" href="#ln-140"></a><span class="w">                                                              </span><span class="c">!! (see [[solve_qp_subproblem]])</span>
+<a id="ln-141" name="ln-141" href="#ln-141"></a><span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_inertia_type</span><span class="p">),</span><span class="w"> </span><span class="k">optional</span><span class="p">,</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">inertia</span><span class="w"> </span><span class="c">!! the inertia control, for the same</span>
+<a id="ln-142" name="ln-142" href="#ln-142"></a><span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_least_squares_type</span><span class="p">),</span><span class="w"> </span><span class="k">optional</span><span class="p">,</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">least_squares</span><span class="w"> </span><span class="c">!! the direct least-squares solver, for</span>
+<a id="ln-143" name="ln-143" href="#ln-143"></a><span class="w">                                                              </span><span class="c">!! the second-order correction (see [[soc_step]])</span>
+<a id="ln-144" name="ln-144" href="#ln-144"></a>
+<a id="ln-145" name="ln-145" href="#ln-145"></a><span class="w">    </span><span class="kt">integer</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">retry</span><span class="p">,</span><span class="w"> </span><span class="n">qp_istat</span><span class="w"></span>
+<a id="ln-146" name="ln-146" href="#ln-146"></a><span class="w">    </span><span class="kt">logical</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">use_filter</span><span class="p">,</span><span class="w"> </span><span class="n">use_funnel</span><span class="p">,</span><span class="w"> </span><span class="k">accept</span><span class="p">,</span><span class="w"> </span><span class="n">ok</span><span class="p">,</span><span class="w"> </span><span class="n">soc_ok</span><span class="p">,</span><span class="w"> </span><span class="n">f_type</span><span class="w"></span>
+<a id="ln-147" name="ln-147" href="#ln-147"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">allocatable</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">p_soc</span><span class="p">,</span><span class="w"> </span><span class="n">x_lb2</span><span class="p">,</span><span class="w"> </span><span class="n">x_ub2</span><span class="p">,</span><span class="w"> </span><span class="n">hp</span><span class="w"></span>
+<a id="ln-148" name="ln-148" href="#ln-148"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">allocatable</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">jp</span><span class="p">,</span><span class="w"> </span><span class="n">c_trial</span><span class="p">,</span><span class="w"> </span><span class="n">c_lin</span><span class="w"></span>
+<a id="ln-149" name="ln-149" href="#ln-149"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">f_trial</span><span class="p">,</span><span class="w"> </span><span class="n">h0</span><span class="p">,</span><span class="w"> </span><span class="n">h_trial</span><span class="p">,</span><span class="w"> </span><span class="n">q</span><span class="p">,</span><span class="w"> </span><span class="n">pred</span><span class="p">,</span><span class="w"> </span><span class="n">ratio</span><span class="p">,</span><span class="w"> </span><span class="n">phi0</span><span class="p">,</span><span class="w"> </span><span class="n">phi_model</span><span class="w"></span>
+<a id="ln-150" name="ln-150" href="#ln-150"></a>
+<a id="ln-151" name="ln-151" href="#ln-151"></a><span class="w">    </span><span class="k">allocate</span><span class="p">(</span><span class="n">p</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">x</span><span class="p">)),</span><span class="w"> </span><span class="n">p_soc</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">x</span><span class="p">)),</span><span class="w"> </span><span class="n">x_lb2</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">x</span><span class="p">)),</span><span class="w"> </span><span class="n">x_ub2</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">x</span><span class="p">)),</span><span class="w"> </span><span class="n">hp</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">x</span><span class="p">)))</span><span class="w"></span>
+<a id="ln-152" name="ln-152" href="#ln-152"></a><span class="w">    </span><span class="k">allocate</span><span class="p">(</span><span class="n">jp</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)),</span><span class="w"> </span><span class="n">c_trial</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)),</span><span class="w"> </span><span class="n">c_lin</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)))</span><span class="w"></span>
+<a id="ln-153" name="ln-153" href="#ln-153"></a>
+<a id="ln-154" name="ln-154" href="#ln-154"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(.</span><span class="nb">not</span><span class="p">.</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">ready</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-155" name="ln-155" href="#ln-155"></a><span class="k">        </span><span class="n">me</span><span class="p">%</span><span class="n">radius</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">radius0</span><span class="w"></span>
+<a id="ln-156" name="ln-156" href="#ln-156"></a><span class="w">        </span><span class="n">me</span><span class="p">%</span><span class="n">ready</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">true</span><span class="p">.</span><span class="w"></span>
+<a id="ln-157" name="ln-157" href="#ln-157"></a><span class="w">    </span><span class="k">end if</span>
+<a id="ln-158" name="ln-158" href="#ln-158"></a>
+<a id="ln-159" name="ln-159" href="#ln-159"></a><span class="k">    </span><span class="n">me</span><span class="p">%</span><span class="n">used_soc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"></span>
+<a id="ln-160" name="ln-160" href="#ln-160"></a><span class="w">    </span><span class="n">use_funnel</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">linesearch</span><span class="p">%</span><span class="n">mode</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">sqpopt_linesearch_funnel</span><span class="p">)</span><span class="w"></span>
+<a id="ln-161" name="ln-161" href="#ln-161"></a><span class="w">    </span><span class="n">use_filter</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">linesearch</span><span class="p">%</span><span class="n">mode</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">sqpopt_linesearch_filter</span><span class="p">)</span><span class="w"> </span><span class="p">.</span><span class="nb">or</span><span class="p">.</span><span class="w"> </span><span class="n">use_funnel</span><span class="w"> </span><span class="c">!! (no merit function in either)</span>
+<a id="ln-162" name="ln-162" href="#ln-162"></a><span class="w">    </span><span class="n">h0</span><span class="w">         </span><span class="o">=</span><span class="w"> </span><span class="n">l1_violation</span><span class="p">(</span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">problem</span><span class="p">%</span><span class="n">c_lb</span><span class="p">,</span><span class="w"> </span><span class="n">problem</span><span class="p">%</span><span class="n">c_ub</span><span class="p">)</span><span class="w"></span>
+<a id="ln-163" name="ln-163" href="#ln-163"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">use_funnel</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-164" name="ln-164" href="#ln-164"></a><span class="k">        call </span><span class="n">linesearch</span><span class="p">%</span><span class="n">funnel</span><span class="p">%</span><span class="n">prepare</span><span class="p">(</span><span class="n">h0</span><span class="p">)</span><span class="w"></span>
+<a id="ln-165" name="ln-165" href="#ln-165"></a><span class="w">    </span><span class="k">else if</span><span class="w"> </span><span class="p">(</span><span class="n">use_filter</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-166" name="ln-166" href="#ln-166"></a><span class="k">        call </span><span class="n">linesearch</span><span class="p">%</span><span class="n">filter</span><span class="p">%</span><span class="n">prepare</span><span class="p">(</span><span class="n">h0</span><span class="p">)</span><span class="w"></span>
+<a id="ln-167" name="ln-167" href="#ln-167"></a><span class="w">    </span><span class="k">end if</span>
+<a id="ln-168" name="ln-168" href="#ln-168"></a>
+<a id="ln-169" name="ln-169" href="#ln-169"></a><span class="k">    do </span><span class="n">retry</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">max_retries</span><span class="w"></span>
+<a id="ln-170" name="ln-170" href="#ln-170"></a>
+<a id="ln-171" name="ln-171" href="#ln-171"></a><span class="w">        </span><span class="c">! (the box, within the variables&#39; bounds and their step limits, if any)</span>
+<a id="ln-172" name="ln-172" href="#ln-172"></a><span class="w">        </span><span class="k">call </span><span class="n">problem</span><span class="p">%</span><span class="n">step_bounds</span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">x_lb2</span><span class="p">,</span><span class="w"> </span><span class="n">x_ub2</span><span class="p">)</span><span class="w"></span>
+<a id="ln-173" name="ln-173" href="#ln-173"></a><span class="w">        </span><span class="n">x_lb2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="n">x_lb2</span><span class="p">,</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">radius</span><span class="p">)</span><span class="w"></span>
+<a id="ln-174" name="ln-174" href="#ln-174"></a><span class="w">        </span><span class="n">x_ub2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">min</span><span class="p">(</span><span class="n">x_ub2</span><span class="p">,</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">radius</span><span class="p">)</span><span class="w"></span>
+<a id="ln-175" name="ln-175" href="#ln-175"></a><span class="w">        </span><span class="c">! the trust region controls the step length, so the QP solver&#39;s own</span>
+<a id="ln-176" name="ln-176" href="#ln-176"></a><span class="w">        </span><span class="c">! (line-search) cap on it, `max_step*step_scale`, must not bind inside</span>
+<a id="ln-177" name="ln-177" href="#ln-177"></a><span class="w">        </span><span class="c">! the box (whose steps are at most `sqrt(n)*radius` long): otherwise</span>
+<a id="ln-178" name="ln-178" href="#ln-178"></a><span class="w">        </span><span class="c">! every step is cut to `max_step`, never uses the full radius, and the</span>
+<a id="ln-179" name="ln-179" href="#ln-179"></a><span class="w">        </span><span class="c">! radius can&#39;t grow either (e.g. TP220, which starts 25000 away from</span>
+<a id="ln-180" name="ln-180" href="#ln-180"></a><span class="w">        </span><span class="c">! its solution, crawled 2 per iteration)</span>
+<a id="ln-181" name="ln-181" href="#ln-181"></a><span class="w">        </span><span class="n">qp_solver</span><span class="p">%</span><span class="n">step_scale</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="n">qp_solver</span><span class="p">%</span><span class="n">step_scale</span><span class="p">,</span><span class="w"> </span><span class="mf">1.01_wp</span><span class="o">*</span><span class="nb">sqrt</span><span class="p">(</span><span class="kt">real</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">x</span><span class="p">),</span><span class="w"> </span><span class="n">wp</span><span class="p">))</span><span class="o">*</span><span class="n">me</span><span class="p">%</span><span class="n">radius</span><span class="o">/</span><span class="n">qp_solver</span><span class="p">%</span><span class="n">max_step</span><span class="p">)</span><span class="w"></span>
+<a id="ln-182" name="ln-182" href="#ln-182"></a>
+<a id="ln-183" name="ln-183" href="#ln-183"></a><span class="w">        </span><span class="k">call </span><span class="n">qp_solver</span><span class="p">%</span><span class="n">solve</span><span class="p">(</span><span class="n">hessian</span><span class="p">,</span><span class="w"> </span><span class="n">jac</span><span class="p">,</span><span class="w"> </span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">g</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">x_lb2</span><span class="p">,</span><span class="w"> </span><span class="n">x_ub2</span><span class="p">,</span><span class="w"> </span><span class="n">problem</span><span class="p">%</span><span class="n">c_lb</span><span class="p">,</span><span class="w"> </span><span class="n">problem</span><span class="p">%</span><span class="n">c_ub</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">new_lambda</span><span class="p">,</span><span class="w"> </span><span class="n">qp_istat</span><span class="p">,</span><span class="w"> </span><span class="p">&amp;</span><span class="w"></span>
+<a id="ln-184" name="ln-184" href="#ln-184"></a><span class="w">                             </span><span class="n">kkt</span><span class="o">=</span><span class="n">kkt</span><span class="p">,</span><span class="w"> </span><span class="n">inertia</span><span class="o">=</span><span class="n">inertia</span><span class="p">)</span><span class="w"></span>
+<a id="ln-185" name="ln-185" href="#ln-185"></a>
+<a id="ln-186" name="ln-186" href="#ln-186"></a><span class="w">        </span><span class="c">! keep the merit function&#39;s penalty parameter dominating the current</span>
+<a id="ln-187" name="ln-187" href="#ln-187"></a><span class="w">        </span><span class="c">! multiplier estimates, same rule as the line-search path (needed for</span>
+<a id="ln-188" name="ln-188" href="#ln-188"></a><span class="w">        </span><span class="c">! `merit%eval`&#39;s ared/pred to be meaningful in the merit-ratio test):</span>
+<a id="ln-189" name="ln-189" href="#ln-189"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">new_lambda</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="n">linesearch</span><span class="p">%</span><span class="n">merit</span><span class="p">%</span><span class="n">penalty</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="n">linesearch</span><span class="p">%</span><span class="n">merit</span><span class="p">%</span><span class="n">penalty</span><span class="p">,</span><span class="w"> </span><span class="nb">maxval</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">new_lambda</span><span class="p">))</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mf">1.0_wp</span><span class="p">)</span><span class="w"></span>
+<a id="ln-190" name="ln-190" href="#ln-190"></a>
+<a id="ln-191" name="ln-191" href="#ln-191"></a><span class="w">        </span><span class="c">! the model&#39;s predicted decrease in `f`, and in the merit function: the</span>
+<a id="ln-192" name="ln-192" href="#ln-192"></a><span class="w">        </span><span class="c">! merit function (whichever `merit_mode` is selected) evaluated at the</span>
+<a id="ln-193" name="ln-193" href="#ln-193"></a><span class="w">        </span><span class="c">! QP model&#39;s objective `f-q` and linearized constraints `c+Jp` (for</span>
+<a id="ln-194" name="ln-194" href="#ln-194"></a><span class="w">        </span><span class="c">! `sqpopt_merit_l1` this is the classical `q + penalty*(h(c)-h(c+Jp))`):</span>
+<a id="ln-195" name="ln-195" href="#ln-195"></a><span class="w">        </span><span class="k">call </span><span class="n">hessian</span><span class="p">%</span><span class="n">hv_product</span><span class="p">(</span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">hp</span><span class="p">)</span><span class="w"></span>
+<a id="ln-196" name="ln-196" href="#ln-196"></a><span class="w">        </span><span class="n">q</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">-</span><span class="p">(</span><span class="nb">dot_product</span><span class="p">(</span><span class="n">g</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mf">0.5_wp</span><span class="o">*</span><span class="nb">dot_product</span><span class="p">(</span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">hp</span><span class="p">))</span><span class="w"></span>
+<a id="ln-197" name="ln-197" href="#ln-197"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(.</span><span class="nb">not</span><span class="p">.</span><span class="w"> </span><span class="n">use_filter</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-198" name="ln-198" href="#ln-198"></a><span class="k">            call </span><span class="n">sparse_matvec</span><span class="p">(</span><span class="n">jac</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">jp</span><span class="p">)</span><span class="w"></span>
+<a id="ln-199" name="ln-199" href="#ln-199"></a><span class="w">            </span><span class="n">c_lin</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">jp</span><span class="w"></span>
+<a id="ln-200" name="ln-200" href="#ln-200"></a><span class="w">            </span><span class="k">call </span><span class="n">linesearch</span><span class="p">%</span><span class="n">merit</span><span class="p">%</span><span class="n">eval</span><span class="p">(</span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">problem</span><span class="p">%</span><span class="n">c_lb</span><span class="p">,</span><span class="w"> </span><span class="n">problem</span><span class="p">%</span><span class="n">c_ub</span><span class="p">,</span><span class="w"> </span><span class="n">new_lambda</span><span class="p">,</span><span class="w"> </span><span class="n">phi0</span><span class="p">)</span><span class="w"></span>
+<a id="ln-201" name="ln-201" href="#ln-201"></a><span class="w">            </span><span class="k">call </span><span class="n">linesearch</span><span class="p">%</span><span class="n">merit</span><span class="p">%</span><span class="n">eval</span><span class="p">(</span><span class="n">f</span><span class="o">-</span><span class="n">q</span><span class="p">,</span><span class="w"> </span><span class="n">c_lin</span><span class="p">,</span><span class="w"> </span><span class="n">problem</span><span class="p">%</span><span class="n">c_lb</span><span class="p">,</span><span class="w"> </span><span class="n">problem</span><span class="p">%</span><span class="n">c_ub</span><span class="p">,</span><span class="w"> </span><span class="n">new_lambda</span><span class="p">,</span><span class="w"> </span><span class="n">phi_model</span><span class="p">)</span><span class="w"></span>
+<a id="ln-202" name="ln-202" href="#ln-202"></a><span class="w">            </span><span class="n">pred</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">phi0</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">phi_model</span><span class="w"></span>
+<a id="ln-203" name="ln-203" href="#ln-203"></a><span class="w">        </span><span class="k">end if</span>
+<a id="ln-204" name="ln-204" href="#ln-204"></a>
+<a id="ln-205" name="ln-205" href="#ln-205"></a><span class="k">        </span><span class="n">x_new</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">p</span><span class="w">   </span><span class="c">! (the trial point)</span>
+<a id="ln-206" name="ln-206" href="#ln-206"></a><span class="w">        </span><span class="k">call </span><span class="n">evaluate</span><span class="p">(</span><span class="n">x_new</span><span class="p">,</span><span class="w"> </span><span class="k">accept</span><span class="p">)</span><span class="w"></span>
+<a id="ln-207" name="ln-207" href="#ln-207"></a><span class="w">        </span><span class="k">call </span><span class="n">log_trial</span><span class="p">(</span><span class="s1">&#39;tr  radius &#39;</span><span class="o">//</span><span class="n">fmt_e</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">radius</span><span class="p">)</span><span class="o">//</span><span class="s1">&#39;, QP &#39;</span><span class="o">//</span><span class="n">qp_status_text</span><span class="p">(</span><span class="n">qp_istat</span><span class="p">)</span><span class="o">//</span><span class="s1">&#39;: &#39;</span><span class="p">)</span><span class="w"></span>
+<a id="ln-208" name="ln-208" href="#ln-208"></a>
+<a id="ln-209" name="ln-209" href="#ln-209"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(.</span><span class="nb">not</span><span class="p">.</span><span class="w"> </span><span class="k">accept</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="n">ok</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="n">problem</span><span class="p">%</span><span class="n">m</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-210" name="ln-210" href="#ln-210"></a><span class="k">            if</span><span class="w"> </span><span class="p">(</span><span class="n">h_trial</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">h0</span><span class="p">)</span><span class="w"> </span><span class="k">then</span><span class="w"></span>
+<a id="ln-211" name="ln-211" href="#ln-211"></a><span class="w">                </span><span class="c">! the step didn&#39;t reduce the constraint violation, so its</span>
+<a id="ln-212" name="ln-212" href="#ln-212"></a><span class="w">                </span><span class="c">! rejection may be due to constraint curvature (the Maratos</span>
+<a id="ln-213" name="ln-213" href="#ln-213"></a><span class="w">                </span><span class="c">! effect): try the second-order-corrected step (kept inside</span>
+<a id="ln-214" name="ln-214" href="#ln-214"></a><span class="w">                </span><span class="c">! the trust region) before shrinking the radius:</span>
+<a id="ln-215" name="ln-215" href="#ln-215"></a><span class="w">                </span><span class="k">call </span><span class="n">soc_step</span><span class="p">(</span><span class="n">jac</span><span class="p">,</span><span class="w"> </span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">c_trial</span><span class="p">,</span><span class="w"> </span><span class="n">problem</span><span class="p">%</span><span class="n">c_lb</span><span class="p">,</span><span class="w"> </span><span class="n">problem</span><span class="p">%</span><span class="n">c_ub</span><span class="p">,</span><span class="w"> </span><span class="n">x_lb2</span><span class="p">,</span><span class="w"> </span><span class="n">x_ub2</span><span class="p">,</span><span class="w"> </span><span class="n">p_soc</span><span class="p">,</span><span class="w"> </span><span class="n">soc_ok</span><span class="p">,</span><span class="w"> </span><span class="p">&amp;</span><span class="w"></span>
+<a id="ln-216" name="ln-216" href="#ln-216"></a><span class="w">                              </span><span class="n">least_squares</span><span class="o">=</span><span class="n">least_squares</span><span class="p">)</span><span class="w"></span>
+<a id="ln-217" name="ln-217" href="#ln-217"></a><span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">soc_ok</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-218" name="ln-218" href="#ln-218"></a><span class="k">                    </span><span class="n">x_new</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">p_soc</span><span class="w"></span>
+<a id="ln-219" name="ln-219" href="#ln-219"></a><span class="w">                    </span><span class="k">call </span><span class="n">evaluate</span><span class="p">(</span><span class="n">x_new</span><span class="p">,</span><span class="w"> </span><span class="k">accept</span><span class="p">)</span><span class="w"></span>
+<a id="ln-220" name="ln-220" href="#ln-220"></a><span class="w">                    </span><span class="k">call </span><span class="n">log_trial</span><span class="p">(</span><span class="s1">&#39;tr  second-order correction: &#39;</span><span class="p">)</span><span class="w"></span>
+<a id="ln-221" name="ln-221" href="#ln-221"></a><span class="w">                    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="k">accept</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-222" name="ln-222" href="#ln-222"></a><span class="k">                        </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p_soc</span><span class="w"></span>
+<a id="ln-223" name="ln-223" href="#ln-223"></a><span class="w">                        </span><span class="n">me</span><span class="p">%</span><span class="n">used_soc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">true</span><span class="p">.</span><span class="w"></span>
+<a id="ln-224" name="ln-224" href="#ln-224"></a><span class="w">                    </span><span class="k">end if</span>
+<a id="ln-225" name="ln-225" href="#ln-225"></a><span class="k">                end if</span>
+<a id="ln-226" name="ln-226" href="#ln-226"></a><span class="k">            end if</span>
+<a id="ln-227" name="ln-227" href="#ln-227"></a><span class="k">        end if</span>
+<a id="ln-228" name="ln-228" href="#ln-228"></a>
+<a id="ln-229" name="ln-229" href="#ln-229"></a><span class="k">        if</span><span class="w"> </span><span class="p">(</span><span class="k">accept</span><span class="p">)</span><span class="w"> </span><span class="k">then</span><span class="w"></span>
+<a id="ln-230" name="ln-230" href="#ln-230"></a>
+<a id="ln-231" name="ln-231" href="#ln-231"></a><span class="w">            </span><span class="c">! (a step that isn&#39;t f-type adds the current point to the filter,</span>
+<a id="ln-232" name="ln-232" href="#ln-232"></a><span class="w">            </span><span class="c">! or shrinks the funnel)</span>
+<a id="ln-233" name="ln-233" href="#ln-233"></a><span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">use_funnel</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="p">.</span><span class="nb">not</span><span class="p">.</span><span class="w"> </span><span class="n">f_type</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-234" name="ln-234" href="#ln-234"></a><span class="k">                call </span><span class="n">linesearch</span><span class="p">%</span><span class="n">funnel</span><span class="p">%</span><span class="n">record</span><span class="p">(</span><span class="n">h0</span><span class="p">,</span><span class="w"> </span><span class="n">h_trial</span><span class="p">)</span><span class="w"></span>
+<a id="ln-235" name="ln-235" href="#ln-235"></a><span class="w">            </span><span class="k">else if</span><span class="w"> </span><span class="p">(</span><span class="n">use_filter</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="p">.</span><span class="nb">not</span><span class="p">.</span><span class="w"> </span><span class="n">f_type</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-236" name="ln-236" href="#ln-236"></a><span class="k">                call </span><span class="n">linesearch</span><span class="p">%</span><span class="n">filter</span><span class="p">%</span><span class="n">record</span><span class="p">(</span><span class="n">h0</span><span class="p">,</span><span class="w"> </span><span class="n">f</span><span class="p">)</span><span class="w"></span>
+<a id="ln-237" name="ln-237" href="#ln-237"></a><span class="w">            </span><span class="k">end if</span>
+<a id="ln-238" name="ln-238" href="#ln-238"></a>
+<a id="ln-239" name="ln-239" href="#ln-239"></a><span class="k">            if</span><span class="w"> </span><span class="p">(</span><span class="nb">maxval</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">p</span><span class="p">))</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="mf">0.99_wp</span><span class="o">*</span><span class="n">me</span><span class="p">%</span><span class="n">radius</span><span class="p">)</span><span class="w"> </span><span class="k">then</span><span class="w"></span>
+<a id="ln-240" name="ln-240" href="#ln-240"></a><span class="w">                </span><span class="c">! the step used (approximately) the full trust region --</span>
+<a id="ln-241" name="ln-241" href="#ln-241"></a><span class="w">                </span><span class="c">! grow it for next time, gated on ratio quality for the</span>
+<a id="ln-242" name="ln-242" href="#ln-242"></a><span class="w">                </span><span class="c">! merit-ratio branch (Nocedal &amp; Wright&#39;s textbook rule),</span>
+<a id="ln-243" name="ln-243" href="#ln-243"></a><span class="w">                </span><span class="c">! or unconditionally for the filter branch (Fletcher &amp;</span>
+<a id="ln-244" name="ln-244" href="#ln-244"></a><span class="w">                </span><span class="c">! Leyffer&#39;s simpler &quot;accepted implies possibly grow&quot; rule):</span>
+<a id="ln-245" name="ln-245" href="#ln-245"></a><span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">use_filter</span><span class="w"> </span><span class="p">.</span><span class="nb">or</span><span class="p">.</span><span class="w"> </span><span class="n">ratio</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">eta2</span><span class="p">)</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">radius</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">min</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">radius</span><span class="o">*</span><span class="n">me</span><span class="p">%</span><span class="n">expand_factor</span><span class="p">,</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">radius_max</span><span class="p">)</span><span class="w"></span>
+<a id="ln-246" name="ln-246" href="#ln-246"></a><span class="w">            </span><span class="k">end if</span>
+<a id="ln-247" name="ln-247" href="#ln-247"></a>
+<a id="ln-248" name="ln-248" href="#ln-248"></a><span class="k">            </span><span class="n">x_new</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">p</span><span class="w"></span>
+<a id="ln-249" name="ln-249" href="#ln-249"></a><span class="w">            </span><span class="n">alpha</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">1.0_wp</span><span class="w"></span>
+<a id="ln-250" name="ln-250" href="#ln-250"></a><span class="w">            </span><span class="n">istat</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sqpopt_success</span><span class="w"></span>
+<a id="ln-251" name="ln-251" href="#ln-251"></a><span class="w">            </span><span class="k">return</span>
+<a id="ln-252" name="ln-252" href="#ln-252"></a>
+<a id="ln-253" name="ln-253" href="#ln-253"></a><span class="k">        else</span>
+<a id="ln-254" name="ln-254" href="#ln-254"></a>
+<a id="ln-255" name="ln-255" href="#ln-255"></a><span class="k">            </span><span class="n">me</span><span class="p">%</span><span class="n">radius</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">radius</span><span class="o">*</span><span class="n">me</span><span class="p">%</span><span class="n">shrink_factor</span><span class="p">,</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">radius_min</span><span class="p">)</span><span class="w"></span>
+<a id="ln-256" name="ln-256" href="#ln-256"></a><span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">radius</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">radius_min</span><span class="p">)</span><span class="w"> </span><span class="k">exit</span>
+<a id="ln-257" name="ln-257" href="#ln-257"></a>
+<a id="ln-258" name="ln-258" href="#ln-258"></a><span class="k">        end if</span>
+<a id="ln-259" name="ln-259" href="#ln-259"></a>
+<a id="ln-260" name="ln-260" href="#ln-260"></a><span class="k">    end do</span><span class="w"></span>
+<a id="ln-261" name="ln-261" href="#ln-261"></a>
+<a id="ln-262" name="ln-262" href="#ln-262"></a><span class="w">    </span><span class="c">! every retry was rejected (or the radius floor was reached): no step</span>
+<a id="ln-263" name="ln-263" href="#ln-263"></a><span class="w">    </span><span class="c">! is taken. The next major iteration starts from the (small) radius</span>
+<a id="ln-264" name="ln-264" href="#ln-264"></a><span class="w">    </span><span class="c">! reached here, with a reset Hessian approximation (see</span>
+<a id="ln-265" name="ln-265" href="#ln-265"></a><span class="w">    </span><span class="c">! [[sqpopt_iterate_module]]), so it won&#39;t repeat the same retries:</span>
+<a id="ln-266" name="ln-266" href="#ln-266"></a><span class="w">    </span><span class="k">call </span><span class="n">me</span><span class="p">%</span><span class="nb">log</span><span class="p">%</span><span class="n">put</span><span class="p">(</span><span class="n">sqpopt_log_detail</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;tr  no acceptable step (radius &#39;</span><span class="o">//</span><span class="n">fmt_e</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">radius</span><span class="p">)</span><span class="o">//</span><span class="s1">&#39;)&#39;</span><span class="p">)</span><span class="w"></span>
+<a id="ln-267" name="ln-267" href="#ln-267"></a><span class="w">    </span><span class="n">x_new</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">x</span><span class="w"></span>
+<a id="ln-268" name="ln-268" href="#ln-268"></a><span class="w">    </span><span class="n">alpha</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="w"></span>
+<a id="ln-269" name="ln-269" href="#ln-269"></a><span class="w">    </span><span class="n">istat</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sqpopt_line_search_failed</span><span class="w"></span>
+<a id="ln-270" name="ln-270" href="#ln-270"></a>
+<a id="ln-271" name="ln-271" href="#ln-271"></a><span class="w">    </span><span class="k">contains</span>
+<a id="ln-272" name="ln-272" href="#ln-272"></a>
+<a id="ln-273" name="ln-273" href="#ln-273"></a><span class="k">        subroutine </span><span class="n">log_trial</span><span class="p">(</span><span class="n">prefix</span><span class="p">)</span><span class="w"></span>
+<a id="ln-274" name="ln-274" href="#ln-274"></a><span class="w">        </span><span class="c">!! the detailed log&#39;s line for the last evaluated trial point</span>
+<a id="ln-275" name="ln-275" href="#ln-275"></a><span class="w">        </span><span class="kt">character</span><span class="p">(</span><span class="nb">len</span><span class="o">=*</span><span class="p">),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">prefix</span><span class="w"> </span><span class="c">!! the start of the line (what was tried)</span>
+<a id="ln-276" name="ln-276" href="#ln-276"></a><span class="w">        </span><span class="kt">character</span><span class="p">(</span><span class="nb">len</span><span class="o">=</span><span class="p">:),</span><span class="w"> </span><span class="k">allocatable</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">line</span><span class="w"></span>
+<a id="ln-277" name="ln-277" href="#ln-277"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(.</span><span class="nb">not</span><span class="p">.</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="nb">log</span><span class="p">%</span><span class="n">on</span><span class="p">(</span><span class="n">sqpopt_log_detail</span><span class="p">))</span><span class="w"> </span><span class="k">return</span>
+<a id="ln-278" name="ln-278" href="#ln-278"></a><span class="k">        if</span><span class="w"> </span><span class="p">(.</span><span class="nb">not</span><span class="p">.</span><span class="w"> </span><span class="n">ok</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-279" name="ln-279" href="#ln-279"></a><span class="k">            </span><span class="n">line</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prefix</span><span class="o">//</span><span class="s1">&#39;non-finite function value, rejected&#39;</span><span class="w"></span>
+<a id="ln-280" name="ln-280" href="#ln-280"></a><span class="w">        </span><span class="k">else if</span><span class="w"> </span><span class="p">(</span><span class="n">use_filter</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-281" name="ln-281" href="#ln-281"></a><span class="k">            </span><span class="n">line</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prefix</span><span class="o">//</span><span class="s1">&#39;violation &#39;</span><span class="o">//</span><span class="n">fmt_e</span><span class="p">(</span><span class="n">h_trial</span><span class="p">)</span><span class="o">//</span><span class="s1">&#39;, objective &#39;</span><span class="o">//</span><span class="n">fmt_g</span><span class="p">(</span><span class="n">f_trial</span><span class="p">)</span><span class="w"></span>
+<a id="ln-282" name="ln-282" href="#ln-282"></a><span class="w">        </span><span class="k">else</span>
+<a id="ln-283" name="ln-283" href="#ln-283"></a><span class="k">            </span><span class="n">line</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">prefix</span><span class="o">//</span><span class="s1">&#39;ratio &#39;</span><span class="o">//</span><span class="n">fmt_e</span><span class="p">(</span><span class="n">ratio</span><span class="p">)</span><span class="o">//</span><span class="s1">&#39; (actual/predicted merit decrease)&#39;</span><span class="w"></span>
+<a id="ln-284" name="ln-284" href="#ln-284"></a><span class="w">        </span><span class="k">end if</span>
+<a id="ln-285" name="ln-285" href="#ln-285"></a><span class="k">        if</span><span class="w"> </span><span class="p">(</span><span class="n">ok</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-286" name="ln-286" href="#ln-286"></a><span class="k">            if</span><span class="w"> </span><span class="p">(</span><span class="k">accept</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-287" name="ln-287" href="#ln-287"></a><span class="k">                </span><span class="n">line</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">line</span><span class="o">//</span><span class="s1">&#39;, accepted&#39;</span><span class="w"></span>
+<a id="ln-288" name="ln-288" href="#ln-288"></a><span class="w">            </span><span class="k">else</span>
+<a id="ln-289" name="ln-289" href="#ln-289"></a><span class="k">                </span><span class="n">line</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">line</span><span class="o">//</span><span class="s1">&#39;, rejected&#39;</span><span class="w"></span>
+<a id="ln-290" name="ln-290" href="#ln-290"></a><span class="w">            </span><span class="k">end if</span>
+<a id="ln-291" name="ln-291" href="#ln-291"></a><span class="k">        end if</span>
+<a id="ln-292" name="ln-292" href="#ln-292"></a><span class="k">        call </span><span class="n">me</span><span class="p">%</span><span class="nb">log</span><span class="p">%</span><span class="n">put</span><span class="p">(</span><span class="n">sqpopt_log_detail</span><span class="p">,</span><span class="w"> </span><span class="n">line</span><span class="p">)</span><span class="w"></span>
+<a id="ln-293" name="ln-293" href="#ln-293"></a><span class="w">        </span><span class="k">end subroutine </span><span class="n">log_trial</span><span class="w"></span>
+<a id="ln-294" name="ln-294" href="#ln-294"></a>
+<a id="ln-295" name="ln-295" href="#ln-295"></a>
+<a id="ln-296" name="ln-296" href="#ln-296"></a><span class="w">        </span><span class="k">subroutine </span><span class="n">evaluate</span><span class="p">(</span><span class="n">x_trial</span><span class="p">,</span><span class="w"> </span><span class="k">accept</span><span class="p">)</span><span class="w"></span>
+<a id="ln-297" name="ln-297" href="#ln-297"></a><span class="w">        </span><span class="c">!! evaluate the trial point `x_trial` (setting `f_trial`, `c_trial`,</span>
+<a id="ln-298" name="ln-298" href="#ln-298"></a><span class="w">        </span><span class="c">!! `h_trial`, `ok`, and `ratio`), and whether it is acceptable. A</span>
+<a id="ln-299" name="ln-299" href="#ln-299"></a><span class="w">        </span><span class="c">!! trial point where `f` or `c` is not finite is never acceptable.</span>
+<a id="ln-300" name="ln-300" href="#ln-300"></a><span class="w">        </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">x_trial</span><span class="w"> </span><span class="c">!! the trial point `dimension(n)`</span>
+<a id="ln-301" name="ln-301" href="#ln-301"></a><span class="w">        </span><span class="kt">logical</span><span class="p">,</span><span class="w">                </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="k">accept</span><span class="w">  </span><span class="c">!! whether it is acceptable</span>
+<a id="ln-302" name="ln-302" href="#ln-302"></a><span class="w">        </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">phi_trial</span><span class="p">,</span><span class="w"> </span><span class="n">ared</span><span class="w"></span>
+<a id="ln-303" name="ln-303" href="#ln-303"></a>
+<a id="ln-304" name="ln-304" href="#ln-304"></a><span class="w">        </span><span class="k">call </span><span class="n">problem</span><span class="p">%</span><span class="n">f</span><span class="p">(</span><span class="n">x_trial</span><span class="p">,</span><span class="w"> </span><span class="n">f_trial</span><span class="p">)</span><span class="w"></span>
+<a id="ln-305" name="ln-305" href="#ln-305"></a><span class="w">        </span><span class="k">call </span><span class="n">problem</span><span class="p">%</span><span class="n">c</span><span class="p">(</span><span class="n">x_trial</span><span class="p">,</span><span class="w"> </span><span class="n">c_trial</span><span class="p">)</span><span class="w"></span>
+<a id="ln-306" name="ln-306" href="#ln-306"></a><span class="w">        </span><span class="n">ok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sqpopt_all_finite</span><span class="p">([</span><span class="n">f_trial</span><span class="p">])</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="n">sqpopt_all_finite</span><span class="p">(</span><span class="n">c_trial</span><span class="p">)</span><span class="w"></span>
+<a id="ln-307" name="ln-307" href="#ln-307"></a><span class="w">        </span><span class="k">accept</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"></span>
+<a id="ln-308" name="ln-308" href="#ln-308"></a><span class="w">        </span><span class="n">f_type</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"></span>
+<a id="ln-309" name="ln-309" href="#ln-309"></a><span class="w">        </span><span class="n">ratio</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="o">-</span><span class="mf">1.0_wp</span><span class="w"></span>
+<a id="ln-310" name="ln-310" href="#ln-310"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(.</span><span class="nb">not</span><span class="p">.</span><span class="w"> </span><span class="n">ok</span><span class="p">)</span><span class="w"> </span><span class="k">return</span>
+<a id="ln-311" name="ln-311" href="#ln-311"></a><span class="k">        </span><span class="n">h_trial</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">l1_violation</span><span class="p">(</span><span class="n">c_trial</span><span class="p">,</span><span class="w"> </span><span class="n">problem</span><span class="p">%</span><span class="n">c_lb</span><span class="p">,</span><span class="w"> </span><span class="n">problem</span><span class="p">%</span><span class="n">c_ub</span><span class="p">)</span><span class="w"></span>
+<a id="ln-312" name="ln-312" href="#ln-312"></a>
+<a id="ln-313" name="ln-313" href="#ln-313"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">use_filter</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-314" name="ln-314" href="#ln-314"></a>
+<a id="ln-315" name="ln-315" href="#ln-315"></a><span class="k">            if</span><span class="w"> </span><span class="p">(</span><span class="n">use_funnel</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-316" name="ln-316" href="#ln-316"></a><span class="k">                accept</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">linesearch</span><span class="p">%</span><span class="n">funnel</span><span class="p">%</span><span class="k">accept</span><span class="p">(</span><span class="n">h0</span><span class="p">,</span><span class="w"> </span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="n">q</span><span class="p">,</span><span class="w"> </span><span class="n">h_trial</span><span class="p">,</span><span class="w"> </span><span class="n">f_trial</span><span class="p">,</span><span class="w"> </span><span class="n">f_type</span><span class="p">)</span><span class="w"></span>
+<a id="ln-317" name="ln-317" href="#ln-317"></a><span class="w">            </span><span class="k">else</span>
+<a id="ln-318" name="ln-318" href="#ln-318"></a><span class="k">                accept</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">linesearch</span><span class="p">%</span><span class="n">filter</span><span class="p">%</span><span class="k">accept</span><span class="p">(</span><span class="n">h0</span><span class="p">,</span><span class="w"> </span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="o">-</span><span class="n">q</span><span class="p">,</span><span class="w"> </span><span class="mf">1.0_wp</span><span class="p">,</span><span class="w"> </span><span class="n">h_trial</span><span class="p">,</span><span class="w"> </span><span class="n">f_trial</span><span class="p">,</span><span class="w"> </span><span class="n">f_type</span><span class="p">)</span><span class="w"></span>
+<a id="ln-319" name="ln-319" href="#ln-319"></a><span class="w">            </span><span class="k">end if</span>
+<a id="ln-320" name="ln-320" href="#ln-320"></a><span class="k">            </span><span class="n">ratio</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">1.0_wp</span><span class="w"> </span><span class="c">!! not used for the ratio test in this branch, only for the &quot;grow radius&quot; gate</span>
+<a id="ln-321" name="ln-321" href="#ln-321"></a>
+<a id="ln-322" name="ln-322" href="#ln-322"></a><span class="w">        </span><span class="k">else</span>
+<a id="ln-323" name="ln-323" href="#ln-323"></a>
+<a id="ln-324" name="ln-324" href="#ln-324"></a><span class="k">            call </span><span class="n">linesearch</span><span class="p">%</span><span class="n">merit</span><span class="p">%</span><span class="n">eval</span><span class="p">(</span><span class="n">f_trial</span><span class="p">,</span><span class="w"> </span><span class="n">c_trial</span><span class="p">,</span><span class="w"> </span><span class="n">problem</span><span class="p">%</span><span class="n">c_lb</span><span class="p">,</span><span class="w"> </span><span class="n">problem</span><span class="p">%</span><span class="n">c_ub</span><span class="p">,</span><span class="w"> </span><span class="n">new_lambda</span><span class="p">,</span><span class="w"> </span><span class="n">phi_trial</span><span class="p">)</span><span class="w"></span>
+<a id="ln-325" name="ln-325" href="#ln-325"></a><span class="w">            </span><span class="n">ared</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">phi0</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">phi_trial</span><span class="w"> </span><span class="c">!! actual decrease in the merit function</span>
+<a id="ln-326" name="ln-326" href="#ln-326"></a><span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">pred</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">1.0e-12_wp</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-327" name="ln-327" href="#ln-327"></a><span class="k">                </span><span class="n">ratio</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ared</span><span class="o">/</span><span class="n">pred</span><span class="w"></span>
+<a id="ln-328" name="ln-328" href="#ln-328"></a><span class="w">            </span><span class="k">else</span><span class="w"></span>
+<a id="ln-329" name="ln-329" href="#ln-329"></a><span class="w">                </span><span class="c">! the model doesn&#39;t even predict improvement: fall back to</span>
+<a id="ln-330" name="ln-330" href="#ln-330"></a><span class="w">                </span><span class="c">! whether the true merit function improved anyway:</span>
+<a id="ln-331" name="ln-331" href="#ln-331"></a><span class="w">                </span><span class="n">ratio</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">merge</span><span class="p">(</span><span class="mf">1.0_wp</span><span class="p">,</span><span class="w"> </span><span class="o">-</span><span class="mf">1.0_wp</span><span class="p">,</span><span class="w"> </span><span class="n">ared</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="p">)</span><span class="w"></span>
+<a id="ln-332" name="ln-332" href="#ln-332"></a><span class="w">            </span><span class="k">end if</span>
+<a id="ln-333" name="ln-333" href="#ln-333"></a><span class="k">            accept</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">ratio</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">eta1</span><span class="w"></span>
+<a id="ln-334" name="ln-334" href="#ln-334"></a>
+<a id="ln-335" name="ln-335" href="#ln-335"></a><span class="w">        </span><span class="k">end if</span>
+<a id="ln-336" name="ln-336" href="#ln-336"></a>
+<a id="ln-337" name="ln-337" href="#ln-337"></a><span class="k">        end subroutine </span><span class="n">evaluate</span><span class="w"></span>
+<a id="ln-338" name="ln-338" href="#ln-338"></a>
+<a id="ln-339" name="ln-339" href="#ln-339"></a><span class="w">    </span><span class="k">end subroutine </span><span class="n">trust_region_step</span><span class="w"></span>
+<a id="ln-340" name="ln-340" href="#ln-340"></a><span class="c">!*******************************************************************************</span>
+<a id="ln-341" name="ln-341" href="#ln-341"></a>
+<a id="ln-342" name="ln-342" href="#ln-342"></a><span class="w">    </span><span class="k">end module </span><span class="n">sqpopt_trust_region_module</span><span class="w"></span>
+<a id="ln-343" name="ln-343" href="#ln-343"></a><span class="c">!*******************************************************************************</span>
+</pre></div>
+
+      </section>
+    </div>
+  </div>
+
+      <hr>
+    </div> <!-- /container -->
+    <footer>
+      <div class="container">
+        <div class="row justify-content-between">
+          <div class="col">
+            <p>
+              sqpopt
+ was developed by Jacob Williams<br>              &copy; 2026 
+</p>
+          </div>
+          <div class="col">
+            <p class="text-end">
+              Documentation generated by
+              <a href="https://github.com/Fortran-FOSS-Programmers/ford">FORD</a>
+            </p>
+          </div>
+        </div>
+        <br>
+      </div> <!-- /container -->
+    </footer>
+    <!-- sqpopt theme: the button switches the theme, and remembers it for the guide too -->
+    <script>
+      document.querySelector('.theme-toggle').addEventListener('click', function () {
+        var root = document.documentElement;
+        var next = root.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-bs-theme', next);
+        try { localStorage.setItem('sqpopt-theme', next); } catch (e) {}
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,1743 @@
+<!-- -*- mode: jinja2 -*- -->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- sqpopt theme: set before the page is drawn; the guide's choice (the same
+         localStorage key, on the same site), or else the system's -->
+    <script>
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('sqpopt-theme'); } catch (e) {}
+        if (t !== 'dark' && t !== 'light') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-bs-theme', t);
+      })();
+    </script>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta name="description" content="Modern Fortran SQP OPTimizer">
+    <meta name="author" content="Jacob Williams" >
+    <link rel="icon" href="../favicon.png">
+
+    <title>sqpopt_merit_module &ndash; sqpopt</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <!-- Font Awesome -->
+    <link href="../css/fontawesome.min.css" rel="stylesheet">
+    <link href="../css/brands.min.css" rel="stylesheet">
+    <link href="../css/regular.min.css" rel="stylesheet">
+    <link href="../css/solid.min.css" rel="stylesheet">
+    <link href="../css/v4-font-face.min.css" rel="stylesheet">
+    <link href="../css/v4-shims.min.css" rel="stylesheet">
+    <!-- MathJax -->
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        TeX: { equationNumbers: { autoNumber: "AMS" } }
+      });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@2.7.9/MathJax.js?config=TeX-AMS-MML_HTMLorMML" async
+            integrity="sha256-DViIOMYdwlM/axqoGDPeUyf0urLoHMN4QACBKyB58Uw=" crossorigin="anonymous"></script>
+    <!-- Other scripts and stylesheets -->
+    <link href="../css/local.css" rel="stylesheet">
+    <link href="../css/pygments.css" rel="stylesheet">
+      <link href="../css/user.css" rel="stylesheet">
+    <script src="../js/svg-pan-zoom.min.js"></script>
+  </head>
+
+  <body>
+
+    <!-- Fixed navbar -->
+    <div class="container-fluid mb-sm-4 mb-xl-2">
+      <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+          <a class="navbar-brand" href="../index.html">sqpopt </a>
+          <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbar"
+                  aria-expanded="false" aria-controls="navbar" aria-label="Toggle navigation">
+                  <span class="navbar-toggler-icon">
+          </button>
+
+          <div id="navbar" class="navbar-collapse collapse">
+            <ul class="navbar-nav">
+                  <li class="nav-item">
+                    <a class="nav-link" href="../lists/files.html">Source Files</a>
+                  </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/modules.html">Modules</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/procedures.html">Procedures</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/absint.html">Abstract Interfaces</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/types.html">Derived Types</a>
+                </li>
+            </ul>
+              <div class="d-flex align-items-end flex-grow-1">
+                <form action="../search.html" role="search" class="ms-auto">
+                  <input type="text" class="form-control" aria-label="Search" placeholder="Search" name="q" id="tipue_search_input" autocomplete="off" required>
+                </form>
+              </div>
+            <!-- sqpopt theme: the light/dark button -->
+            <button type="button" class="btn nav-link theme-toggle ms-lg-3" aria-label="Toggle dark mode" title="Toggle dark mode">
+              <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg>
+              <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div><!--/.nav-collapse -->
+        </div>
+      </nav>
+    </div>
+
+    <div class="container">
+  <div class="row">
+    <h1>sqpopt_merit_module
+      <small>Module</small>
+      
+    </h1>
+      <div class="container p-2 mb-4 bg-light border rounded-3">
+    <div class="row align-items-center justify-content-between" id="info-bar">
+      <div class="col">
+        <ul class="list-inline" style="margin-bottom:0px;display:inline">
+            <li class="list-inline-item" id="meta-author"><i class="fa fa-pencil"></i> Jacob Williams</li>
+            <li class="list-inline-item" id="meta-license"><i class="fa fa-legal"></i> MIT</li>
+
+            <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
+              <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
+                 title=" 1.8% of total for modules and submodules.">176 statements</a>
+            </li>
+
+            <li class="list-inline-item" id="source-file">
+              <i class="fa fa-code"></i>
+              <a href="../src/sqpopt_merit_module.f90"> Source File</a>
+            </li>
+        </ul>
+      </div>
+      <div class="col">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb justify-content-end mb-0">
+                <li class="breadcrumb-item"><a href='../sourcefile/sqpopt_merit_module.f90.html'>sqpopt_merit_module.f90</a></li>
+            <li class="breadcrumb-item active" aria-current="page">sqpopt_merit_module</li>
+          </ol>
+        </nav>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Enable Bootstrap tooltips
+    (function () {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+      const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+    })();
+  </script>
+
+  </div>
+
+  <div class="row">
+    <div class="col-md-3">
+        <div id="sidebar">
+      <h3>Contents</h3>
+  
+      <div class="card mb-4">
+      <a data-bs-toggle="collapse" href="#vars-0"
+         aria-expanded="false" aria-controls="vars-0">
+         <h4 class="card-header bg-primary text-white">Variables</h4>
+      </a>
+      <div id="vars-0" class="collapse">
+        <div class="list-group list-group-flush">
+            <a class="list-group-item" href="../module/sqpopt_merit_module.html#variable-sqpopt_merit_l1">sqpopt_merit_l1</a>
+            <a class="list-group-item" href="../module/sqpopt_merit_module.html#variable-sqpopt_merit_augmented_lagrangian">sqpopt_merit_augmented_lagrangian</a>
+            <a class="list-group-item" href="../module/sqpopt_merit_module.html#variable-sqpopt_penalty_multipliers">sqpopt_penalty_multipliers</a>
+            <a class="list-group-item" href="../module/sqpopt_merit_module.html#variable-sqpopt_penalty_model">sqpopt_penalty_model</a>
+        </div>
+      </div>
+    </div>
+
+  
+  
+  
+  
+  
+  
+  
+  
+      <div class="card mb-4">
+      <a data-bs-toggle="collapse" href="#types-0"
+         aria-expanded="false" aria-controls="types-0">
+         <h4 class="card-header bg-primary text-white">Derived Types</h4>
+      </a>
+      <div id="types-0" class="collapse">
+        <div class="list-group list-group-flush">
+            <a class="list-group-item" href="../module/sqpopt_merit_module.html#type-sqpopt_merit_type">sqpopt_merit_type</a>
+        </div>
+      </div>
+    </div>
+
+  
+      <div class="card mb-4">
+      <a data-bs-toggle="collapse" href="#subs-0"
+         aria-expanded="false" aria-controls="subs-0">
+         <h4 class="card-header bg-primary text-white">Subroutines</h4>
+      </a>
+      <div id="subs-0" class="collapse">
+        <div class="list-group list-group-flush">
+            <a class="list-group-item" href="../module/sqpopt_merit_module.html#proc-eval_merit_function">eval_merit_function</a>
+            <a class="list-group-item" href="../module/sqpopt_merit_module.html#proc-augmented_lagrangian_slacks">augmented_lagrangian_slacks</a>
+            <a class="list-group-item" href="../module/sqpopt_merit_module.html#proc-merit_directional_derivative">merit_directional_derivative</a>
+            <a class="list-group-item" href="../module/sqpopt_merit_module.html#proc-update_penalty_parameter">update_penalty_parameter</a>
+        </div>
+      </div>
+    </div>
+
+  
+  
+  
+  
+  
+  
+  
+
+
+  </div>
+
+    </div>
+
+    <div class="col-md-9" id='text'>
+      <p>The merit functions, and their penalty parameter, used by the
+merit-function line searches (<code>armijo</code>, <code>exact</code>, and <code>watchdog</code>, see
+<a href="../module/sqpopt_linesearch_module.html">sqpopt_linesearch_module</a>) and by the trust region's merit-ratio
+test (see <a href="../module/sqpopt_trust_region_module.html">sqpopt_trust_region_module</a>).</p>
+<p>Two merit functions are available (<code>sqpopt_merit_type%mode</code>, set from
+<code>options%merit_mode</code>):</p>
+<ul>
+<li><code>sqpopt_merit_l1</code> (<strong>default</strong>) -- the standard non-smooth <script type="math/tex"> \ell_1 </script>
+  exact penalty function (as in <code>slsqp</code>).</li>
+<li><code>sqpopt_merit_augmented_lagrangian</code> -- a smooth augmented Lagrangian
+  merit function (Gill, Murray, Saunders &amp; Wright, <em>"Some Theoretical
+  Properties of an Augmented Lagrangian Merit Function"</em>, SOL 86-6R --
+  the merit function used in NPSOL/NPSQP and, in spirit, SNOPT). Unlike
+  the <script type="math/tex"> \ell_1 </script> function, it is twice continuously differentiable,
+  which is the reason SNOPT-family solvers do not need a second-order
+  correction (see <a href="../module/sqpopt_soc_module.html">sqpopt_soc_module</a>) to avoid the Maratos effect.</li>
+</ul>
+<p>Their penalty parameter is updated by one of two rules
+(<code>penalty_update</code>, set from <code>options%penalty_update</code>, see
+<a href="../proc/update_penalty_parameter.html">update_penalty_parameter</a>): <code>sqpopt_penalty_multipliers</code>
+(<strong>default</strong>; keeps it above the multiplier estimates, never
+decreasing) or <code>sqpopt_penalty_model</code> (each merit's own principled
+rule: Byrd-Nocedal model reduction for <script type="math/tex"> \ell_1 </script>, and for the
+augmented Lagrangian the Gill-Murray-Saunders-Wright rule, with a joint
+step in the variables, multipliers, and slacks, and a penalty that can
+decrease).</p>
+<br>          <div class="card mb-4">
+      <h3 class="card-header card-title bg-light">Uses</h3>
+      <div class="card-body">
+        <ul class="list-group list-group-flush">
+            <li class="list-group-item">
+              <ul class="list-inline">
+                  <li class="list-inline-item"><a href='sqpopt_types_module.html'>sqpopt_types_module</a></li>
+                  <li class="list-inline-item"><a href='sqpopt_kinds.html'>sqpopt_kinds</a></li>
+                  <li class="list-inline-item"><a href='sqpopt_linalg_module.html'>sqpopt_linalg_module</a></li>
+              </ul>
+            </li>
+            <li class="list-group-item">
+              <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: module~~sqpopt_merit_module~~UsesGraph Pages: 1 -->
+<svg id="modulesqpopt_merit_moduleUsesGraph" width="641pt" height="129pt"
+ viewBox="0.00 0.00 641.00 129.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="module~~sqpopt_merit_module~~UsesGraph" class="graph" transform="scale(0.887996 0.887996) rotate(0) translate(4 141.64)">
+<title>module~~sqpopt_merit_module~~UsesGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-141.64 717.85,-141.64 717.85,4 -4,4"/>
+<!-- module~sqpopt_merit_module -->
+<g id="module~~sqpopt_merit_module~~UsesGraph_node1" class="node">
+<title>module~sqpopt_merit_module</title>
+<polygon fill="none" stroke="black" points="713.85,-97.27 586.83,-97.27 586.83,-73 713.85,-73 713.85,-97.27"/>
+<text xml:space="preserve" text-anchor="middle" x="650.34" y="-81.54" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_merit_module</text>
+</g>
+<!-- module~sqpopt_kinds -->
+<g id="module~~sqpopt_merit_module~~UsesGraph_node2" class="node">
+<title>module~sqpopt_kinds</title>
+<g id="a_module~~sqpopt_merit_module~~UsesGraph_node2"><a xlink:href="../module/sqpopt_kinds.html" xlink:title="sqpopt_kinds">
+<polygon fill="#337ab7" stroke="#337ab7" points="216.91,-107.27 136.39,-107.27 136.39,-83 216.91,-83 216.91,-107.27"/>
+<text xml:space="preserve" text-anchor="middle" x="176.65" y="-91.54" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_kinds</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_merit_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_merit_module~~UsesGraph_edge1" class="edge">
+<title>module~sqpopt_merit_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M606.81,-97.76C545.03,-114.73 426.69,-142.14 324.55,-136.13"/>
+</g>
+<!-- module~sqpopt_linalg_module -->
+<g id="module~~sqpopt_merit_module~~UsesGraph_node3" class="node">
+<title>module~sqpopt_linalg_module</title>
+<g id="a_module~~sqpopt_merit_module~~UsesGraph_node3"><a xlink:href="../module/sqpopt_linalg_module.html" xlink:title="sqpopt_linalg_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="550.83,-97.27 423.06,-97.27 423.06,-73 550.83,-73 550.83,-97.27"/>
+<text xml:space="preserve" text-anchor="middle" x="486.94" y="-81.54" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_linalg_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_merit_module&#45;&gt;module~sqpopt_linalg_module -->
+<g id="module~~sqpopt_merit_module~~UsesGraph_edge2" class="edge">
+<title>module~sqpopt_merit_module&#45;&gt;module~sqpopt_linalg_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M586.48,-85.14C578.6,-85.14 570.48,-85.14 562.44,-85.14"/>
+<polygon fill="#000000" stroke="#000000" points="562.68,-81.64 552.68,-85.14 562.68,-88.64 562.68,-81.64"/>
+</g>
+<!-- module~sqpopt_types_module -->
+<g id="module~~sqpopt_merit_module~~UsesGraph_node4" class="node">
+<title>module~sqpopt_types_module</title>
+<g id="a_module~~sqpopt_merit_module~~UsesGraph_node4"><a xlink:href="../module/sqpopt_types_module.html" xlink:title="sqpopt_types_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="387.06,-24.27 260.04,-24.27 260.04,0 387.06,0 387.06,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="323.55" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_types_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_merit_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_merit_module~~UsesGraph_edge3" class="edge">
+<title>module~sqpopt_merit_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M593.14,-72.5C537.19,-59.93 451.3,-40.62 391.77,-27.24"/>
+<polygon fill="#000000" stroke="#000000" points="392.61,-23.84 382.09,-25.07 391.07,-30.67 392.61,-23.84"/>
+</g>
+<!-- iso_fortran_env -->
+<g id="module~~sqpopt_merit_module~~UsesGraph_node6" class="node">
+<title>iso_fortran_env</title>
+<g id="a_module~~sqpopt_merit_module~~UsesGraph_node6"><a xlink:href="http://fortranwiki.org/fortran/show/iso_fortran_env" xlink:title="iso_fortran_env">
+<polygon fill="#337ab7" stroke="#337ab7" points="93.27,-107.27 0,-107.27 0,-83 93.27,-83 93.27,-107.27"/>
+<text xml:space="preserve" text-anchor="middle" x="46.63" y="-91.54" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">iso_fortran_env</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_kinds&#45;&gt;iso_fortran_env -->
+<g id="module~~sqpopt_merit_module~~UsesGraph_edge4" class="edge">
+<title>module~sqpopt_kinds&#45;&gt;iso_fortran_env</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M136.2,-95.14C126.27,-95.14 115.42,-95.14 104.81,-95.14"/>
+<polygon fill="#000000" stroke="#000000" points="104.98,-91.64 94.98,-95.14 104.98,-98.64 104.98,-91.64"/>
+</g>
+<!-- module~sqpopt_linalg_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_merit_module~~UsesGraph_edge7" class="edge">
+<title>module~sqpopt_linalg_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M463.9,-97.72C433.43,-113.78 376.33,-139.18 324.55,-136.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M322.55,-136.13C286.22,-134 246.55,-122.06 217.92,-111.61"/>
+<polygon fill="#000000" stroke="#000000" points="219.53,-108.48 208.94,-108.24 217.07,-115.03 219.53,-108.48"/>
+</g>
+<!-- module~sqpopt_linalg_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_merit_module~~UsesGraph_edge8" class="edge">
+<title>module~sqpopt_linalg_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M464.44,-72.54C444.73,-61.31 414.52,-44.88 387.06,-33.13 383.48,-31.6 379.74,-30.11 375.96,-28.67"/>
+<polygon fill="#000000" stroke="#000000" points="377.27,-25.42 366.68,-25.28 374.87,-31.99 377.27,-25.42"/>
+</g>
+<!-- lusol -->
+<g id="module~~sqpopt_merit_module~~UsesGraph_node7" class="node">
+<title>lusol</title>
+<g id="a_module~~sqpopt_merit_module~~UsesGraph_node7"><a xlink:href="https://github.com/jacobwilliams/lusol" xlink:title="lusol">
+<polygon fill="#337ab7" stroke="#337ab7" points="350.55,-108.27 296.55,-108.27 296.55,-84 350.55,-84 350.55,-108.27"/>
+<text xml:space="preserve" text-anchor="middle" x="323.55" y="-92.54" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">lusol</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_linalg_module&#45;&gt;lusol -->
+<g id="module~~sqpopt_merit_module~~UsesGraph_edge5" class="edge">
+<title>module~sqpopt_linalg_module&#45;&gt;lusol</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M422.62,-89.45C402.14,-90.85 380.1,-92.35 362.11,-93.58"/>
+<polygon fill="#000000" stroke="#000000" points="361.9,-90.08 352.16,-94.25 362.38,-97.06 361.9,-90.08"/>
+</g>
+<!-- lusol_precision -->
+<g id="module~~sqpopt_merit_module~~UsesGraph_node8" class="node">
+<title>lusol_precision</title>
+<g id="a_module~~sqpopt_merit_module~~UsesGraph_node8"><a xlink:href="https://github.com/jacobwilliams/lusol" xlink:title="lusol_precision">
+<polygon fill="#337ab7" stroke="#337ab7" points="368.31,-66.27 278.79,-66.27 278.79,-42 368.31,-42 368.31,-66.27"/>
+<text xml:space="preserve" text-anchor="middle" x="323.55" y="-50.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">lusol_precision</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_linalg_module&#45;&gt;lusol_precision -->
+<g id="module~~sqpopt_merit_module~~UsesGraph_edge6" class="edge">
+<title>module~sqpopt_linalg_module&#45;&gt;lusol_precision</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M422.62,-72.97C408.55,-70.27 393.73,-67.42 380,-64.79"/>
+<polygon fill="#000000" stroke="#000000" points="380.73,-61.36 370.25,-62.91 379.41,-68.24 380.73,-61.36"/>
+</g>
+<!-- module~sqpopt_types_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_merit_module~~UsesGraph_edge10" class="edge">
+<title>module~sqpopt_types_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M279.09,-24.71C272.56,-27.18 266.02,-29.99 260.04,-33.13 238.06,-44.71 215.7,-61.95 199.83,-75.32"/>
+<polygon fill="#000000" stroke="#000000" points="197.74,-72.5 192.44,-81.68 202.3,-77.81 197.74,-72.5"/>
+</g>
+<!-- ieee_arithmetic -->
+<g id="module~~sqpopt_merit_module~~UsesGraph_node5" class="node">
+<title>ieee_arithmetic</title>
+<g id="a_module~~sqpopt_merit_module~~UsesGraph_node5"><a xlink:href="http://fortranwiki.org/fortran/show/ieee_arithmetic" xlink:title="ieee_arithmetic">
+<polygon fill="#337ab7" stroke="#337ab7" points="224.04,-24.27 129.27,-24.27 129.27,0 224.04,0 224.04,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="176.65" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">ieee_arithmetic</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_types_module&#45;&gt;ieee_arithmetic -->
+<g id="module~~sqpopt_merit_module~~UsesGraph_edge9" class="edge">
+<title>module~sqpopt_types_module&#45;&gt;ieee_arithmetic</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M259.84,-12.13C251.82,-12.13 243.64,-12.13 235.71,-12.13"/>
+<polygon fill="#000000" stroke="#000000" points="235.81,-8.64 225.81,-12.14 235.81,-15.64 235.81,-8.64"/>
+</g>
+</g>
+</svg>
+</div>                <script>
+                  var panmodulesqpopt_merit_moduleUsesGraph = svgPanZoom('#modulesqpopt_merit_moduleUsesGraph',
+                    {zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true,}
+                  );
+                </script>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#UsesGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="UsesGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="511pt" height="32pt"
+ viewBox="0.00 0.00 511.00 32.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 506.88,-28.27 506.88,4 -4,4"/>
+<!-- Module -->
+<g id="node1" class="node">
+<title>Module</title>
+<polygon fill="#337ab7" stroke="#337ab7" points="54,-24.27 0,-24.27 0,0 54,0 54,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="27" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Module</text>
+</g>
+<!-- Submodule -->
+<g id="node2" class="node">
+<title>Submodule</title>
+<polygon fill="#5bc0de" stroke="#5bc0de" points="144.13,-24.27 71.87,-24.27 71.87,0 144.13,0 144.13,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="108" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Submodule</text>
+</g>
+<!-- Subroutine -->
+<g id="node3" class="node">
+<title>Subroutine</title>
+<polygon fill="#d9534f" stroke="#d9534f" points="231.63,-24.27 162.37,-24.27 162.37,0 231.63,0 231.63,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="197" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Subroutine</text>
+</g>
+<!-- Function -->
+<g id="node4" class="node">
+<title>Function</title>
+<polygon fill="#d94e8f" stroke="#d94e8f" points="306.26,-24.27 249.74,-24.27 249.74,0 306.26,0 306.26,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="278" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Function</text>
+</g>
+<!-- Program -->
+<g id="node5" class="node">
+<title>Program</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="381.26,-24.27 324.74,-24.27 324.74,0 381.26,0 381.26,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="353" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Program</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node6" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="502.88,-24.27 399.12,-24.27 399.12,0 502.88,0 502.88,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="451" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a submodule to the (sub)module which it is
+descended from. Dashed arrows point from a module or program unit to 
+modules which it uses.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+            </li>
+        </ul>
+      </div>
+    </div>
+
+          <div class="card">
+      <h3 class="card-header card-title bg-light">Used by</h3>
+      <div class="card-body">
+        <ul class="list-group list-group-flush">
+            <li class="list-group-item">
+              <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: module~~sqpopt_merit_module~~UsedByGraph Pages: 1 -->
+<svg id="modulesqpopt_merit_moduleUsedByGraph" width="641pt" height="125pt"
+ viewBox="0.00 0.00 641.00 125.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="module~~sqpopt_merit_module~~UsedByGraph" class="graph" transform="scale(0.478658 0.478658) rotate(0) translate(4 256.37)">
+<title>module~~sqpopt_merit_module~~UsedByGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-256.37 1335.16,-256.37 1335.16,4 -4,4"/>
+<!-- module~sqpopt_merit_module -->
+<g id="module~~sqpopt_merit_module~~UsedByGraph_node1" class="node">
+<title>module~sqpopt_merit_module</title>
+<polygon fill="none" stroke="black" points="127.02,-92.71 0,-92.71 0,-68.44 127.02,-68.44 127.02,-92.71"/>
+<text xml:space="preserve" text-anchor="middle" x="63.51" y="-76.97" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_merit_module</text>
+</g>
+<!-- module~sqpopt_linesearch_module -->
+<g id="module~~sqpopt_merit_module~~UsedByGraph_node2" class="node">
+<title>module~sqpopt_linesearch_module</title>
+<g id="a_module~~sqpopt_merit_module~~UsedByGraph_node2"><a xlink:href="../module/sqpopt_linesearch_module.html" xlink:title="sqpopt_linesearch_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="316.29,-92.71 163.02,-92.71 163.02,-68.44 316.29,-68.44 316.29,-92.71"/>
+<text xml:space="preserve" text-anchor="middle" x="239.66" y="-76.97" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_linesearch_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_linesearch_module&#45;&gt;module~sqpopt_merit_module -->
+<g id="module~~sqpopt_merit_module~~UsedByGraph_edge1" class="edge">
+<title>module~sqpopt_linesearch_module&#45;&gt;module~sqpopt_merit_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M162.53,-80.57C154.65,-80.57 146.66,-80.57 138.81,-80.57"/>
+<polygon fill="#000000" stroke="#000000" points="138.96,-77.07 128.96,-80.57 138.96,-84.07 138.96,-77.07"/>
+</g>
+<!-- module~sqpopt_iterate_module -->
+<g id="module~~sqpopt_merit_module~~UsedByGraph_node3" class="node">
+<title>module~sqpopt_iterate_module</title>
+<g id="a_module~~sqpopt_merit_module~~UsedByGraph_node3"><a xlink:href="../module/sqpopt_iterate_module.html" xlink:title="sqpopt_iterate_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="1049.37,-92.71 915.6,-92.71 915.6,-68.44 1049.37,-68.44 1049.37,-92.71"/>
+<text xml:space="preserve" text-anchor="middle" x="982.49" y="-76.97" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_iterate_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_iterate_module&#45;&gt;module~sqpopt_linesearch_module -->
+<g id="module~~sqpopt_merit_module~~UsedByGraph_edge2" class="edge">
+<title>module~sqpopt_iterate_module&#45;&gt;module~sqpopt_linesearch_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M915.31,-77.29C880.8,-76.41 837.95,-76.61 799.84,-80.57"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M797.84,-80.57C716.71,-89.01 695.76,-85.01 614.32,-80.57"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M612.32,-80.57C530.1,-76.09 513.67,-36.55 431.43,-40.57"/>
+</g>
+<!-- module~sqpopt_options_module -->
+<g id="module~~sqpopt_merit_module~~UsedByGraph_node6" class="node">
+<title>module~sqpopt_options_module</title>
+<g id="a_module~~sqpopt_merit_module~~UsedByGraph_node6"><a xlink:href="../module/sqpopt_options_module.html" xlink:title="sqpopt_options_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="682.08,-170.71 544.56,-170.71 544.56,-146.44 682.08,-146.44 682.08,-170.71"/>
+<text xml:space="preserve" text-anchor="middle" x="613.32" y="-154.97" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_options_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_iterate_module&#45;&gt;module~sqpopt_options_module -->
+<g id="module~~sqpopt_merit_module~~UsedByGraph_edge11" class="edge">
+<title>module~sqpopt_iterate_module&#45;&gt;module~sqpopt_options_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M797.84,-80.57C739.23,-86.66 677.44,-119.13 642.6,-140.21"/>
+<polygon fill="#000000" stroke="#000000" points="641.05,-137.05 634.38,-145.29 644.73,-143.01 641.05,-137.05"/>
+</g>
+<!-- module~sqpopt_restoration_module -->
+<g id="module~~sqpopt_merit_module~~UsedByGraph_node7" class="node">
+<title>module~sqpopt_restoration_module</title>
+<g id="a_module~~sqpopt_merit_module~~UsedByGraph_node7"><a xlink:href="../module/sqpopt_restoration_module.html" xlink:title="sqpopt_restoration_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="508.56,-92.71 352.29,-92.71 352.29,-68.44 508.56,-68.44 508.56,-92.71"/>
+<text xml:space="preserve" text-anchor="middle" x="430.43" y="-76.97" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_restoration_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_iterate_module&#45;&gt;module~sqpopt_restoration_module -->
+<g id="module~~sqpopt_merit_module~~UsedByGraph_edge14" class="edge">
+<title>module~sqpopt_iterate_module&#45;&gt;module~sqpopt_restoration_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M612.32,-80.57C582.42,-78.94 549.7,-78.53 520.41,-78.65"/>
+<polygon fill="#000000" stroke="#000000" points="520.43,-75.15 510.45,-78.71 520.48,-82.15 520.43,-75.15"/>
+</g>
+<!-- module~sqpopt_trust_region_module -->
+<g id="module~~sqpopt_merit_module~~UsedByGraph_node8" class="node">
+<title>module~sqpopt_trust_region_module</title>
+<g id="a_module~~sqpopt_merit_module~~UsedByGraph_node8"><a xlink:href="../module/sqpopt_trust_region_module.html" xlink:title="sqpopt_trust_region_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="879.6,-52.71 718.08,-52.71 718.08,-28.44 879.6,-28.44 879.6,-52.71"/>
+<text xml:space="preserve" text-anchor="middle" x="798.84" y="-36.97" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_trust_region_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_iterate_module&#45;&gt;module~sqpopt_trust_region_module -->
+<g id="module~~sqpopt_merit_module~~UsedByGraph_edge17" class="edge">
+<title>module~sqpopt_iterate_module&#45;&gt;module~sqpopt_trust_region_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M924.51,-68.02C906.59,-64.08 886.62,-59.68 868,-55.58"/>
+<polygon fill="#000000" stroke="#000000" points="868.92,-52.2 858.4,-53.47 867.42,-59.04 868.92,-52.2"/>
+</g>
+<!-- module~sqpopt_diagnostics_module -->
+<g id="module~~sqpopt_merit_module~~UsedByGraph_node9" class="node">
+<title>module~sqpopt_diagnostics_module</title>
+<g id="a_module~~sqpopt_merit_module~~UsedByGraph_node9"><a xlink:href="../module/sqpopt_diagnostics_module.html" xlink:title="sqpopt_diagnostics_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="878.1,-170.71 719.58,-170.71 719.58,-146.44 878.1,-146.44 878.1,-170.71"/>
+<text xml:space="preserve" text-anchor="middle" x="798.84" y="-154.97" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_diagnostics_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_iterate_module&#45;&gt;module~sqpopt_diagnostics_module -->
+<g id="module~~sqpopt_merit_module~~UsedByGraph_edge20" class="edge">
+<title>module~sqpopt_iterate_module&#45;&gt;module~sqpopt_diagnostics_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M952.3,-93.1C921.8,-106.2 873.75,-126.83 839.76,-141.43"/>
+<polygon fill="#000000" stroke="#000000" points="838.45,-138.18 830.64,-145.34 841.21,-144.61 838.45,-138.18"/>
+</g>
+<!-- module~sqpopt_module -->
+<g id="module~~sqpopt_merit_module~~UsedByGraph_node4" class="node">
+<title>module~sqpopt_module</title>
+<g id="a_module~~sqpopt_merit_module~~UsedByGraph_node4"><a xlink:href="../module/sqpopt_module.html" xlink:title="sqpopt_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="1178.64,-92.71 1085.37,-92.71 1085.37,-68.44 1178.64,-68.44 1178.64,-92.71"/>
+<text xml:space="preserve" text-anchor="middle" x="1132.01" y="-76.97" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_linesearch_module -->
+<g id="module~~sqpopt_merit_module~~UsedByGraph_edge3" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_linesearch_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1117.23,-67.98C1101.93,-54.9 1075.89,-35.15 1049.37,-26.57 909.24,18.75 864.62,-4.89 718.08,-19.57 671.26,-24.26 661.3,-38.05 614.32,-40.57"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M612.32,-40.57C531.99,-43.84 511.73,-36.64 431.43,-40.57"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M429.43,-40.57C382.22,-42.88 329.72,-54.79 292.09,-65.02"/>
+<polygon fill="#000000" stroke="#000000" points="291.56,-61.54 282.86,-67.59 293.43,-68.28 291.56,-61.54"/>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_iterate_module -->
+<g id="module~~sqpopt_merit_module~~UsedByGraph_edge8" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_iterate_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1085.14,-80.57C1077.4,-80.57 1069.19,-80.57 1060.91,-80.57"/>
+<polygon fill="#000000" stroke="#000000" points="1061.14,-77.07 1051.14,-80.57 1061.14,-84.07 1061.14,-77.07"/>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_options_module -->
+<g id="module~~sqpopt_merit_module~~UsedByGraph_edge12" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_options_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M981.49,-158.57C867.42,-186.53 834.94,-191.28 718.08,-179.57 704.79,-178.24 690.69,-175.97 677.3,-173.41"/>
+<polygon fill="#000000" stroke="#000000" points="678.24,-170.03 667.75,-171.5 676.87,-176.89 678.24,-170.03"/>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_restoration_module -->
+<g id="module~~sqpopt_merit_module~~UsedByGraph_edge15" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_restoration_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1114.46,-93.09C1088.34,-111.94 1035.15,-146.7 983.49,-158.57"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M981.49,-158.57C936.43,-168.93 925.21,-145.16 879.6,-137.57 862.09,-134.66 645.22,-107.36 519.7,-91.62"/>
+<polygon fill="#000000" stroke="#000000" points="520.46,-88.19 510.1,-90.42 519.59,-95.14 520.46,-88.19"/>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_trust_region_module -->
+<g id="module~~sqpopt_merit_module~~UsedByGraph_edge18" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_trust_region_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1099.12,-67.98C1069.65,-57.3 1024.39,-43.3 983.49,-40.57"/>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_diagnostics_module -->
+<g id="module~~sqpopt_merit_module~~UsedByGraph_edge21" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_diagnostics_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M981.49,-158.57C952.02,-165.8 919.04,-167.59 889.36,-167.02"/>
+<polygon fill="#000000" stroke="#000000" points="889.77,-163.53 879.67,-166.73 889.57,-170.52 889.77,-163.53"/>
+</g>
+<!-- module~sqpopt_nlls_module -->
+<g id="module~~sqpopt_merit_module~~UsedByGraph_node5" class="node">
+<title>module~sqpopt_nlls_module</title>
+<g id="a_module~~sqpopt_merit_module~~UsedByGraph_node5"><a xlink:href="../module/sqpopt_nlls_module.html" xlink:title="sqpopt_nlls_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="1331.16,-92.71 1214.64,-92.71 1214.64,-68.44 1331.16,-68.44 1331.16,-92.71"/>
+<text xml:space="preserve" text-anchor="middle" x="1272.9" y="-76.97" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_nlls_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_nlls_module&#45;&gt;module~sqpopt_linesearch_module -->
+<g id="module~~sqpopt_merit_module~~UsedByGraph_edge4" class="edge">
+<title>module~sqpopt_nlls_module&#45;&gt;module~sqpopt_linesearch_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M797.84,-236.57C635.14,-229.46 589.7,-274.92 431.43,-236.57"/>
+</g>
+<!-- module~sqpopt_nlls_module&#45;&gt;module~sqpopt_module -->
+<g id="module~~sqpopt_merit_module~~UsedByGraph_edge9" class="edge">
+<title>module~sqpopt_nlls_module&#45;&gt;module~sqpopt_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1214.2,-80.57C1206.29,-80.57 1198.17,-80.57 1190.26,-80.57"/>
+<polygon fill="#000000" stroke="#000000" points="1190.4,-77.07 1180.4,-80.57 1190.4,-84.07 1190.4,-77.07"/>
+</g>
+<!-- module~sqpopt_nlls_module&#45;&gt;module~sqpopt_options_module -->
+<g id="module~~sqpopt_merit_module~~UsedByGraph_edge13" class="edge">
+<title>module~sqpopt_nlls_module&#45;&gt;module~sqpopt_options_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1253.22,-93.05C1190.96,-133.26 983.99,-255.72 799.84,-236.57"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M797.84,-236.57C738.03,-233.96 675.28,-199.28 640.86,-177.05"/>
+<polygon fill="#000000" stroke="#000000" points="643.05,-174.31 632.78,-171.71 639.19,-180.15 643.05,-174.31"/>
+</g>
+<!-- module~sqpopt_nlls_module&#45;&gt;module~sqpopt_trust_region_module -->
+<g id="module~~sqpopt_merit_module~~UsedByGraph_edge19" class="edge">
+<title>module~sqpopt_nlls_module&#45;&gt;module~sqpopt_trust_region_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1221.3,-67.97C1207.53,-64.88 1192.57,-61.81 1178.64,-59.57 1092.6,-45.75 1070.44,-46.36 983.49,-40.57"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M981.49,-40.57C952.23,-38 920.21,-37.3 891.33,-37.45"/>
+<polygon fill="#000000" stroke="#000000" points="891.48,-33.94 881.51,-37.53 891.54,-40.94 891.48,-33.94"/>
+</g>
+<!-- module~sqpopt_options_module&#45;&gt;module~sqpopt_linesearch_module -->
+<g id="module~~sqpopt_merit_module~~UsedByGraph_edge5" class="edge">
+<title>module~sqpopt_options_module&#45;&gt;module~sqpopt_linesearch_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M599.25,-170.83C570.19,-196.57 497.57,-252.6 431.43,-236.57"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M429.43,-236.57C350.53,-217.46 284.31,-140.07 255.75,-101.98"/>
+<polygon fill="#000000" stroke="#000000" points="258.64,-99.99 249.91,-93.99 252.99,-104.13 258.64,-99.99"/>
+</g>
+<!-- module~sqpopt_options_module&#45;&gt;module~sqpopt_restoration_module -->
+<g id="module~~sqpopt_merit_module~~UsedByGraph_edge16" class="edge">
+<title>module~sqpopt_options_module&#45;&gt;module~sqpopt_restoration_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M578.37,-146.04C567.51,-141.9 555.48,-137.17 544.56,-132.57 518.54,-121.61 489.61,-108.3 467.53,-97.89"/>
+<polygon fill="#000000" stroke="#000000" points="469.18,-94.8 458.64,-93.68 466.18,-101.12 469.18,-94.8"/>
+</g>
+<!-- module~sqpopt_restoration_module&#45;&gt;module~sqpopt_linesearch_module -->
+<g id="module~~sqpopt_merit_module~~UsedByGraph_edge6" class="edge">
+<title>module~sqpopt_restoration_module&#45;&gt;module~sqpopt_linesearch_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M351.83,-80.57C344.04,-80.57 336.09,-80.57 328.21,-80.57"/>
+<polygon fill="#000000" stroke="#000000" points="328.25,-77.07 318.25,-80.57 328.25,-84.07 328.25,-77.07"/>
+</g>
+<!-- module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_linesearch_module -->
+<g id="module~~sqpopt_merit_module~~UsedByGraph_edge7" class="edge">
+<title>module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_linesearch_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M717.84,-38.71C685.66,-38.44 648.2,-38.75 614.32,-40.57"/>
+</g>
+<!-- module~sqpopt_diagnostics_module&#45;&gt;module~sqpopt_options_module -->
+<g id="module~~sqpopt_merit_module~~UsedByGraph_edge10" class="edge">
+<title>module~sqpopt_diagnostics_module&#45;&gt;module~sqpopt_options_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M719.21,-158.57C710.78,-158.57 702.21,-158.57 693.77,-158.57"/>
+<polygon fill="#000000" stroke="#000000" points="693.89,-155.07 683.89,-158.57 693.89,-162.07 693.89,-155.07"/>
+</g>
+</g>
+</svg>
+</div>                <script>
+                  var panmodulesqpopt_merit_moduleUsedByGraph = svgPanZoom('#modulesqpopt_merit_moduleUsedByGraph',
+                    {zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true,}
+                  );
+                </script>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#UsedByGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="UsedByGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="511pt" height="32pt"
+ viewBox="0.00 0.00 511.00 32.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 506.88,-28.27 506.88,4 -4,4"/>
+<!-- Module -->
+<g id="node1" class="node">
+<title>Module</title>
+<polygon fill="#337ab7" stroke="#337ab7" points="54,-24.27 0,-24.27 0,0 54,0 54,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="27" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Module</text>
+</g>
+<!-- Submodule -->
+<g id="node2" class="node">
+<title>Submodule</title>
+<polygon fill="#5bc0de" stroke="#5bc0de" points="144.13,-24.27 71.87,-24.27 71.87,0 144.13,0 144.13,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="108" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Submodule</text>
+</g>
+<!-- Subroutine -->
+<g id="node3" class="node">
+<title>Subroutine</title>
+<polygon fill="#d9534f" stroke="#d9534f" points="231.63,-24.27 162.37,-24.27 162.37,0 231.63,0 231.63,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="197" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Subroutine</text>
+</g>
+<!-- Function -->
+<g id="node4" class="node">
+<title>Function</title>
+<polygon fill="#d94e8f" stroke="#d94e8f" points="306.26,-24.27 249.74,-24.27 249.74,0 306.26,0 306.26,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="278" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Function</text>
+</g>
+<!-- Program -->
+<g id="node5" class="node">
+<title>Program</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="381.26,-24.27 324.74,-24.27 324.74,0 381.26,0 381.26,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="353" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Program</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node6" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="502.88,-24.27 399.12,-24.27 399.12,0 502.88,0 502.88,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="451" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a submodule to the (sub)module which it is
+descended from. Dashed arrows point from a module or program unit to 
+modules which it uses.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+            </li>
+        </ul>
+      </div>
+    </div>
+
+      <br>
+
+
+        <section>
+          <h2>Variables</h2>
+            <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Visibility</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+<th></th><th scope="col">Initial</th>        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-sqpopt_merit_l1"></span>
+              integer,
+            </td>
+              <td>public,</td>
+            <td>
+parameter               
+            </td>
+            <td>::</td>
+            <td><strong>sqpopt_merit_l1</strong></td>
+<td> =</td>
+                <td>1</td>
+            <td>
+                <p>non-smooth <script type="math/tex"> \ell_1 </script> exact penalty merit function (default)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-sqpopt_merit_augmented_lagrangian"></span>
+              integer,
+            </td>
+              <td>public,</td>
+            <td>
+parameter               
+            </td>
+            <td>::</td>
+            <td><strong>sqpopt_merit_augmented_lagrangian</strong></td>
+<td> =</td>
+                <td>2</td>
+            <td>
+                <p>smooth augmented Lagrangian merit function (NPSOL/SNOPT-style)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-sqpopt_penalty_multipliers"></span>
+              integer,
+            </td>
+              <td>public,</td>
+            <td>
+parameter               
+            </td>
+            <td>::</td>
+            <td><strong>sqpopt_penalty_multipliers</strong></td>
+<td> =</td>
+                <td>1</td>
+            <td>
+                <p>(default) penalty kept above the multipliers,
+<script type="math/tex"> \mu \ge \lVert\lambda\rVert_\infty + 1 </script>; never decreases</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-sqpopt_penalty_model"></span>
+              integer,
+            </td>
+              <td>public,</td>
+            <td>
+parameter               
+            </td>
+            <td>::</td>
+            <td><strong>sqpopt_penalty_model</strong></td>
+<td> =</td>
+                <td>2</td>
+            <td>
+                <p>each merit function's own principled rule (see
+<a href="../proc/update_penalty_parameter.html">update_penalty_parameter</a>): Byrd-Nocedal
+model reduction (<code>sqpopt_merit_l1</code>), or
+Gill-Murray-Saunders-Wright (<code>sqpopt_merit_augmented_lagrangian</code>)</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+        </section>
+        <br>
+
+
+
+
+        <section>
+          <h2>Derived Types</h2>
+              <div class="card">
+    <div class="card-header codesum">
+      <span class="anchor" id="type-sqpopt_merit_type"></span>
+      <h3>
+        type, public&nbsp;::&nbsp;
+        <a href='../type/sqpopt_merit_type.html'>sqpopt_merit_type</a>
+        
+      </h3>
+    </div>
+    <div class="card-body">
+      <p>options and state of the merit function (the <code>merit</code> component of
+<a href="../type/sqpopt_linesearch_type.html">sqpopt_linesearch_type</a>).</p>
+
+        <h4>Components</h4>
+          <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Visibility</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+<th></th><th scope="col">Initial</th>        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-mode~3"></span>
+              integer,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>mode</strong></td>
+<td> =</td>
+                <td>sqpopt_merit_l1</td>
+            <td>
+<p>merit function to use (set from <code>options%merit_mode</code>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-penalty~2"></span>
+              real(kind=wp),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>penalty</strong></td>
+<td> =</td>
+                <td>1.0_wp</td>
+            <td>
+<p>current penalty parameter (called <script type="math/tex"> \mu </script> for
+<code>sqpopt_merit_l1</code>, <script type="math/tex"> \rho </script> for
+<code>sqpopt_merit_augmented_lagrangian</code>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-penalty_update"></span>
+              integer,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>penalty_update</strong></td>
+<td> =</td>
+                <td>sqpopt_penalty_multipliers</td>
+            <td>
+<p>how the penalty parameter is updated (see the
+<code>sqpopt_penalty_*</code> constants; set from
+<code>options%penalty_update</code>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-penalty_rho"></span>
+              real(kind=wp),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>penalty_rho</strong></td>
+<td> =</td>
+                <td>0.1_wp</td>
+            <td>
+<p><code>sqpopt_penalty_model</code> with <code>sqpopt_merit_l1</code>: the
+fraction <script type="math/tex"> \rho </script> of the linearized violation
+reduction the penalty must credit (Nocedal &amp; Wright
+eq. 18.36), <script type="math/tex"> 0 < \rho < 1 </script>
+</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-joint_active"></span>
+              logical,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>joint_active</strong></td>
+<td> =</td>
+                <td>.false.</td>
+            <td>
+<p>whether the merit's multipliers move along the step (see
+<a href="../proc/update_penalty_parameter.html">update_penalty_parameter</a>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-lambda0~2"></span>
+              real(kind=wp),
+            </td>
+              <td>public,</td>
+            <td>
+              dimension(:), allocatable
+            </td>
+            <td>::</td>
+            <td><strong>lambda0</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+<p>the multipliers at the start of the step <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-s0~2"></span>
+              real(kind=wp),
+            </td>
+              <td>public,</td>
+            <td>
+              dimension(:), allocatable
+            </td>
+            <td>::</td>
+            <td><strong>s0</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+<p>the slacks at the start of the step <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-q~6"></span>
+              real(kind=wp),
+            </td>
+              <td>public,</td>
+            <td>
+              dimension(:), allocatable
+            </td>
+            <td>::</td>
+            <td><strong>q</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+<p>the slacks' change per unit step <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-penalty_floor"></span>
+              real(kind=wp),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>penalty_floor</strong></td>
+<td> =</td>
+                <td>1.0e-2_wp</td>
+            <td>
+<p>the penalty can only decrease above this, which doubles each time</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+
+
+        <h4>Type-Bound Procedures</h4>
+        <table class="table table-striped varlist">
+          <tbody>
+              <tr>
+                <td>  procedure, public ::
+  <strong><a href='../type/sqpopt_merit_type.html#boundprocedure-eval'>eval</a></strong> => <a href='/home/runner/work/sqpopt/sqpopt/web/api/proc/eval_merit_function.html'>eval_merit_function</a></td>
+                  <td></td>
+              </tr>
+              <tr>
+                <td>  procedure, public ::
+  <strong><a href='../type/sqpopt_merit_type.html#boundprocedure-directional_derivative'>directional_derivative</a></strong> => <a href='/home/runner/work/sqpopt/sqpopt/web/api/proc/merit_directional_derivative.html'>merit_directional_derivative</a></td>
+                  <td></td>
+              </tr>
+              <tr>
+                <td>  procedure, public ::
+  <strong><a href='../type/sqpopt_merit_type.html#boundprocedure-update_penalty~2'>update_penalty</a></strong> => <a href='/home/runner/work/sqpopt/sqpopt/web/api/proc/update_penalty_parameter.html'>update_penalty_parameter</a></td>
+                  <td></td>
+              </tr>
+          </tbody>
+        </table>
+    </div>
+  </div>
+
+        </section>
+        <br>
+
+
+        <section>
+          <h2>Subroutines</h2>
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-eval_merit_function"></span> <h3>private  subroutine <a href='../proc/eval_merit_function.html'>eval_merit_function</a>(me, f, c, c_lb, c_ub, lambda, phi, alpha)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>evaluate the merit function used to measure progress, dispatching on
+<code>me%mode</code>:</p><a href="../proc/eval_merit_function.html" class="pull-right"><emph>Read more&hellip;</emph></a>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~82"></span>
+              class(<a href='../type/sqpopt_merit_type.html'>sqpopt_merit_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-f~18"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>f</strong></td>
+            <td>
+<p>objective function value</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c~23"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c</strong></td>
+            <td>
+<p>constraint values <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_lb~16"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_lb</strong></td>
+            <td>
+<p>constraint lower bounds <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_ub~16"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_ub</strong></td>
+            <td>
+<p>constraint upper bounds <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-lambda~20"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>lambda</strong></td>
+            <td>
+<p>Lagrange multiplier estimate <code>dimension(m)</code>
+(only used by <code>sqpopt_merit_augmented_lagrangian</code>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-phi~8"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>phi</strong></td>
+            <td>
+<p>value of the merit function</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-alpha~22"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>alpha</strong></td>
+            <td>
+<p>step length along the joint step (see above)</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-augmented_lagrangian_slacks"></span> <h3>private  subroutine <a href='../proc/augmented_lagrangian_slacks.html'>augmented_lagrangian_slacks</a>(me, c, c_lb, c_ub, lambda, s)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>the closed-form slack <code>s</code> that minimizes the augmented Lagrangian merit
+function subject to <script type="math/tex"> c_l \le s \le c_u </script>: this generalizes the
+non-negative slack <script type="math/tex"> s_i=\max(0,c_i-\lambda_i/\rho) </script> of the original
+(single-sided) formulation to <code>sqpopt</code>'s two-sided constraint bounds
+(equality rows, where <code>c_lb=c_ub</code>, are handled automatically since <code>s</code>
+is then clipped to that single value regardless of <script type="math/tex"> \lambda,\rho </script>).</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~83"></span>
+              class(<a href='../type/sqpopt_merit_type.html'>sqpopt_merit_type</a>),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c~24"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c</strong></td>
+            <td>
+<p>constraint values at <code>x</code> <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_lb~17"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_lb</strong></td>
+            <td>
+<p>lower bounds on the constraints <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_ub~17"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_ub</strong></td>
+            <td>
+<p>upper bounds on the constraints <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-lambda~21"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>lambda</strong></td>
+            <td>
+<p>Lagrange multipliers for the constraints <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-s~9"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>s</strong></td>
+            <td>
+<p>closed-form slack that minimizes the augmented Lagrangian merit function</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-merit_directional_derivative"></span> <h3>private  subroutine <a href='../proc/merit_directional_derivative.html'>merit_directional_derivative</a>(me, jac, g, p, c, c_lb, c_ub, lambda, dphi0)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>the (approximate) directional derivative <script type="math/tex"> D(\phi;p) </script> of the merit
+function along <code>p</code>, used by the Armijo sufficient-decrease test and by
+the descent-direction safeguard in <a href="../module/sqpopt_iterate_module.html">sqpopt_iterate_module</a>. Dispatches
+on <code>me%mode</code>:</p><a href="../proc/merit_directional_derivative.html" class="pull-right"><emph>Read more&hellip;</emph></a>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~84"></span>
+              class(<a href='../type/sqpopt_merit_type.html'>sqpopt_merit_type</a>),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-jac~20"></span>
+              type(<a href='../type/sqpopt_sparse_matrix.html'>sqpopt_sparse_matrix</a>),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>jac</strong></td>
+            <td>
+<p>constraint Jacobian at <code>x</code>, <code>dimension(m,n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-g~18"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>g</strong></td>
+            <td>
+<p>objective gradient at <code>x</code> <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-p~22"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>p</strong></td>
+            <td>
+<p>search direction <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c~25"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c</strong></td>
+            <td>
+<p>constraint values at <code>x</code> <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_lb~18"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_lb</strong></td>
+            <td>
+<p>lower bounds on the constraints <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_ub~18"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_ub</strong></td>
+            <td>
+<p>upper bounds on the constraints <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-lambda~22"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>lambda</strong></td>
+            <td>
+<p>Lagrange multipliers for the constraints <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-dphi0~5"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>dphi0</strong></td>
+            <td>
+<p>directional derivative of the merit function along <code>p</code></p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-update_penalty_parameter"></span> <h3>private  subroutine <a href='../proc/update_penalty_parameter.html'>update_penalty_parameter</a>(me, jac, g, p, php, c, c_lb, c_ub, lambda, lambda_qp)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>update the merit function's penalty parameter after the QP solve, for
+the step <code>p</code> (with <script type="math/tex"> p^THp </script> = <code>php</code>), according to <code>penalty_update</code>:</p><a href="../proc/update_penalty_parameter.html" class="pull-right"><emph>Read more&hellip;</emph></a>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~85"></span>
+              class(<a href='../type/sqpopt_merit_type.html'>sqpopt_merit_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-jac~21"></span>
+              type(<a href='../type/sqpopt_sparse_matrix.html'>sqpopt_sparse_matrix</a>),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>jac</strong></td>
+            <td>
+<p>constraint Jacobian at <code>x</code>, <code>dimension(m,n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-g~19"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>g</strong></td>
+            <td>
+<p>objective gradient at <code>x</code> <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-p~23"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>p</strong></td>
+            <td>
+<p>the step <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-php"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>php</strong></td>
+            <td>
+<p>
+<script type="math/tex"> p^THp </script>
+</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c~26"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c</strong></td>
+            <td>
+<p>constraint values at <code>x</code> <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_lb~19"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_lb</strong></td>
+            <td>
+<p>constraint lower bounds <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_ub~19"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_ub</strong></td>
+            <td>
+<p>constraint upper bounds <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-lambda~23"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>lambda</strong></td>
+            <td>
+<p>the current multipliers <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-lambda_qp"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>lambda_qp</strong></td>
+            <td>
+<p>the QP's multipliers <code>dimension(m)</code></p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+        </section>
+        <br>
+
+
+
+    </div>
+  </div>
+
+      <hr>
+    </div> <!-- /container -->
+    <footer>
+      <div class="container">
+        <div class="row justify-content-between">
+          <div class="col">
+            <p>
+              sqpopt
+ was developed by Jacob Williams<br>              &copy; 2026 
+</p>
+          </div>
+          <div class="col">
+            <p class="text-end">
+              Documentation generated by
+              <a href="https://github.com/Fortran-FOSS-Programmers/ford">FORD</a>
+            </p>
+          </div>
+        </div>
+        <br>
+      </div> <!-- /container -->
+    </footer>
+    <!-- sqpopt theme: the button switches the theme, and remembers it for the guide too -->
+    <script>
+      document.querySelector('.theme-toggle').addEventListener('click', function () {
+        var root = document.documentElement;
+        var next = root.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-bs-theme', next);
+        try { localStorage.setItem('sqpopt-theme', next); } catch (e) {}
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,597 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - coverage.info - src/sqpopt_kkt_module.f90</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../index.html" title="Click to go to top-level">top level</a> - <a href="index.html" title="Click to go to directory src">src</a> - sqpopt_kkt_module.f90<span style="font-size: 80%;"> (source / <a href="sqpopt_kkt_module.f90.func-c.html" title="Click to go to function table">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">coverage.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">93.6&nbsp;%</td>
+            <td class="headerCovTableEntry">157</td>
+            <td class="headerCovTableEntry">147</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2026-10-03 21:13:48</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryMed">81.8&nbsp;%</td>
+            <td class="headerCovTableEntry">11</td>
+            <td class="headerCovTableEntry">9</td>
+          </tr>
+                  <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : !*******************************************************************************</span>
+<span id="L2"><span class="lineNum">       2</span>              : !&gt; author: Jacob Williams</span>
+<span id="L3"><span class="lineNum">       3</span>              : !  license: MIT</span>
+<span id="L4"><span class="lineNum">       4</span>              : !</span>
+<span id="L5"><span class="lineNum">       5</span>              : !  The KKT matrix of a QP subproblem's working set, factored by the sparse</span>
+<span id="L6"><span class="lineNum">       6</span>              : !  direct solver of [[sqpopt_symmetric_solver_module]] (MUMPS or QDLDL,</span>
+<span id="L7"><span class="lineNum">       7</span>              : !  see `options%linear_solver`):</span>
+<span id="L8"><span class="lineNum">       8</span>              : !</span>
+<span id="L9"><span class="lineNum">       9</span>              : !  $$ K = \begin{bmatrix} H &amp; J_a^T \\ J_a &amp; -\epsilon I \end{bmatrix} $$</span>
+<span id="L10"><span class="lineNum">      10</span>              : !</span>
+<span id="L11"><span class="lineNum">      11</span>              : !  where \( H \) is the Hessian in the *free* variables (those not at a</span>
+<span id="L12"><span class="lineNum">      12</span>              : !  bound of the working set), \( J_a \) holds the working set's rows of the</span>
+<span id="L13"><span class="lineNum">      13</span>              : !  Jacobian in those variables, and \( \epsilon \ge 0 \) is an optional</span>
+<span id="L14"><span class="lineNum">      14</span>              : !  regularization (zero, unless a singular matrix is being regularized).</span>
+<span id="L15"><span class="lineNum">      15</span>              : !</span>
+<span id="L16"><span class="lineNum">      16</span>              : !  It answers two questions about the QP restricted to that working set</span>
+<span id="L17"><span class="lineNum">      17</span>              : !  (a *face* of the QP):</span>
+<span id="L18"><span class="lineNum">      18</span>              : !</span>
+<span id="L19"><span class="lineNum">      19</span>              : !  * **Is it convex there?** By Sylvester's law of inertia, \( K \) has one</span>
+<span id="L20"><span class="lineNum">      20</span>              : !    negative eigenvalue for each (independent) row of \( J_a \), plus one</span>
+<span id="L21"><span class="lineNum">      21</span>              : !    for each negative eigenvalue of the reduced Hessian \( Z^THZ \). So</span>
+<span id="L22"><span class="lineNum">      22</span>              : !    `n_negative`, the number of negative eigenvalues beyond the number of</span>
+<span id="L23"><span class="lineNum">      23</span>              : !    rows, counts the directions of negative curvature on the face. This is</span>
+<span id="L24"><span class="lineNum">      24</span>              : !    what the inertia control uses (see [[sqpopt_inertia_module]]).</span>
+<span id="L25"><span class="lineNum">      25</span>              : !  * **Where is its minimizer?** One solve with the factors gives the step</span>
+<span id="L26"><span class="lineNum">      26</span>              : !    to the minimizer of the face, and its multipliers (see</span>
+<span id="L27"><span class="lineNum">      27</span>              : !    [[sqpopt_qp_direct_module]]).</span>
+<span id="L28"><span class="lineNum">      28</span>              : !</span>
+<span id="L29"><span class="lineNum">      29</span>              : !  **A fixed pattern.** So that the sparsity pattern is the same for every</span>
+<span id="L30"><span class="lineNum">      30</span>              : !  working set (it is analysed only once per solve), \( K \) always has</span>
+<span id="L31"><span class="lineNum">      31</span>              : !  order `n+m`: a variable at a bound of the working set has its row and</span>
+<span id="L32"><span class="lineNum">      32</span>              : !  column replaced by those of the identity, and a constraint outside it by</span>
+<span id="L33"><span class="lineNum">      33</span>              : !  those of minus the identity. The unknowns of a solve are then all `n`</span>
+<span id="L34"><span class="lineNum">      34</span>              : !  step components followed by all `m` multipliers (see [[kkt_solve]]).</span>
+<span id="L35"><span class="lineNum">      35</span>              : !</span>
+<span id="L36"><span class="lineNum">      36</span>              : !  **One factorization at a time.** The last factorization is kept, with</span>
+<span id="L37"><span class="lineNum">      37</span>              : !  the working set it was made for. Asking for the same one again (while</span>
+<span id="L38"><span class="lineNum">      38</span>              : !  the matrices haven't changed, see [[kkt_new_matrices]]) costs nothing,</span>
+<span id="L39"><span class="lineNum">      39</span>              : !  so the inertia control and the direct QP step share their</span>
+<span id="L40"><span class="lineNum">      40</span>              : !  factorizations.</span>
+<span id="L41"><span class="lineNum">      41</span>              : !</span>
+<span id="L42"><span class="lineNum">      42</span>              : !  The Hessian is the solver's ([[kkt_factor]]), or a multiple of the</span>
+<span id="L43"><span class="lineNum">      43</span>              : !  identity ([[kkt_factor_identity]], for the least-squares problems of</span>
+<span id="L44"><span class="lineNum">      44</span>              : !  [[sqpopt_least_squares_module]]).</span>
+<span id="L45"><span class="lineNum">      45</span>              : !</span>
+<span id="L46"><span class="lineNum">      46</span>              : !  **Quasi-Newton Hessians.** The user's exact Hessian is sparse, and goes</span>
+<span id="L47"><span class="lineNum">      47</span>              : !  into \( K \) as it is. A limited-memory quasi-Newton Hessian is not</span>
+<span id="L48"><span class="lineNum">      48</span>              : !  sparse, but it is a multiple of the identity plus a matrix of low rank</span>
+<span id="L49"><span class="lineNum">      49</span>              : !  `r` (see [[sqpopt_hessian_module]]),</span>
+<span id="L50"><span class="lineNum">      50</span>              : !  \( B = \theta I + \sigma\, U M^{-1} U^T \). So</span>
+<span id="L51"><span class="lineNum">      51</span>              : !  \( K = K_0 + \sigma\, E M^{-1} E^T \), where \( K_0 \) is the sparse</span>
+<span id="L52"><span class="lineNum">      52</span>              : !  matrix with \( \theta I \) for the Hessian, and \( E \) is \( U \)</span>
+<span id="L53"><span class="lineNum">      53</span>              : !  in the free variables (zero elsewhere). Only \( K_0 \) is factored, and:</span>
+<span id="L54"><span class="lineNum">      54</span>              : !</span>
+<span id="L55"><span class="lineNum">      55</span>              : !  * a solve uses the Sherman-Morrison-Woodbury formula,</span>
+<span id="L56"><span class="lineNum">      56</span>              : !    \( K^{-1} = K_0^{-1} - K_0^{-1} E\, T^{-1} E^T K_0^{-1} \), with the</span>
+<span id="L57"><span class="lineNum">      57</span>              : !    small dense matrix \( T = \sigma M + E^T K_0^{-1} E \): two solves</span>
+<span id="L58"><span class="lineNum">      58</span>              : !    with \( K_0 \) each, after `r` solves to form \( T \) when the</span>
+<span id="L59"><span class="lineNum">      59</span>              : !    matrix is factored (as IPOPT does for its limited-memory option);</span>
+<span id="L60"><span class="lineNum">      60</span>              : !  * the inertia follows from the two ways of eliminating a block of</span>
+<span id="L61"><span class="lineNum">      61</span>              : !    \( \begin{bmatrix} K_0 &amp; E \\ E^T &amp; -\sigma M \end{bmatrix} \)</span>
+<span id="L62"><span class="lineNum">      62</span>              : !    (the Haynsworth inertia additivity formula): the number of negative</span>
+<span id="L63"><span class="lineNum">      63</span>              : !    eigenvalues of \( K \) is that of \( K_0 \), plus the number of</span>
+<span id="L64"><span class="lineNum">      64</span>              : !    positive eigenvalues of \( T \), minus that of \( \sigma M \).</span>
+<span id="L65"><span class="lineNum">      65</span>              : </span>
+<span id="L66"><span class="lineNum">      66</span>              :     module sqpopt_kkt_module</span>
+<span id="L67"><span class="lineNum">      67</span>              : </span>
+<span id="L68"><span class="lineNum">      68</span>              :     use sqpopt_kinds,                   only: wp =&gt; sqpopt_module_wp</span>
+<span id="L69"><span class="lineNum">      69</span>              :     use sqpopt_types_module,            only: sqpopt_sparse_matrix</span>
+<span id="L70"><span class="lineNum">      70</span>              :     use sqpopt_hessian_module,          only: sqpopt_hessian_type</span>
+<span id="L71"><span class="lineNum">      71</span>              :     use sqpopt_symmetric_solver_module, only: sqpopt_symmetric_solver_type</span>
+<span id="L72"><span class="lineNum">      72</span>              :     use sqpopt_dense_linalg_module,     only: dense_lu_factor, dense_lu_solve, dense_symmetric_inertia</span>
+<span id="L73"><span class="lineNum">      73</span>              : </span>
+<span id="L74"><span class="lineNum">      74</span>              :     implicit none</span>
+<span id="L75"><span class="lineNum">      75</span>              : </span>
+<span id="L76"><span class="lineNum">      76</span>              :     private</span>
+<span id="L77"><span class="lineNum">      77</span>              : </span>
+<span id="L78"><span class="lineNum">      78</span>              :     type, public :: sqpopt_kkt_type</span>
+<span id="L79"><span class="lineNum">      79</span>              :         !! the KKT matrix of a working set, and its factorization (see the</span>
+<span id="L80"><span class="lineNum">      80</span>              :         !! module documentation). It holds the sparse solver, so it must not</span>
+<span id="L81"><span class="lineNum">      81</span>              :         !! be copied, and [[kkt_destroy]] must be called when the solve ends.</span>
+<span id="L82"><span class="lineNum">      82</span>              : </span>
+<span id="L83"><span class="lineNum">      83</span>              :         private</span>
+<span id="L84"><span class="lineNum">      84</span>              : </span>
+<span id="L85"><span class="lineNum">      85</span>              :         logical, public :: enabled = .false.  !! whether it can be used (set by [[kkt_initialize]], and unset if</span>
+<span id="L86"><span class="lineNum">      86</span>              :                                               !! a factorization fails)</span>
+<span id="L87"><span class="lineNum">      87</span>              :         integer, public :: n_negative = 0     !! of the last factorization: the number of directions of negative</span>
+<span id="L88"><span class="lineNum">      88</span>              :                                               !! curvature on the working set's face (the negative eigenvalues of</span>
+<span id="L89"><span class="lineNum">      89</span>              :                                               !! \( K \) beyond `m`)</span>
+<span id="L90"><span class="lineNum">      90</span>              :         logical, public :: singular = .false. !! of the last factorization: whether \( K \) is singular (the</span>
+<span id="L91"><span class="lineNum">      91</span>              :                                               !! working set's rows are dependent, or the face has a direction</span>
+<span id="L92"><span class="lineNum">      92</span>              :                                               !! of zero curvature)</span>
+<span id="L93"><span class="lineNum">      93</span>              :         logical, public :: inertia_known = .true. !! of the last factorization: whether the sparse solver could</span>
+<span id="L94"><span class="lineNum">      94</span>              :                                                   !! tell the inertia of \( K \) (if not, `n_negative` counts the</span>
+<span id="L95"><span class="lineNum">      95</span>              :                                                   !! directions it couldn't tell as negative curvature: see</span>
+<span id="L96"><span class="lineNum">      96</span>              :                                                   !! [[kkt_negatives]])</span>
+<span id="L97"><span class="lineNum">      97</span>              :         type(sqpopt_symmetric_solver_type), public :: solver !! the sparse solver (with its counts and its time)</span>
+<span id="L98"><span class="lineNum">      98</span>              : </span>
+<span id="L99"><span class="lineNum">      99</span>              :         integer :: n = 0   !! number of variables</span>
+<span id="L100"><span class="lineNum">     100</span>              :         integer :: m = 0   !! number of constraints</span>
+<span id="L101"><span class="lineNum">     101</span>              :         integer, dimension(:), allocatable :: h_irow !! row indices of the Hessian's pattern</span>
+<span id="L102"><span class="lineNum">     102</span>              :         integer, dimension(:), allocatable :: h_icol !! column indices of the Hessian's pattern</span>
+<span id="L103"><span class="lineNum">     103</span>              :         real(wp), dimension(:), allocatable :: val   !! the values of \( K \): its diagonal, then the Hessian's</span>
+<span id="L104"><span class="lineNum">     104</span>              :                                                      !! elements, then the Jacobian's</span>
+<span id="L105"><span class="lineNum">     105</span>              : </span>
+<span id="L106"><span class="lineNum">     106</span>              :         ! the factorization that is kept (see the module documentation):</span>
+<span id="L107"><span class="lineNum">     107</span>              :         logical  :: current = .false.                !! whether there is one, for the current matrices</span>
+<span id="L108"><span class="lineNum">     108</span>              :         logical, dimension(:), allocatable :: in_set !! its working set `dimension(m+n)`</span>
+<span id="L109"><span class="lineNum">     109</span>              :         real(wp) :: diag = 0.0_wp                    !! what was added to its Hessian's diagonal</span>
+<span id="L110"><span class="lineNum">     110</span>              :         real(wp) :: reg  = 0.0_wp                    !! its regularization \( \epsilon \)</span>
+<span id="L111"><span class="lineNum">     111</span>              :         integer  :: rank = 0                         !! the rank `r` of its quasi-Newton Hessian's low-rank part</span>
+<span id="L112"><span class="lineNum">     112</span>              :                                                      !! (`0` if it has none)</span>
+<span id="L113"><span class="lineNum">     113</span>              :         real(wp), dimension(:,:), allocatable :: t_lu  !! the LU factors of its matrix \( T \) `dimension(r,r)`</span>
+<span id="L114"><span class="lineNum">     114</span>              :         integer,  dimension(:),   allocatable :: t_piv !! the row pivots of that factorization `dimension(r)`</span>
+<span id="L115"><span class="lineNum">     115</span>              : </span>
+<span id="L116"><span class="lineNum">     116</span>              :         contains</span>
+<span id="L117"><span class="lineNum">     117</span>              : </span>
+<span id="L118"><span class="lineNum">     118</span>              :         procedure, public :: initialize      =&gt; kkt_initialize</span>
+<span id="L119"><span class="lineNum">     119</span>              :         procedure, public :: new_matrices    =&gt; kkt_new_matrices</span>
+<span id="L120"><span class="lineNum">     120</span>              :         procedure, public :: factor          =&gt; kkt_factor</span>
+<span id="L121"><span class="lineNum">     121</span>              :         procedure, public :: factor_identity =&gt; kkt_factor_identity</span>
+<span id="L122"><span class="lineNum">     122</span>              :         procedure, public :: solve           =&gt; kkt_solve</span>
+<span id="L123"><span class="lineNum">     123</span>              :         procedure, public :: destroy         =&gt; kkt_destroy</span>
+<span id="L124"><span class="lineNum">     124</span>              : </span>
+<span id="L125"><span class="lineNum">     125</span>              :     end type sqpopt_kkt_type</span>
+<span id="L126"><span class="lineNum">     126</span>              : </span>
+<span id="L127"><span class="lineNum">     127</span>              :     contains</span>
+<span id="L128"><span class="lineNum">     128</span>              : !*******************************************************************************</span>
+<span id="L129"><span class="lineNum">     129</span>              : </span>
+<span id="L130"><span class="lineNum">     130</span>              : !*******************************************************************************</span>
+<span id="L131"><span class="lineNum">     131</span>              : !&gt;</span>
+<span id="L132"><span class="lineNum">     132</span>              : !  set up the KKT matrix of a problem with `n` variables, `m` constraints,</span>
+<span id="L133"><span class="lineNum">     133</span>              : !  and the Jacobian sparsity pattern `jac_irow`/`jac_icol`. The Hessian's</span>
+<span id="L134"><span class="lineNum">     134</span>              : !  pattern is `hess_irow`/`hess_icol` (each off-diagonal element once, as</span>
+<span id="L135"><span class="lineNum">     135</span>              : !  for [[set_hessian_sparsity]]); without it, the Hessian is diagonal. The</span>
+<span id="L136"><span class="lineNum">     136</span>              : !  pattern of \( K \) is its whole diagonal, then the Hessian's elements,</span>
+<span id="L137"><span class="lineNum">     137</span>              : !  then the Jacobian's. `solver` is the sparse solver</span>
+<span id="L138"><span class="lineNum">     138</span>              : !  (`sqpopt_linear_solver_*`, default `auto`; with QDLDL, each constraint's</span>
+<span id="L139"><span class="lineNum">     139</span>              : !  row is ordered after its variables, see [[delay_negative_rows]]). `ok` is</span>
+<span id="L140"><span class="lineNum">     140</span>              : !  false, and the matrix is left disabled, if that solver isn't available</span>
+<span id="L141"><span class="lineNum">     141</span>              : !  in this build or couldn't be started.</span>
+<span id="L142"><span class="lineNum">     142</span>              : </span>
+<span id="L143"><span class="lineNum">     143</span> <span class="tlaGNC">         677 :     subroutine kkt_initialize(me, n, m, jac_irow, jac_icol, ok, hess_irow, hess_icol, threads, solver)</span></span>
+<span id="L144"><span class="lineNum">     144</span>              : </span>
+<span id="L145"><span class="lineNum">     145</span>              :     class(sqpopt_kkt_type), intent(inout) :: me</span>
+<span id="L146"><span class="lineNum">     146</span>              :     integer,               intent(in)  :: n         !! number of variables</span>
+<span id="L147"><span class="lineNum">     147</span>              :     integer,               intent(in)  :: m         !! number of constraints</span>
+<span id="L148"><span class="lineNum">     148</span>              :     integer, dimension(:), intent(in)  :: jac_irow  !! row indices of the Jacobian's nonzeros</span>
+<span id="L149"><span class="lineNum">     149</span>              :     integer, dimension(:), intent(in)  :: jac_icol  !! column indices of the Jacobian's nonzeros</span>
+<span id="L150"><span class="lineNum">     150</span>              :     logical,               intent(out) :: ok        !! whether the matrix can now be factored</span>
+<span id="L151"><span class="lineNum">     151</span>              :     integer, dimension(:), intent(in), optional :: hess_irow !! row indices of the Hessian's nonzeros</span>
+<span id="L152"><span class="lineNum">     152</span>              :     integer, dimension(:), intent(in), optional :: hess_icol !! column indices of the Hessian's nonzeros</span>
+<span id="L153"><span class="lineNum">     153</span>              :     integer,               intent(in), optional :: threads   !! number of OpenMP threads of the sparse solver (see</span>
+<span id="L154"><span class="lineNum">     154</span>              :                                                              !! [[symmetric_solver_initialize]])</span>
+<span id="L155"><span class="lineNum">     155</span>              :     integer,               intent(in), optional :: solver    !! the sparse solver (`sqpopt_linear_solver_*`)</span>
+<span id="L156"><span class="lineNum">     156</span>              : </span>
+<span id="L157"><span class="lineNum">     157</span>              :     integer :: k, nh</span>
+<span id="L158"><span class="lineNum">     158</span> <span class="tlaGNC">         677 :     integer, dimension(:), allocatable :: signs !! the expected sign of each row's pivot (the variables', then the</span></span>
+<span id="L159"><span class="lineNum">     159</span>              :                                                 !! constraints')</span>
+<span id="L160"><span class="lineNum">     160</span> <span class="tlaGNC">         677 :     integer, dimension(:), allocatable :: irow, icol !! the pattern of \( K \) (its lower triangle)</span></span>
+<span id="L161"><span class="lineNum">     161</span>              :     logical :: oom</span>
+<span id="L162"><span class="lineNum">     162</span>              : </span>
+<span id="L163"><span class="lineNum">     163</span> <span class="tlaGNC">         677 :     call me%destroy()</span></span>
+<span id="L164"><span class="lineNum">     164</span> <span class="tlaGNC">         677 :     me%n = n</span></span>
+<span id="L165"><span class="lineNum">     165</span> <span class="tlaGNC">         677 :     me%m = m</span></span>
+<span id="L166"><span class="lineNum">     166</span> <span class="tlaGNC">         677 :     if (present(hess_irow) .and. present(hess_icol)) then</span></span>
+<span id="L167"><span class="lineNum">     167</span> <span class="tlaGNC">       78496 :         me%h_irow = hess_irow</span></span>
+<span id="L168"><span class="lineNum">     168</span> <span class="tlaGNC">       78496 :         me%h_icol = hess_icol</span></span>
+<span id="L169"><span class="lineNum">     169</span>              :     else</span>
+<span id="L170"><span class="lineNum">     170</span> <span class="tlaGNC">         524 :         allocate(me%h_irow(0), me%h_icol(0))</span></span>
+<span id="L171"><span class="lineNum">     171</span>              :     end if</span>
+<span id="L172"><span class="lineNum">     172</span>              : </span>
+<span id="L173"><span class="lineNum">     173</span> <span class="tlaGNC">         677 :     nh = size(me%h_irow)</span></span>
+<span id="L174"><span class="lineNum">     174</span> <span class="tlaGNC">         677 :     allocate(irow(n + m + nh + size(jac_irow)), icol(n + m + nh + size(jac_irow)))</span></span>
+<span id="L175"><span class="lineNum">     175</span> <span class="tlaGNC">      237294 :     do k = 1, n + m</span></span>
+<span id="L176"><span class="lineNum">     176</span> <span class="tlaGNC">      236617 :         irow(k) = k</span></span>
+<span id="L177"><span class="lineNum">     177</span> <span class="tlaGNC">      237294 :         icol(k) = k</span></span>
+<span id="L178"><span class="lineNum">     178</span>              :     end do</span>
+<span id="L179"><span class="lineNum">     179</span> <span class="tlaGNC">       79020 :     irow(n+m+1:n+m+nh) = max(me%h_irow, me%h_icol)</span></span>
+<span id="L180"><span class="lineNum">     180</span> <span class="tlaGNC">       79020 :     icol(n+m+1:n+m+nh) = min(me%h_irow, me%h_icol)</span></span>
+<span id="L181"><span class="lineNum">     181</span> <span class="tlaGNC">      224360 :     irow(n+m+nh+1:) = n + jac_irow</span></span>
+<span id="L182"><span class="lineNum">     182</span> <span class="tlaGNC">      224360 :     icol(n+m+nh+1:) = jac_icol</span></span>
+<span id="L183"><span class="lineNum">     183</span> <span class="tlaGNC">         677 :     allocate(signs(n + m))</span></span>
+<span id="L184"><span class="lineNum">     184</span> <span class="tlaGNC">      127527 :     signs(1:n) = 1</span></span>
+<span id="L185"><span class="lineNum">     185</span> <span class="tlaGNC">      110444 :     signs(n+1:) = -1</span></span>
+<span id="L186"><span class="lineNum">     186</span> <span class="tlaGNC">         677 :     call me%solver%initialize(n + m, irow, icol, ok, threads=threads, solver=solver, signs=signs)</span></span>
+<span id="L187"><span class="lineNum">     187</span> <span class="tlaGNC">         677 :     if (.not. ok) then</span></span>
+<span id="L188"><span class="lineNum">     188</span>              :         ! (keep the reason, for the caller)</span>
+<span id="L189"><span class="lineNum">     189</span> <span class="tlaUNC">           0 :         oom = me%solver%out_of_memory</span></span>
+<span id="L190"><span class="lineNum">     190</span> <span class="tlaUNC">           0 :         call me%destroy()</span></span>
+<span id="L191"><span class="lineNum">     191</span> <span class="tlaUNC">           0 :         me%solver%out_of_memory = oom</span></span>
+<span id="L192"><span class="lineNum">     192</span> <span class="tlaUNC">           0 :         return</span></span>
+<span id="L193"><span class="lineNum">     193</span>              :     end if</span>
+<span id="L194"><span class="lineNum">     194</span> <span class="tlaGNC">         677 :     allocate(me%val(n + m + size(me%h_irow) + size(jac_irow)), me%in_set(m + n))</span></span>
+<span id="L195"><span class="lineNum">     195</span> <span class="tlaGNC">         677 :     me%enabled = .true.</span></span>
+<span id="L196"><span class="lineNum">     196</span>              : </span>
+<span id="L197"><span class="lineNum">     197</span> <span class="tlaGNC">         677 :     end subroutine kkt_initialize</span></span>
+<span id="L198"><span class="lineNum">     198</span>              : !*******************************************************************************</span>
+<span id="L199"><span class="lineNum">     199</span>              : </span>
+<span id="L200"><span class="lineNum">     200</span>              : !*******************************************************************************</span>
+<span id="L201"><span class="lineNum">     201</span>              : !&gt;</span>
+<span id="L202"><span class="lineNum">     202</span>              : !  note that the Hessian's or the Jacobian's values have changed (a new</span>
+<span id="L203"><span class="lineNum">     203</span>              : !  major iteration), so the factorization that is kept no longer applies.</span>
+<span id="L204"><span class="lineNum">     204</span>              : </span>
+<span id="L205"><span class="lineNum">     205</span> <span class="tlaGNC">       74156 :     subroutine kkt_new_matrices(me)</span></span>
+<span id="L206"><span class="lineNum">     206</span>              : </span>
+<span id="L207"><span class="lineNum">     207</span>              :     class(sqpopt_kkt_type), intent(inout) :: me</span>
+<span id="L208"><span class="lineNum">     208</span>              : </span>
+<span id="L209"><span class="lineNum">     209</span> <span class="tlaGNC">       74156 :     me%current = .false.</span></span>
+<span id="L210"><span class="lineNum">     210</span>              : </span>
+<span id="L211"><span class="lineNum">     211</span> <span class="tlaGNC">       74156 :     end subroutine kkt_new_matrices</span></span>
+<span id="L212"><span class="lineNum">     212</span>              : !*******************************************************************************</span>
+<span id="L213"><span class="lineNum">     213</span>              : </span>
+<span id="L214"><span class="lineNum">     214</span>              : !*******************************************************************************</span>
+<span id="L215"><span class="lineNum">     215</span>              : !&gt;</span>
+<span id="L216"><span class="lineNum">     216</span>              : !  factor the KKT matrix of the working set `status`, with the Hessian</span>
+<span id="L217"><span class="lineNum">     217</span>              : !  `hessian` (the exact one, with its current values and shift, or a</span>
+<span id="L218"><span class="lineNum">     218</span>              : !  quasi-Newton one, with its current pairs: see the module documentation).</span>
+<span id="L219"><span class="lineNum">     219</span>              : !  On success, `n_negative` and `singular` describe the working set's face,</span>
+<span id="L220"><span class="lineNum">     220</span>              : !  and [[kkt_solve]] can be called. If this is the factorization that is</span>
+<span id="L221"><span class="lineNum">     221</span>              : !  kept, nothing is computed. The matrix must have been initialized with</span>
+<span id="L222"><span class="lineNum">     222</span>              : !  the Hessian's sparsity pattern in the first case, and without one in the</span>
+<span id="L223"><span class="lineNum">     223</span>              : !  second.</span>
+<span id="L224"><span class="lineNum">     224</span>              : !</span>
+<span id="L225"><span class="lineNum">     225</span>              : !  `reg` is the regularization \( \epsilon \) of the module documentation</span>
+<span id="L226"><span class="lineNum">     226</span>              : !  (default 0). A small positive value makes the matrix of a working set</span>
+<span id="L227"><span class="lineNum">     227</span>              : !  with dependent rows nonsingular: the solve then satisfies those rows in</span>
+<span id="L228"><span class="lineNum">     228</span>              : !  a (heavily weighted) least-squares sense instead of exactly.</span>
+<span id="L229"><span class="lineNum">     229</span>              : !</span>
+<span id="L230"><span class="lineNum">     230</span>              : !  `ok` is false if the matrix isn't enabled, or the factorization failed</span>
+<span id="L231"><span class="lineNum">     231</span>              : !  (it is then disabled for the rest of the solve).</span>
+<span id="L232"><span class="lineNum">     232</span>              : </span>
+<span id="L233"><span class="lineNum">     233</span> <span class="tlaGNC">       12372 :     subroutine kkt_factor(me, hessian, jac, status, ok, reg)</span></span>
+<span id="L234"><span class="lineNum">     234</span>              : </span>
+<span id="L235"><span class="lineNum">     235</span>              :     class(sqpopt_kkt_type),     intent(inout) :: me</span>
+<span id="L236"><span class="lineNum">     236</span>              :     type(sqpopt_hessian_type),  intent(inout) :: hessian !! the Hessian (see [[sqpopt_hessian_module]])</span>
+<span id="L237"><span class="lineNum">     237</span>              :     type(sqpopt_sparse_matrix), intent(in)    :: jac     !! the constraint Jacobian `dimension(m,n)`</span>
+<span id="L238"><span class="lineNum">     238</span>              :     integer, dimension(:),      intent(in)    :: status  !! the working set: nonzero for each general row, then each</span>
+<span id="L239"><span class="lineNum">     239</span>              :                                                          !! variable bound, that is in it `dimension(m+n)`</span>
+<span id="L240"><span class="lineNum">     240</span>              :     logical,                    intent(out)   :: ok      !! whether the factorization is available</span>
+<span id="L241"><span class="lineNum">     241</span>              :     real(wp), optional,         intent(in)    :: reg     !! the regularization \( \epsilon \ge 0 \) (default 0)</span>
+<span id="L242"><span class="lineNum">     242</span>              : </span>
+<span id="L243"><span class="lineNum">     243</span>              :     real(wp) :: eps</span>
+<span id="L244"><span class="lineNum">     244</span>              :     real(wp), dimension(0) :: no_values</span>
+<span id="L245"><span class="lineNum">     245</span>              :     logical :: kept</span>
+<span id="L246"><span class="lineNum">     246</span>              : </span>
+<span id="L247"><span class="lineNum">     247</span> <span class="tlaGNC">       12372 :     eps = 0.0_wp</span></span>
+<span id="L248"><span class="lineNum">     248</span> <span class="tlaGNC">       12372 :     if (present(reg)) eps = reg</span></span>
+<span id="L249"><span class="lineNum">     249</span> <span class="tlaGNC">       12372 :     if (hessian%exact) then</span></span>
+<span id="L250"><span class="lineNum">     250</span> <span class="tlaGNC">        9540 :         call factor_values(me, hessian%shift, hessian%h_val, jac, status, eps, ok)</span></span>
+<span id="L251"><span class="lineNum">     251</span>              :     else</span>
+<span id="L252"><span class="lineNum">     252</span> <span class="tlaGNC">        2832 :         call factor_values(me, 1.0_wp/hessian%gamma + hessian%shift, no_values, jac, status, eps, ok, kept)</span></span>
+<span id="L253"><span class="lineNum">     253</span> <span class="tlaGNC">        2832 :         if (ok .and. .not. kept) call low_rank_update(me, hessian, ok)</span></span>
+<span id="L254"><span class="lineNum">     254</span>              :     end if</span>
+<span id="L255"><span class="lineNum">     255</span>              : </span>
+<span id="L256"><span class="lineNum">     256</span> <span class="tlaGNC">       12372 :     end subroutine kkt_factor</span></span>
+<span id="L257"><span class="lineNum">     257</span>              : !*******************************************************************************</span>
+<span id="L258"><span class="lineNum">     258</span>              : </span>
+<span id="L259"><span class="lineNum">     259</span>              : !*******************************************************************************</span>
+<span id="L260"><span class="lineNum">     260</span>              : !&gt;</span>
+<span id="L261"><span class="lineNum">     261</span>              : !  factor the KKT matrix of the working set `status` with the Hessian</span>
+<span id="L262"><span class="lineNum">     262</span>              : !  `scale` \( \times I \) and the regularization `reg` (\( \epsilon \)),</span>
+<span id="L263"><span class="lineNum">     263</span>              : !  as [[kkt_factor]] does for the exact Hessian. The matrix must have been</span>
+<span id="L264"><span class="lineNum">     264</span>              : !  initialized without a Hessian pattern.</span>
+<span id="L265"><span class="lineNum">     265</span>              : </span>
+<span id="L266"><span class="lineNum">     266</span> <span class="tlaGNC">         190 :     subroutine kkt_factor_identity(me, scale, jac, status, reg, ok)</span></span>
+<span id="L267"><span class="lineNum">     267</span>              : </span>
+<span id="L268"><span class="lineNum">     268</span>              :     class(sqpopt_kkt_type),     intent(inout) :: me</span>
+<span id="L269"><span class="lineNum">     269</span>              :     real(wp),                   intent(in)    :: scale  !! the Hessian is `scale` times the identity</span>
+<span id="L270"><span class="lineNum">     270</span>              :     type(sqpopt_sparse_matrix), intent(in)    :: jac    !! the constraint Jacobian `dimension(m,n)`</span>
+<span id="L271"><span class="lineNum">     271</span>              :     integer, dimension(:),      intent(in)    :: status !! the working set (see [[kkt_factor]]) `dimension(m+n)`</span>
+<span id="L272"><span class="lineNum">     272</span>              :     real(wp),                   intent(in)    :: reg    !! the regularization \( \epsilon \ge 0 \)</span>
+<span id="L273"><span class="lineNum">     273</span>              :     logical,                    intent(out)   :: ok     !! whether the factorization is available</span>
+<span id="L274"><span class="lineNum">     274</span>              : </span>
+<span id="L275"><span class="lineNum">     275</span>              :     real(wp), dimension(0) :: no_values</span>
+<span id="L276"><span class="lineNum">     276</span>              : </span>
+<span id="L277"><span class="lineNum">     277</span> <span class="tlaGNC">         190 :     call factor_values(me, scale, no_values, jac, status, reg, ok)</span></span>
+<span id="L278"><span class="lineNum">     278</span>              : </span>
+<span id="L279"><span class="lineNum">     279</span> <span class="tlaGNC">         190 :     end subroutine kkt_factor_identity</span></span>
+<span id="L280"><span class="lineNum">     280</span>              : !*******************************************************************************</span>
+<span id="L281"><span class="lineNum">     281</span>              : </span>
+<span id="L282"><span class="lineNum">     282</span>              : !*******************************************************************************</span>
+<span id="L283"><span class="lineNum">     283</span>              : !&gt;</span>
+<span id="L284"><span class="lineNum">     284</span>              : !  assemble and factor \( K \) (see the module documentation) for the</span>
+<span id="L285"><span class="lineNum">     285</span>              : !  Hessian with the values `h_val` (in the pattern given to</span>
+<span id="L286"><span class="lineNum">     286</span>              : !  [[kkt_initialize]]) plus `diag` on its diagonal, unless that is the</span>
+<span id="L287"><span class="lineNum">     287</span>              : !  factorization that is kept (`kept`).</span>
+<span id="L288"><span class="lineNum">     288</span>              : </span>
+<span id="L289"><span class="lineNum">     289</span> <span class="tlaGNC">       12562 :     subroutine factor_values(me, diag, h_val, jac, status, reg, ok, kept)</span></span>
+<span id="L290"><span class="lineNum">     290</span>              : </span>
+<span id="L291"><span class="lineNum">     291</span>              :     class(sqpopt_kkt_type),     intent(inout) :: me</span>
+<span id="L292"><span class="lineNum">     292</span>              :     real(wp),                   intent(in)    :: diag   !! added to the Hessian's diagonal</span>
+<span id="L293"><span class="lineNum">     293</span>              :     real(wp), dimension(:),     intent(in)    :: h_val  !! the Hessian's values, in its pattern's order</span>
+<span id="L294"><span class="lineNum">     294</span>              :     type(sqpopt_sparse_matrix), intent(in)    :: jac    !! the constraint Jacobian `dimension(m,n)`</span>
+<span id="L295"><span class="lineNum">     295</span>              :     integer, dimension(:),      intent(in)    :: status !! the working set (see [[kkt_factor]]) `dimension(m+n)`</span>
+<span id="L296"><span class="lineNum">     296</span>              :     real(wp),                   intent(in)    :: reg    !! the regularization \( \epsilon \ge 0 \)</span>
+<span id="L297"><span class="lineNum">     297</span>              :     logical,                    intent(out)   :: ok     !! whether the factorization is available</span>
+<span id="L298"><span class="lineNum">     298</span>              :     logical, optional,          intent(out)   :: kept   !! whether it is the one that was kept (nothing was computed)</span>
+<span id="L299"><span class="lineNum">     299</span>              : </span>
+<span id="L300"><span class="lineNum">     300</span>              :     integer :: n, m, nh, k, i, j</span>
+<span id="L301"><span class="lineNum">     301</span>              : </span>
+<span id="L302"><span class="lineNum">     302</span> <span class="tlaGNC">       12562 :     ok = .false.</span></span>
+<span id="L303"><span class="lineNum">     303</span> <span class="tlaGNC">       12562 :     if (present(kept)) kept = .false.</span></span>
+<span id="L304"><span class="lineNum">     304</span> <span class="tlaGNC">       12562 :     if (.not. me%enabled) return</span></span>
+<span id="L305"><span class="lineNum">     305</span>              : </span>
+<span id="L306"><span class="lineNum">     306</span> <span class="tlaGNC">       12559 :     if (me%current) then</span></span>
+<span id="L307"><span class="lineNum">     307</span> <span class="tlaGNC">     5629251 :         if (diag == me%diag .and. reg == me%reg .and. all((status /= 0) .eqv. me%in_set)) then</span></span>
+<span id="L308"><span class="lineNum">     308</span> <span class="tlaGNC">        5989 :             ok = .true.</span></span>
+<span id="L309"><span class="lineNum">     309</span> <span class="tlaGNC">        5989 :             if (present(kept)) kept = .true.</span></span>
+<span id="L310"><span class="lineNum">     310</span> <span class="tlaGNC">        5989 :             return</span></span>
+<span id="L311"><span class="lineNum">     311</span>              :         end if</span>
+<span id="L312"><span class="lineNum">     312</span>              :     end if</span>
+<span id="L313"><span class="lineNum">     313</span>              : </span>
+<span id="L314"><span class="lineNum">     314</span> <span class="tlaGNC">        6570 :     n  = me%n</span></span>
+<span id="L315"><span class="lineNum">     315</span> <span class="tlaGNC">        6570 :     m  = me%m</span></span>
+<span id="L316"><span class="lineNum">     316</span> <span class="tlaGNC">        6570 :     nh = size(me%h_irow)</span></span>
+<span id="L317"><span class="lineNum">     317</span>              : </span>
+<span id="L318"><span class="lineNum">     318</span>              :     ! the diagonal: `diag`, or 1 for a variable at a bound of the working</span>
+<span id="L319"><span class="lineNum">     319</span>              :     ! set; and `-reg`, or -1 for a constraint outside it:</span>
+<span id="L320"><span class="lineNum">     320</span> <span class="tlaGNC">     2945689 :     do j = 1, n</span></span>
+<span id="L321"><span class="lineNum">     321</span> <span class="tlaGNC">     2945689 :         me%val(j) = merge(1.0_wp, diag, status(m+j) /= 0)</span></span>
+<span id="L322"><span class="lineNum">     322</span>              :     end do</span>
+<span id="L323"><span class="lineNum">     323</span> <span class="tlaGNC">      771889 :     do i = 1, m</span></span>
+<span id="L324"><span class="lineNum">     324</span> <span class="tlaGNC">      771889 :         me%val(n+i) = merge(-reg, -1.0_wp, status(i) /= 0)</span></span>
+<span id="L325"><span class="lineNum">     325</span>              :     end do</span>
+<span id="L326"><span class="lineNum">     326</span>              :     ! the Hessian's elements between free variables:</span>
+<span id="L327"><span class="lineNum">     327</span> <span class="tlaGNC">     4761673 :     do k = 1, nh</span></span>
+<span id="L328"><span class="lineNum">     328</span> <span class="tlaGNC">     4755103 :         i = me%h_irow(k)</span></span>
+<span id="L329"><span class="lineNum">     329</span> <span class="tlaGNC">     4755103 :         j = me%h_icol(k)</span></span>
+<span id="L330"><span class="lineNum">     330</span> <span class="tlaGNC">     4761673 :         me%val(n+m+k) = merge(0.0_wp, h_val(k), status(m+i) /= 0 .or. status(m+j) /= 0)</span></span>
+<span id="L331"><span class="lineNum">     331</span>              :     end do</span>
+<span id="L332"><span class="lineNum">     332</span>              :     ! the Jacobian's elements of the working set's rows, in the free variables:</span>
+<span id="L333"><span class="lineNum">     333</span> <span class="tlaGNC">     1979846 :     do k = 1, jac%nnz</span></span>
+<span id="L334"><span class="lineNum">     334</span> <span class="tlaGNC">     1979846 :         me%val(n+m+nh+k) = merge(jac%val(k), 0.0_wp, status(jac%irow(k)) /= 0 .and. status(m+jac%icol(k)) == 0)</span></span>
+<span id="L335"><span class="lineNum">     335</span>              :     end do</span>
+<span id="L336"><span class="lineNum">     336</span>              : </span>
+<span id="L337"><span class="lineNum">     337</span> <span class="tlaGNC">        6570 :     me%current = .false.</span></span>
+<span id="L338"><span class="lineNum">     338</span> <span class="tlaGNC">        6570 :     call me%solver%factor(me%val, ok)</span></span>
+<span id="L339"><span class="lineNum">     339</span> <span class="tlaGNC">        6570 :     if (.not. ok) then</span></span>
+<span id="L340"><span class="lineNum">     340</span>              :         ! (fall back on the matrix-free methods from here on)</span>
+<span id="L341"><span class="lineNum">     341</span> <span class="tlaUNC">           0 :         me%enabled = .false.</span></span>
+<span id="L342"><span class="lineNum">     342</span> <span class="tlaUNC">           0 :         return</span></span>
+<span id="L343"><span class="lineNum">     343</span>              :     end if</span>
+<span id="L344"><span class="lineNum">     344</span> <span class="tlaGNC">        6570 :     me%inertia_known = me%solver%inertia_known</span></span>
+<span id="L345"><span class="lineNum">     345</span> <span class="tlaGNC">        6570 :     me%n_negative = max(kkt_negatives(me) - m, 0)</span></span>
+<span id="L346"><span class="lineNum">     346</span> <span class="tlaGNC">        6570 :     me%singular   = me%solver%inertia_known .and. me%solver%n_null &gt; 0</span></span>
+<span id="L347"><span class="lineNum">     347</span> <span class="tlaGNC">        6570 :     me%current    = .true.</span></span>
+<span id="L348"><span class="lineNum">     348</span> <span class="tlaGNC">     3717578 :     me%in_set     = status /= 0</span></span>
+<span id="L349"><span class="lineNum">     349</span> <span class="tlaGNC">        6570 :     me%diag       = diag</span></span>
+<span id="L350"><span class="lineNum">     350</span> <span class="tlaGNC">        6570 :     me%reg        = reg</span></span>
+<span id="L351"><span class="lineNum">     351</span> <span class="tlaGNC">        6570 :     me%rank       = 0</span></span>
+<span id="L352"><span class="lineNum">     352</span>              : </span>
+<span id="L353"><span class="lineNum">     353</span>              :     end subroutine factor_values</span>
+<span id="L354"><span class="lineNum">     354</span>              : !*******************************************************************************</span>
+<span id="L355"><span class="lineNum">     355</span>              : </span>
+<span id="L356"><span class="lineNum">     356</span>              : !*******************************************************************************</span>
+<span id="L357"><span class="lineNum">     357</span>              : !&gt;</span>
+<span id="L358"><span class="lineNum">     358</span>              : !  complete the factorization of \( K_0 \) just made for the quasi-Newton</span>
+<span id="L359"><span class="lineNum">     359</span>              : !  Hessian `hessian` (see the module documentation): form the matrix</span>
+<span id="L360"><span class="lineNum">     360</span>              : !  \( T \) (one solve with \( K_0 \) for each of its `r` columns) and</span>
+<span id="L361"><span class="lineNum">     361</span>              : !  its LU factorization, and correct `n_negative` and `singular` for the</span>
+<span id="L362"><span class="lineNum">     362</span>              : !  low-rank part. (A BFGS matrix is positive definite, so its face has no</span>
+<span id="L363"><span class="lineNum">     363</span>              : !  negative curvature, and the inertias are only computed for SR1.)</span>
+<span id="L364"><span class="lineNum">     364</span>              : </span>
+<span id="L365"><span class="lineNum">     365</span> <span class="tlaGNC">        2268 :     subroutine low_rank_update(me, hessian, ok)</span></span>
+<span id="L366"><span class="lineNum">     366</span>              : </span>
+<span id="L367"><span class="lineNum">     367</span>              :     class(sqpopt_kkt_type),    intent(inout) :: me</span>
+<span id="L368"><span class="lineNum">     368</span>              :     type(sqpopt_hessian_type), intent(inout) :: hessian !! the quasi-Newton Hessian</span>
+<span id="L369"><span class="lineNum">     369</span>              :     logical,                   intent(out)   :: ok      !! whether the solves succeeded</span>
+<span id="L370"><span class="lineNum">     370</span>              : </span>
+<span id="L371"><span class="lineNum">     371</span> <span class="tlaGNC">        2268 :     real(wp), dimension(:,:), allocatable :: t, sm</span></span>
+<span id="L372"><span class="lineNum">     372</span> <span class="tlaGNC">        2268 :     real(wp), dimension(:), allocatable :: v</span></span>
+<span id="L373"><span class="lineNum">     373</span>              :     real(wp) :: sigma</span>
+<span id="L374"><span class="lineNum">     374</span>              :     integer  :: r, j, n, pos_t, pos_m, n_neg, n_zero</span>
+<span id="L375"><span class="lineNum">     375</span>              :     logical  :: nonsingular</span>
+<span id="L376"><span class="lineNum">     376</span>              : </span>
+<span id="L377"><span class="lineNum">     377</span> <span class="tlaGNC">        2268 :     allocate(v(me%n + me%m))</span></span>
+<span id="L378"><span class="lineNum">     378</span>              : </span>
+<span id="L379"><span class="lineNum">     379</span> <span class="tlaGNC">        2268 :     ok = .true.</span></span>
+<span id="L380"><span class="lineNum">     380</span> <span class="tlaGNC">        2268 :     n  = me%n</span></span>
+<span id="L381"><span class="lineNum">     381</span> <span class="tlaGNC">        2268 :     r  = hessian%low_rank_size()</span></span>
+<span id="L382"><span class="lineNum">     382</span> <span class="tlaGNC">        2268 :     me%rank = r</span></span>
+<span id="L383"><span class="lineNum">     383</span> <span class="tlaGNC">        2268 :     if (r == 0) return</span></span>
+<span id="L384"><span class="lineNum">     384</span>              : </span>
+<span id="L385"><span class="lineNum">     385</span> <span class="tlaGNC">        1754 :     allocate(t(r,r), sm(r,r))</span></span>
+<span id="L386"><span class="lineNum">     386</span> <span class="tlaGNC">        1754 :     call hessian%low_rank_middle(sm, sigma)</span></span>
+<span id="L387"><span class="lineNum">     387</span> <span class="tlaGNC">      116020 :     sm = sigma*sm</span></span>
+<span id="L388"><span class="lineNum">     388</span>              : </span>
+<span id="L389"><span class="lineNum">     389</span>              :     ! T = sigma*M + E^T K0^{-1} E, a column at a time:</span>
+<span id="L390"><span class="lineNum">     390</span> <span class="tlaGNC">       13021 :     do j = 1, r</span></span>
+<span id="L391"><span class="lineNum">     391</span> <span class="tlaGNC">       11267 :         call hessian%low_rank_column(j, v(1:n))</span></span>
+<span id="L392"><span class="lineNum">     392</span> <span class="tlaGNC">     2177496 :         where (me%in_set(me%m+1:)) v(1:n) = 0.0_wp</span></span>
+<span id="L393"><span class="lineNum">     393</span> <span class="tlaGNC">     1290657 :         v(n+1:) = 0.0_wp</span></span>
+<span id="L394"><span class="lineNum">     394</span> <span class="tlaGNC">       11267 :         call me%solver%solve(v, ok, refine=.false.)</span></span>
+<span id="L395"><span class="lineNum">     395</span> <span class="tlaGNC">       11267 :         if (.not. ok) then</span></span>
+<span id="L396"><span class="lineNum">     396</span> <span class="tlaUNC">           0 :             me%enabled = .false.</span></span>
+<span id="L397"><span class="lineNum">     397</span> <span class="tlaUNC">           0 :             me%current = .false.</span></span>
+<span id="L398"><span class="lineNum">     398</span> <span class="tlaUNC">           0 :             return</span></span>
+<span id="L399"><span class="lineNum">     399</span>              :         end if</span>
+<span id="L400"><span class="lineNum">     400</span> <span class="tlaGNC">     2177496 :         where (me%in_set(me%m+1:)) v(1:n) = 0.0_wp</span></span>
+<span id="L401"><span class="lineNum">     401</span> <span class="tlaGNC">       13021 :         call hessian%low_rank_multiply_transpose(v(1:n), t(:,j))</span></span>
+<span id="L402"><span class="lineNum">     402</span>              :     end do</span>
+<span id="L403"><span class="lineNum">     403</span> <span class="tlaGNC">      230286 :     t = sm + 0.5_wp*(t + transpose(t))</span></span>
+<span id="L404"><span class="lineNum">     404</span>              : </span>
+<span id="L405"><span class="lineNum">     405</span>              :     ! the inertia of K, from those of K0, T, and sigma*M:</span>
+<span id="L406"><span class="lineNum">     406</span> <span class="tlaGNC">        1754 :     if (sigma &gt; 0.0_wp) then</span></span>
+<span id="L407"><span class="lineNum">     407</span> <span class="tlaGNC">         241 :         call dense_symmetric_inertia(sm, pos_m, n_neg, n_zero)</span></span>
+<span id="L408"><span class="lineNum">     408</span> <span class="tlaGNC">         241 :         call dense_symmetric_inertia(t, pos_t, n_neg, n_zero)</span></span>
+<span id="L409"><span class="lineNum">     409</span> <span class="tlaGNC">         241 :         me%n_negative = max(kkt_negatives(me) + pos_t - pos_m - me%m, 0)</span></span>
+<span id="L410"><span class="lineNum">     410</span>              :     end if</span>
+<span id="L411"><span class="lineNum">     411</span>              : </span>
+<span id="L412"><span class="lineNum">     412</span> <span class="tlaGNC">        1754 :     if (allocated(me%t_lu)) deallocate(me%t_lu, me%t_piv)</span></span>
+<span id="L413"><span class="lineNum">     413</span> <span class="tlaGNC">        1754 :     allocate(me%t_piv(r))</span></span>
+<span id="L414"><span class="lineNum">     414</span> <span class="tlaGNC">        1754 :     call move_alloc(t, me%t_lu)</span></span>
+<span id="L415"><span class="lineNum">     415</span> <span class="tlaGNC">        1754 :     call dense_lu_factor(me%t_lu, me%t_piv, nonsingular)</span></span>
+<span id="L416"><span class="lineNum">     416</span> <span class="tlaGNC">        1754 :     if (.not. nonsingular) me%singular = .true.</span></span>
+<span id="L417"><span class="lineNum">     417</span>              : </span>
+<span id="L418"><span class="lineNum">     418</span> <span class="tlaGNC">        4022 :     end subroutine low_rank_update</span></span>
+<span id="L419"><span class="lineNum">     419</span>              : !*******************************************************************************</span>
+<span id="L420"><span class="lineNum">     420</span>              : </span>
+<span id="L421"><span class="lineNum">     421</span>              : !*******************************************************************************</span>
+<span id="L422"><span class="lineNum">     422</span>              : !&gt;</span>
+<span id="L423"><span class="lineNum">     423</span>              : !  solve \( K v = r \) with the factorization that is kept: `v` holds `r`</span>
+<span id="L424"><span class="lineNum">     424</span>              : !  on entry and the solution on exit. Its first `n` elements belong to the</span>
+<span id="L425"><span class="lineNum">     425</span>              : !  variables, and the other `m` to the constraints. Because of the fixed</span>
+<span id="L426"><span class="lineNum">     426</span>              : !  pattern (see the module documentation), the solution's element is the</span>
+<span id="L427"><span class="lineNum">     427</span>              : !  right-hand side's own for a variable at a bound of the working set, and</span>
+<span id="L428"><span class="lineNum">     428</span>              : !  minus that for a constraint outside it.</span>
+<span id="L429"><span class="lineNum">     429</span>              : !</span>
+<span id="L430"><span class="lineNum">     430</span>              : !  `hessian` must be given if the factorization was made for a</span>
+<span id="L431"><span class="lineNum">     431</span>              : !  quasi-Newton Hessian (the same one): its low-rank part is then applied</span>
+<span id="L432"><span class="lineNum">     432</span>              : !  by the Sherman-Morrison-Woodbury formula (see the module documentation).</span>
+<span id="L433"><span class="lineNum">     433</span>              : !</span>
+<span id="L434"><span class="lineNum">     434</span>              : !  `ok` is false if there is no factorization, or no finite solution.</span>
+<span id="L435"><span class="lineNum">     435</span>              : </span>
+<span id="L436"><span class="lineNum">     436</span> <span class="tlaGNC">        5004 :     subroutine kkt_solve(me, v, ok, hessian)</span></span>
+<span id="L437"><span class="lineNum">     437</span>              : </span>
+<span id="L438"><span class="lineNum">     438</span>              :     class(sqpopt_kkt_type), intent(inout) :: me</span>
+<span id="L439"><span class="lineNum">     439</span>              :     real(wp), dimension(:), intent(inout) :: v  !! the right-hand side, overwritten by the solution `dimension(n+m)`</span>
+<span id="L440"><span class="lineNum">     440</span>              :     logical,                intent(out)   :: ok !! whether a solution was found</span>
+<span id="L441"><span class="lineNum">     441</span>              :     type(sqpopt_hessian_type), optional, intent(in) :: hessian !! the quasi-Newton Hessian that was factored</span>
+<span id="L442"><span class="lineNum">     442</span>              : </span>
+<span id="L443"><span class="lineNum">     443</span> <span class="tlaGNC">        5004 :     real(wp), dimension(:), allocatable :: w, e</span></span>
+<span id="L444"><span class="lineNum">     444</span>              :     integer :: n</span>
+<span id="L445"><span class="lineNum">     445</span>              : </span>
+<span id="L446"><span class="lineNum">     446</span> <span class="tlaGNC">        5004 :     ok = .false.</span></span>
+<span id="L447"><span class="lineNum">     447</span> <span class="tlaGNC">        5004 :     if (.not. (me%enabled .and. me%current)) return</span></span>
+<span id="L448"><span class="lineNum">     448</span> <span class="tlaGNC">        5004 :     call me%solver%solve(v, ok)</span></span>
+<span id="L449"><span class="lineNum">     449</span> <span class="tlaGNC">        5004 :     if (.not. ok .or. me%rank == 0) return</span></span>
+<span id="L450"><span class="lineNum">     450</span>              : </span>
+<span id="L451"><span class="lineNum">     451</span>              :     ! v = v - K0^{-1} E T^{-1} E^T v:</span>
+<span id="L452"><span class="lineNum">     452</span> <span class="tlaGNC">        1576 :     ok = .false.</span></span>
+<span id="L453"><span class="lineNum">     453</span> <span class="tlaGNC">        1576 :     if (.not. present(hessian)) return</span></span>
+<span id="L454"><span class="lineNum">     454</span> <span class="tlaGNC">        1576 :     n = me%n</span></span>
+<span id="L455"><span class="lineNum">     455</span> <span class="tlaGNC">        1576 :     allocate(w(me%rank), e(n + me%m))</span></span>
+<span id="L456"><span class="lineNum">     456</span> <span class="tlaGNC">      183324 :     e(1:n) = merge(0.0_wp, v(1:n), me%in_set(me%m+1:))</span></span>
+<span id="L457"><span class="lineNum">     457</span> <span class="tlaGNC">        1576 :     call hessian%low_rank_multiply_transpose(e(1:n), w)</span></span>
+<span id="L458"><span class="lineNum">     458</span> <span class="tlaGNC">        1576 :     call dense_lu_solve(me%t_lu, me%t_piv, w)</span></span>
+<span id="L459"><span class="lineNum">     459</span> <span class="tlaGNC">        1576 :     call hessian%low_rank_multiply(w, e(1:n))</span></span>
+<span id="L460"><span class="lineNum">     460</span> <span class="tlaGNC">      183324 :     where (me%in_set(me%m+1:)) e(1:n) = 0.0_wp</span></span>
+<span id="L461"><span class="lineNum">     461</span> <span class="tlaGNC">      133886 :     e(n+1:) = 0.0_wp</span></span>
+<span id="L462"><span class="lineNum">     462</span> <span class="tlaGNC">        1576 :     call me%solver%solve(e, ok)</span></span>
+<span id="L463"><span class="lineNum">     463</span> <span class="tlaGNC">      315634 :     if (ok) v = v - e</span></span>
+<span id="L464"><span class="lineNum">     464</span>              : </span>
+<span id="L465"><span class="lineNum">     465</span> <span class="tlaGNC">        5004 :     end subroutine kkt_solve</span></span>
+<span id="L466"><span class="lineNum">     466</span>              : !*******************************************************************************</span>
+<span id="L467"><span class="lineNum">     467</span>              : </span>
+<span id="L468"><span class="lineNum">     468</span>              : !*******************************************************************************</span>
+<span id="L469"><span class="lineNum">     469</span>              : !&gt;</span>
+<span id="L470"><span class="lineNum">     470</span>              : !  free the solver and the arrays, and return to the initial (disabled)</span>
+<span id="L471"><span class="lineNum">     471</span>              : !  state. It does nothing if the matrix was never initialized.</span>
+<span id="L472"><span class="lineNum">     472</span>              : </span>
+<span id="L473"><span class="lineNum">     473</span> <span class="tlaGNC">        2849 :     subroutine kkt_destroy(me)</span></span>
+<span id="L474"><span class="lineNum">     474</span>              : </span>
+<span id="L475"><span class="lineNum">     475</span>              :     class(sqpopt_kkt_type), intent(inout) :: me</span>
+<span id="L476"><span class="lineNum">     476</span>              : </span>
+<span id="L477"><span class="lineNum">     477</span> <span class="tlaGNC">        2849 :     call me%solver%destroy()</span></span>
+<span id="L478"><span class="lineNum">     478</span> <span class="tlaGNC">        2849 :     if (allocated(me%h_irow)) deallocate(me%h_irow)</span></span>
+<span id="L479"><span class="lineNum">     479</span> <span class="tlaGNC">        2849 :     if (allocated(me%h_icol)) deallocate(me%h_icol)</span></span>
+<span id="L480"><span class="lineNum">     480</span> <span class="tlaGNC">        2849 :     if (allocated(me%val))    deallocate(me%val)</span></span>
+<span id="L481"><span class="lineNum">     481</span> <span class="tlaGNC">        2849 :     if (allocated(me%in_set)) deallocate(me%in_set)</span></span>
+<span id="L482"><span class="lineNum">     482</span> <span class="tlaGNC">        2849 :     if (allocated(me%t_lu))   deallocate(me%t_lu)</span></span>
+<span id="L483"><span class="lineNum">     483</span> <span class="tlaGNC">        2849 :     if (allocated(me%t_piv))  deallocate(me%t_piv)</span></span>
+<span id="L484"><span class="lineNum">     484</span> <span class="tlaGNC">        2849 :     me%rank       = 0</span></span>
+<span id="L485"><span class="lineNum">     485</span> <span class="tlaGNC">        2849 :     me%enabled    = .false.</span></span>
+<span id="L486"><span class="lineNum">     486</span> <span class="tlaGNC">        2849 :     me%n_negative = 0</span></span>
+<span id="L487"><span class="lineNum">     487</span> <span class="tlaGNC">        2849 :     me%singular   = .false.</span></span>
+<span id="L488"><span class="lineNum">     488</span> <span class="tlaGNC">        2849 :     me%inertia_known = .true.</span></span>
+<span id="L489"><span class="lineNum">     489</span> <span class="tlaGNC">        2849 :     me%n          = 0</span></span>
+<span id="L490"><span class="lineNum">     490</span> <span class="tlaGNC">        2849 :     me%m          = 0</span></span>
+<span id="L491"><span class="lineNum">     491</span> <span class="tlaGNC">        2849 :     me%current    = .false.</span></span>
+<span id="L492"><span class="lineNum">     492</span> <span class="tlaGNC">        2849 :     me%diag       = 0.0_wp</span></span>
+<span id="L493"><span class="lineNum">     493</span> <span class="tlaGNC">        2849 :     me%reg        = 0.0_wp</span></span>
+<span id="L494"><span class="lineNum">     494</span>              : </span>
+<span id="L495"><span class="lineNum">     495</span> <span class="tlaGNC">        2849 :     end subroutine kkt_destroy</span></span>
+<span id="L496"><span class="lineNum">     496</span>              : !*******************************************************************************</span>
+<span id="L497"><span class="lineNum">     497</span>              : </span>
+<span id="L498"><span class="lineNum">     498</span>              : !*******************************************************************************</span>
+<span id="L499"><span class="lineNum">     499</span>              : !&gt;</span>
+<span id="L500"><span class="lineNum">     500</span>              : !  the number of negative eigenvalues of the matrix the sparse solver</span>
+<span id="L501"><span class="lineNum">     501</span>              : !  factored last, as this module counts them. If the solver could tell the</span>
+<span id="L502"><span class="lineNum">     502</span>              : !  inertia, it is its count. If it couldn't (a solver without pivoting met</span>
+<span id="L503"><span class="lineNum">     503</span>              : !  a zero pivot that isn't a zero eigenvalue, see</span>
+<span id="L504"><span class="lineNum">     504</span>              : !  [[sqpopt_qdldl_ldl_module]]), each of its null pivots is counted as a</span>
+<span id="L505"><span class="lineNum">     505</span>              : !  negative eigenvalue: the conservative answer, by which the inertia</span>
+<span id="L506"><span class="lineNum">     506</span>              : !  control shifts the Hessian rather than miss negative curvature, and the</span>
+<span id="L507"><span class="lineNum">     507</span>              : !  direct QP method treats the face as nonconvex (and the matrix is not</span>
+<span id="L508"><span class="lineNum">     508</span>              : !  reported singular).</span>
+<span id="L509"><span class="lineNum">     509</span>              : </span>
+<span id="L510"><span class="lineNum">     510</span> <span class="tlaGNC">        6811 :     pure integer function kkt_negatives(me) result(n_neg)</span></span>
+<span id="L511"><span class="lineNum">     511</span>              : </span>
+<span id="L512"><span class="lineNum">     512</span>              :     class(sqpopt_kkt_type), intent(in) :: me</span>
+<span id="L513"><span class="lineNum">     513</span>              : </span>
+<span id="L514"><span class="lineNum">     514</span> <span class="tlaGNC">        6811 :     n_neg = me%solver%n_negative</span></span>
+<span id="L515"><span class="lineNum">     515</span> <span class="tlaGNC">        6811 :     if (.not. me%solver%inertia_known) n_neg = n_neg + me%solver%n_null</span></span>
+<span id="L516"><span class="lineNum">     516</span>              : </span>
+<span id="L517"><span class="lineNum">     517</span> <span class="tlaGNC">        6811 :     end function kkt_negatives</span></span>
+<span id="L518"><span class="lineNum">     518</span>              : !*******************************************************************************</span>
+<span id="L519"><span class="lineNum">     519</span>              : </span>
+<span id="L520"><span class="lineNum">     520</span> <span class="tlaUNC">           0 :     end module sqpopt_kkt_module</span></span>
+<span id="L521"><span class="lineNum">     521</span>              : !*******************************************************************************</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com/linux-test-project/lcov" target="_parent">LCOV version 2.5-0</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

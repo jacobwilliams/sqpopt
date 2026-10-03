@@ -1,0 +1,733 @@
+<!-- -*- mode: jinja2 -*- -->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- sqpopt theme: set before the page is drawn; the guide's choice (the same
+         localStorage key, on the same site), or else the system's -->
+    <script>
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('sqpopt-theme'); } catch (e) {}
+        if (t !== 'dark' && t !== 'light') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-bs-theme', t);
+      })();
+    </script>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta name="description" content="Modern Fortran SQP OPTimizer">
+    <meta name="author" content="Jacob Williams" >
+    <link rel="icon" href="../favicon.png">
+
+    <title>reset_evaluations &ndash; sqpopt</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <!-- Font Awesome -->
+    <link href="../css/fontawesome.min.css" rel="stylesheet">
+    <link href="../css/brands.min.css" rel="stylesheet">
+    <link href="../css/regular.min.css" rel="stylesheet">
+    <link href="../css/solid.min.css" rel="stylesheet">
+    <link href="../css/v4-font-face.min.css" rel="stylesheet">
+    <link href="../css/v4-shims.min.css" rel="stylesheet">
+    <!-- MathJax -->
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        TeX: { equationNumbers: { autoNumber: "AMS" } }
+      });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@2.7.9/MathJax.js?config=TeX-AMS-MML_HTMLorMML" async
+            integrity="sha256-DViIOMYdwlM/axqoGDPeUyf0urLoHMN4QACBKyB58Uw=" crossorigin="anonymous"></script>
+    <!-- Other scripts and stylesheets -->
+    <link href="../css/local.css" rel="stylesheet">
+    <link href="../css/pygments.css" rel="stylesheet">
+      <link href="../css/user.css" rel="stylesheet">
+    <script src="../js/svg-pan-zoom.min.js"></script>
+  </head>
+
+  <body>
+
+    <!-- Fixed navbar -->
+    <div class="container-fluid mb-sm-4 mb-xl-2">
+      <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+          <a class="navbar-brand" href="../index.html">sqpopt </a>
+          <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbar"
+                  aria-expanded="false" aria-controls="navbar" aria-label="Toggle navigation">
+                  <span class="navbar-toggler-icon">
+          </button>
+
+          <div id="navbar" class="navbar-collapse collapse">
+            <ul class="navbar-nav">
+                  <li class="nav-item">
+                    <a class="nav-link" href="../lists/files.html">Source Files</a>
+                  </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/modules.html">Modules</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/procedures.html">Procedures</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/absint.html">Abstract Interfaces</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/types.html">Derived Types</a>
+                </li>
+            </ul>
+              <div class="d-flex align-items-end flex-grow-1">
+                <form action="../search.html" role="search" class="ms-auto">
+                  <input type="text" class="form-control" aria-label="Search" placeholder="Search" name="q" id="tipue_search_input" autocomplete="off" required>
+                </form>
+              </div>
+            <!-- sqpopt theme: the light/dark button -->
+            <button type="button" class="btn nav-link theme-toggle ms-lg-3" aria-label="Toggle dark mode" title="Toggle dark mode">
+              <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg>
+              <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div><!--/.nav-collapse -->
+        </div>
+      </nav>
+    </div>
+
+    <div class="container">
+  <div class="row">
+    <h1>reset_evaluations
+      <small>Subroutine</small>
+      
+    </h1>
+      <div class="container p-2 mb-4 bg-light border rounded-3">
+    <div class="row align-items-center justify-content-between" id="info-bar">
+      <div class="col">
+        <ul class="list-inline" style="margin-bottom:0px;display:inline">
+
+            <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
+              <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
+                 title=" 0.3% of total for procedures.">23 statements</a>
+            </li>
+
+            <li class="list-inline-item" id="source-file">
+              <i class="fa fa-code"></i>
+              <a href="../src/sqpopt_problem_module.f90"> Source File</a>
+            </li>
+        </ul>
+      </div>
+      <div class="col">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb justify-content-end mb-0">
+                <li class="breadcrumb-item"><a href='../sourcefile/sqpopt_problem_module.f90.html'>sqpopt_problem_module.f90</a></li>
+                <li class="breadcrumb-item"><a href='../module/sqpopt_problem_module.html'>sqpopt_problem_module</a></li>
+            <li class="breadcrumb-item active" aria-current="page">reset_evaluations</li>
+          </ol>
+        </nav>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Enable Bootstrap tooltips
+    (function () {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+      const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+    })();
+  </script>
+
+  </div>
+  
+  <div class="row">
+    <div class="col-md-3 hidden-xs hidden-sm visible-md visible-lg">
+      <div id="sidebar">
+      <h3>Contents</h3>
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+    <div class="card card-primary">
+      <div class="card-header text-left"><h3 class="card-title">Source Code</h3></div>
+      <div class="list-group">
+        <a class="list-group-item" href="../proc/reset_evaluations.html#src">reset_evaluations</a>
+      </div>
+    </div>
+
+
+  </div>
+
+    </div>
+    
+    <div class="col-md-9" id='text'>
+    <h2>private  subroutine reset_evaluations(me)  
+</h2>
+    
+
+    <p>empty the evaluation caches (sizing them for the current <code>n</code>, <code>m</code>, and
+Jacobian pattern), zero the evaluation counters, clear any stop
+request, and reset the scale factors to 1.</p>
+
+    <h3>Type Bound</h3>
+    <p><a href='../type/sqpopt_problem_type.html'>sqpopt_problem_type</a></p>
+
+    <h3>Arguments</h3>
+        <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~106"></span>
+              class(<a href='../type/sqpopt_problem_type.html'>sqpopt_problem_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+                
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+    <br>
+    <div class="card">
+      <div class="card-header">
+  <h3 class="card-title">Called by</h3>
+      </div>
+      <div class="card-body">
+  <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: proc~~reset_evaluations~~CalledByGraph Pages: 1 -->
+<svg id="procreset_evaluationsCalledByGraph" width="641pt" height="192pt"
+ viewBox="0.00 0.00 641.00 192.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="proc~~reset_evaluations~~CalledByGraph" class="graph" transform="scale(0.414648 0.414648) rotate(0) translate(4 460.13)">
+<title>proc~~reset_evaluations~~CalledByGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-460.13 1541.89,-460.13 1541.89,4 -4,4"/>
+<!-- proc~reset_evaluations -->
+<g id="proc~~reset_evaluations~~CalledByGraph_node1" class="node">
+<title>proc~reset_evaluations</title>
+<polygon fill="none" stroke="black" points="1537.89,-255.27 1309.62,-255.27 1309.62,-231 1537.89,-231 1537.89,-255.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1423.76" y="-239.53" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_problem_type%reset_evaluations</text>
+</g>
+<!-- proc~raw_fc -->
+<g id="proc~~reset_evaluations~~CalledByGraph_node2" class="node">
+<title>proc~raw_fc</title>
+<g id="a_proc~~reset_evaluations~~CalledByGraph_node2"><a xlink:href="../proc/raw_fc.html" xlink:title="raw_fc">
+<polygon fill="#d9534f" stroke="#d9534f" points="1271.24,-255.27 1217.24,-255.27 1217.24,-231 1271.24,-231 1271.24,-255.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1244.24" y="-239.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">raw_fc</text>
+</a>
+</g>
+</g>
+<!-- proc~raw_fc&#45;&gt;proc~reset_evaluations -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge1" class="edge">
+<title>proc~raw_fc&#45;&gt;proc~reset_evaluations</title>
+<path fill="none" stroke="#000000" d="M1271.43,-243.13C1279.21,-243.13 1288.29,-243.13 1298.07,-243.13"/>
+<polygon fill="#000000" stroke="#000000" points="1297.87,-246.64 1307.87,-243.14 1297.87,-239.64 1297.87,-246.64"/>
+</g>
+<!-- proc~raw_gjac -->
+<g id="proc~~reset_evaluations~~CalledByGraph_node3" class="node">
+<title>proc~raw_gjac</title>
+<g id="a_proc~~reset_evaluations~~CalledByGraph_node3"><a xlink:href="../proc/raw_gjac.html" xlink:title="raw_gjac">
+<polygon fill="#d9534f" stroke="#d9534f" points="1273.62,-84.27 1214.85,-84.27 1214.85,-60 1273.62,-60 1273.62,-84.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1244.24" y="-68.54" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">raw_gjac</text>
+</a>
+</g>
+</g>
+<!-- proc~raw_gjac&#45;&gt;proc~reset_evaluations -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge2" class="edge">
+<title>proc~raw_gjac&#45;&gt;proc~reset_evaluations</title>
+<path fill="none" stroke="#000000" d="M1258.29,-84.71C1288.68,-113.99 1364.4,-186.92 1401.54,-222.7"/>
+<polygon fill="#000000" stroke="#000000" points="1398.96,-225.08 1408.59,-229.49 1403.82,-220.03 1398.96,-225.08"/>
+</g>
+<!-- proc~sqpopt_solve -->
+<g id="proc~~reset_evaluations~~CalledByGraph_node4" class="node">
+<title>proc~sqpopt_solve</title>
+<g id="a_proc~~reset_evaluations~~CalledByGraph_node4"><a xlink:href="../proc/sqpopt_solve.html" xlink:title="sqpopt_type%sqpopt_solve">
+<polygon fill="#d9534f" stroke="#d9534f" points="350.79,-184.27 196.02,-184.27 196.02,-160 350.79,-160 350.79,-184.27"/>
+<text xml:space="preserve" text-anchor="middle" x="273.4" y="-168.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_type%sqpopt_solve</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_solve&#45;&gt;proc~reset_evaluations -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge3" class="edge">
+<title>proc~sqpopt_solve&#45;&gt;proc~reset_evaluations</title>
+<path fill="none" stroke="#000000" d="M283.52,-184.44C301.36,-207.94 343.01,-259.9 386.79,-294.13 536.64,-411.3 592.72,-456.13 782.95,-456.13 782.95,-456.13 782.95,-456.13 1068.34,-456.13 1216.62,-456.13 1356.34,-317.47 1404.79,-263.91"/>
+<polygon fill="#000000" stroke="#000000" points="1407.23,-266.43 1411.26,-256.64 1402,-261.78 1407.23,-266.43"/>
+</g>
+<!-- proc~compute_scaling -->
+<g id="proc~~reset_evaluations~~CalledByGraph_node5" class="node">
+<title>proc~compute_scaling</title>
+<g id="a_proc~~reset_evaluations~~CalledByGraph_node5"><a xlink:href="../proc/compute_scaling.html" xlink:title="sqpopt_problem_type%compute_scaling">
+<polygon fill="#d9534f" stroke="#d9534f" points="612.06,-83.27 386.79,-83.27 386.79,-59 612.06,-59 612.06,-83.27"/>
+<text xml:space="preserve" text-anchor="middle" x="499.42" y="-67.54" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_problem_type%compute_scaling</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_solve&#45;&gt;proc~compute_scaling -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge10" class="edge">
+<title>proc~sqpopt_solve&#45;&gt;proc~compute_scaling</title>
+<path fill="none" stroke="#000000" d="M299.68,-159.55C322.35,-148.37 356.59,-131.74 386.79,-118.14 409.81,-107.77 435.8,-96.78 456.9,-88.05"/>
+<polygon fill="#000000" stroke="#000000" points="458.14,-91.32 466.05,-84.27 455.47,-84.85 458.14,-91.32"/>
+</g>
+<!-- proc~diagnostics_start -->
+<g id="proc~~reset_evaluations~~CalledByGraph_node11" class="node">
+<title>proc~diagnostics_start</title>
+<g id="a_proc~~reset_evaluations~~CalledByGraph_node11"><a xlink:href="../proc/diagnostics_start.html" xlink:title="sqpopt_diagnostics_type%diagnostics_start">
+<polygon fill="#d9534f" stroke="#d9534f" points="904.08,-184.27 663.81,-184.27 663.81,-160 904.08,-160 904.08,-184.27"/>
+<text xml:space="preserve" text-anchor="middle" x="783.95" y="-168.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_diagnostics_type%diagnostics_start</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_solve&#45;&gt;proc~diagnostics_start -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge25" class="edge">
+<title>proc~sqpopt_solve&#45;&gt;proc~diagnostics_start</title>
+<path fill="none" stroke="#000000" d="M351.09,-172.13C430.68,-172.13 556.63,-172.13 652.02,-172.13"/>
+<polygon fill="#000000" stroke="#000000" points="651.99,-175.64 661.99,-172.14 651.99,-168.64 651.99,-175.64"/>
+</g>
+<!-- proc~sqpopt_evaluate_point -->
+<g id="proc~~reset_evaluations~~CalledByGraph_node15" class="node">
+<title>proc~sqpopt_evaluate_point</title>
+<g id="a_proc~~reset_evaluations~~CalledByGraph_node15"><a xlink:href="../proc/sqpopt_evaluate_point.html" xlink:title="sqpopt_evaluate_point">
+<polygon fill="#d9534f" stroke="#d9534f" points="849.71,-142.27 718.19,-142.27 718.19,-118 849.71,-118 849.71,-142.27"/>
+<text xml:space="preserve" text-anchor="middle" x="783.95" y="-126.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_evaluate_point</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_solve&#45;&gt;proc~sqpopt_evaluate_point -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge29" class="edge">
+<title>proc~sqpopt_solve&#45;&gt;proc~sqpopt_evaluate_point</title>
+<path fill="none" stroke="#000000" d="M351.09,-165.8C447.08,-157.87 610.5,-144.38 706.42,-136.46"/>
+<polygon fill="#000000" stroke="#000000" points="706.58,-139.95 716.26,-135.64 706.01,-132.98 706.58,-139.95"/>
+</g>
+<!-- proc~sqpopt_iterate -->
+<g id="proc~~reset_evaluations~~CalledByGraph_node16" class="node">
+<title>proc~sqpopt_iterate</title>
+<g id="a_proc~~reset_evaluations~~CalledByGraph_node16"><a xlink:href="../proc/sqpopt_iterate.html" xlink:title="sqpopt_iterate">
+<polygon fill="#d9534f" stroke="#d9534f" points="543.43,-285.27 455.41,-285.27 455.41,-261 543.43,-261 543.43,-285.27"/>
+<text xml:space="preserve" text-anchor="middle" x="499.42" y="-269.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_iterate</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_solve&#45;&gt;proc~sqpopt_iterate -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge30" class="edge">
+<title>proc~sqpopt_solve&#45;&gt;proc~sqpopt_iterate</title>
+<path fill="none" stroke="#000000" d="M302.32,-184.72C342.09,-202.65 415.18,-235.6 460.02,-255.82"/>
+<polygon fill="#000000" stroke="#000000" points="458.57,-259.01 469.13,-259.93 461.45,-252.62 458.57,-259.01"/>
+</g>
+<!-- proc~compute_scaling&#45;&gt;proc~raw_gjac -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge6" class="edge">
+<title>proc~compute_scaling&#45;&gt;proc~raw_gjac</title>
+<path fill="none" stroke="#000000" d="M612.44,-71.29C781.37,-71.51 1093.3,-71.93 1203.45,-72.08"/>
+<polygon fill="#000000" stroke="#000000" points="1203.15,-75.58 1213.16,-72.09 1203.16,-68.58 1203.15,-75.58"/>
+</g>
+<!-- proc~eval_c_cached -->
+<g id="proc~~reset_evaluations~~CalledByGraph_node6" class="node">
+<title>proc~eval_c_cached</title>
+<g id="a_proc~~reset_evaluations~~CalledByGraph_node6"><a xlink:href="../proc/eval_c_cached.html" xlink:title="sqpopt_problem_type%eval_c_cached">
+<polygon fill="#d9534f" stroke="#d9534f" points="1173.98,-286.27 960.71,-286.27 960.71,-262 1173.98,-262 1173.98,-286.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1067.34" y="-270.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_problem_type%eval_c_cached</text>
+</a>
+</g>
+</g>
+<!-- proc~eval_c_cached&#45;&gt;proc~raw_fc -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge4" class="edge">
+<title>proc~eval_c_cached&#45;&gt;proc~raw_fc</title>
+<path fill="none" stroke="#000000" d="M1139.48,-261.53C1162.3,-257.48 1186.65,-253.16 1206.03,-249.73"/>
+<polygon fill="#000000" stroke="#000000" points="1206.37,-253.22 1215.61,-248.03 1205.15,-246.33 1206.37,-253.22"/>
+</g>
+<!-- proc~eval_f_cached -->
+<g id="proc~~reset_evaluations~~CalledByGraph_node7" class="node">
+<title>proc~eval_f_cached</title>
+<g id="a_proc~~reset_evaluations~~CalledByGraph_node7"><a xlink:href="../proc/eval_f_cached.html" xlink:title="sqpopt_problem_type%eval_f_cached">
+<polygon fill="#d9534f" stroke="#d9534f" points="1172.85,-224.27 961.83,-224.27 961.83,-200 1172.85,-200 1172.85,-224.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1067.34" y="-208.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_problem_type%eval_f_cached</text>
+</a>
+</g>
+</g>
+<!-- proc~eval_f_cached&#45;&gt;proc~raw_fc -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge5" class="edge">
+<title>proc~eval_f_cached&#45;&gt;proc~raw_fc</title>
+<path fill="none" stroke="#000000" d="M1139.48,-224.74C1162.3,-228.79 1186.65,-233.11 1206.03,-236.54"/>
+<polygon fill="#000000" stroke="#000000" points="1205.15,-239.94 1215.61,-238.24 1206.37,-233.05 1205.15,-239.94"/>
+</g>
+<!-- proc~eval_g_cached -->
+<g id="proc~~reset_evaluations~~CalledByGraph_node8" class="node">
+<title>proc~eval_g_cached</title>
+<g id="a_proc~~reset_evaluations~~CalledByGraph_node8"><a xlink:href="../proc/eval_g_cached.html" xlink:title="sqpopt_problem_type%eval_g_cached">
+<polygon fill="#d9534f" stroke="#d9534f" points="1174.35,-24.27 960.33,-24.27 960.33,0 1174.35,0 1174.35,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1067.34" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_problem_type%eval_g_cached</text>
+</a>
+</g>
+</g>
+<!-- proc~eval_g_cached&#45;&gt;proc~raw_gjac -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge7" class="edge">
+<title>proc~eval_g_cached&#45;&gt;proc~raw_gjac</title>
+<path fill="none" stroke="#000000" d="M1134.32,-24.76C1149.18,-28.4 1164.73,-32.85 1178.85,-38.13 1190.3,-42.43 1202.29,-48.33 1212.78,-54.01"/>
+<polygon fill="#000000" stroke="#000000" points="1210.94,-56.99 1221.37,-58.82 1214.35,-50.88 1210.94,-56.99"/>
+</g>
+<!-- proc~eval_jac_cached -->
+<g id="proc~~reset_evaluations~~CalledByGraph_node9" class="node">
+<title>proc~eval_jac_cached</title>
+<g id="a_proc~~reset_evaluations~~CalledByGraph_node9"><a xlink:href="../proc/eval_jac_cached.html" xlink:title="sqpopt_problem_type%eval_jac_cached">
+<polygon fill="#d9534f" stroke="#d9534f" points="1178.85,-123.27 955.83,-123.27 955.83,-99 1178.85,-99 1178.85,-123.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1067.34" y="-107.54" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_problem_type%eval_jac_cached</text>
+</a>
+</g>
+</g>
+<!-- proc~eval_jac_cached&#45;&gt;proc~raw_gjac -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge8" class="edge">
+<title>proc~eval_jac_cached&#45;&gt;proc~raw_gjac</title>
+<path fill="none" stroke="#000000" d="M1124.64,-98.58C1150.27,-92.87 1180,-86.24 1203.29,-81.04"/>
+<polygon fill="#000000" stroke="#000000" points="1204.01,-84.47 1213.01,-78.88 1202.48,-77.64 1204.01,-84.47"/>
+</g>
+<!-- proc~nlls_solve -->
+<g id="proc~~reset_evaluations~~CalledByGraph_node10" class="node">
+<title>proc~nlls_solve</title>
+<g id="a_proc~~reset_evaluations~~CalledByGraph_node10"><a xlink:href="../proc/nlls_solve.html" xlink:title="sqpopt_nlls_type%nlls_solve">
+<polygon fill="#d9534f" stroke="#d9534f" points="160.02,-184.27 0,-184.27 0,-160 160.02,-160 160.02,-184.27"/>
+<text xml:space="preserve" text-anchor="middle" x="80.01" y="-168.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_nlls_type%nlls_solve</text>
+</a>
+</g>
+</g>
+<!-- proc~nlls_solve&#45;&gt;proc~sqpopt_solve -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge9" class="edge">
+<title>proc~nlls_solve&#45;&gt;proc~sqpopt_solve</title>
+<path fill="none" stroke="#000000" d="M160.52,-172.13C168.31,-172.13 176.26,-172.13 184.14,-172.13"/>
+<polygon fill="#000000" stroke="#000000" points="184.09,-175.64 194.09,-172.14 184.09,-168.64 184.09,-175.64"/>
+</g>
+<!-- proc~diagnostics_start&#45;&gt;proc~eval_c_cached -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge11" class="edge">
+<title>proc~diagnostics_start&#45;&gt;proc~eval_c_cached</title>
+<path fill="none" stroke="#000000" d="M819.73,-184.74C870.46,-203.13 964.8,-237.33 1020.94,-257.68"/>
+<polygon fill="#000000" stroke="#000000" points="1019.62,-260.92 1030.21,-261.04 1022,-254.34 1019.62,-260.92"/>
+</g>
+<!-- proc~diagnostics_start&#45;&gt;proc~eval_f_cached -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge18" class="edge">
+<title>proc~diagnostics_start&#45;&gt;proc~eval_f_cached</title>
+<path fill="none" stroke="#000000" d="M873.59,-184.74C903.15,-188.94 936.27,-193.65 966.61,-197.96"/>
+<polygon fill="#000000" stroke="#000000" points="965.76,-201.37 976.15,-199.32 966.75,-194.44 965.76,-201.37"/>
+</g>
+<!-- proc~diagnostics_start&#45;&gt;proc~eval_jac_cached -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge22" class="edge">
+<title>proc~diagnostics_start&#45;&gt;proc~eval_jac_cached</title>
+<path fill="none" stroke="#000000" d="M875.17,-159.52C890.14,-157.02 905.46,-154.21 919.83,-151.13 951.33,-144.4 986.13,-134.99 1013.91,-126.98"/>
+<polygon fill="#000000" stroke="#000000" points="1014.89,-130.34 1023.51,-124.19 1012.93,-123.62 1014.89,-130.34"/>
+</g>
+<!-- proc~escape_step -->
+<g id="proc~~reset_evaluations~~CalledByGraph_node12" class="node">
+<title>proc~escape_step</title>
+<g id="a_proc~~reset_evaluations~~CalledByGraph_node12"><a xlink:href="../proc/escape_step.html" xlink:title="escape_step">
+<polygon fill="#d9534f" stroke="#d9534f" points="822.71,-306.27 745.19,-306.27 745.19,-282 822.71,-282 822.71,-306.27"/>
+<text xml:space="preserve" text-anchor="middle" x="783.95" y="-290.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">escape_step</text>
+</a>
+</g>
+</g>
+<!-- proc~escape_step&#45;&gt;proc~eval_c_cached -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge12" class="edge">
+<title>proc~escape_step&#45;&gt;proc~eval_c_cached</title>
+<path fill="none" stroke="#000000" d="M823.19,-291.42C855.6,-289.11 903.87,-285.68 948.87,-282.48"/>
+<polygon fill="#000000" stroke="#000000" points="948.99,-285.98 958.72,-281.78 948.5,-279 948.99,-285.98"/>
+</g>
+<!-- proc~restoration_phase_step -->
+<g id="proc~~reset_evaluations~~CalledByGraph_node13" class="node">
+<title>proc~restoration_phase_step</title>
+<g id="a_proc~~reset_evaluations~~CalledByGraph_node13"><a xlink:href="../proc/restoration_phase_step.html" xlink:title="sqpopt_restoration_type%restoration_phase_step">
+<polygon fill="#d9534f" stroke="#d9534f" points="919.83,-428.27 648.06,-428.27 648.06,-404 919.83,-404 919.83,-428.27"/>
+<text xml:space="preserve" text-anchor="middle" x="783.95" y="-412.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_restoration_type%restoration_phase_step</text>
+</a>
+</g>
+</g>
+<!-- proc~restoration_phase_step&#45;&gt;proc~eval_c_cached -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge13" class="edge">
+<title>proc~restoration_phase_step&#45;&gt;proc~eval_c_cached</title>
+<path fill="none" stroke="#000000" d="M896.74,-403.6C904.7,-401.23 912.48,-398.44 919.83,-395.13 973.05,-371.22 1022.66,-322.6 1048.25,-294.82"/>
+<polygon fill="#000000" stroke="#000000" points="1050.56,-297.48 1054.67,-287.71 1045.37,-292.79 1050.56,-297.48"/>
+</g>
+<!-- proc~restoration_step -->
+<g id="proc~~reset_evaluations~~CalledByGraph_node14" class="node">
+<title>proc~restoration_step</title>
+<g id="a_proc~~reset_evaluations~~CalledByGraph_node14"><a xlink:href="../proc/restoration_step.html" xlink:title="restoration_step">
+<polygon fill="#d9534f" stroke="#d9534f" points="832.46,-386.27 735.44,-386.27 735.44,-362 832.46,-362 832.46,-386.27"/>
+<text xml:space="preserve" text-anchor="middle" x="783.95" y="-370.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">restoration_step</text>
+</a>
+</g>
+</g>
+<!-- proc~restoration_step&#45;&gt;proc~eval_c_cached -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge14" class="edge">
+<title>proc~restoration_step&#45;&gt;proc~eval_c_cached</title>
+<path fill="none" stroke="#000000" d="M832.91,-368.2C859.06,-364.14 891.73,-357.73 919.83,-348.13 962.1,-333.7 1007.54,-309.2 1036.41,-292.37"/>
+<polygon fill="#000000" stroke="#000000" points="1038.13,-295.42 1044.96,-287.32 1034.57,-289.39 1038.13,-295.42"/>
+</g>
+<!-- proc~sqpopt_evaluate_point&#45;&gt;proc~eval_c_cached -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge15" class="edge">
+<title>proc~sqpopt_evaluate_point&#45;&gt;proc~eval_c_cached</title>
+<path fill="none" stroke="#000000" d="M850.13,-127.63C874.12,-129.76 900.2,-136.03 919.83,-151.13 951.38,-175.41 926.88,-205.82 955.83,-233.13 967.09,-243.76 981.34,-251.68 995.84,-257.57"/>
+<polygon fill="#000000" stroke="#000000" points="994.39,-260.77 1004.98,-260.99 996.84,-254.21 994.39,-260.77"/>
+</g>
+<!-- proc~sqpopt_evaluate_point&#45;&gt;proc~eval_f_cached -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge19" class="edge">
+<title>proc~sqpopt_evaluate_point&#45;&gt;proc~eval_f_cached</title>
+<path fill="none" stroke="#000000" d="M850.12,-137.06C872.47,-140.29 897.47,-144.84 919.83,-151.13 959.16,-162.21 1002.08,-180.92 1031.24,-194.71"/>
+<polygon fill="#000000" stroke="#000000" points="1029.43,-197.72 1039.97,-198.89 1032.46,-191.41 1029.43,-197.72"/>
+</g>
+<!-- proc~sqpopt_evaluate_point&#45;&gt;proc~eval_jac_cached -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge23" class="edge">
+<title>proc~sqpopt_evaluate_point&#45;&gt;proc~eval_jac_cached</title>
+<path fill="none" stroke="#000000" d="M849.86,-125.75C877.88,-123.86 911.62,-121.58 944.03,-119.39"/>
+<polygon fill="#000000" stroke="#000000" points="944.18,-122.89 953.92,-118.73 943.71,-115.91 944.18,-122.89"/>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~eval_c_cached -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge16" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~eval_c_cached</title>
+<path fill="none" stroke="#000000" d="M534.45,-285.73C564,-295.96 608.21,-309.58 648.06,-315.13 767.69,-331.82 800.17,-331.56 919.83,-315.13 954.37,-310.39 992.23,-299.64 1020.82,-290.34"/>
+<polygon fill="#000000" stroke="#000000" points="1021.86,-293.68 1030.24,-287.21 1019.65,-287.04 1021.86,-293.68"/>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~eval_f_cached -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge20" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~eval_f_cached</title>
+<path fill="none" stroke="#000000" d="M535.7,-260.6C565.29,-250.69 608.87,-237.51 648.06,-231.13 749.24,-214.67 865.87,-210.58 950.23,-210.23"/>
+<polygon fill="#000000" stroke="#000000" points="950.15,-213.73 960.14,-210.21 950.13,-206.73 950.15,-213.73"/>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~eval_jac_cached -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge24" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~eval_jac_cached</title>
+<path fill="none" stroke="#000000" d="M506.62,-260.96C523.8,-228.71 575.62,-141.39 648.06,-109.14 766.19,-56.53 922.35,-78.08 1006.49,-96.07"/>
+<polygon fill="#000000" stroke="#000000" points="1005.63,-99.46 1016.15,-98.19 1007.13,-92.62 1005.63,-99.46"/>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~escape_step -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge26" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~escape_step</title>
+<path fill="none" stroke="#000000" d="M543.64,-276.35C594.76,-280.15 679.69,-286.46 733.42,-290.45"/>
+<polygon fill="#000000" stroke="#000000" points="732.98,-293.93 743.21,-291.18 733.5,-286.95 732.98,-293.93"/>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~restoration_phase_step -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge27" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~restoration_phase_step</title>
+<path fill="none" stroke="#000000" d="M511.16,-285.69C533.66,-311.09 588.62,-368.41 648.06,-395.13 652.08,-396.94 656.23,-398.6 660.46,-400.11"/>
+<polygon fill="#000000" stroke="#000000" points="659.11,-403.36 669.71,-403.13 661.29,-396.7 659.11,-403.36"/>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~restoration_step -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge28" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~restoration_step</title>
+<path fill="none" stroke="#000000" d="M520.64,-285.72C548.36,-302.43 600.2,-331.73 648.06,-348.13 672.31,-356.45 699.97,-362.36 723.91,-366.43"/>
+<polygon fill="#000000" stroke="#000000" points="723.04,-369.83 733.48,-367.98 724.17,-362.92 723.04,-369.83"/>
+</g>
+<!-- proc~trust_region_step -->
+<g id="proc~~reset_evaluations~~CalledByGraph_node17" class="node">
+<title>proc~trust_region_step</title>
+<g id="a_proc~~reset_evaluations~~CalledByGraph_node17"><a xlink:href="../proc/trust_region_step.html" xlink:title="sqpopt_trust_region_type%trust_region_step">
+<polygon fill="#d9534f" stroke="#d9534f" points="906.33,-264.27 661.56,-264.27 661.56,-240 906.33,-240 906.33,-264.27"/>
+<text xml:space="preserve" text-anchor="middle" x="783.95" y="-248.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_trust_region_type%trust_region_step</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~trust_region_step -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge31" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~trust_region_step</title>
+<path fill="none" stroke="#000000" d="M543.64,-269.92C572.27,-267.79 611.5,-264.88 649.92,-262.02"/>
+<polygon fill="#000000" stroke="#000000" points="650.04,-265.52 659.75,-261.29 649.52,-258.54 650.04,-265.52"/>
+</g>
+<!-- proc~trust_region_step&#45;&gt;proc~eval_c_cached -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge17" class="edge">
+<title>proc~trust_region_step&#45;&gt;proc~eval_c_cached</title>
+<path fill="none" stroke="#000000" d="M906.73,-261.66C920.8,-262.76 935.12,-263.88 949.12,-264.97"/>
+<polygon fill="#000000" stroke="#000000" points="948.52,-268.43 958.76,-265.72 949.06,-261.46 948.52,-268.43"/>
+</g>
+<!-- proc~trust_region_step&#45;&gt;proc~eval_f_cached -->
+<g id="proc~~reset_evaluations~~CalledByGraph_edge21" class="edge">
+<title>proc~trust_region_step&#45;&gt;proc~eval_f_cached</title>
+<path fill="none" stroke="#000000" d="M873.59,-239.53C903.15,-235.33 936.27,-230.62 966.61,-226.31"/>
+<polygon fill="#000000" stroke="#000000" points="966.75,-229.83 976.15,-224.95 965.76,-222.9 966.75,-229.83"/>
+</g>
+</g>
+</svg>
+</div>                <script>
+                  var panprocreset_evaluationsCalledByGraph = svgPanZoom('#procreset_evaluationsCalledByGraph',
+                    {zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true,}
+                  );
+                </script>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#CalledByGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="CalledByGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="641pt" height="28pt"
+ viewBox="0.00 0.00 641.00 28.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(0.873868 0.873868) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 729.52,-28.27 729.52,4 -4,4"/>
+<!-- Subroutine -->
+<g id="node1" class="node">
+<title>Subroutine</title>
+<polygon fill="#d9534f" stroke="#d9534f" points="69.27,-24.27 0,-24.27 0,0 69.27,0 69.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="34.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Subroutine</text>
+</g>
+<!-- Function -->
+<g id="node2" class="node">
+<title>Function</title>
+<polygon fill="#d94e8f" stroke="#d94e8f" points="143.89,-24.27 87.38,-24.27 87.38,0 143.89,0 143.89,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="115.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Function</text>
+</g>
+<!-- Interface -->
+<g id="node3" class="node">
+<title>Interface</title>
+<polygon fill="#a7506f" stroke="#a7506f" points="221.39,-24.27 161.88,-24.27 161.88,0 221.39,0 221.39,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="191.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Interface</text>
+</g>
+<!-- Type Bound Procedure -->
+<g id="node4" class="node">
+<title>Type Bound Procedure</title>
+<polygon fill="#a7506f" stroke="#a7506f" points="368.27,-24.27 239,-24.27 239,0 368.27,0 368.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="303.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Type Bound Procedure</text>
+</g>
+<!-- Unknown Procedure Type -->
+<g id="node5" class="node">
+<title>Unknown Procedure Type</title>
+<polygon fill="#777777" stroke="#777777" points="529.39,-24.27 385.88,-24.27 385.88,0 529.39,0 529.39,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="457.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Unknown Procedure Type</text>
+</g>
+<!-- Program -->
+<g id="node6" class="node">
+<title>Program</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="603.89,-24.27 547.38,-24.27 547.38,0 603.89,0 603.89,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="575.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Program</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node7" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="725.52,-24.27 621.75,-24.27 621.75,0 725.52,0 725.52,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="673.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a procedure to one which it calls. Dashed 
+arrows point from an interface to procedures which implement that interface.
+This could include the module procedures in a generic interface or the
+implementation in a submodule of an interface in a parent module.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <br>
+
+
+    
+    
+
+    
+    
+
+
+
+    
+    <section>
+    <h2><span class="anchor" id="src"></span>Source Code</h2>
+    <div class="hl codehilite"><pre><span></span><span class="w">    </span><span class="k">subroutine </span><span class="n">reset_evaluations</span><span class="p">(</span><span class="n">me</span><span class="p">)</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">class</span><span class="p">(</span><span class="n">sqpopt_problem_type</span><span class="p">),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">me</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">allocated</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">cache_x</span><span class="p">))</span><span class="w">   </span><span class="k">deallocate</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">cache_x</span><span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">allocated</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">cache_f</span><span class="p">))</span><span class="w">   </span><span class="k">deallocate</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">cache_f</span><span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">allocated</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">cache_c</span><span class="p">))</span><span class="w">   </span><span class="k">deallocate</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">cache_c</span><span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">allocated</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">cache_xg</span><span class="p">))</span><span class="w">  </span><span class="k">deallocate</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">cache_xg</span><span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">allocated</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">cache_g</span><span class="p">))</span><span class="w">   </span><span class="k">deallocate</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">cache_g</span><span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">allocated</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">cache_jac</span><span class="p">))</span><span class="w"> </span><span class="k">deallocate</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">cache_jac</span><span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">allocated</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">c_scale</span><span class="p">))</span><span class="w">   </span><span class="k">deallocate</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">c_scale</span><span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="k">allocate</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">cache_x</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">n</span><span class="p">,</span><span class="n">cache_size</span><span class="p">),</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">cache_f</span><span class="p">(</span><span class="n">cache_size</span><span class="p">),</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">cache_c</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">m</span><span class="p">,</span><span class="n">cache_size</span><span class="p">))</span><span class="w"></span>
+<span class="w">    </span><span class="k">allocate</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">cache_xg</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">n</span><span class="p">),</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">cache_g</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">n</span><span class="p">),</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">cache_jac</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">jac_nnz</span><span class="p">,</span><span class="mi">0</span><span class="p">)))</span><span class="w"></span>
+<span class="w">    </span><span class="k">allocate</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">c_scale</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">m</span><span class="p">))</span><span class="w"></span>
+<span class="w">    </span><span class="n">me</span><span class="p">%</span><span class="n">cache_n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">cache_next</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"></span>
+<span class="w">    </span><span class="n">me</span><span class="p">%</span><span class="n">have_gjac</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"></span>
+<span class="w">    </span><span class="n">me</span><span class="p">%</span><span class="n">n_eval_fc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">n_eval_gjac</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="p">;</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">n_eval_hess</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"></span>
+<span class="w">    </span><span class="n">me</span><span class="p">%</span><span class="n">time_user</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="w"></span>
+<span class="w">    </span><span class="n">me</span><span class="p">%</span><span class="n">stop_requested</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"></span>
+<span class="w">    </span><span class="n">me</span><span class="p">%</span><span class="n">f_scale</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">1.0_wp</span><span class="w"></span>
+<span class="w">    </span><span class="n">me</span><span class="p">%</span><span class="n">c_scale</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">1.0_wp</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">end subroutine </span><span class="n">reset_evaluations</span><span class="w"></span>
+</pre></div>
+
+    </section>
+    <br>
+    
+    </div>
+  </div>
+
+      <hr>
+    </div> <!-- /container -->
+    <footer>
+      <div class="container">
+        <div class="row justify-content-between">
+          <div class="col">
+            <p>
+              sqpopt
+ was developed by Jacob Williams<br>              &copy; 2026 
+</p>
+          </div>
+          <div class="col">
+            <p class="text-end">
+              Documentation generated by
+              <a href="https://github.com/Fortran-FOSS-Programmers/ford">FORD</a>
+            </p>
+          </div>
+        </div>
+        <br>
+      </div> <!-- /container -->
+    </footer>
+    <!-- sqpopt theme: the button switches the theme, and remembers it for the guide too -->
+    <script>
+      document.querySelector('.theme-toggle').addEventListener('click', function () {
+        var root = document.documentElement;
+        var next = root.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-bs-theme', next);
+        try { localStorage.setItem('sqpopt-theme', next); } catch (e) {}
+      });
+    </script>
+  </body>
+</html>

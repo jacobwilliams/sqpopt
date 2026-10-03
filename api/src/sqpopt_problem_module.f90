@@ -1,0 +1,865 @@
+!*******************************************************************************
+!> author: Jacob Williams
+!  license: MIT
+!
+!  Defines the nonlinear program (NLP) that is to be solved:
+!
+!  $$ \min_{x} f(x) $$
+!
+!  subject to:
+!
+!  $$ c_l \le c(x) \le c_u $$
+!  $$ x_l \le x \le x_u $$
+!
+!  where \( c(x) \) is a vector of nonlinear constraints. An equality
+!  constraint is specified by setting the corresponding elements of
+!  \( c_l \) and \( c_u \) to the same value, and an inequality
+!  constraint by setting them to different values (using \( \pm\infty \)
+!  for one-sided inequalities). Variable bounds are specified similarly
+!  via \( x_l \) and \( x_u \).
+!
+!  The Jacobian of \( c(x) \) and the Hessian of the Lagrangian are
+!  never treated as dense \( m \times n \) or \( n \times n \) arrays:
+!  their (fixed) sparsity patterns are supplied once as 1-based COO
+!  `irow`/`icol` triplets (the same convention used by the `lusol` and
+!  `LSQR` dependencies), and the user-supplied evaluation
+!  routines only need to fill in the corresponding nonzero *values* on
+!  each call.
+!
+!  **User functions.** The problem is defined by two routines (see
+!  [[set_functions]]): `fc`, which evaluates the objective \( f(x) \) and
+!  the constraints \( c(x) \) together, and `gjac`, which evaluates the
+!  objective gradient \( \nabla f(x) \) and the nonzero values of the
+!  constraint Jacobian together (and, optionally, `hess` for an exact
+!  Hessian of the Lagrangian). Every user function has two trailing
+!  arguments:
+!
+!  * `status` (`integer, intent(inout)`): `0` on entry. Leave it `0` on
+!    success; set it `> 0` if the function cannot be evaluated at `x` (e.g.
+!    a domain error) -- the solver then treats the point like one where
+!    the function returned NaN, and backs off from it -- or `< 0` to ask the
+!    solver to stop (`istat=sqpopt_user_requested_stop`).
+!  * `data` (`class(*), intent(inout), optional`): the user data object
+!    given to [[set_functions]] (absent if none was given), for passing any
+!    context to the functions without module variables; use `select type`
+!    to access it.
+!
+!  **Evaluation layer.** The solver evaluates everything through the
+!  type-bound [[eval_f_cached|f]], [[eval_c_cached|c]], [[eval_g_cached|g]],
+!  and [[eval_jac_cached|jac]] methods, which handle `status`/`data`, count
+!  the user calls, keep a small cache of recent evaluations (so e.g. the
+!  point accepted by a line search is not evaluated again, and asking for
+!  `c` at a point where `f` was just evaluated doesn't call `fc` again),
+!  and apply the objective and constraint scaling (see
+!  [[compute_scaling]]): the solver works with \( s_f f \) and
+!  \( s_{c,i} c_i \).
+
+    module sqpopt_problem_module
+
+    use sqpopt_kinds,        only: wp => sqpopt_module_wp
+    use sqpopt_types_module, only: sqpopt_success, sqpopt_invalid_input, sqpopt_infinity, sqpopt_all_finite
+    use, intrinsic :: ieee_arithmetic, only: ieee_value, ieee_quiet_nan
+
+    implicit none
+
+    private
+
+    integer, parameter :: cache_size = 4 !! number of recent evaluations of `fc` kept
+
+    public :: sqpopt_fc_func, sqpopt_gjac_func, sqpopt_hessian_func
+
+    ! the accuracy of the derivatives the solver asks `gjac` for (its `accuracy` argument; see
+    ! `options%derivative_accuracy`):
+    integer, parameter, public :: sqpopt_derivatives_fast     = 1 !! cheaper, less accurate derivatives are fine (e.g.
+                                                                  !! forward differences): the solver is far from a solution
+    integer, parameter, public :: sqpopt_derivatives_accurate = 2 !! the most accurate derivatives available are wanted
+                                                                  !! (e.g. analytic, or central differences)
+
+    type, public :: sqpopt_problem_type
+        !! defines the problem to be solved: the problem size, the
+        !! variable and constraint bounds, the sparsity patterns of the
+        !! constraint Jacobian and Lagrangian Hessian, and the
+        !! user-supplied procedures used to evaluate the objective
+        !! function, constraints, and their derivatives.
+
+        integer :: n      = 0  !! number of optimization variables (\( n>0 \))
+        integer :: m      = 0  !! number of constraints \( c(x) \) (\( m \ge 0 \)): equalities (where
+                               !! \( c_l = c_u \)) and inequalities, in any order
+
+        real(wp), dimension(:), allocatable :: x_lb  !! lower bounds on the optimization variables `dimension(n)`
+        real(wp), dimension(:), allocatable :: x_ub  !! upper bounds on the optimization variables `dimension(n)`
+        real(wp), dimension(:), allocatable :: x_max_step !! the largest change of each variable in one major
+                                                     !! iteration `dimension(n)` (unallocated: no limits; see
+                                                     !! [[set_max_step]])
+
+        real(wp), dimension(:), allocatable :: c_lb  !! lower bounds on the constraints `dimension(m)`
+        real(wp), dimension(:), allocatable :: c_ub  !! upper bounds on the constraints `dimension(m)`
+
+        integer :: jac_nnz = 0   !! number of nonzero elements in the constraint Jacobian
+        integer, dimension(:), allocatable :: jac_irow  !! Jacobian sparsity pattern: row indices `dimension(jac_nnz)`
+        integer, dimension(:), allocatable :: jac_icol  !! Jacobian sparsity pattern: column indices `dimension(jac_nnz)`
+
+        integer :: hess_nnz = 0  !! number of nonzero elements in the (symmetric) Hessian of the Lagrangian
+        integer, dimension(:), allocatable :: hess_irow !! Hessian sparsity pattern: row indices `dimension(hess_nnz)`
+        integer, dimension(:), allocatable :: hess_icol !! Hessian sparsity pattern: column indices `dimension(hess_nnz)`
+
+        procedure(sqpopt_fc_func),        pointer, nopass :: eval_fc   => null() !! evaluates \( f(x) \) and \( c(x) \)
+        procedure(sqpopt_gjac_func),      pointer, nopass :: eval_gjac => null() !! evaluates \( \nabla f(x) \) and the
+                                                                                !! nonzero values of the Jacobian of \( c(x) \)
+        procedure(sqpopt_hessian_func),   pointer, nopass :: eval_hess => null() !! evaluates the nonzero values of the
+                                                                                !! Hessian of the Lagrangian (only used
+                                                                                !! when an exact Hessian is requested)
+        class(*), pointer :: user_data => null() !! user data passed to every user function (see [[set_functions]])
+
+        ! ---- internal evaluation state (see the module-level documentation) ----
+        logical  :: stop_requested = .false. !! set when a user function returns `status < 0`
+        integer  :: n_eval_fc   = 0 !! number of calls of the user's `fc`
+        integer  :: n_eval_gjac = 0 !! number of calls of the user's `gjac`
+        integer  :: n_eval_hess = 0 !! number of calls of the user's `hess`
+        real(wp) :: time_user   = 0.0_wp !! wall-clock time spent in the user's functions (seconds)
+        real(wp) :: f_scale = 1.0_wp !! objective scale factor \( s_f \)
+        real(wp), dimension(:), allocatable :: c_scale !! constraint scale factors \( s_{c,i} \) `dimension(m)`
+        integer :: cache_n = 0, cache_next = 1 !! entries used, and the slot for the next one, in the `fc` cache
+        real(wp), dimension(:,:), allocatable :: cache_x !! points at which `fc` was evaluated `dimension(n,cache_size)`
+        real(wp), dimension(:),   allocatable :: cache_f !! (unscaled) `f` at those points `dimension(cache_size)`
+        real(wp), dimension(:,:), allocatable :: cache_c !! (unscaled) `c` at those points `dimension(m,cache_size)`
+        integer :: derivative_accuracy = sqpopt_derivatives_accurate !! the accuracy `gjac` is asked for (see
+                                                                     !! [[set_derivative_accuracy]])
+        logical :: have_gjac = .false. !! whether the one-entry `gjac` cache is filled
+        real(wp), dimension(:), allocatable :: cache_xg  !! point at which `gjac` was evaluated `dimension(n)`
+        real(wp), dimension(:), allocatable :: cache_g   !! (unscaled) `g` there `dimension(n)`
+        real(wp), dimension(:), allocatable :: cache_jac !! (unscaled) Jacobian values there `dimension(jac_nnz)`
+
+        contains
+
+        procedure, public :: set_problem_size      !! set the problem dimensions and allocate the bound arrays
+        procedure, public :: set_bounds            !! set the variable and constraint bounds
+        procedure, public :: set_max_step          !! set the largest change of each variable in one major iteration
+        procedure, public :: step_bounds           !! the bounds on the variables for a step from a point
+        procedure, public :: set_jacobian_sparsity !! set the (fixed) sparsity pattern of the constraint Jacobian
+        procedure, public :: set_hessian_sparsity  !! set the (fixed) sparsity pattern of the Lagrangian Hessian
+        procedure, public :: set_functions         !! attach the user-supplied evaluation procedures (and user data)
+        procedure, public :: validate              !! check the problem definition and normalize infinite bounds
+        procedure, public :: f   => eval_f_cached   !! evaluate the (scaled) objective
+        procedure, public :: c   => eval_c_cached   !! evaluate the (scaled) constraints
+        procedure, public :: g   => eval_g_cached   !! evaluate the (scaled) objective gradient
+        procedure, public :: jac => eval_jac_cached !! evaluate the (scaled) Jacobian values
+        procedure, public :: hess => eval_hess_scaled !! evaluate the (scaled) Lagrangian Hessian values
+        procedure, public :: reset_evaluations     !! empty the caches, zero the counters, and remove any scaling
+        procedure, public :: set_derivative_accuracy !! set the accuracy `gjac` is asked for
+        procedure, public :: compute_scaling       !! set gradient-based objective/constraint scale factors
+
+    end type sqpopt_problem_type
+
+    abstract interface
+
+        subroutine sqpopt_fc_func(x, f, c, status, data)
+            !! evaluates the objective function \( f(x) \) and the nonlinear
+            !! constraint vector \( c(x) \)
+            import :: wp
+            implicit none
+            real(wp), dimension(:), intent(in)    :: x      !! optimization variable vector `dimension(n)`
+            real(wp),               intent(out)   :: f      !! value of the objective function
+            real(wp), dimension(:), intent(out)   :: c      !! constraint vector `dimension(m)` (`m` may be 0)
+            integer,                intent(inout) :: status !! `0` on entry; `>0`: can't evaluate here, `<0`: stop
+            class(*), optional,     intent(inout) :: data   !! user data (see [[set_functions]])
+        end subroutine sqpopt_fc_func
+
+        subroutine sqpopt_gjac_func(x, g, jac_val, accuracy, status, data)
+            !! evaluates the gradient of the objective function \( \nabla f(x) \)
+            !! and the nonzero values of the Jacobian of the constraint vector,
+            !! \( J_{ij} = \partial c_i / \partial x_j \), ordered to match the
+            !! sparsity pattern set by `set_jacobian_sparsity`. `accuracy` says
+            !! how accurate they need to be: functions with a cheaper, less
+            !! accurate way of computing them (e.g. forward instead of central
+            !! differences) may use it while `accuracy=sqpopt_derivatives_fast`;
+            !! others can ignore it.
+            import :: wp
+            implicit none
+            real(wp), dimension(:), intent(in)    :: x        !! optimization variable vector `dimension(n)`
+            real(wp), dimension(:), intent(out)   :: g        !! gradient vector `dimension(n)`
+            real(wp), dimension(:), intent(out)   :: jac_val  !! nonzero Jacobian values `dimension(jac_nnz)` (may be 0)
+            integer,                intent(in)    :: accuracy !! `sqpopt_derivatives_fast` or `sqpopt_derivatives_accurate`
+            integer,                intent(inout) :: status   !! `0` on entry; `>0`: can't evaluate here, `<0`: stop
+            class(*), optional,     intent(inout) :: data    !! user data (see [[set_functions]])
+        end subroutine sqpopt_gjac_func
+
+        subroutine sqpopt_hessian_func(x, lambda, hess_val, status, data)
+            !! evaluates the nonzero values of the Hessian of the Lagrangian:
+            !! \( H = \nabla^2 f(x) - \sum_i \lambda_i \nabla^2 c_i(x) \),
+            !! ordered to match the sparsity pattern set by `set_hessian_sparsity`.
+            import :: wp
+            implicit none
+            real(wp), dimension(:), intent(in)    :: x        !! optimization variable vector `dimension(n)`
+            real(wp), dimension(:), intent(in)    :: lambda   !! Lagrange multipliers `dimension(m)`
+            real(wp), dimension(:), intent(out)   :: hess_val !! nonzero Hessian values `dimension(hess_nnz)`
+            integer,                intent(inout) :: status   !! `0` on entry; `>0`: can't evaluate here, `<0`: stop
+            class(*), optional,     intent(inout) :: data     !! user data (see [[set_functions]])
+        end subroutine sqpopt_hessian_func
+
+    end interface
+
+    contains
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  set the problem dimensions and allocate the variable/constraint bound
+!  arrays: `n` variables and `m` constraints. Which constraints are
+!  equalities is given by their bounds (`c_lb(i) == c_ub(i)`, see
+!  [[set_bounds]]), so equalities and inequalities may come in any order.
+
+    subroutine set_problem_size(me, n, m)
+
+    class(sqpopt_problem_type), intent(inout) :: me
+    integer, intent(in) :: n  !! number of optimization variables
+    integer, intent(in) :: m  !! number of constraints (equality and inequality)
+
+    me%n = n
+    me%m = m
+
+    if (allocated(me%x_lb)) deallocate(me%x_lb)
+    if (allocated(me%x_ub)) deallocate(me%x_ub)
+    if (allocated(me%c_lb)) deallocate(me%c_lb)
+    if (allocated(me%c_ub)) deallocate(me%c_ub)
+    if (allocated(me%x_max_step)) deallocate(me%x_max_step)
+    allocate(me%x_lb(n), me%x_ub(n))
+    allocate(me%c_lb(me%m), me%c_ub(me%m))
+
+    end subroutine set_problem_size
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  set the variable bounds \( x_l \le x \le x_u \) and the constraint
+!  bounds \( c_l \le c(x) \le c_u \) (equality constraints are given by
+!  `c_lb(i) == c_ub(i)`). `set_problem_size` must be called first.
+
+    subroutine set_bounds(me, x_lb, x_ub, c_lb, c_ub)
+
+    class(sqpopt_problem_type), intent(inout) :: me
+    real(wp), dimension(:), intent(in) :: x_lb !! variable lower bounds `dimension(n)`
+    real(wp), dimension(:), intent(in) :: x_ub !! variable upper bounds `dimension(n)`
+    real(wp), dimension(:), intent(in) :: c_lb !! constraint lower bounds `dimension(m)`
+    real(wp), dimension(:), intent(in) :: c_ub !! constraint upper bounds `dimension(m)`
+
+    me%x_lb = x_lb
+    me%x_ub = x_ub
+    me%c_lb = c_lb
+    me%c_ub = c_ub
+
+    end subroutine set_bounds
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  set the largest change of each variable in one major iteration:
+!  \( |x_{k+1} - x_k|_j \le \) `max_step(j)`. The limits are enforced as
+!  bounds on every step the solver computes (the QP subproblem's, the
+!  second-order correction, and the restoration steps), so a step is the
+!  best one within them, not a longer one cut short. A value
+!  `>= sqpopt_infinity` means no limit for that variable. Without this call
+!  (or after another `set_problem_size`) there are no limits.
+!
+!  Use it for variables with different units or sensitivities, when you
+!  know how far each can move before the problem's linearization stops
+!  being useful (the solver's own cap on the length of the step,
+!  `qp_solver%max_step`, treats all variables alike).
+
+    subroutine set_max_step(me, max_step)
+
+    class(sqpopt_problem_type), intent(inout) :: me
+    real(wp), dimension(:), intent(in) :: max_step !! the largest change of each variable `dimension(n)` (each
+                                                   !! `> 0`)
+
+    me%x_max_step = max_step
+
+    end subroutine set_max_step
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the bounds on the variables for a step from the point `x`: the
+!  variables' bounds, tightened to `x - max_step` and `x + max_step` if
+!  step limits were set (see [[set_max_step]]). `x` must be within the
+!  bounds, so that `lb <= x <= ub`.
+
+    pure subroutine step_bounds(me, x, lb, ub)
+
+    class(sqpopt_problem_type), intent(in)  :: me
+    real(wp), dimension(:),     intent(in)  :: x  !! the point the step starts from `dimension(n)`
+    real(wp), dimension(:),     intent(out) :: lb !! lower bounds for the new point `dimension(n)`
+    real(wp), dimension(:),     intent(out) :: ub !! upper bounds for the new point `dimension(n)`
+
+    lb = me%x_lb
+    ub = me%x_ub
+    if (allocated(me%x_max_step)) then
+        lb = max(lb, x - me%x_max_step)
+        ub = min(ub, x + me%x_max_step)
+    end if
+
+    end subroutine step_bounds
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  check that the problem is completely and consistently defined, and
+!  normalize the bounds: any bound with magnitude `>= sqpopt_infinity` is
+!  clamped to `+/-sqpopt_infinity`, so that e.g. `-huge(1.0_wp)` may be
+!  used for an absent bound without overflowing expressions like
+!  `x_ub-x_lb`. Returns `istat=sqpopt_invalid_input` (and a description in
+!  `msg`) on the first problem found, else `sqpopt_success`.
+
+    subroutine validate(me, istat, msg)
+
+    class(sqpopt_problem_type), intent(inout) :: me
+    integer,                       intent(out) :: istat !! `sqpopt_success` or `sqpopt_invalid_input`
+    character(len=:), allocatable, intent(out) :: msg   !! description of the problem found (empty if none)
+
+    istat = sqpopt_invalid_input
+    msg   = ''
+
+    if (me%n <= 0) then
+        msg = 'the number of variables n must be > 0 (call set_problem_size)'; return
+    end if
+    if (me%m < 0) then
+        msg = 'the number of constraints must be >= 0'; return
+    end if
+    if (.not. (allocated(me%x_lb) .and. allocated(me%x_ub) .and. allocated(me%c_lb) .and. allocated(me%c_ub))) then
+        msg = 'the bounds have not been set (call set_bounds)'; return
+    end if
+    if (size(me%x_lb) /= me%n .or. size(me%x_ub) /= me%n) then
+        msg = 'the variable bounds x_lb/x_ub must have size n'; return
+    end if
+    if (size(me%c_lb) /= me%m .or. size(me%c_ub) /= me%m) then
+        msg = 'the constraint bounds c_lb/c_ub must have size m'; return
+    end if
+
+    me%x_lb = max(me%x_lb, -sqpopt_infinity)
+    me%x_ub = min(me%x_ub,  sqpopt_infinity)
+    me%c_lb = max(me%c_lb, -sqpopt_infinity)
+    me%c_ub = min(me%c_ub,  sqpopt_infinity)
+
+    if (.not. (sqpopt_all_finite(me%x_lb) .and. sqpopt_all_finite(me%x_ub) .and. &
+               sqpopt_all_finite(me%c_lb) .and. sqpopt_all_finite(me%c_ub))) then
+        msg = 'a bound is NaN'; return
+    end if
+    if (any(me%x_lb > me%x_ub)) then
+        msg = 'a variable lower bound exceeds its upper bound'; return
+    end if
+    if (any(me%c_lb > me%c_ub)) then
+        msg = 'a constraint lower bound exceeds its upper bound'; return
+    end if
+    if (allocated(me%x_max_step)) then
+        if (size(me%x_max_step) /= me%n) then
+            msg = 'the step limits (set_max_step) must have size n'; return
+        end if
+        me%x_max_step = min(me%x_max_step, sqpopt_infinity)
+        if (.not. all(me%x_max_step > 0.0_wp)) then
+            msg = 'a step limit (set_max_step) is not > 0'; return
+        end if
+    end if
+    if (any(me%x_lb >= sqpopt_infinity) .or. any(me%x_ub <= -sqpopt_infinity) .or. &
+        any(me%c_lb >= sqpopt_infinity) .or. any(me%c_ub <= -sqpopt_infinity)) then
+        msg = 'a lower bound is +infinity or an upper bound is -infinity'; return
+    end if
+
+    if (me%m > 0) then
+        if (.not. (allocated(me%jac_irow) .and. allocated(me%jac_icol))) then
+            msg = 'the Jacobian sparsity pattern has not been set (call set_jacobian_sparsity)'; return
+        end if
+    end if
+    if (me%jac_nnz < 0) then
+        msg = 'the number of Jacobian nonzeros must be >= 0'; return
+    end if
+    if (me%jac_nnz > 0) then
+        if (.not. (allocated(me%jac_irow) .and. allocated(me%jac_icol))) then
+            msg = 'the Jacobian sparsity pattern has not been set (call set_jacobian_sparsity)'; return
+        end if
+        if (size(me%jac_irow) /= me%jac_nnz .or. size(me%jac_icol) /= me%jac_nnz) then
+            msg = 'the Jacobian sparsity pattern arrays must have size jac_nnz'; return
+        end if
+        if (any(me%jac_irow < 1) .or. any(me%jac_irow > me%m)) then
+            msg = 'a Jacobian row index is outside 1..m'; return
+        end if
+        if (any(me%jac_icol < 1) .or. any(me%jac_icol > me%n)) then
+            msg = 'a Jacobian column index is outside 1..n'; return
+        end if
+    else
+        ! make sure the (possibly empty) pattern arrays exist, so they can be copied safely:
+        if (.not. allocated(me%jac_irow)) allocate(me%jac_irow(0))
+        if (.not. allocated(me%jac_icol)) allocate(me%jac_icol(0))
+    end if
+
+    if (me%hess_nnz < 0) then
+        msg = 'the number of Hessian nonzeros must be >= 0'; return
+    end if
+    if (me%hess_nnz > 0) then
+        if (.not. (allocated(me%hess_irow) .and. allocated(me%hess_icol))) then
+            msg = 'the Hessian sparsity pattern has not been set (call set_hessian_sparsity)'; return
+        end if
+        if (size(me%hess_irow) /= me%hess_nnz .or. size(me%hess_icol) /= me%hess_nnz) then
+            msg = 'the Hessian sparsity pattern arrays must have size hess_nnz'; return
+        end if
+        if (any(me%hess_irow < 1) .or. any(me%hess_irow > me%n) .or. &
+            any(me%hess_icol < 1) .or. any(me%hess_icol > me%n)) then
+            msg = 'a Hessian row or column index is outside 1..n'; return
+        end if
+    else
+        if (.not. allocated(me%hess_irow)) allocate(me%hess_irow(0))
+        if (.not. allocated(me%hess_icol)) allocate(me%hess_icol(0))
+    end if
+
+    if (.not. (associated(me%eval_fc) .and. associated(me%eval_gjac))) then
+        msg = 'the problem functions have not been set (call set_functions)'; return
+    end if
+
+    istat = sqpopt_success
+
+    end subroutine validate
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  set the (fixed) sparsity pattern of the constraint Jacobian, given as
+!  1-based COO `irow`/`icol` triplets.
+
+    subroutine set_jacobian_sparsity(me, nnz, irow, icol)
+
+    class(sqpopt_problem_type), intent(inout) :: me
+    integer, intent(in) :: nnz  !! number of nonzero Jacobian elements
+    integer, dimension(:), intent(in) :: irow  !! row indices `dimension(nnz)`
+    integer, dimension(:), intent(in) :: icol  !! column indices `dimension(nnz)`
+
+    me%jac_nnz = nnz
+    me%jac_irow = irow(1:nnz)
+    me%jac_icol = icol(1:nnz)
+
+    end subroutine set_jacobian_sparsity
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  set the (fixed) sparsity pattern of the Hessian of the Lagrangian,
+!  given as 1-based COO `irow`/`icol` triplets. Since the Hessian is
+!  symmetric, each off-diagonal element must be given only *once* (in
+!  either triangle; e.g. only the lower triangle): an element `(i,j)` with
+!  `i/=j` stands for both `(i,j)` and `(j,i)`. Repeated entries are summed.
+
+    subroutine set_hessian_sparsity(me, nnz, irow, icol)
+
+    class(sqpopt_problem_type), intent(inout) :: me
+    integer, intent(in) :: nnz  !! number of nonzero Hessian elements
+    integer, dimension(:), intent(in) :: irow  !! row indices `dimension(nnz)`
+    integer, dimension(:), intent(in) :: icol  !! column indices `dimension(nnz)`
+
+    me%hess_nnz = nnz
+    me%hess_irow = irow(1:nnz)
+    me%hess_icol = icol(1:nnz)
+
+    end subroutine set_hessian_sparsity
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  attach the user-supplied procedures used to evaluate the objective
+!  function and constraints (`fc`), their derivatives (`gjac`), and
+!  optionally the exact Hessian of the Lagrangian (`hess`), and
+!  (optionally) a user data object that is passed to each of them (see the
+!  module-level documentation). `fc` returns \( f \) and \( c \) together,
+!  and `gjac` returns \( \nabla f \) and the Jacobian values together,
+!  since they usually share intermediate results.
+!
+!  `data` is *pointed to*, not copied, so the functions see (and may
+!  update) the caller's object: it must have the `target` (or `pointer`)
+!  attribute and exist for as long as the problem is being solved.
+
+    subroutine set_functions(me, fc, gjac, hess, data)
+
+    class(sqpopt_problem_type), intent(inout) :: me
+    procedure(sqpopt_fc_func)                 :: fc   !! objective function and constraint vector
+    procedure(sqpopt_gjac_func)               :: gjac !! objective gradient and sparse constraint Jacobian values
+    procedure(sqpopt_hessian_func), optional  :: hess !! sparse exact Hessian of the Lagrangian values
+    class(*), target, optional, intent(inout) :: data !! user data passed to each function
+
+    me%eval_fc   => fc
+    me%eval_gjac => gjac
+    me%eval_hess => null()
+    me%user_data => null()
+    if (present(hess)) me%eval_hess => hess
+    if (present(data)) me%user_data => data
+
+    end subroutine set_functions
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  empty the evaluation caches (sizing them for the current `n`, `m`, and
+!  Jacobian pattern), zero the evaluation counters, clear any stop
+!  request, and reset the scale factors to 1.
+
+    subroutine reset_evaluations(me)
+
+    class(sqpopt_problem_type), intent(inout) :: me
+
+    if (allocated(me%cache_x))   deallocate(me%cache_x)
+    if (allocated(me%cache_f))   deallocate(me%cache_f)
+    if (allocated(me%cache_c))   deallocate(me%cache_c)
+    if (allocated(me%cache_xg))  deallocate(me%cache_xg)
+    if (allocated(me%cache_g))   deallocate(me%cache_g)
+    if (allocated(me%cache_jac)) deallocate(me%cache_jac)
+    if (allocated(me%c_scale))   deallocate(me%c_scale)
+    allocate(me%cache_x(me%n,cache_size), me%cache_f(cache_size), me%cache_c(me%m,cache_size))
+    allocate(me%cache_xg(me%n), me%cache_g(me%n), me%cache_jac(max(me%jac_nnz,0)))
+    allocate(me%c_scale(me%m))
+    me%cache_n = 0; me%cache_next = 1
+    me%have_gjac = .false.
+    me%n_eval_fc = 0; me%n_eval_gjac = 0; me%n_eval_hess = 0
+    me%time_user = 0.0_wp
+    me%stop_requested = .false.
+    me%f_scale = 1.0_wp
+    me%c_scale = 1.0_wp
+
+    end subroutine reset_evaluations
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  gradient-based scaling (as in IPOPT): at the point `x`, the objective
+!  is scaled by \( s_f = \min(1, g_{max}/\lVert \nabla f \rVert_\infty) \)
+!  and each constraint by \( s_{c,i} = \min(1, g_{max}/\lVert \nabla c_i
+!  \rVert_\infty) \), so that no scaled gradient is larger than `max_gradient`
+!  (problems whose gradients are all at most `max_gradient` are not
+!  scaled). No scale factor is made smaller than `min_value` (if given), so
+!  that a starting point with an extremely large gradient, which says
+!  little about the rest of the problem, doesn't scale a function down to
+!  nothing. The (finite) constraint bounds are scaled to match. Call
+!  [[reset_evaluations]] first; the evaluations used here are cached, so
+!  they are not repeated by the first major iteration.
+
+    subroutine compute_scaling(me, x, max_gradient, min_value)
+
+    class(sqpopt_problem_type), intent(inout) :: me
+    real(wp), dimension(:), intent(in) :: x            !! point at which to measure the gradients `dimension(n)`
+    real(wp),               intent(in) :: max_gradient !! \( g_{max} \)
+    real(wp), optional,     intent(in) :: min_value    !! smallest scale factor (default `0`: no limit)
+
+    real(wp), dimension(:), allocatable :: g
+    real(wp), dimension(:), allocatable :: jval
+    real(wp), dimension(:), allocatable :: row_max
+    real(wp) :: smin
+    integer :: k
+
+    allocate(g(me%n), jval(max(me%jac_nnz,0)), row_max(me%m))
+
+    smin = 0.0_wp
+    if (present(min_value)) smin = min(max(min_value, 0.0_wp), 1.0_wp)
+
+    call raw_gjac(me, x, g, jval)
+    if (sqpopt_all_finite(g) .and. me%n > 0) then
+        if (maxval(abs(g)) > max_gradient) me%f_scale = max(max_gradient/maxval(abs(g)), smin)
+    end if
+
+    if (me%m > 0) then
+        if (sqpopt_all_finite(jval)) then
+            row_max = 0.0_wp
+            do k = 1, me%jac_nnz
+                row_max(me%jac_irow(k)) = max(row_max(me%jac_irow(k)), abs(jval(k)))
+            end do
+            where (row_max > max_gradient) me%c_scale = max(max_gradient/row_max, smin)
+        end if
+        where (abs(me%c_lb) < sqpopt_infinity) me%c_lb = me%c_scale*me%c_lb
+        where (abs(me%c_ub) < sqpopt_infinity) me%c_ub = me%c_scale*me%c_ub
+    end if
+
+    end subroutine compute_scaling
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the (scaled) objective \( s_f f(x) \). The underlying value is reused
+!  from one of the last few evaluations if `x` is exactly (bitwise) the
+!  same point -- the solver evaluates `f` at each trial point of a line
+!  search and then again at the start of the next major iteration, at the
+!  accepted point, so this saves one call per major iteration. NaN if the
+!  user function failed (`status /= 0`).
+
+    subroutine eval_f_cached(me, x, f)
+
+    class(sqpopt_problem_type), intent(inout) :: me
+    real(wp), dimension(:),     intent(in)  :: x !! point `dimension(n)`
+    real(wp),                   intent(out) :: f !! scaled objective function value at `x`
+
+    call raw_fc(me, x, f)
+    f = me%f_scale*f
+
+    end subroutine eval_f_cached
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the (scaled) constraints \( s_{c,i} c_i(x) \), with the same caching as
+!  [[eval_f_cached]].
+
+    subroutine eval_c_cached(me, x, c)
+
+    class(sqpopt_problem_type), intent(inout) :: me
+    real(wp), dimension(:),     intent(in)  :: x !! point `dimension(n)`
+    real(wp), dimension(:),     intent(out) :: c !! scaled constraint values at `x` `dimension(m)`
+
+    real(wp) :: f
+
+    call raw_fc(me, x, f, c)
+    c = me%c_scale*c
+
+    end subroutine eval_c_cached
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the (scaled) objective gradient \( s_f \nabla f(x) \), reusing the last
+!  evaluation if `x` is the same point.
+
+    subroutine eval_g_cached(me, x, g)
+
+    class(sqpopt_problem_type), intent(inout) :: me
+    real(wp), dimension(:),     intent(in)  :: x !! point `dimension(n)`
+    real(wp), dimension(:),     intent(out) :: g !! scaled gradient at `x` `dimension(n)`
+
+    call raw_gjac(me, x, g=g)
+    g = me%f_scale*g
+
+    end subroutine eval_g_cached
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the (scaled) Jacobian values \( s_{c,i} \partial c_i/\partial x_j \),
+!  reusing the last evaluation if `x` is the same point.
+
+    subroutine eval_jac_cached(me, x, jac_val)
+
+    class(sqpopt_problem_type), intent(inout) :: me
+    real(wp), dimension(:),     intent(in)  :: x       !! point `dimension(n)`
+    real(wp), dimension(:),     intent(out) :: jac_val !! scaled Jacobian values `dimension(jac_nnz)`
+
+    integer :: k
+
+    call raw_gjac(me, x, jac_val=jac_val)
+    do k = 1, me%jac_nnz
+        jac_val(k) = me%c_scale(me%jac_irow(k))*jac_val(k)
+    end do
+
+    end subroutine eval_jac_cached
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the unscaled objective and (if `c` is present) constraints, from the
+!  cache or the user's `fc` (whose call is counted, and whose `status` is
+!  handled as by [[check_status]]). The user's function writes straight into
+!  the next cache entry, so an evaluation needs no work array.
+
+    subroutine raw_fc(me, x, f, c)
+
+    class(sqpopt_problem_type), intent(inout) :: me
+    real(wp), dimension(:),     intent(in)  :: x !! point `dimension(n)`
+    real(wp),                   intent(out) :: f !! objective at `x` (unscaled)
+    real(wp), dimension(:), optional, intent(out) :: c !! constraints at `x` (unscaled) `dimension(m)`
+    real(wp) :: t0 !! (for the time spent in the user's function)
+
+    integer :: k, status
+
+    if (.not. allocated(me%cache_x)) call reset_evaluations(me)
+    do k = 1, me%cache_n
+        if (all(me%cache_x(:,k) == x)) then
+            f = me%cache_f(k)
+            if (present(c)) c = me%cache_c(:,k)
+            return
+        end if
+    end do
+
+    if (me%stop_requested) then   ! (no more user calls once a stop has been requested)
+        f = ieee_value(1.0_wp, ieee_quiet_nan)
+        if (present(c)) c = f
+        return
+    end if
+    k = me%cache_next
+    status = 0
+    t0 = wall_time()
+    if (associated(me%user_data)) then
+        call me%eval_fc(x, me%cache_f(k), me%cache_c(:,k), status, me%user_data)
+    else
+        call me%eval_fc(x, me%cache_f(k), me%cache_c(:,k), status)
+    end if
+    me%time_user = me%time_user + (wall_time() - t0)
+    me%n_eval_fc = me%n_eval_fc + 1
+    if (status /= 0) then
+        if (status < 0) me%stop_requested = .true.
+        me%cache_f(k)   = ieee_value(1.0_wp, ieee_quiet_nan)
+        me%cache_c(:,k) = ieee_value(1.0_wp, ieee_quiet_nan)
+    end if
+
+    me%cache_x(:,k) = x
+    me%cache_n      = min(me%cache_n + 1, cache_size)
+    me%cache_next   = mod(me%cache_next, cache_size) + 1
+
+    f = me%cache_f(k)
+    if (present(c)) c = me%cache_c(:,k)
+
+    end subroutine raw_fc
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the unscaled gradient and/or Jacobian values (whichever of `g` and
+!  `jac_val` is present), from the one-entry cache or the user's `gjac`
+!  (whose call is counted, and whose `status` is handled as by
+!  [[check_status]]). The user's function writes straight into the cache,
+!  so an evaluation needs no work array.
+
+    subroutine raw_gjac(me, x, g, jac_val)
+
+    class(sqpopt_problem_type), intent(inout) :: me
+    real(wp), dimension(:),     intent(in)  :: x       !! point `dimension(n)`
+    real(wp), dimension(:), optional, intent(out) :: g       !! objective gradient at `x` (unscaled) `dimension(n)`
+    real(wp), dimension(:), optional, intent(out) :: jac_val !! nonzero Jacobian values at `x` (unscaled)
+                                                             !! `dimension(jac_nnz)`
+    real(wp) :: t0 !! (for the time spent in the user's function)
+
+    integer :: status
+    logical :: cached
+
+    if (.not. allocated(me%cache_xg)) call reset_evaluations(me)
+    cached = .false.
+    if (me%have_gjac) cached = all(me%cache_xg == x)
+
+    if (.not. cached) then
+        if (me%stop_requested) then   ! (no more user calls once a stop has been requested)
+            if (present(g))       g       = ieee_value(1.0_wp, ieee_quiet_nan)
+            if (present(jac_val)) jac_val = ieee_value(1.0_wp, ieee_quiet_nan)
+            return
+        end if
+        me%have_gjac = .false.
+        status = 0
+        t0 = wall_time()
+        if (associated(me%user_data)) then
+            call me%eval_gjac(x, me%cache_g, me%cache_jac, me%derivative_accuracy, status, me%user_data)
+        else
+            call me%eval_gjac(x, me%cache_g, me%cache_jac, me%derivative_accuracy, status)
+        end if
+        me%time_user = me%time_user + (wall_time() - t0)
+        me%n_eval_gjac = me%n_eval_gjac + 1
+        if (status /= 0) then
+            if (status < 0) me%stop_requested = .true.
+            me%cache_g   = ieee_value(1.0_wp, ieee_quiet_nan)
+            me%cache_jac = ieee_value(1.0_wp, ieee_quiet_nan)
+        end if
+        me%cache_xg  = x
+        me%have_gjac = .true.
+    end if
+
+    if (present(g))       g       = me%cache_g
+    if (present(jac_val)) jac_val = me%cache_jac
+
+    end subroutine raw_gjac
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the nonzero values of the Hessian of the (scaled) Lagrangian
+!  \( s_f \nabla^2 f - \sum_i \lambda_i s_{c,i} \nabla^2 c_i \) at `x`, for
+!  the multipliers `lambda` of the scaled problem: the user's `hess` is
+!  called with the multipliers of the original problem,
+!  \( \lambda_i s_{c,i}/s_f \), and its values are multiplied by \( s_f \).
+!  NaN if the user function failed (`status /= 0`).
+
+    subroutine eval_hess_scaled(me, x, lambda, hess_val)
+
+    class(sqpopt_problem_type), intent(inout) :: me
+    real(wp), dimension(:),     intent(in)  :: x        !! point `dimension(n)`
+    real(wp), dimension(:),     intent(in)  :: lambda   !! multipliers of the scaled problem `dimension(m)`
+    real(wp), dimension(:),     intent(out) :: hess_val !! scaled Hessian values `dimension(hess_nnz)`
+    real(wp) :: t0 !! (for the time spent in the user's function)
+
+    integer :: status
+    real(wp), dimension(:), allocatable :: lambda_user !! the multipliers of the original problem
+
+    if (me%stop_requested .or. .not. associated(me%eval_hess)) then
+        hess_val = ieee_value(1.0_wp, ieee_quiet_nan)
+        return
+    end if
+    allocate(lambda_user(size(lambda)))
+    lambda_user = lambda*me%c_scale/me%f_scale
+    status = 0
+    t0 = wall_time()
+    if (associated(me%user_data)) then
+        call me%eval_hess(x, lambda_user, hess_val, status, me%user_data)
+    else
+        call me%eval_hess(x, lambda_user, hess_val, status)
+    end if
+    me%time_user = me%time_user + (wall_time() - t0)
+    me%n_eval_hess = me%n_eval_hess + 1
+    call check_status(me, status, hess_val)
+    hess_val = me%f_scale*hess_val
+
+    end subroutine eval_hess_scaled
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  handle a user function's returned `status`: if it is nonzero the
+!  outputs `v` are replaced by NaN (so the solver rejects the point, or
+!  reports `sqpopt_function_error` if it is the current point), and if it
+!  is negative a stop is requested (after which no user function is called
+!  again: uncached evaluations just return NaN).
+
+    subroutine check_status(me, status, v)
+
+    class(sqpopt_problem_type), intent(inout) :: me
+    integer,                    intent(in)    :: status !! the `status` the user function returned
+    real(wp), dimension(:),     intent(inout) :: v      !! the values it returned (set to NaN if it could not evaluate them)
+
+    if (status == 0) return
+    if (status < 0) me%stop_requested = .true.
+    v = ieee_value(1.0_wp, ieee_quiet_nan)
+
+    end subroutine check_status
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  set the accuracy the user's `gjac` is asked for (`sqpopt_derivatives_fast`
+!  or `sqpopt_derivatives_accurate`). A change empties the `gjac` cache, so
+!  that derivatives at a point already evaluated are evaluated again, at the
+!  new accuracy.
+
+    subroutine set_derivative_accuracy(me, accuracy)
+
+    class(sqpopt_problem_type), intent(inout) :: me
+    integer,                    intent(in)    :: accuracy !! `sqpopt_derivatives_fast` or `sqpopt_derivatives_accurate`
+
+    if (accuracy /= me%derivative_accuracy) me%have_gjac = .false.
+    me%derivative_accuracy = accuracy
+
+    end subroutine set_derivative_accuracy
+!*******************************************************************************
+!>
+!  the wall-clock time, in seconds (for the time spent in the user's functions).
+
+    function wall_time() result(t)
+
+    use, intrinsic :: iso_fortran_env, only: int64
+
+    real(wp) :: t
+
+    integer(int64) :: count, rate
+
+    call system_clock(count, rate)
+    t = real(count, wp)/real(rate, wp)
+
+    end function wall_time
+!*******************************************************************************
+
+    end module sqpopt_problem_module
+!*******************************************************************************

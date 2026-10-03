@@ -1,0 +1,350 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - coverage.info - src/sqpopt_dense_ldl_module.f90</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../index.html" title="Click to go to top-level">top level</a> - <a href="index.html" title="Click to go to directory src">src</a> - sqpopt_dense_ldl_module.f90<span style="font-size: 80%;"> (source / <a href="sqpopt_dense_ldl_module.f90.func-c.html" title="Click to go to function table">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">coverage.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">96.7&nbsp;%</td>
+            <td class="headerCovTableEntry">90</td>
+            <td class="headerCovTableEntry">87</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2026-10-03 21:13:48</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
+            <td class="headerCovTableEntry">8</td>
+            <td class="headerCovTableEntry">8</td>
+          </tr>
+                  <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : !*******************************************************************************</span>
+<span id="L2"><span class="lineNum">       2</span>              : !&gt; author: Jacob Williams</span>
+<span id="L3"><span class="lineNum">       3</span>              : !  license: MIT</span>
+<span id="L4"><span class="lineNum">       4</span>              : !</span>
+<span id="L5"><span class="lineNum">       5</span>              : !  The dense backend of [[sqpopt_symmetric_solver_module]]</span>
+<span id="L6"><span class="lineNum">       6</span>              : !  (`options%linear_solver = sqpopt_linear_solver_dense`), for small</span>
+<span id="L7"><span class="lineNum">       7</span>              : !  matrices: the matrix is stored dense (order `n`, so \( n^2 \) elements),</span>
+<span id="L8"><span class="lineNum">       8</span>              : !  its inertia is the exact count of [[dense_symmetric_inertia]]</span>
+<span id="L9"><span class="lineNum">       9</span>              : !  (Householder tridiagonalization, then the signs of a Sturm sequence, with</span>
+<span id="L10"><span class="lineNum">      10</span>              : !  2 by 2 pivots for coupled zeros, as Bunch-Kaufman's), and solves use an</span>
+<span id="L11"><span class="lineNum">      11</span>              : !  LU factorization with partial pivoting. So, unlike QDLDL, it always</span>
+<span id="L12"><span class="lineNum">      12</span>              : !  knows the inertia, also of a Hessian with zeros on its diagonal, and,</span>
+<span id="L13"><span class="lineNum">      13</span>              : !  unlike MUMPS, it has almost no overhead per call. But each factorization</span>
+<span id="L14"><span class="lineNum">      14</span>              : !  costs \( O(n^3) \): it is meant for matrices of order up to a few hundred,</span>
+<span id="L15"><span class="lineNum">      15</span>              : !  and refuses to start above `dense_max_order` (the factorization options</span>
+<span id="L16"><span class="lineNum">      16</span>              : !  then fall back on the matrix-free methods).</span>
+<span id="L17"><span class="lineNum">      17</span>              : !</span>
+<span id="L18"><span class="lineNum">      18</span>              : !  A singular matrix is not an error: its zero eigenvalues are counted</span>
+<span id="L19"><span class="lineNum">      19</span>              : !  (`n_null`), and in the LU factorization a null column gets a large</span>
+<span id="L20"><span class="lineNum">      20</span>              : !  pivot, which makes that component of a solution zero, so that a solve</span>
+<span id="L21"><span class="lineNum">      21</span>              : !  returns one of the solutions of a consistent system (as MUMPS's</span>
+<span id="L22"><span class="lineNum">      22</span>              : !  null-pivot detection does).</span>
+<span id="L23"><span class="lineNum">      23</span>              : </span>
+<span id="L24"><span class="lineNum">      24</span>              :     module sqpopt_dense_ldl_module</span>
+<span id="L25"><span class="lineNum">      25</span>              : </span>
+<span id="L26"><span class="lineNum">      26</span>              :     use sqpopt_kinds, only: wp =&gt; sqpopt_module_wp</span>
+<span id="L27"><span class="lineNum">      27</span>              :     use sqpopt_sparse_ldl_module, only: sqpopt_sparse_ldl_type</span>
+<span id="L28"><span class="lineNum">      28</span>              :     use sqpopt_dense_linalg_module, only: dense_symmetric_inertia</span>
+<span id="L29"><span class="lineNum">      29</span>              :     use sqpopt_types_module, only: sqpopt_all_finite</span>
+<span id="L30"><span class="lineNum">      30</span>              : </span>
+<span id="L31"><span class="lineNum">      31</span>              :     implicit none</span>
+<span id="L32"><span class="lineNum">      32</span>              : </span>
+<span id="L33"><span class="lineNum">      33</span>              :     private</span>
+<span id="L34"><span class="lineNum">      34</span>              : </span>
+<span id="L35"><span class="lineNum">      35</span>              :     real(wp), parameter :: dense_zero_tol = 1.0e-5_wp*epsilon(1.0_wp) !! an eigenvalue at most this times the largest</span>
+<span id="L36"><span class="lineNum">      36</span>              :                                                                      !! element is a zero eigenvalue (well above the</span>
+<span id="L37"><span class="lineNum">      37</span>              :                                                                      !! roundoff of the tridiagonal reduction, and</span>
+<span id="L38"><span class="lineNum">      38</span>              :                                                                      !! well below the constraint block's eigenvalues</span>
+<span id="L39"><span class="lineNum">      39</span>              :                                                                      !! of a KKT matrix with a large Hessian shift)</span>
+<span id="L40"><span class="lineNum">      40</span>              :     integer, parameter, public :: dense_max_order = 2000 !! the largest order the dense backend accepts (its two</span>
+<span id="L41"><span class="lineNum">      41</span>              :                                                          !! matrices then take 64 MB in double precision)</span>
+<span id="L42"><span class="lineNum">      42</span>              : </span>
+<span id="L43"><span class="lineNum">      43</span>              :     type, extends(sqpopt_sparse_ldl_type), public :: sqpopt_dense_ldl_type</span>
+<span id="L44"><span class="lineNum">      44</span>              :         !! the dense backend (see the module documentation)</span>
+<span id="L45"><span class="lineNum">      45</span>              :         private</span>
+<span id="L46"><span class="lineNum">      46</span>              :         integer :: n = 0                                 !! order of the matrix</span>
+<span id="L47"><span class="lineNum">      47</span>              :         integer, dimension(:), allocatable :: irow       !! row indices of the pattern's entries</span>
+<span id="L48"><span class="lineNum">      48</span>              :         integer, dimension(:), allocatable :: icol       !! column indices of the pattern's entries</span>
+<span id="L49"><span class="lineNum">      49</span>              :         real(wp), dimension(:,:), allocatable :: a       !! the matrix last factored `dimension(n,n)`</span>
+<span id="L50"><span class="lineNum">      50</span>              :         real(wp), dimension(:,:), allocatable :: lu      !! its LU factors `dimension(n,n)`</span>
+<span id="L51"><span class="lineNum">      51</span>              :         integer,  dimension(:),   allocatable :: piv     !! the row pivots of the LU factorization `dimension(n)`</span>
+<span id="L52"><span class="lineNum">      52</span>              :         contains</span>
+<span id="L53"><span class="lineNum">      53</span>              :         procedure :: start      =&gt; dense_start</span>
+<span id="L54"><span class="lineNum">      54</span>              :         procedure :: refactor   =&gt; dense_refactor</span>
+<span id="L55"><span class="lineNum">      55</span>              :         procedure :: back_solve =&gt; dense_back_solve</span>
+<span id="L56"><span class="lineNum">      56</span>              :         procedure :: multiply   =&gt; dense_multiply</span>
+<span id="L57"><span class="lineNum">      57</span>              :         procedure :: free       =&gt; dense_free</span>
+<span id="L58"><span class="lineNum">      58</span>              :     end type sqpopt_dense_ldl_type</span>
+<span id="L59"><span class="lineNum">      59</span>              : </span>
+<span id="L60"><span class="lineNum">      60</span>              :     contains</span>
+<span id="L61"><span class="lineNum">      61</span>              : !*******************************************************************************</span>
+<span id="L62"><span class="lineNum">      62</span>              : </span>
+<span id="L63"><span class="lineNum">      63</span>              : !*******************************************************************************</span>
+<span id="L64"><span class="lineNum">      64</span>              : !&gt;</span>
+<span id="L65"><span class="lineNum">      65</span>              : !  keep the pattern, and allocate the dense matrices. `ok` is false if the</span>
+<span id="L66"><span class="lineNum">      66</span>              : !  order exceeds `dense_max_order`, or the matrices can't be allocated.</span>
+<span id="L67"><span class="lineNum">      67</span>              : !  `threads` and `signs` are not used (this backend pivots, and is</span>
+<span id="L68"><span class="lineNum">      68</span>              : !  single-threaded).</span>
+<span id="L69"><span class="lineNum">      69</span>              : </span>
+<span id="L70"><span class="lineNum">      70</span> <span class="tlaGNC">          68 :     subroutine dense_start(me, n, irow, icol, ok, threads, signs)</span></span>
+<span id="L71"><span class="lineNum">      71</span>              : </span>
+<span id="L72"><span class="lineNum">      72</span>              :     class(sqpopt_dense_ldl_type), intent(inout) :: me</span>
+<span id="L73"><span class="lineNum">      73</span>              :     integer,               intent(in)  :: n       !! order of the matrix</span>
+<span id="L74"><span class="lineNum">      74</span>              :     integer, dimension(:), intent(in)  :: irow    !! row indices of the entries `dimension(nnz)`</span>
+<span id="L75"><span class="lineNum">      75</span>              :     integer, dimension(:), intent(in)  :: icol    !! column indices of the entries `dimension(nnz)`</span>
+<span id="L76"><span class="lineNum">      76</span>              :     logical,               intent(out) :: ok      !! whether the backend is ready</span>
+<span id="L77"><span class="lineNum">      77</span>              :     integer, optional,     intent(in)  :: threads !! (not used)</span>
+<span id="L78"><span class="lineNum">      78</span>              :     integer, dimension(:), optional, intent(in) :: signs !! (not used)</span>
+<span id="L79"><span class="lineNum">      79</span>              : </span>
+<span id="L80"><span class="lineNum">      80</span>              :     integer :: alloc_stat</span>
+<span id="L81"><span class="lineNum">      81</span>              : </span>
+<span id="L82"><span class="lineNum">      82</span> <span class="tlaGNC">          68 :     ok = .false.</span></span>
+<span id="L83"><span class="lineNum">      83</span>              :     if (present(threads) .or. present(signs)) continue   ! (not used)</span>
+<span id="L84"><span class="lineNum">      84</span> <span class="tlaGNC">          68 :     if (n &gt; dense_max_order) return</span></span>
+<span id="L85"><span class="lineNum">      85</span> <span class="tlaGNC">          67 :     allocate(me%a(n,n), stat=alloc_stat)</span></span>
+<span id="L86"><span class="lineNum">      86</span> <span class="tlaGNC">          67 :     if (alloc_stat == 0) allocate(me%lu(n,n), stat=alloc_stat)</span></span>
+<span id="L87"><span class="lineNum">      87</span> <span class="tlaGNC">          67 :     if (alloc_stat == 0) allocate(me%piv(n), stat=alloc_stat)</span></span>
+<span id="L88"><span class="lineNum">      88</span> <span class="tlaGNC">          67 :     if (alloc_stat /= 0) then</span></span>
+<span id="L89"><span class="lineNum">      89</span> <span class="tlaUNC">           0 :         me%out_of_memory = .true.</span></span>
+<span id="L90"><span class="lineNum">      90</span> <span class="tlaUNC">           0 :         call me%free()</span></span>
+<span id="L91"><span class="lineNum">      91</span> <span class="tlaUNC">           0 :         return</span></span>
+<span id="L92"><span class="lineNum">      92</span>              :     end if</span>
+<span id="L93"><span class="lineNum">      93</span> <span class="tlaGNC">        2938 :     me%irow = irow</span></span>
+<span id="L94"><span class="lineNum">      94</span> <span class="tlaGNC">        2938 :     me%icol = icol</span></span>
+<span id="L95"><span class="lineNum">      95</span> <span class="tlaGNC">          67 :     me%n = n</span></span>
+<span id="L96"><span class="lineNum">      96</span> <span class="tlaGNC">          67 :     ok = .true.</span></span>
+<span id="L97"><span class="lineNum">      97</span>              : </span>
+<span id="L98"><span class="lineNum">      98</span>              :     end subroutine dense_start</span>
+<span id="L99"><span class="lineNum">      99</span>              : !*******************************************************************************</span>
+<span id="L100"><span class="lineNum">     100</span>              : </span>
+<span id="L101"><span class="lineNum">     101</span>              : !*******************************************************************************</span>
+<span id="L102"><span class="lineNum">     102</span>              : !&gt;</span>
+<span id="L103"><span class="lineNum">     103</span>              : !  form the dense matrix from the values `val`, count its inertia, and</span>
+<span id="L104"><span class="lineNum">     104</span>              : !  factor it (see the module documentation).</span>
+<span id="L105"><span class="lineNum">     105</span>              : </span>
+<span id="L106"><span class="lineNum">     106</span> <span class="tlaGNC">         510 :     subroutine dense_refactor(me, val, ok)</span></span>
+<span id="L107"><span class="lineNum">     107</span>              : </span>
+<span id="L108"><span class="lineNum">     108</span>              :     class(sqpopt_dense_ldl_type), intent(inout) :: me</span>
+<span id="L109"><span class="lineNum">     109</span>              :     real(wp), dimension(:), intent(in)  :: val !! values of the entries `dimension(nnz)`</span>
+<span id="L110"><span class="lineNum">     110</span>              :     logical,                intent(out) :: ok  !! whether the factorization succeeded</span>
+<span id="L111"><span class="lineNum">     111</span>              : </span>
+<span id="L112"><span class="lineNum">     112</span>              :     integer :: k, i, j, n_positive</span>
+<span id="L113"><span class="lineNum">     113</span>              : </span>
+<span id="L114"><span class="lineNum">     114</span> <span class="tlaGNC">         510 :     ok = .false.</span></span>
+<span id="L115"><span class="lineNum">     115</span> <span class="tlaGNC">         510 :     me%inertia_known = .true.</span></span>
+<span id="L116"><span class="lineNum">     116</span> <span class="tlaGNC">         510 :     if (.not. sqpopt_all_finite(val)) return</span></span>
+<span id="L117"><span class="lineNum">     117</span> <span class="tlaGNC">        3320 :     do j = 1, me%n</span></span>
+<span id="L118"><span class="lineNum">     118</span> <span class="tlaGNC">       21870 :         do i = 1, me%n</span></span>
+<span id="L119"><span class="lineNum">     119</span> <span class="tlaGNC">       21360 :             me%a(i,j) = 0.0_wp</span></span>
+<span id="L120"><span class="lineNum">     120</span>              :         end do</span>
+<span id="L121"><span class="lineNum">     121</span>              :     end do</span>
+<span id="L122"><span class="lineNum">     122</span> <span class="tlaGNC">        9996 :     do k = 1, size(val)</span></span>
+<span id="L123"><span class="lineNum">     123</span> <span class="tlaGNC">        9486 :         i = me%irow(k)</span></span>
+<span id="L124"><span class="lineNum">     124</span> <span class="tlaGNC">        9486 :         j = me%icol(k)</span></span>
+<span id="L125"><span class="lineNum">     125</span> <span class="tlaGNC">        9486 :         me%a(i,j) = me%a(i,j) + val(k)</span></span>
+<span id="L126"><span class="lineNum">     126</span> <span class="tlaGNC">        9996 :         if (i /= j) me%a(j,i) = me%a(j,i) + val(k)</span></span>
+<span id="L127"><span class="lineNum">     127</span>              :     end do</span>
+<span id="L128"><span class="lineNum">     128</span> <span class="tlaGNC">         510 :     call dense_symmetric_inertia(me%a, n_positive, me%n_negative, me%n_null, zero_tol=dense_zero_tol)</span></span>
+<span id="L129"><span class="lineNum">     129</span> <span class="tlaGNC">        3320 :     do j = 1, me%n</span></span>
+<span id="L130"><span class="lineNum">     130</span> <span class="tlaGNC">       21870 :         do i = 1, me%n</span></span>
+<span id="L131"><span class="lineNum">     131</span> <span class="tlaGNC">       21360 :             me%lu(i,j) = me%a(i,j)</span></span>
+<span id="L132"><span class="lineNum">     132</span>              :         end do</span>
+<span id="L133"><span class="lineNum">     133</span>              :     end do</span>
+<span id="L134"><span class="lineNum">     134</span> <span class="tlaGNC">         510 :     call lu_factor_null_safe(me%lu, me%piv)</span></span>
+<span id="L135"><span class="lineNum">     135</span> <span class="tlaGNC">         510 :     ok = .true.</span></span>
+<span id="L136"><span class="lineNum">     136</span>              : </span>
+<span id="L137"><span class="lineNum">     137</span>              :     end subroutine dense_refactor</span>
+<span id="L138"><span class="lineNum">     138</span>              : !*******************************************************************************</span>
+<span id="L139"><span class="lineNum">     139</span>              : </span>
+<span id="L140"><span class="lineNum">     140</span>              : !*******************************************************************************</span>
+<span id="L141"><span class="lineNum">     141</span>              : !&gt;</span>
+<span id="L142"><span class="lineNum">     142</span>              : !  in-place LU factorization with partial pivoting of the dense matrix</span>
+<span id="L143"><span class="lineNum">     143</span>              : !  `a`, in which a negligible pivot (a null column, below the diagonal) is</span>
+<span id="L144"><span class="lineNum">     144</span>              : !  replaced by a large one, so that the factorization never fails (see the</span>
+<span id="L145"><span class="lineNum">     145</span>              : !  module documentation).</span>
+<span id="L146"><span class="lineNum">     146</span>              : </span>
+<span id="L147"><span class="lineNum">     147</span> <span class="tlaGNC">         510 :     pure subroutine lu_factor_null_safe(a, piv)</span></span>
+<span id="L148"><span class="lineNum">     148</span>              : </span>
+<span id="L149"><span class="lineNum">     149</span>              :     real(wp), dimension(:,:), intent(inout) :: a   !! matrix, overwritten by its `L` (unit, below the diagonal)</span>
+<span id="L150"><span class="lineNum">     150</span>              :                                                    !! and `U` factors</span>
+<span id="L151"><span class="lineNum">     151</span>              :     integer,  dimension(:),   intent(out)   :: piv !! `piv(p)` is the row swapped with row `p` at step `p`</span>
+<span id="L152"><span class="lineNum">     152</span>              : </span>
+<span id="L153"><span class="lineNum">     153</span>              :     integer :: i, j, p, n</span>
+<span id="L154"><span class="lineNum">     154</span>              :     real(wp) :: amax, tol, big, t</span>
+<span id="L155"><span class="lineNum">     155</span>              : </span>
+<span id="L156"><span class="lineNum">     156</span> <span class="tlaGNC">         510 :     n = size(a,1)</span></span>
+<span id="L157"><span class="lineNum">     157</span> <span class="tlaGNC">         510 :     amax = 0.0_wp</span></span>
+<span id="L158"><span class="lineNum">     158</span> <span class="tlaGNC">        3320 :     do j = 1, n</span></span>
+<span id="L159"><span class="lineNum">     159</span> <span class="tlaGNC">       21870 :         do i = 1, n</span></span>
+<span id="L160"><span class="lineNum">     160</span> <span class="tlaGNC">       21360 :             amax = max(amax, abs(a(i,j)))</span></span>
+<span id="L161"><span class="lineNum">     161</span>              :         end do</span>
+<span id="L162"><span class="lineNum">     162</span>              :     end do</span>
+<span id="L163"><span class="lineNum">     163</span> <span class="tlaGNC">         510 :     tol = 1.0e-14_wp*max(amax, tiny(1.0_wp))</span></span>
+<span id="L164"><span class="lineNum">     164</span> <span class="tlaGNC">         510 :     big = max(amax, 1.0_wp)/sqrt(epsilon(1.0_wp))</span></span>
+<span id="L165"><span class="lineNum">     165</span> <span class="tlaGNC">        3320 :     do p = 1, n</span></span>
+<span id="L166"><span class="lineNum">     166</span>              :         ! the pivot: the largest element of column p, on or below the diagonal</span>
+<span id="L167"><span class="lineNum">     167</span> <span class="tlaGNC">        2810 :         piv(p) = p</span></span>
+<span id="L168"><span class="lineNum">     168</span> <span class="tlaGNC">       10680 :         do i = p+1, n</span></span>
+<span id="L169"><span class="lineNum">     169</span> <span class="tlaGNC">       10680 :             if (abs(a(i,p)) &gt; abs(a(piv(p),p))) piv(p) = i</span></span>
+<span id="L170"><span class="lineNum">     170</span>              :         end do</span>
+<span id="L171"><span class="lineNum">     171</span> <span class="tlaGNC">        2810 :         if (piv(p) /= p) then</span></span>
+<span id="L172"><span class="lineNum">     172</span> <span class="tlaGNC">        5142 :             do j = 1, n</span></span>
+<span id="L173"><span class="lineNum">     173</span> <span class="tlaGNC">        4404 :                 t = a(p,j)</span></span>
+<span id="L174"><span class="lineNum">     174</span> <span class="tlaGNC">        4404 :                 a(p,j) = a(piv(p),j)</span></span>
+<span id="L175"><span class="lineNum">     175</span> <span class="tlaGNC">        5142 :                 a(piv(p),j) = t</span></span>
+<span id="L176"><span class="lineNum">     176</span>              :             end do</span>
+<span id="L177"><span class="lineNum">     177</span>              :         end if</span>
+<span id="L178"><span class="lineNum">     178</span> <span class="tlaGNC">        2810 :         if (abs(a(p,p)) &lt;= tol) then</span></span>
+<span id="L179"><span class="lineNum">     179</span> <span class="tlaGNC">          42 :             a(p,p) = big   ! (a null column: its component of a solution becomes negligible)</span></span>
+<span id="L180"><span class="lineNum">     180</span>              :         end if</span>
+<span id="L181"><span class="lineNum">     181</span> <span class="tlaGNC">       11190 :         do i = p+1, n</span></span>
+<span id="L182"><span class="lineNum">     182</span> <span class="tlaGNC">        7870 :             a(i,p) = a(i,p)/a(p,p)</span></span>
+<span id="L183"><span class="lineNum">     183</span> <span class="tlaGNC">       49570 :             do j = p+1, n</span></span>
+<span id="L184"><span class="lineNum">     184</span> <span class="tlaGNC">       46760 :                 a(i,j) = a(i,j) - a(i,p)*a(p,j)</span></span>
+<span id="L185"><span class="lineNum">     185</span>              :             end do</span>
+<span id="L186"><span class="lineNum">     186</span>              :         end do</span>
+<span id="L187"><span class="lineNum">     187</span>              :     end do</span>
+<span id="L188"><span class="lineNum">     188</span>              : </span>
+<span id="L189"><span class="lineNum">     189</span> <span class="tlaGNC">         510 :     end subroutine lu_factor_null_safe</span></span>
+<span id="L190"><span class="lineNum">     190</span>              : !*******************************************************************************</span>
+<span id="L191"><span class="lineNum">     191</span>              : </span>
+<span id="L192"><span class="lineNum">     192</span>              : !*******************************************************************************</span>
+<span id="L193"><span class="lineNum">     193</span>              : !&gt;</span>
+<span id="L194"><span class="lineNum">     194</span>              : !  one solve with the LU factors, without refinement.</span>
+<span id="L195"><span class="lineNum">     195</span>              : </span>
+<span id="L196"><span class="lineNum">     196</span> <span class="tlaGNC">         901 :     subroutine dense_back_solve(me, v, ok)</span></span>
+<span id="L197"><span class="lineNum">     197</span>              : </span>
+<span id="L198"><span class="lineNum">     198</span>              :     class(sqpopt_dense_ldl_type), intent(inout) :: me</span>
+<span id="L199"><span class="lineNum">     199</span>              :     real(wp), dimension(:), intent(inout) :: v  !! the right-hand side, overwritten by the solution</span>
+<span id="L200"><span class="lineNum">     200</span>              :     logical,                intent(out)   :: ok !! whether it was solved</span>
+<span id="L201"><span class="lineNum">     201</span>              : </span>
+<span id="L202"><span class="lineNum">     202</span>              :     integer :: i, j</span>
+<span id="L203"><span class="lineNum">     203</span>              :     real(wp) :: s, t</span>
+<span id="L204"><span class="lineNum">     204</span>              : </span>
+<span id="L205"><span class="lineNum">     205</span> <span class="tlaGNC">        7652 :     do i = 1, me%n</span></span>
+<span id="L206"><span class="lineNum">     206</span> <span class="tlaGNC">        7652 :         if (me%piv(i) /= i) then</span></span>
+<span id="L207"><span class="lineNum">     207</span> <span class="tlaGNC">        1194 :             t = v(i)</span></span>
+<span id="L208"><span class="lineNum">     208</span> <span class="tlaGNC">        1194 :             v(i) = v(me%piv(i))</span></span>
+<span id="L209"><span class="lineNum">     209</span> <span class="tlaGNC">        1194 :             v(me%piv(i)) = t</span></span>
+<span id="L210"><span class="lineNum">     210</span>              :         end if</span>
+<span id="L211"><span class="lineNum">     211</span>              :     end do</span>
+<span id="L212"><span class="lineNum">     212</span> <span class="tlaGNC">        6751 :     do i = 2, me%n</span></span>
+<span id="L213"><span class="lineNum">     213</span> <span class="tlaGNC">        5850 :         s = v(i)</span></span>
+<span id="L214"><span class="lineNum">     214</span> <span class="tlaGNC">       31685 :         do j = 1, i-1</span></span>
+<span id="L215"><span class="lineNum">     215</span> <span class="tlaGNC">       31685 :             s = s - me%lu(i,j)*v(j)</span></span>
+<span id="L216"><span class="lineNum">     216</span>              :         end do</span>
+<span id="L217"><span class="lineNum">     217</span> <span class="tlaGNC">        6751 :         v(i) = s</span></span>
+<span id="L218"><span class="lineNum">     218</span>              :     end do</span>
+<span id="L219"><span class="lineNum">     219</span> <span class="tlaGNC">        7652 :     do i = me%n, 1, -1</span></span>
+<span id="L220"><span class="lineNum">     220</span> <span class="tlaGNC">        6751 :         s = v(i)</span></span>
+<span id="L221"><span class="lineNum">     221</span> <span class="tlaGNC">       32586 :         do j = i+1, me%n</span></span>
+<span id="L222"><span class="lineNum">     222</span> <span class="tlaGNC">       32586 :             s = s - me%lu(i,j)*v(j)</span></span>
+<span id="L223"><span class="lineNum">     223</span>              :         end do</span>
+<span id="L224"><span class="lineNum">     224</span> <span class="tlaGNC">        7652 :         v(i) = s/me%lu(i,i)</span></span>
+<span id="L225"><span class="lineNum">     225</span>              :     end do</span>
+<span id="L226"><span class="lineNum">     226</span> <span class="tlaGNC">         901 :     ok = sqpopt_all_finite(v)</span></span>
+<span id="L227"><span class="lineNum">     227</span>              : </span>
+<span id="L228"><span class="lineNum">     228</span> <span class="tlaGNC">         901 :     end subroutine dense_back_solve</span></span>
+<span id="L229"><span class="lineNum">     229</span>              : !*******************************************************************************</span>
+<span id="L230"><span class="lineNum">     230</span>              : </span>
+<span id="L231"><span class="lineNum">     231</span>              : !*******************************************************************************</span>
+<span id="L232"><span class="lineNum">     232</span>              : !&gt;</span>
+<span id="L233"><span class="lineNum">     233</span>              : !  the product \( y = A x \) with the values last factored.</span>
+<span id="L234"><span class="lineNum">     234</span>              : </span>
+<span id="L235"><span class="lineNum">     235</span> <span class="tlaGNC">         416 :     subroutine dense_multiply(me, x, y)</span></span>
+<span id="L236"><span class="lineNum">     236</span>              : </span>
+<span id="L237"><span class="lineNum">     237</span>              :     class(sqpopt_dense_ldl_type), intent(in) :: me</span>
+<span id="L238"><span class="lineNum">     238</span>              :     real(wp), dimension(:), intent(in)  :: x !! the vector `dimension(n)`</span>
+<span id="L239"><span class="lineNum">     239</span>              :     real(wp), dimension(:), intent(out) :: y !! the product `dimension(n)`</span>
+<span id="L240"><span class="lineNum">     240</span>              : </span>
+<span id="L241"><span class="lineNum">     241</span>              :     integer :: i, j</span>
+<span id="L242"><span class="lineNum">     242</span>              : </span>
+<span id="L243"><span class="lineNum">     243</span> <span class="tlaGNC">        3156 :     do i = 1, me%n</span></span>
+<span id="L244"><span class="lineNum">     244</span> <span class="tlaGNC">        3156 :         y(i) = 0.0_wp</span></span>
+<span id="L245"><span class="lineNum">     245</span>              :     end do</span>
+<span id="L246"><span class="lineNum">     246</span> <span class="tlaGNC">        3156 :     do j = 1, me%n</span></span>
+<span id="L247"><span class="lineNum">     247</span> <span class="tlaGNC">       24608 :         do i = 1, me%n</span></span>
+<span id="L248"><span class="lineNum">     248</span> <span class="tlaGNC">       24192 :             y(i) = y(i) + me%a(i,j)*x(j)</span></span>
+<span id="L249"><span class="lineNum">     249</span>              :         end do</span>
+<span id="L250"><span class="lineNum">     250</span>              :     end do</span>
+<span id="L251"><span class="lineNum">     251</span>              : </span>
+<span id="L252"><span class="lineNum">     252</span> <span class="tlaGNC">         416 :     end subroutine dense_multiply</span></span>
+<span id="L253"><span class="lineNum">     253</span>              : !*******************************************************************************</span>
+<span id="L254"><span class="lineNum">     254</span>              : </span>
+<span id="L255"><span class="lineNum">     255</span>              : !*******************************************************************************</span>
+<span id="L256"><span class="lineNum">     256</span>              : !&gt;</span>
+<span id="L257"><span class="lineNum">     257</span>              : !  free everything.</span>
+<span id="L258"><span class="lineNum">     258</span>              : </span>
+<span id="L259"><span class="lineNum">     259</span> <span class="tlaGNC">          68 :     subroutine dense_free(me)</span></span>
+<span id="L260"><span class="lineNum">     260</span>              : </span>
+<span id="L261"><span class="lineNum">     261</span>              :     class(sqpopt_dense_ldl_type), intent(inout) :: me</span>
+<span id="L262"><span class="lineNum">     262</span>              : </span>
+<span id="L263"><span class="lineNum">     263</span> <span class="tlaGNC">          68 :     if (allocated(me%a))    deallocate(me%a)</span></span>
+<span id="L264"><span class="lineNum">     264</span> <span class="tlaGNC">          68 :     if (allocated(me%lu))   deallocate(me%lu)</span></span>
+<span id="L265"><span class="lineNum">     265</span> <span class="tlaGNC">          68 :     if (allocated(me%piv))  deallocate(me%piv)</span></span>
+<span id="L266"><span class="lineNum">     266</span> <span class="tlaGNC">          68 :     if (allocated(me%irow)) deallocate(me%irow)</span></span>
+<span id="L267"><span class="lineNum">     267</span> <span class="tlaGNC">          68 :     if (allocated(me%icol)) deallocate(me%icol)</span></span>
+<span id="L268"><span class="lineNum">     268</span> <span class="tlaGNC">          68 :     me%n = 0</span></span>
+<span id="L269"><span class="lineNum">     269</span>              : </span>
+<span id="L270"><span class="lineNum">     270</span> <span class="tlaGNC">          68 :     end subroutine dense_free</span></span>
+<span id="L271"><span class="lineNum">     271</span>              : !*******************************************************************************</span>
+<span id="L272"><span class="lineNum">     272</span>              : </span>
+<span id="L273"><span class="lineNum">     273</span> <span class="tlaGNC">         204 :     end module sqpopt_dense_ldl_module</span></span>
+<span id="L274"><span class="lineNum">     274</span>              : !*******************************************************************************</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com/linux-test-project/lcov" target="_parent">LCOV version 2.5-0</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>
