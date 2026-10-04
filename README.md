@@ -54,7 +54,9 @@ dependency, so always available) or [MUMPS](https://mumps-solver.org)
 `options%linear_solver = sqpopt_linear_solver_mumps`), or a dense solver
 (`sqpopt_linear_solver_dense`; opt-in, it forms the matrix as a dense array,
 so for small problems only, where with the exact Hessian it gives MUMPS's
-results without MUMPS):
+results without MUMPS), or the same dense matrix factored by LAPACK's
+`DSYTRF` (`sqpopt_linear_solver_lapack`; opt-in, in a build with LAPACK,
+see below):
 
 | option | what it does | module |
 |---|---|---|
@@ -99,6 +101,27 @@ the features with each solver of the build (`test_qp_fuzz` with the default,
 QDLDL), and, without MUMPS, the rejection of MUMPS. The HS suite's,
 `test_scalable`'s, and `benchmark_large`'s `--linear-solver=qdldl|mumps`
 compare the two.
+
+### LAPACK (optional)
+
+The dense backend (`src/sqpopt_dense_ldl_module.F90`) can factor with
+LAPACK's `DSYTRF`/`DSYTRS` (Bunch–Kaufman LDLᵀ, which gives the inertia)
+instead of its own LU: `options%linear_solver = sqpopt_linear_solver_lapack`.
+That needs the `HAS_LAPACK` preprocessor directive, and linking with LAPACK
+and BLAS (double precision only); it is the only code that refers to
+LAPACK. Without it, `sqpopt_has_lapack` is false and only that choice is
+rejected as invalid input. On the HS problems it gives MUMPS's results with
+every Hessian, and near the dense limit (an order of 2,000) it is 20 to 60
+times faster than the hand-written dense factorization. Every test must
+pass in this build too:
+
+```sh
+pixi run build-lapack                  # fpm build, with LAPACK
+pixi run test-lapack                   # fpm test, with LAPACK
+pixi run run-lapack --example sparse_solvers --profile release -- --small
+```
+
+They run fpm with `--flag "-DHAS_LAPACK" --link-flag "-llapack -lblas"`.
 
 ### Tests
 
@@ -226,7 +249,7 @@ architecture ([PLAN.md](plan/PLAN.md)), the backlog
 | `sqpopt_sparse_ldl_module` | the abstract interface of a sparse LDLᵀ backend |
 | `sqpopt_qdldl_ldl_module` | the QDLDL backend (the default; no pivoting) |
 | `sqpopt_mumps_ldl_module` | the MUMPS backend (only in a build with `HAS_MUMPS`) |
-| `sqpopt_dense_ldl_module` | the dense backend (opt-in; forms the matrix as a dense array, for small problems) |
+| `sqpopt_dense_ldl_module` | the dense backends (opt-in; they form the matrix as a dense array, for small problems): SQPOPT's own factorization, and LAPACK's `DSYTRF` (only in a build with `HAS_LAPACK`) |
 | `sqpopt_kkt_module` | the KKT matrix of a QP working set, factored with that solver (its inertia, and solves) |
 | `sqpopt_inertia_module` | inertia control of the exact and SR1 Hessians |
 | `sqpopt_qp_direct_module` | the direct QP method (a primal-dual active-set method on the KKT matrix) |

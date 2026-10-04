@@ -19,9 +19,10 @@ program test_kkt
     !! (`dense_symmetric_inertia`, `dense_lu_factor`, and `dense_lu_solve`),
     !! and without MUMPS, that MUMPS reports itself unavailable.
 
-    use sqpopt_symmetric_solver_module, only: sqpopt_symmetric_solver_type, sqpopt_has_mumps, &
+    use sqpopt_symmetric_solver_module, only: sqpopt_symmetric_solver_type, sqpopt_has_mumps, sqpopt_has_lapack, &
                                               sqpopt_linear_solver_mumps, sqpopt_linear_solver_qdldl, &
-                                              sqpopt_linear_solver_dense, sqpopt_linear_solver_name
+                                              sqpopt_linear_solver_dense, sqpopt_linear_solver_lapack, &
+                                              sqpopt_linear_solver_name
     use sqpopt_kkt_module,              only: sqpopt_kkt_type
     use sqpopt_least_squares_module,    only: sqpopt_least_squares_type
     use sqpopt_hessian_module,          only: sqpopt_hessian_type
@@ -33,8 +34,8 @@ program test_kkt
 
     real(wp), parameter :: tol = 1.0e-9_wp !! tolerance on the residuals and on the differences from the references
     integer :: k
-    integer, dimension(3), parameter :: solvers = [sqpopt_linear_solver_mumps, sqpopt_linear_solver_qdldl, &
-                                                   sqpopt_linear_solver_dense]
+    integer, dimension(4), parameter :: solvers = [sqpopt_linear_solver_mumps, sqpopt_linear_solver_qdldl, &
+                                                   sqpopt_linear_solver_dense, sqpopt_linear_solver_lapack]
 
     write(*,*) '----------------------------'
     write(*,*) 'test_kkt'
@@ -45,6 +46,10 @@ program test_kkt
     do k = 1, size(solvers)
         if (solvers(k) == sqpopt_linear_solver_mumps .and. .not. sqpopt_has_mumps) then
             call test_unavailable()
+            cycle
+        end if
+        if (solvers(k) == sqpopt_linear_solver_lapack .and. .not. sqpopt_has_lapack) then
+            call test_lapack_unavailable()
             cycle
         end if
         print '(2A)', 'sparse solver: ', sqpopt_linear_solver_name(solvers(k))
@@ -422,6 +427,15 @@ program test_kkt
     call solver%destroy()
     print '(A)', 'test_kkt [dense solver: order limit] PASSED'
     end subroutine test_dense_limit
+
+    subroutine test_lapack_unavailable()
+    !! without LAPACK, the sparse solver can't be started with it
+    type(sqpopt_symmetric_solver_type) :: solver
+    logical :: ok
+    call solver%initialize(2, [1, 2], [1, 2], ok, solver=sqpopt_linear_solver_lapack)
+    if (ok .or. solver%ready) error stop 'test_kkt FAILED: the LAPACK solver started without LAPACK'
+    print '(A)', 'test_kkt [not built with LAPACK: unavailable] PASSED'
+    end subroutine test_lapack_unavailable
 
     subroutine test_unavailable()
     !! without MUMPS, nothing can be started with it

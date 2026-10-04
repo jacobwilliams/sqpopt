@@ -1951,6 +1951,24 @@ which is now double precision only.
   exact; the differences come from singular faces). The guide's "Options
   that form dense matrices" lists it with the dense QP and `dense_max_ns`.
 
+- **F29: LAPACK `DSYTRF` in the dense backend** *(done 2026-10-03)*.
+  `options%linear_solver = sqpopt_linear_solver_lapack` (opt-in, and only
+  with the `HAS_LAPACK` preprocessor directive; `sqpopt_has_lapack`):
+  `sqpopt_lapack_ldl_type` extends the dense backend, factors the dense KKT
+  matrix with `DSYTRF` (Bunch–Kaufman, lower triangle) and solves with
+  `DSYTRS`. The inertia comes from D's 1×1 and 2×2 blocks (a 1×1 pivot
+  below `1e-5*epsilon*max|a|` is null and replaced by a large pivot; a
+  singular 2×2 block switches the solves to the dense backend's null-safe
+  LU). The same limit (order 2,000). HS suite (solved/local/failed, `fc`,
+  time): exact + inertia 273/30/2 9,426 1.5 s; + direct 276/28/1 10,060
+  1.2 s (the best of every solver); SR1 + inertia 274/27/4 10,454 (as QDLDL
+  and MUMPS; the hand-written dense was 273/29/3 12,868); L-BFGS + direct
+  279/26/0 9,493; direct-ls 278/26/1 9,012. `sparse_solvers --small`: a
+  refactorization of order 1,728 to 1,944 took 0.07–0.15 s against the
+  dense backend's 2.9–5.2 s (20 to 60 times faster), but QDLDL and MUMPS
+  take about 1 ms on those sparse matrices. pixi tasks `build-lapack`,
+  `test-lapack`, `run-lapack` (`-llapack -lblas`).
+
 ## 6. Testing and infrastructure
 
 - **CUTEst benchmark: performance profiles and false infeasibility**

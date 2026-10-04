@@ -10,7 +10,8 @@ program test_input_validation
     use sqpopt_problem_module, only: sqpopt_problem_type
     use sqpopt_options_module, only: sqpopt_options_type
     use sqpopt_hessian_module, only: sqpopt_hessian_exact
-    use sqpopt_symmetric_solver_module, only: sqpopt_has_mumps, sqpopt_linear_solver_mumps
+    use sqpopt_symmetric_solver_module, only: sqpopt_has_mumps, sqpopt_linear_solver_mumps, sqpopt_has_lapack, &
+                                              sqpopt_linear_solver_lapack
     use sqpopt_types_module,   only: sqpopt_invalid_input, sqpopt_success
     use sqpopt_linesearch_module,   only: sqpopt_linesearch_type
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
@@ -112,6 +113,11 @@ program test_input_validation
         options = sqpopt_options_type()
         options%linear_solver = sqpopt_linear_solver_mumps
         call expect_invalid('linear_solver = MUMPS without MUMPS', problem, options, [0.0_wp, 0.0_wp])
+    end if
+    if (.not. sqpopt_has_lapack) then
+        options = sqpopt_options_type()
+        options%linear_solver = sqpopt_linear_solver_lapack
+        call expect_invalid('linear_solver = LAPACK without LAPACK', problem, options, [0.0_wp, 0.0_wp])
     end if
     options = sqpopt_options_type()
     options%linear_solver = 99

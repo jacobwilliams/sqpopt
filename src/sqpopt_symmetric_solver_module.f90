@@ -3,7 +3,7 @@
 !  license: MIT
 !
 !  A direct solver for symmetric indefinite linear systems
-!  \( A x = b \), with one of three backends
+!  \( A x = b \), with one of four backends
 !  (`options%linear_solver`), each in a module of its own, behind the
 !  interface of [[sqpopt_sparse_ldl_module]]:
 !
@@ -15,7 +15,10 @@
 !  * `sqpopt_linear_solver_dense` (opt-in): the matrix as a dense array
 !    ([[sqpopt_dense_ldl_module]]), with pivoting and the exact inertia, for
 !    small matrices only (\( O(n^3) \) per factorization; it refuses an
-!    order above `dense_max_order`).
+!    order above `dense_max_order`);
+!  * `sqpopt_linear_solver_lapack` (opt-in): the same dense matrix, factored
+!    by LAPACK's `DSYTRF` ([[sqpopt_lapack_ldl_type]]), in a library built
+!    with LAPACK (`sqpopt_has_lapack`).
 !
 !  This module chooses the backend, and does what is the same for both:
 !  the iterative refinement of the solves, the counts, and the timing.
@@ -67,13 +70,14 @@
     use sqpopt_sparse_ldl_module, only: sqpopt_sparse_ldl_type
     use sqpopt_qdldl_ldl_module, only: sqpopt_qdldl_ldl_type
     use sqpopt_mumps_ldl_module, only: sqpopt_mumps_ldl_type, sqpopt_has_mumps
-    use sqpopt_dense_ldl_module, only: sqpopt_dense_ldl_type
+    use sqpopt_dense_ldl_module, only: sqpopt_dense_ldl_type, sqpopt_lapack_ldl_type, sqpopt_has_lapack
 
     implicit none
 
     private
 
     public :: sqpopt_has_mumps   ! (from [[sqpopt_mumps_ldl_module]])
+    public :: sqpopt_has_lapack  ! (from [[sqpopt_dense_ldl_module]])
 
     ! the sparse solvers (`options%linear_solver`):
     integer, parameter, public :: sqpopt_linear_solver_mumps = 1 !! MUMPS (needs a library built with it)
@@ -81,6 +85,8 @@
                                                                  !! module documentation)
     integer, parameter, public :: sqpopt_linear_solver_dense = 3 !! dense, for small matrices (always available;
                                                                  !! see [[sqpopt_dense_ldl_module]])
+    integer, parameter, public :: sqpopt_linear_solver_lapack = 4 !! dense, factored by LAPACK's `DSYTRF`, for small
+                                                                  !! matrices (needs a library built with LAPACK)
 
     public :: sqpopt_linear_solver_available, sqpopt_linear_solver_name
 
@@ -136,6 +142,8 @@
         available = .true.
     case (sqpopt_linear_solver_mumps)
         available = sqpopt_has_mumps
+    case (sqpopt_linear_solver_lapack)
+        available = sqpopt_has_lapack
     case default
         available = .false.
     end select
@@ -158,6 +166,8 @@
         name = 'MUMPS'
     case (sqpopt_linear_solver_dense)
         name = 'dense'
+    case (sqpopt_linear_solver_lapack)
+        name = 'LAPACK'
     case default
         name = 'QDLDL'
     end select
@@ -205,6 +215,8 @@
         allocate(sqpopt_mumps_ldl_type :: me%ldl, stat=alloc_stat)
     case (sqpopt_linear_solver_dense)
         allocate(sqpopt_dense_ldl_type :: me%ldl, stat=alloc_stat)
+    case (sqpopt_linear_solver_lapack)
+        allocate(sqpopt_lapack_ldl_type :: me%ldl, stat=alloc_stat)
     case default
         allocate(sqpopt_qdldl_ldl_type :: me%ldl, stat=alloc_stat)
     end select

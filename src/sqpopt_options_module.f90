@@ -110,10 +110,13 @@
                                                    !! `direct_least_squares`): `sqpopt_linear_solver_qdldl` (the
                                                    !! default; always available, no pivoting, very little overhead),
                                                    !! `sqpopt_linear_solver_mumps` (with pivoting and threads; a
-                                                   !! library built with MUMPS), or `sqpopt_linear_solver_dense`
+                                                   !! library built with MUMPS), `sqpopt_linear_solver_dense`
                                                    !! (opt-in: forms the KKT matrix as a dense array, of order
                                                    !! `n+m`, so for small problems only; it refuses an order above
-                                                   !! 2,000, see [[sqpopt_dense_ldl_module]]). QDLDL is exact for the least-squares
+                                                   !! 2,000, see [[sqpopt_dense_ldl_module]]), or
+                                                   !! `sqpopt_linear_solver_lapack` (the same dense matrix,
+                                                   !! factored by LAPACK's `DSYTRF`: much faster near that limit;
+                                                   !! a library built with LAPACK). QDLDL is exact for the least-squares
                                                    !! systems and the quasi-Newton Hessians; prefer MUMPS for the
                                                    !! exact Hessian with inertia control, and for problems whose
                                                    !! factors are dense (see [[sqpopt_symmetric_solver_module]])

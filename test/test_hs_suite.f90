@@ -55,7 +55,7 @@ program test_hs_suite
     !!   or `--hessian=sr1`, see [[sqpopt_inertia_module]])
     !! * `--direct` (`options%direct_qp = .true.`, with any Hessian) and
     !!   `--direct-ls` (`options%direct_least_squares = .true.`)
-    !! * `--linear-solver=qdldl|mumps|dense` (`options%linear_solver`, the sparse
+    !! * `--linear-solver=qdldl|mumps|dense|lapack` (`options%linear_solver`, the sparse
     !!   solver of the three options above: QDLDL by default; `mumps` needs a
     !!   build with MUMPS)
     !! * `--trust-region` (`trust_region%enabled = .true.`: the trust-region
@@ -118,7 +118,7 @@ program test_hs_suite
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
     use sqpopt_restoration_module,  only: sqpopt_restoration_phase, sqpopt_restoration_gauss_newton
     use sqpopt_symmetric_solver_module, only: sqpopt_linear_solver_mumps, sqpopt_linear_solver_qdldl, &
-                                              sqpopt_linear_solver_dense
+                                              sqpopt_linear_solver_dense, sqpopt_linear_solver_lapack
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
 
     implicit none
@@ -305,6 +305,7 @@ program test_hs_suite
         case ('--linear-solver=mumps'); cfg_linear_solver = sqpopt_linear_solver_mumps
         case ('--linear-solver=qdldl'); cfg_linear_solver = sqpopt_linear_solver_qdldl
         case ('--linear-solver=dense'); cfg_linear_solver = sqpopt_linear_solver_dense
+        case ('--linear-solver=lapack'); cfg_linear_solver = sqpopt_linear_solver_lapack
         case ('--restoration=phase');   cfg_restoration = sqpopt_restoration_phase
         case ('--restoration=gauss-newton'); cfg_restoration = sqpopt_restoration_gauss_newton
         case ('--hessian=bfgs');        cfg_hessian = sqpopt_hessian_bfgs
