@@ -220,7 +220,7 @@ end subroutine gjac</code></pre>
   <dt><code>accuracy</code></dt>
   <dd>The accuracy the solver asks for: <code>sqpopt_derivatives_accurate</code>, or, with <code>options%derivative_accuracy = sqpopt_derivatives_fast</code>, <code>sqpopt_derivatives_fast</code> while it is far from a solution (see <a href="#fast-derivatives">Fast derivatives</a>). With analytic derivatives, ignore it.</dd>
   <dt><code>status</code></dt>
-  <dd>Leave it <code>0</code> on success. Set it <code>&gt; 0</code> if the function can't be evaluated at <code>x</code> (for example, a domain error). The solver treats that point like one where the function returned NaN (all of its outputs, e.g. both <code>f</code> and <code>c</code>), and backs off from it. Set it <code>&lt; 0</code> to stop the solver (<code>sqpopt_user_requested_stop</code>). No user function is called again after that.</dd>
+  <dd>Leave it <code>0</code> on success. Set it <code>&gt; 0</code> if the function can't be evaluated at <code>x</code> (for example, a domain error). The solver treats that point like one where the function returned NaN (all of its outputs, e.g. both <code>f</code> and <code>c</code>). What follows depends on the function: <code>fc</code> is also called at trial points, and there the solver rejects the point and backs off (a shorter step, or a smaller trust region). But <code>gjac</code> and <code>hess</code> are only called at points the solver has already accepted (where <code>fc</code> succeeded), so there is nothing to back off from: <code>status &gt; 0</code> from them ends the solve with <code>sqpopt_function_error</code>, returning the last accepted point. The same happens if <code>fc</code> fails at the starting point. To keep the solver away from a region where any of them fails, have <code>fc</code> fail there too, or use bounds. Set it <code>&lt; 0</code> to stop the solver (<code>sqpopt_user_requested_stop</code>). No user function is called again after that.</dd>
   <dt><code>data</code></dt>
   <dd>The object passed as <code>set_functions(..., data=my_data)</code> (absent if none was given). Use it to pass any context to the functions without module variables, and access it with <code>select type</code>. It is <em>pointed to</em>, not copied, so the caller's object needs the <code>target</code> attribute, and any changes the functions make to it are seen by the caller. It is also passed to the <code>report</code> callback.</dd>
 </dl>
@@ -246,7 +246,11 @@ end subroutine gjac</code></pre>
 
 <h3 id="exact-hessian">Exact Hessian (optional)</h3>
 
-<p>With <code>options%hessian_mode = sqpopt_hessian_exact</code>, the solver uses your Hessian of the Lagrangian instead of a quasi-Newton approximation. Supply a third routine, <code>hess</code>, and its fixed sparsity pattern:</p>
+<p>With <code>options%hessian_mode = sqpopt_hessian_exact</code>, the solver uses your Hessian of the Lagrangian instead of a quasi-Newton approximation:</p>
+
+<p>\[ \nabla^2_{xx} L(x,\lambda) = \nabla^2 f(x) - \sum_{i=1}^{m} \lambda_i \nabla^2 c_i(x) \]</p>
+
+<p>Note the minus sign: it follows from SQPOPT's Lagrangian, \( L = f - \lambda^T c - z^T x \) (see <a href="#results">Results</a>); solvers that use \( f + \lambda^T c \) have the opposite sign, so check it when you port a Hessian from one of them. The bounds are linear, so their multipliers \( z \) don't appear. Supply a third routine, <code>hess</code>, and its fixed sparsity pattern:</p>
 
 <pre><code class="language-fortran">subroutine hess(x, lambda, hess_val, status, data)
     real(wp), dimension(:), intent(in)    :: x
@@ -261,7 +265,7 @@ call problem%set_hessian_sparsity(hess_nnz, hrow, hcol)
 call problem%set_functions(fc, gjac, hess=hess)
 options%hessian_mode = sqpopt_hessian_exact</code></pre>
 
-<p>Give each off-diagonal element only once, in either triangle (for example, the lower triangle): an entry \( (i,j) \), \( i\ne j \), stands for both \( (i,j) \) and \( (j,i) \). The values must be in the order of the pattern. <code>hess</code> is called once per major iteration, with the current multipliers (for the original, unscaled problem). The Hessian may be indefinite: when the QP subproblem finds negative curvature, fails, or doesn't give a descent direction, the solver re-solves it with the Hessian shifted by a multiple of the identity, increasing the shift as needed (see <a href="#hessian">Hessian</a>). In a build with MUMPS, <code>options%inertia_control</code> finds the shift from a factorization instead (see <a href="#inertia-control">Inertia control</a>), and <code>options%direct_qp</code> solves the QP subproblems with it (see <a href="#direct-qp">Direct method</a>), which is much faster on large problems.</p>
+<p>Give each off-diagonal element only once, in either triangle (for example, the lower triangle): an entry \( (i,j) \), \( i\ne j \), stands for both \( (i,j) \) and \( (j,i) \). The values must be in the order of the pattern. <code>hess</code> is called once per major iteration, with the current multipliers (for the original, unscaled problem). The Hessian may be indefinite: when the QP subproblem finds negative curvature, fails, or doesn't give a descent direction, the solver re-solves it with the Hessian shifted by a multiple of the identity, increasing the shift as needed (see <a href="#hessian">Hessian</a>). <code>options%inertia_control</code> finds the shift from a factorization instead (see <a href="#inertia-control">Inertia control</a>), and <code>options%direct_qp</code> solves the QP subproblems with it (see <a href="#direct-qp">Direct method</a>), which is much faster on large problems.</p>
 
 <h3 id="report-callback">Progress callback</h3>
 

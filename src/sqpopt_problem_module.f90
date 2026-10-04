@@ -37,8 +37,11 @@
 !  * `status` (`integer, intent(inout)`): `0` on entry. Leave it `0` on
 !    success; set it `> 0` if the function cannot be evaluated at `x` (e.g.
 !    a domain error) -- the solver then treats the point like one where
-!    the function returned NaN, and backs off from it -- or `< 0` to ask the
-!    solver to stop (`istat=sqpopt_user_requested_stop`).
+!    the function returned NaN: at a trial point (only `fc` is called
+!    there) it rejects the point and backs off from it, but at an accepted
+!    point (where `gjac` and `hess` are called), or at the starting point,
+!    the solve ends with `istat=sqpopt_function_error` -- or `< 0` to ask
+!    the solver to stop (`istat=sqpopt_user_requested_stop`).
 !  * `data` (`class(*), intent(inout), optional`): the user data object
 !    given to [[set_functions]] (absent if none was given), for passing any
 !    context to the functions without module variables; use `select type`
@@ -180,7 +183,8 @@
             real(wp), dimension(:), intent(out)   :: g        !! gradient vector `dimension(n)`
             real(wp), dimension(:), intent(out)   :: jac_val  !! nonzero Jacobian values `dimension(jac_nnz)` (may be 0)
             integer,                intent(in)    :: accuracy !! `sqpopt_derivatives_fast` or `sqpopt_derivatives_accurate`
-            integer,                intent(inout) :: status   !! `0` on entry; `>0`: can't evaluate here, `<0`: stop
+            integer,                intent(inout) :: status   !! `0` on entry; `>0`: can't evaluate here (ends the solve:
+                                                              !! only called at accepted points), `<0`: stop
             class(*), optional,     intent(inout) :: data    !! user data (see [[set_functions]])
         end subroutine sqpopt_gjac_func
 
@@ -193,7 +197,8 @@
             real(wp), dimension(:), intent(in)    :: x        !! optimization variable vector `dimension(n)`
             real(wp), dimension(:), intent(in)    :: lambda   !! Lagrange multipliers `dimension(m)`
             real(wp), dimension(:), intent(out)   :: hess_val !! nonzero Hessian values `dimension(hess_nnz)`
-            integer,                intent(inout) :: status   !! `0` on entry; `>0`: can't evaluate here, `<0`: stop
+            integer,                intent(inout) :: status   !! `0` on entry; `>0`: can't evaluate here (ends the solve:
+                                                              !! only called at accepted points), `<0`: stop
             class(*), optional,     intent(inout) :: data     !! user data (see [[set_functions]])
         end subroutine sqpopt_hessian_func
 

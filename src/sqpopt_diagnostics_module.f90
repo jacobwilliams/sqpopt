@@ -1022,7 +1022,8 @@
             if (.not. have_g) line = line//' (or a derivative)'
             call add(text, line)
             call add(text, '     add bounds that keep the variables inside the functions'' domain, or return '// &
-                     'status > 0 from the function there, so that the solver backs off')
+                     'status > 0 from fc there, so that the solver backs off (gjac and hess are only called at '// &
+                     'accepted points, so their status > 0 ends the solve)')
         case (sqpopt_unbounded)
             call add(text, '   the objective fell below options%obj_lower_limit at a feasible point: the problem '// &
                      'is unbounded below, or needs bounds or constraints that are missing')
