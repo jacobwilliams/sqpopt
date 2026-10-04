@@ -72,7 +72,7 @@ has all three options, with QDLDL. QDLDL is exact for the least-squares
 systems and the quasi-Newton Hessians, and much faster than MUMPS on banded
 and chained problems. Choose MUMPS for the exact Hessian with inertia
 control, and for problems coupled in two or three dimensions (see the
-guide's "Sparse solver" section, which compares them;
+guide's "Linear solver" section, which compares them;
 `example/sparse_solvers.f90` times the two solvers on grid matrices).
 `options%factorization_threads` sets the number of
 OpenMP threads MUMPS uses (1 by default; conda-forge's `mumps-seq` is built
