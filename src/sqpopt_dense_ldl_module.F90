@@ -2,44 +2,43 @@
 !> author: Jacob Williams
 !  license: MIT
 !
-!  The dense backend of [[sqpopt_symmetric_solver_module]]
-!  (`options%linear_solver = sqpopt_linear_solver_dense`), for small
+!  The dense backends of [[sqpopt_symmetric_solver_module]], for small
 !  matrices: the matrix is stored dense (order `n`, so \( n^2 \) elements),
-!  its inertia is the exact count of [[dense_symmetric_inertia]]
-!  (Householder tridiagonalization, then the signs of a Sturm sequence, with
-!  2 by 2 pivots for coupled zeros, as Bunch-Kaufman's), and solves use an
-!  LU factorization with partial pivoting. So, unlike QDLDL, it always
-!  knows the inertia, also of a Hessian with zeros on its diagonal, and,
-!  unlike MUMPS, it has almost no overhead per call. But each factorization
-!  costs \( O(n^3) \): it is meant for matrices of order up to a few hundred,
+!  and factored by the Bunch-Kaufman \( LDL^T \) factorization (symmetric
+!  pivoting, with 1 by 1 and 2 by 2 pivots; about \( n^3/3 \) operations).
+!  That one factorization gives both the solves and the exact inertia: the
+!  signs of the eigenvalues of `D`'s blocks (Sylvester's law). So, unlike
+!  QDLDL, it always knows the inertia, also of a Hessian with zeros on its
+!  diagonal, and, unlike MUMPS, it has almost no overhead per call. But
+!  each factorization costs \( O(n^3) \): it is meant for small matrices,
 !  and refuses to start above `dense_max_order` (the factorization options
-!  then fall back on the matrix-free methods).
+!  then fall back on the matrix-free methods). There are two:
 !
-!  A singular matrix is not an error: its zero eigenvalues are counted
-!  (`n_null`), and in the LU factorization a null column gets a large
-!  pivot, which makes that component of a solution zero, so that a solve
-!  returns one of the solutions of a consistent system (as MUMPS's
-!  null-pivot detection does).
+!  * [[sqpopt_dense_ldl_type]] (`options%linear_solver =
+!    sqpopt_linear_solver_dense`): SQPOPT's own factorization,
+!    [[dense_ldl_factor]] and [[dense_ldl_solve]]. Always available.
+!  * [[sqpopt_lapack_ldl_type]] (`options%linear_solver =
+!    sqpopt_linear_solver_lapack`): the same factorization by LAPACK's
+!    `DSYTRF` and `DSYTRS`, whose blocked, BLAS-level code is faster on the
+!    larger matrices. It needs a library built with LAPACK and BLAS (the
+!    `HAS_LAPACK` preprocessor directive, and `-llapack -lblas`), in double
+!    precision; without it, `sqpopt_has_lapack` is false and the option
+!    can't be chosen. This module is the only one that refers to LAPACK.
 !
-!  **With LAPACK** (`options%linear_solver = sqpopt_linear_solver_lapack`,
-!  [[sqpopt_lapack_ldl_type]]): the same dense matrix is factored by
-!  LAPACK's `DSYTRF` (Bunch-Kaufman \( LDL^T \), with 1 by 1 and 2 by 2
-!  pivots), and solved by `DSYTRS`. One factorization, of about \( n^3/3 \)
-!  operations with blocked, BLAS-level code, gives both the solves and the
-!  inertia (the signs of the eigenvalues of `D`'s blocks, by Sylvester's
-!  law), in place of the tridiagonalization and the LU. A null 1 by 1 pivot
-!  gets a large value, as in the LU; a null 2 by 2 block (rare) makes the
-!  solves fall back on the LU. This needs a library built with LAPACK and
-!  BLAS (the `HAS_LAPACK` preprocessor directive, and `-llapack -lblas`),
-!  in double precision; without it, `sqpopt_has_lapack` is false and the
-!  option can't be chosen. This module is the only one that refers to
-!  LAPACK.
+!  Both store the factors in the same form (LAPACK's), so they differ only
+!  in the two procedures that factor and solve; the inertia, and the
+!  handling of a singular matrix, are shared ([[count_inertia]]). A
+!  singular matrix is not an error: its zero eigenvalues (those of `D`'s
+!  blocks below `dense_zero_tol` times the largest element) are counted
+!  (`n_null`), and replaced in `D` by a large value, which makes that
+!  component of a solution negligible, so that a solve returns one of the
+!  solutions of a consistent system (as MUMPS's null-pivot detection does).
 
     module sqpopt_dense_ldl_module
 
     use sqpopt_kinds, only: wp => sqpopt_module_wp
     use sqpopt_sparse_ldl_module, only: sqpopt_sparse_ldl_type
-    use sqpopt_dense_linalg_module, only: dense_symmetric_inertia
+    use sqpopt_dense_linalg_module, only: dense_ldl_factor, dense_ldl_solve
     use sqpopt_types_module, only: sqpopt_all_finite
 
     implicit none
@@ -89,28 +88,32 @@
 #endif
 
     real(wp), parameter :: dense_zero_tol = 1.0e-5_wp*epsilon(1.0_wp) !! an eigenvalue at most this times the largest
-                                                                     !! element is a zero eigenvalue (well above the
-                                                                     !! roundoff of the tridiagonal reduction, and
-                                                                     !! well below the constraint block's eigenvalues
-                                                                     !! of a KKT matrix with a large Hessian shift)
+                                                                     !! element is a zero eigenvalue (the null-pivot
+                                                                     !! threshold of QDLDL and MUMPS: well below the
+                                                                     !! constraint block's eigenvalues of a KKT matrix
+                                                                     !! with a large Hessian shift)
     integer, parameter, public :: dense_max_order = 2000 !! the largest order the dense backend accepts (its two
                                                          !! matrices then take 64 MB in double precision)
 
     type, extends(sqpopt_sparse_ldl_type), public :: sqpopt_dense_ldl_type
-        !! the dense backend (see the module documentation)
+        !! the dense backend, with SQPOPT's own factorization (see the module
+        !! documentation)
         private
         integer :: n = 0                                 !! order of the matrix
         integer, dimension(:), allocatable :: irow       !! row indices of the pattern's entries
         integer, dimension(:), allocatable :: icol       !! column indices of the pattern's entries
         real(wp), dimension(:,:), allocatable :: a       !! the matrix last factored `dimension(n,n)`
-        real(wp), dimension(:,:), allocatable :: lu      !! its LU factors `dimension(n,n)`
-        integer,  dimension(:),   allocatable :: piv     !! the row pivots of the LU factorization `dimension(n)`
+        real(wp), dimension(:,:), allocatable :: ldl     !! its factors `L` and `D` (as LAPACK's `DSYTRF` stores
+                                                         !! them, in the lower triangle) `dimension(n,n)`
+        integer,  dimension(:),   allocatable :: piv     !! the pivots of the factorization `dimension(n)`
         contains
         procedure :: start      => dense_start
         procedure :: refactor   => dense_refactor
         procedure :: back_solve => dense_back_solve
         procedure :: multiply   => dense_multiply
         procedure :: free       => dense_free
+        procedure, private :: factor        => dense_factor        !! factor `ldl` in place
+        procedure, private :: solve_factors => dense_solve_factors !! one solve with the factors
     end type sqpopt_dense_ldl_type
 
     type, extends(sqpopt_dense_ldl_type), public :: sqpopt_lapack_ldl_type
@@ -119,12 +122,10 @@
         !! `HAS_LAPACK`
         private
         real(wp), dimension(:), allocatable :: work !! `DSYTRF`'s workspace
-        logical :: lu_solves = .false.              !! whether the last factorization had a null 2 by 2 block, so
-                                                    !! the solves use the LU factors instead
         contains
-        procedure :: start      => lapack_start
-        procedure :: refactor   => lapack_refactor
-        procedure :: back_solve => lapack_back_solve
+        procedure :: start         => lapack_start
+        procedure, private :: factor        => lapack_factor
+        procedure, private :: solve_factors => lapack_solve_factors
     end type sqpopt_lapack_ldl_type
 
     contains
@@ -153,7 +154,7 @@
     if (present(threads) .or. present(signs)) continue   ! (not used)
     if (n > dense_max_order) return
     allocate(me%a(n,n), stat=alloc_stat)
-    if (alloc_stat == 0) allocate(me%lu(n,n), stat=alloc_stat)
+    if (alloc_stat == 0) allocate(me%ldl(n,n), stat=alloc_stat)
     if (alloc_stat == 0) allocate(me%piv(n), stat=alloc_stat)
     if (alloc_stat /= 0) then
         me%out_of_memory = .true.
@@ -168,10 +169,11 @@
     end subroutine dense_start
 !*******************************************************************************
 
+
 !*******************************************************************************
 !>
-!  form the dense matrix from the values `val`, count its inertia, and
-!  factor it (see the module documentation).
+!  form the dense matrix from the values `val`, factor it, and count its
+!  inertia from the factors (see the module documentation).
 
     subroutine dense_refactor(me, val, ok)
 
@@ -179,7 +181,8 @@
     real(wp), dimension(:), intent(in)  :: val !! values of the entries `dimension(nnz)`
     logical,                intent(out) :: ok  !! whether the factorization succeeded
 
-    integer :: k, i, j, n_positive
+    integer :: k, i, j
+    real(wp) :: amax
 
     ok = .false.
     me%inertia_known = .true.
@@ -195,73 +198,122 @@
         me%a(i,j) = me%a(i,j) + val(k)
         if (i /= j) me%a(j,i) = me%a(j,i) + val(k)
     end do
-    call dense_symmetric_inertia(me%a, n_positive, me%n_negative, me%n_null, zero_tol=dense_zero_tol)
+    amax = 0.0_wp
     do j = 1, me%n
         do i = 1, me%n
-            me%lu(i,j) = me%a(i,j)
+            me%ldl(i,j) = me%a(i,j)
+            amax = max(amax, abs(me%a(i,j)))
         end do
     end do
-    call lu_factor_null_safe(me%lu, me%piv)
-    ok = .true.
+    call me%factor(ok)
+    if (.not. ok) return
+    call count_inertia(me, amax)
 
     end subroutine dense_refactor
 !*******************************************************************************
 
 !*******************************************************************************
 !>
-!  in-place LU factorization with partial pivoting of the dense matrix
-!  `a`, in which a negligible pivot (a null column, below the diagonal) is
-!  replaced by a large one, so that the factorization never fails (see the
-!  module documentation).
+!  the inertia of the matrix, from the eigenvalues of the blocks of the
+!  factor `D` (Sylvester's law). An eigenvalue at most `dense_zero_tol`
+!  times the matrix's largest element `amax` is a zero eigenvalue: it is
+!  counted in `n_null`, and replaced in `D` by a large positive value, so
+!  that the solves never divide by it (see the module documentation).
 
-    pure subroutine lu_factor_null_safe(a, piv)
+    subroutine count_inertia(me, amax)
 
-    real(wp), dimension(:,:), intent(inout) :: a   !! matrix, overwritten by its `L` (unit, below the diagonal)
-                                                   !! and `U` factors
-    integer,  dimension(:),   intent(out)   :: piv !! `piv(p)` is the row swapped with row `p` at step `p`
+    class(sqpopt_dense_ldl_type), intent(inout) :: me
+    real(wp), intent(in) :: amax !! the largest element of the matrix, in magnitude
 
-    integer :: i, j, p, n
-    real(wp) :: amax, tol, big, t
+    integer :: k
+    real(wp) :: tol, big, p, q, r, mean, radius, lam1, lam2, c, s, h
+    logical :: null1, null2
 
-    n = size(a,1)
-    amax = 0.0_wp
-    do j = 1, n
-        do i = 1, n
-            amax = max(amax, abs(a(i,j)))
-        end do
-    end do
-    tol = 1.0e-14_wp*max(amax, tiny(1.0_wp))
+    tol = dense_zero_tol*max(amax, tiny(1.0_wp))
     big = max(amax, 1.0_wp)/sqrt(epsilon(1.0_wp))
-    do p = 1, n
-        ! the pivot: the largest element of column p, on or below the diagonal
-        piv(p) = p
-        do i = p+1, n
-            if (abs(a(i,p)) > abs(a(piv(p),p))) piv(p) = i
-        end do
-        if (piv(p) /= p) then
-            do j = 1, n
-                t = a(p,j)
-                a(p,j) = a(piv(p),j)
-                a(piv(p),j) = t
-            end do
+    me%n_negative = 0
+    me%n_null     = 0
+    k = 1
+    do while (k <= me%n)
+        if (me%piv(k) > 0) then
+            ! a 1 by 1 block:
+            p = me%ldl(k,k)
+            if (abs(p) <= tol) then
+                me%n_null = me%n_null + 1
+                me%ldl(k,k) = big
+            else if (p < 0.0_wp) then
+                me%n_negative = me%n_negative + 1
+            end if
+            k = k + 1
+        else
+            ! a 2 by 2 block [p, r; r, q] (r is nonzero: the pivoting chose it as the largest element of its column):
+            p = me%ldl(k,k)
+            r = me%ldl(k+1,k)
+            q = me%ldl(k+1,k+1)
+            mean   = 0.5_wp*(p + q)
+            radius = hypot(0.5_wp*(p - q), r)
+            lam1 = mean + sign(radius, mean)   ! (the eigenvalue of the larger magnitude)
+            lam2 = (p*q - r*r)/lam1            ! (the other, without cancellation)
+            null1 = abs(lam1) <= tol
+            null2 = abs(lam2) <= tol
+            if (null1) me%n_null = me%n_null + 1
+            if (null2) me%n_null = me%n_null + 1
+            if (.not. null1 .and. lam1 < 0.0_wp) me%n_negative = me%n_negative + 1
+            if (.not. null2 .and. lam2 < 0.0_wp) me%n_negative = me%n_negative + 1
+            if (null1 .or. null2) then
+                ! rebuild the block from its eigenvectors, with large eigenvalues in place
+                ! of the zero ones (different, so that it stays a 2 by 2 block):
+                h = hypot(r, lam1 - p)
+                c = r/h
+                s = (lam1 - p)/h               ! ((c, s) is lam1's eigenvector)
+                if (null1) lam1 = big
+                if (null2) lam2 = 2.0_wp*big
+                me%ldl(k,k)     = lam1*c*c + lam2*s*s
+                me%ldl(k+1,k)   = (lam1 - lam2)*c*s
+                me%ldl(k+1,k+1) = lam1*s*s + lam2*c*c
+            end if
+            k = k + 2
         end if
-        if (abs(a(p,p)) <= tol) then
-            a(p,p) = big   ! (a null column: its component of a solution becomes negligible)
-        end if
-        do i = p+1, n
-            a(i,p) = a(i,p)/a(p,p)
-            do j = p+1, n
-                a(i,j) = a(i,j) - a(i,p)*a(p,j)
-            end do
-        end do
     end do
 
-    end subroutine lu_factor_null_safe
+    end subroutine count_inertia
 !*******************************************************************************
 
 !*******************************************************************************
 !>
-!  one solve with the LU factors, without refinement.
+!  factor `ldl` in place with SQPOPT's Bunch-Kaufman factorization
+!  ([[dense_ldl_factor]], which never fails).
+
+    subroutine dense_factor(me, ok)
+
+    class(sqpopt_dense_ldl_type), intent(inout) :: me
+    logical, intent(out) :: ok !! whether the factorization succeeded
+
+    call dense_ldl_factor(me%ldl, me%piv)
+    ok = .true.
+
+    end subroutine dense_factor
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  one solve with the factors ([[dense_ldl_solve]]).
+
+    subroutine dense_solve_factors(me, v, ok)
+
+    class(sqpopt_dense_ldl_type), intent(inout) :: me
+    real(wp), dimension(:), intent(inout) :: v  !! the right-hand side, overwritten by the solution
+    logical,                intent(out)   :: ok !! whether it was solved
+
+    call dense_ldl_solve(me%ldl, me%piv, v)
+    ok = .true.
+
+    end subroutine dense_solve_factors
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  one solve with the factors, without refinement.
 
     subroutine dense_back_solve(me, v, ok)
 
@@ -269,31 +321,8 @@
     real(wp), dimension(:), intent(inout) :: v  !! the right-hand side, overwritten by the solution
     logical,                intent(out)   :: ok !! whether it was solved
 
-    integer :: i, j
-    real(wp) :: s, t
-
-    do i = 1, me%n
-        if (me%piv(i) /= i) then
-            t = v(i)
-            v(i) = v(me%piv(i))
-            v(me%piv(i)) = t
-        end if
-    end do
-    do i = 2, me%n
-        s = v(i)
-        do j = 1, i-1
-            s = s - me%lu(i,j)*v(j)
-        end do
-        v(i) = s
-    end do
-    do i = me%n, 1, -1
-        s = v(i)
-        do j = i+1, me%n
-            s = s - me%lu(i,j)*v(j)
-        end do
-        v(i) = s/me%lu(i,i)
-    end do
-    ok = sqpopt_all_finite(v)
+    call me%solve_factors(v, ok)
+    if (ok) ok = sqpopt_all_finite(v)
 
     end subroutine dense_back_solve
 !*******************************************************************************
@@ -331,7 +360,7 @@
     class(sqpopt_dense_ldl_type), intent(inout) :: me
 
     if (allocated(me%a))    deallocate(me%a)
-    if (allocated(me%lu))   deallocate(me%lu)
+    if (allocated(me%ldl))  deallocate(me%ldl)
     if (allocated(me%piv))  deallocate(me%piv)
     if (allocated(me%irow)) deallocate(me%irow)
     if (allocated(me%icol)) deallocate(me%icol)
@@ -366,7 +395,7 @@
     call dense_start(me, n, irow, icol, ok)
     if (.not. ok) return
     ! (the optimal workspace, from a query)
-    call dsytrf('L', max(n, 1), me%lu, max(n, 1), me%piv, query, -1, info)
+    call dsytrf('L', max(n, 1), me%ldl, max(n, 1), me%piv, query, -1, info)
     allocate(me%work(max(1, int(query(1)))), stat=alloc_stat)
     if (alloc_stat /= 0) then
         me%out_of_memory = .true.
@@ -380,105 +409,36 @@
 
 !*******************************************************************************
 !>
-!  form the dense matrix from the values `val`, and factor it with
-!  `DSYTRF`; the inertia is counted from `D`'s blocks (see the module
-!  documentation).
+!  factor `ldl` in place with LAPACK's `DSYTRF`. (An exactly zero pivot,
+!  which it reports with `info > 0`, is not a failure: [[count_inertia]]
+!  replaces it.)
 
-    subroutine lapack_refactor(me, val, ok)
+    subroutine lapack_factor(me, ok)
 
     class(sqpopt_lapack_ldl_type), intent(inout) :: me
-    real(wp), dimension(:), intent(in)  :: val !! values of the entries `dimension(nnz)`
-    logical,                intent(out) :: ok  !! whether the factorization succeeded
+    logical, intent(out) :: ok !! whether the factorization succeeded
 
 #ifdef HAS_LAPACK
-    integer :: k, i, j, info, n
-    real(wp) :: amax, tol, big, a11, a21, a22, det
+    integer :: info
 #endif
 
     ok = .false.
-    me%inertia_known = .true.
 #ifdef HAS_LAPACK
-    if (.not. sqpopt_all_finite(val)) return
-    n = me%n
-    do j = 1, n
-        do i = 1, n
-            me%a(i,j) = 0.0_wp
-        end do
-    end do
-    do k = 1, size(val)
-        i = me%irow(k)
-        j = me%icol(k)
-        me%a(i,j) = me%a(i,j) + val(k)
-        if (i /= j) me%a(j,i) = me%a(j,i) + val(k)
-    end do
-    amax = 0.0_wp
-    do j = 1, n
-        do i = 1, n
-            me%lu(i,j) = me%a(i,j)
-            amax = max(amax, abs(me%a(i,j)))
-        end do
-    end do
-    tol = dense_zero_tol*max(amax, tiny(1.0_wp))
-    big = max(amax, 1.0_wp)/sqrt(epsilon(1.0_wp))
-    me%n_negative = 0
-    me%n_null     = 0
-    me%lu_solves  = .false.
-    if (n > 0) then
-        call dsytrf('L', n, me%lu, n, me%piv, me%work, size(me%work), info)
+    if (me%n > 0) then
+        call dsytrf('L', me%n, me%ldl, me%n, me%piv, me%work, size(me%work), info)
         if (info < 0) return
-    end if
-    ! the inertia, from D's blocks (a 2 by 2 block has piv(k) = piv(k+1) < 0):
-    k = 1
-    do while (k <= n)
-        if (me%piv(k) > 0) then
-            a11 = me%lu(k,k)
-            if (abs(a11) <= tol) then
-                me%n_null = me%n_null + 1
-                me%lu(k,k) = big   ! (a null pivot: its component of a solution becomes negligible)
-            else if (a11 < 0.0_wp) then
-                me%n_negative = me%n_negative + 1
-            end if
-            k = k + 1
-        else
-            a11 = me%lu(k,k)
-            a21 = me%lu(k+1,k)
-            a22 = me%lu(k+1,k+1)
-            det = a11*a22 - a21*a21
-            if (abs(det) <= tol*max(abs(a11), abs(a21), abs(a22))) then
-                ! (a null 2 by 2 block: one zero eigenvalue, the other with the sign of
-                ! the trace; DSYTRS can't solve with it, so the LU does)
-                me%n_null = me%n_null + 1
-                if (a11 + a22 < 0.0_wp) me%n_negative = me%n_negative + 1
-                me%lu_solves = .true.
-            else if (det < 0.0_wp) then
-                me%n_negative = me%n_negative + 1         ! (one positive, one negative eigenvalue)
-            else if (a11 + a22 < 0.0_wp) then
-                me%n_negative = me%n_negative + 2
-            end if
-            k = k + 2
-        end if
-    end do
-    if (me%lu_solves) then
-        ! (the LU factors, for the solves; the inertia stays DSYTRF's)
-        do j = 1, n
-            do i = 1, n
-                me%lu(i,j) = me%a(i,j)
-            end do
-        end do
-        call lu_factor_null_safe(me%lu, me%piv)
     end if
     ok = .true.
 #endif
 
-    end subroutine lapack_refactor
+    end subroutine lapack_factor
 !*******************************************************************************
 
 !*******************************************************************************
 !>
-!  one solve with `DSYTRS` (or with the LU factors, after a null 2 by 2
-!  block), without refinement.
+!  one solve with the factors, by LAPACK's `DSYTRS`.
 
-    subroutine lapack_back_solve(me, v, ok)
+    subroutine lapack_solve_factors(me, v, ok)
 
     class(sqpopt_lapack_ldl_type), intent(inout) :: me
     real(wp), dimension(:), intent(inout) :: v  !! the right-hand side, overwritten by the solution
@@ -489,19 +449,15 @@
 #endif
 
     ok = .false.
-    if (me%lu_solves) then
-        call dense_back_solve(me, v, ok)
-        return
-    end if
 #ifdef HAS_LAPACK
     if (me%n > 0) then
-        call dsytrs('L', me%n, 1, me%lu, me%n, me%piv, v, me%n, info)
+        call dsytrs('L', me%n, 1, me%ldl, me%n, me%piv, v, me%n, info)
         if (info /= 0) return
     end if
-    ok = sqpopt_all_finite(v)
+    ok = .true.
 #endif
 
-    end subroutine lapack_back_solve
+    end subroutine lapack_solve_factors
 !*******************************************************************************
 
     end module sqpopt_dense_ldl_module

@@ -1968,6 +1968,22 @@ which is now double precision only.
   dense backend's 2.9–5.2 s (20 to 60 times faster), but QDLDL and MUMPS
   take about 1 ms on those sparse matrices. pixi tasks `build-lapack`,
   `test-lapack`, `run-lapack` (`-llapack -lblas`).
+  *Then the hand-written dense backend was rewritten (2026-10-03).* It had
+  been slow for avoidable reasons: two factorizations per matrix (a
+  Householder tridiagonalization for the inertia, ~4n³/3 flops, and an LU
+  for the solves, ~2n³/3), with the LU's loops along rows (stride n in
+  column-major storage). Both were replaced by one Bunch–Kaufman LDLᵀ
+  (`dense_ldl_factor`/`dense_ldl_solve` in `sqpopt_dense_linalg_module`,
+  LAPACK's `DSYTF2`/`DSYTRS` algorithm and storage, loops down the
+  columns, ~n³/3 flops). Both dense backends now share everything but
+  their factor and solve calls: the inertia and the null-eigenvalue
+  handling (`count_inertia`, on `D`'s blocks) are common, and the LU
+  fallback is gone. Results: a refactorization of order 1,936 takes 0.20 s
+  (it took 3.95 s; LAPACK 0.08–0.17 s), and the HS counts now match
+  LAPACK's up to rounding: exact + inertia 273/30/2 9,426; + direct
+  276/28/1 9,381; SR1 + inertia 274/27/4 10,454 (the old 273/29/3 12,868
+  came from the two factorizations' disagreeing on nearly singular
+  matrices); L-BFGS + direct 279/26/0 9,604; direct-ls 278/26/1 9,026.
 
 ## 6. Testing and infrastructure
 

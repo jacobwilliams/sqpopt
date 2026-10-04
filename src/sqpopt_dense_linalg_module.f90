@@ -6,7 +6,9 @@
 !  by [[sqpopt_qp_dense_module]] (the dense QP solver mode), the only place
 !  where dense `n x n` arrays are formed. The LU factorization and the
 !  inertia are for the small matrices (of the order of the quasi-Newton
-!  memory) of [[sqpopt_hessian_module]] and [[sqpopt_kkt_module]]. Not linked to any
+!  memory) of [[sqpopt_hessian_module]] and [[sqpopt_kkt_module]]. The
+!  Bunch-Kaufman \( LDL^T \) factorization is for the dense backend of the
+!  sparse solver ([[sqpopt_dense_ldl_module]]). Not linked to any
 !  external dependency: classic, textbook Householder QR and modified
 !  Cholesky, small enough to validate directly against known small
 !  matrices.
@@ -26,6 +28,8 @@
     public :: dense_lu_factor
     public :: dense_lu_solve
     public :: dense_symmetric_inertia
+    public :: dense_ldl_factor
+    public :: dense_ldl_solve
 
     contains
 !*******************************************************************************
@@ -285,6 +289,200 @@
     end do
 
     end subroutine dense_lu_solve
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  in-place Bunch-Kaufman factorization \( P A P^T = L D L^T \) of the
+!  symmetric matrix `a` (its lower triangle is used), with `L` unit lower
+!  triangular and `D` block diagonal, of 1 by 1 and 2 by 2 blocks (Golub &
+!  Van Loan, *Matrix Computations*, 4.4.4). The factors and the pivots are
+!  stored exactly as LAPACK's `DSYTRF` stores them with `uplo = 'L'` (it is
+!  the unblocked algorithm of LAPACK's `DSYTF2`): `D` on and next to the
+!  diagonal, `L` below it, and `piv(k) > 0` for a 1 by 1 block (row and
+!  column `k` were swapped with `piv(k)`), or `piv(k) = piv(k+1) < 0` for a
+!  2 by 2 block in rows `k` and `k+1` (row `k+1` was swapped with
+!  `-piv(k)`). So the inertia of `a` is that of `D` (Sylvester's law), and
+!  [[dense_ldl_solve]] solves with the factors. It never fails: a column
+!  that is exactly zero gets a zero 1 by 1 pivot, and is not eliminated.
+!  The loops run down the columns. Costs \( n^3/3 \) operations.
+
+    pure subroutine dense_ldl_factor(a, piv)
+
+    real(wp), dimension(:,:), intent(inout) :: a   !! the symmetric matrix `dimension(n,n)`, whose lower triangle is
+                                                   !! overwritten by `D` and `L`
+    integer,  dimension(:),   intent(out)   :: piv !! the pivots `dimension(n)` (see above)
+
+    real(wp), parameter :: alpha = (1.0_wp + sqrt(17.0_wp))/8.0_wp !! (the threshold that bounds the growth of
+                                                                   !! the elements, Bunch & Kaufman's)
+    integer :: n, k, kk, kp, kstep, imax, i, j
+    real(wp) :: absakk, colmax, rowmax, t, d11, d22, d21, wk, wkp1
+
+    n = size(a,1)
+    k = 1
+    do while (k <= n)
+        kstep = 1
+        absakk = abs(a(k,k))
+        imax = k
+        colmax = 0.0_wp
+        do i = k+1, n
+            if (abs(a(i,k)) > colmax) then
+                imax = i
+                colmax = abs(a(i,k))
+            end if
+        end do
+        kp = k
+        if (max(absakk, colmax) > 0.0_wp .and. absakk < alpha*colmax) then
+            ! the largest off-diagonal element of row and column imax:
+            rowmax = 0.0_wp
+            do j = k, imax-1
+                rowmax = max(rowmax, abs(a(imax,j)))
+            end do
+            do i = imax+1, n
+                rowmax = max(rowmax, abs(a(i,imax)))
+            end do
+            if (absakk*rowmax >= alpha*colmax**2) then
+                kp = k                      ! (a 1 by 1 pivot, with no interchange)
+            else if (abs(a(imax,imax)) >= alpha*rowmax) then
+                kp = imax                   ! (a 1 by 1 pivot: row and column imax)
+            else
+                kp = imax                   ! (a 2 by 2 pivot: rows k and imax)
+                kstep = 2
+            end if
+        end if
+
+        ! swap rows and columns kk and kp of the trailing matrix (its lower triangle):
+        kk = k + kstep - 1
+        if (kp /= kk) then
+            do i = kp+1, n
+                t = a(i,kk); a(i,kk) = a(i,kp); a(i,kp) = t
+            end do
+            do j = kk+1, kp-1
+                t = a(j,kk); a(j,kk) = a(kp,j); a(kp,j) = t
+            end do
+            t = a(kk,kk); a(kk,kk) = a(kp,kp); a(kp,kp) = t
+            if (kstep == 2) then
+                t = a(k+1,k); a(k+1,k) = a(kp,k); a(kp,k) = t
+            end if
+        end if
+
+        ! eliminate the pivot's columns from the trailing matrix:
+        if (kstep == 1) then
+            piv(k) = kp
+            if (a(k,k) /= 0.0_wp) then
+                d11 = 1.0_wp/a(k,k)
+                do j = k+1, n
+                    t = -d11*a(j,k)
+                    do i = j, n
+                        a(i,j) = a(i,j) + t*a(i,k)
+                    end do
+                end do
+                do i = k+1, n
+                    a(i,k) = d11*a(i,k)
+                end do
+            end if
+        else
+            piv(k)   = -kp
+            piv(k+1) = -kp
+            d21 = a(k+1,k)
+            d11 = a(k+1,k+1)/d21
+            d22 = a(k,k)/d21
+            t   = 1.0_wp/(d11*d22 - 1.0_wp)
+            d21 = t/d21
+            do j = k+2, n
+                wk   = d21*(d11*a(j,k) - a(j,k+1))
+                wkp1 = d21*(d22*a(j,k+1) - a(j,k))
+                do i = j, n
+                    a(i,j) = a(i,j) - (a(i,k)*wk + a(i,k+1)*wkp1)
+                end do
+                a(j,k)   = wk
+                a(j,k+1) = wkp1
+            end do
+        end if
+        k = k + kstep
+    end do
+
+    end subroutine dense_ldl_factor
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  solve \( A x = b \) in place (`b` is overwritten by `x`), given the
+!  factors from [[dense_ldl_factor]] (or from LAPACK's `DSYTRF` with
+!  `uplo = 'L'`: this is LAPACK's `DSYTRS` for one right-hand side). Every
+!  1 by 1 pivot and 2 by 2 block of `D` must be nonsingular.
+
+    pure subroutine dense_ldl_solve(a, piv, b)
+
+    real(wp), dimension(:,:), intent(in)    :: a   !! the factors `dimension(n,n)`
+    integer,  dimension(:),   intent(in)    :: piv !! the pivots `dimension(n)`
+    real(wp), dimension(:),   intent(inout) :: b   !! the right-hand side `dimension(n)`, overwritten by the
+                                                   !! solution
+
+    integer :: n, k, kp, i
+    real(wp) :: t, akm1k, akm1, ak, denom, bkm1, bk
+
+    n = size(a,1)
+
+    ! solve L D y = P b:
+    k = 1
+    do while (k <= n)
+        if (piv(k) > 0) then
+            kp = piv(k)
+            if (kp /= k) then
+                t = b(k); b(k) = b(kp); b(kp) = t
+            end if
+            do i = k+1, n
+                b(i) = b(i) - b(k)*a(i,k)
+            end do
+            b(k) = b(k)/a(k,k)
+            k = k + 1
+        else
+            kp = -piv(k)
+            if (kp /= k+1) then
+                t = b(k+1); b(k+1) = b(kp); b(kp) = t
+            end if
+            do i = k+2, n
+                b(i) = b(i) - b(k)*a(i,k) - b(k+1)*a(i,k+1)
+            end do
+            akm1k = a(k+1,k)
+            akm1  = a(k,k)/akm1k
+            ak    = a(k+1,k+1)/akm1k
+            denom = akm1*ak - 1.0_wp
+            bkm1  = b(k)/akm1k
+            bk    = b(k+1)/akm1k
+            b(k)   = (ak*bkm1 - bk)/denom
+            b(k+1) = (akm1*bk - bkm1)/denom
+            k = k + 2
+        end if
+    end do
+
+    ! solve L^T P x = y:
+    k = n
+    do while (k >= 1)
+        if (piv(k) > 0) then
+            do i = k+1, n
+                b(k) = b(k) - a(i,k)*b(i)
+            end do
+            kp = piv(k)
+            if (kp /= k) then
+                t = b(k); b(k) = b(kp); b(kp) = t
+            end if
+            k = k - 1
+        else
+            do i = k+1, n
+                b(k)   = b(k)   - a(i,k)*b(i)
+                b(k-1) = b(k-1) - a(i,k-1)*b(i)
+            end do
+            kp = -piv(k)
+            if (kp /= k) then
+                t = b(k); b(k) = b(kp); b(kp) = t
+            end if
+            k = k - 2
+        end if
+    end do
+
+    end subroutine dense_ldl_solve
 !*******************************************************************************
 
 !*******************************************************************************

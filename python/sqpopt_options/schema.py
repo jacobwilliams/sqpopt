@@ -508,8 +508,8 @@ TOPICS: tuple[Topic, ...] = (
                '9 to 34 times faster, and can use threads). Dense (opt-in) forms the KKT matrix as a dense array, of '
                'order n+m, so it is for small problems only (it refuses an order above 2,000): there, with the exact '
                'Hessian and inertia_control, it gives MUMPS\'s results at QDLDL\'s speed. LAPACK (a library built with '
-               'HAS_LAPACK) factors the same dense matrix with DSYTRF: as good as MUMPS on the HS problems with every '
-               'Hessian, and 20 to 60 times faster than the built-in dense solver near its limit.',
+               'HAS_LAPACK) does the same factorization with DSYTRF: the same algorithm (results differ only by rounding), and up to 2.4 times faster '
+               'near the size limit.',
                choices=LINEAR_SOLVERS),
             _o('options%factorization_threads', 'int', 1,
                'Number of OpenMP threads the sparse factorizations use (inertia_control, direct_qp, and '

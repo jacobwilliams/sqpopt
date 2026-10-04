@@ -16,7 +16,8 @@ program test_kkt
     !!   minimum-norm solution, also for dependent rows.
     !!
     !! It also tests the small dense routines those use
-    !! (`dense_symmetric_inertia`, `dense_lu_factor`, and `dense_lu_solve`),
+    !! (`dense_symmetric_inertia`, `dense_lu_factor`, `dense_lu_solve`,
+    !! and the Bunch-Kaufman `dense_ldl_factor` and `dense_ldl_solve`),
     !! and without MUMPS, that MUMPS reports itself unavailable.
 
     use sqpopt_symmetric_solver_module, only: sqpopt_symmetric_solver_type, sqpopt_has_mumps, sqpopt_has_lapack, &
@@ -26,7 +27,8 @@ program test_kkt
     use sqpopt_kkt_module,              only: sqpopt_kkt_type
     use sqpopt_least_squares_module,    only: sqpopt_least_squares_type
     use sqpopt_hessian_module,          only: sqpopt_hessian_type
-    use sqpopt_dense_linalg_module,     only: dense_symmetric_inertia, dense_lu_factor, dense_lu_solve
+    use sqpopt_dense_linalg_module,     only: dense_symmetric_inertia, dense_lu_factor, dense_lu_solve, &
+                                              dense_ldl_factor, dense_ldl_solve
     use sqpopt_types_module,            only: sqpopt_sparse_matrix
     use sqpopt_kinds,                   only: wp => sqpopt_module_wp
 
@@ -43,6 +45,7 @@ program test_kkt
 
     call seed_rng()
     call test_dense()
+    call test_dense_ldl()
     do k = 1, size(solvers)
         if (solvers(k) == sqpopt_linear_solver_mumps .and. .not. sqpopt_has_mumps) then
             call test_unavailable()
@@ -146,6 +149,67 @@ program test_kkt
 
     print '(A)', 'test_kkt [dense routines] PASSED'
     end subroutine test_dense
+
+    subroutine test_dense_ldl()
+    !! the Bunch-Kaufman factorization on random KKT matrices `[H A^T; A 0]` (with an indefinite `H`,
+    !! so that it needs interchanges and 2 by 2 pivots), and on `[0 1; 1 0]`: a solve's residual,
+    !! and the inertia of `D` against [[dense_symmetric_inertia]]'s
+    integer, parameter :: nh = 30, ma = 12, n = nh + ma
+    real(wp) :: a(n,n), f(n,n), b(n), x(n)
+    integer :: piv(n), trial, i, n_pos, n_neg, n_zero, n_neg_d
+    logical :: two_by_two
+
+    two_by_two = .false.
+    do trial = 1, 5
+        call random_number(a)
+        a = a - 0.5_wp
+        a = a + transpose(a)
+        a(nh+1:n,nh+1:n) = 0.0_wp
+        call random_number(b)
+        f = a
+        call dense_ldl_factor(f, piv)
+        x = b
+        call dense_ldl_solve(f, piv, x)
+        if (maxval(abs(matmul(a, x) - b)) > tol*maxval(abs(x))) error stop 'test_kkt FAILED: dense LDL solve'
+        call dense_symmetric_inertia(a, n_pos, n_neg, n_zero)
+        n_neg_d = negative_eigenvalues_of_d(f, piv)
+        if (n_zero /= 0 .or. n_neg_d /= n_neg) error stop 'test_kkt FAILED: dense LDL inertia'
+        two_by_two = two_by_two .or. any(piv < 0)
+    end do
+    if (.not. two_by_two) error stop 'test_kkt FAILED: dense LDL never used a 2 by 2 pivot'
+
+    ! [0 1; 1 0]: a single 2 by 2 pivot
+    f(1:2,1:2) = reshape([0.0_wp, 1.0_wp, 1.0_wp, 0.0_wp], [2,2])
+    call dense_ldl_factor(f(1:2,1:2), piv(1:2))
+    x(1:2) = [3.0_wp, 4.0_wp]
+    call dense_ldl_solve(f(1:2,1:2), piv(1:2), x(1:2))
+    if (any(piv(1:2) > 0) .or. maxval(abs(x(1:2) - [4.0_wp, 3.0_wp])) > tol) &
+        error stop 'test_kkt FAILED: dense LDL of [0 1; 1 0]'
+
+    print '(A)', 'test_kkt [dense LDL] PASSED'
+    end subroutine test_dense_ldl
+
+    integer function negative_eigenvalues_of_d(f, piv) result(n_neg)
+    !! the number of negative eigenvalues of the block diagonal `D` of a Bunch-Kaufman factorization
+    real(wp), dimension(:,:), intent(in) :: f   !! the factors (`D` on and next to the diagonal)
+    integer,  dimension(:),   intent(in) :: piv !! the pivots (negative for a 2 by 2 block)
+    integer :: k
+    n_neg = 0
+    k = 1
+    do while (k <= size(piv))
+        if (piv(k) > 0) then
+            if (f(k,k) < 0.0_wp) n_neg = n_neg + 1
+            k = k + 1
+        else
+            if (f(k,k)*f(k+1,k+1) - f(k+1,k)**2 < 0.0_wp) then
+                n_neg = n_neg + 1
+            else if (f(k,k) + f(k+1,k+1) < 0.0_wp) then
+                n_neg = n_neg + 2
+            end if
+            k = k + 2
+        end if
+    end do
+    end function negative_eigenvalues_of_d
 
     subroutine test_solver(which)
     !! the sparse solver on `[2 0 1; 0 -1 0; 1 0 0]` (one triangle given, with a duplicate entry),

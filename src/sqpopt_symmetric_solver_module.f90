@@ -39,7 +39,7 @@
 !  choice for the exact Hessian with inertia control, and for problems
 !  coupled in two or three dimensions that refactor many times. For a small
 !  problem with the exact Hessian and inertia control, the dense backend
-!  gives MUMPS's results (on the Hock-Schittkowski problems, 9,452
+!  gives MUMPS's results (on the Hock-Schittkowski problems, 9,426
 !  evaluations against MUMPS's 9,400 and QDLDL's 13,654) at QDLDL's speed.
 !
 !  How it is used:

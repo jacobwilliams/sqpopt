@@ -110,10 +110,11 @@ instead of its own LU: `options%linear_solver = sqpopt_linear_solver_lapack`.
 That needs the `HAS_LAPACK` preprocessor directive, and linking with LAPACK
 and BLAS (double precision only); it is the only code that refers to
 LAPACK. Without it, `sqpopt_has_lapack` is false and only that choice is
-rejected as invalid input. On the HS problems it gives MUMPS's results with
-every Hessian, and near the dense limit (an order of 2,000) it is 20 to 60
-times faster than the hand-written dense factorization. Every test must
-pass in this build too:
+rejected as invalid input. It is the same factorization as the built-in
+one (SQPOPT's own Bunch–Kaufman code, in `sqpopt_dense_linalg_module`), so
+the results differ only by rounding; LAPACK's blocked code is up to 2.4 times faster
+near the dense limit (an order of 2,000). Every test must pass in this
+build too:
 
 ```sh
 pixi run build-lapack                  # fpm build, with LAPACK
