@@ -115,7 +115,7 @@
 \end{aligned}
 \]</div>
 
-<p>where an equality constraint is written as <code>c_lb(i) = c_ub(i)</code>. The objective, the constraints, and their first derivatives are supplied as callbacks. The constraint Jacobian is stored in sparse coordinate (COO) format, and the Hessian of the Lagrangian is approximated by a matrix-free, limited-memory quasi-Newton operator, or <a href="#exact-hessian">supplied exactly</a> by the user, also in sparse form. No dense <code>n&times;n</code> or <code>m&times;n</code> array is ever formed, so the library scales to large, sparse problems.</p>
+<p>where an equality constraint is written as <code>c_lb(i) = c_ub(i)</code>. The objective, the constraints, and their first derivatives are supplied as callbacks. The constraint Jacobian is stored in sparse coordinate (COO) format, and the Hessian of the Lagrangian is approximated by a matrix-free, limited-memory quasi-Newton operator, or <a href="#exact-hessian">supplied exactly</a> by the user, also in sparse form. The sparse methods never form a dense <code>n&times;n</code> or <code>m&times;n</code> array, so the library scales to large, sparse problems. Dense matrices are formed only by options meant for small problems, including the default choice of QP solver for problems with up to 200 variables (see <a href="#dense-matrices">Options that form dense matrices</a>). <a href="#algorithm">The algorithm</a> outlines what each iteration does, with its equations.</p>
 
 <div class="feature-grid">
   <div class="feature"><h3>SQP method</h3><p>Nonlinear objective, nonlinear equality and inequality constraints, and bounds.</p></div>
@@ -1125,7 +1125,7 @@ call problem%set_max_step([0.1_wp, 0.1_wp, sqpopt_infinity, 5.0_wp])   ! (no lim
 <tbody>
 <tr><td><code>sqpopt_qp_auto</code> <span class="badge">default</span></td><td><code>sqpopt_qp_dense</code> if <code>n &lt;= auto_dense_max_n</code>, else <code>sqpopt_qp_reduced_hessian</code></td></tr>
 <tr><td><code>sqpopt_qp_dense</code></td><td>dense active-set QP (Householder QR null space, Cholesky factorization of the reduced Hessian). It forms <code>O(n²)</code>/<code>O(mn)</code> dense arrays on each call, so it is best for small-to-moderate problems. If they can't be allocated, the solve stops with <code>sqpopt_out_of_memory</code>.</td></tr>
-<tr><td><code>sqpopt_qp_reduced_hessian</code></td><td>sparse active-set QP (SQOPT-style basis partition of the working set with sparse <code>LUSOL</code> factors, conjugate gradients on the reduced Hessian, active bounds handled by fixing variables). It never forms a dense array, so it scales to larger problems.</td></tr>
+<tr><td><code>sqpopt_qp_reduced_hessian</code></td><td>sparse active-set QP (SQOPT-style basis partition of the working set with sparse <code>LUSOL</code> factors, conjugate gradients on the reduced Hessian, active bounds handled by fixing variables). It forms no dense array whose size grows with the problem (only a reduced Hessian of at most <code>dense_max_ns</code> rows, see <a href="#dense-matrices">Options that form dense matrices</a>), so it scales to larger problems.</td></tr>
 </tbody>
 </table></div>
 
