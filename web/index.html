@@ -55,6 +55,7 @@
     <a href="#scaling">Scaling</a>
     <a href="#least-squares">Least squares</a>
     <a href="#python">Python</a>
+    <a href="#algorithm">The algorithm</a>
     <p class="toc-group"><svg class="toc-icon" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="15" cy="6" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="17" cy="18" r="2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>Configuration</p>
     <a href="#configuration">How configuration works</a>
     <a href="#dense-matrices" class="toc-sub">Dense matrices</a>
@@ -248,7 +249,7 @@ end subroutine gjac</code></pre>
 
 <p>With <code>options%hessian_mode = sqpopt_hessian_exact</code>, the solver uses your Hessian of the Lagrangian instead of a quasi-Newton approximation:</p>
 
-<p>\[ \nabla^2_{xx} L(x,\lambda) = \nabla^2 f(x) - \sum_{i=1}^{m} \lambda_i \nabla^2 c_i(x) \]</p>
+<div class="math-block">\[ \nabla^2_{xx} L(x,\lambda) = \nabla^2 f(x) - \sum_{i=1}^{m} \lambda_i \nabla^2 c_i(x) \]</div>
 
 <p>Note the minus sign: it follows from SQPOPT's Lagrangian, \( L = f - \lambda^T c - z^T x \) (see <a href="#results">Results</a>); solvers that use \( f + \lambda^T c \) have the opposite sign, so check it when you port a Hessian from one of them. The bounds are linear, so their multipliers \( z \) don't appear. Supply a third routine, <code>hess</code>, and its fixed sparsity pattern:</p>
 
@@ -712,6 +713,90 @@ print(res.x, res.fun, res.message)</code></pre>
 </ul>
 
 <p>See <a href="https://github.com/jacobwilliams/sqpopt/blob/master/python/README.md"><code>python/README.md</code></a> for the details.</p>
+
+<!-- ============================================================ -->
+<h2 id="algorithm">The algorithm</h2>
+
+<p>This section gives the equations of one major iteration, which many of the options below refer to. They are written for the <em>scaled</em> problem (see <a href="#scaling">Scaling</a>): \( f \), \( c \), their derivatives, and \( \lambda \) are scaled, and the results are converted back to the original problem.</p>
+
+<h3 id="qp-subproblem">The QP subproblem</h3>
+
+<p>At the current point \( x_k \), with the multipliers \( \lambda_k \), the step \( p \) solves the quadratic program</p>
+
+<div class="math-block">\[
+\begin{aligned}
+\min_{p}\quad & g^T p + \tfrac12 p^T H p \\
+\text{subject to}\quad & c_{lb} \le c(x_k) + J p \le c_{ub} \\
+& x_{lb} \le x_k + p \le x_{ub}
+\end{aligned}
+\]</div>
+
+<p>where \( g = \nabla f(x_k) \), \( J \) is the constraint Jacobian at \( x_k \), and \( H \) is the <a href="#hessian">Hessian approximation</a>: the L-BFGS or L-SR1 matrix, or the exact Hessian of the Lagrangian \( \nabla^2_{xx} L(x_k, \lambda_k) \) (see <a href="#exact-hessian">Exact Hessian</a>). With the exact Hessian (and with SR1 under <a href="#inertia-control">inertia control</a>), \( H \) includes a shift \( \delta I \), \( \delta \ge 0 \), that the solver increases when the Hessian is too indefinite. With <a href="#max-step">step limits</a>, the bounds also include \( |p_j| \le \) <code>max_step(j)</code>. If the linearized constraints are inconsistent, the QP is solved in elastic mode (see <a href="#qp-solver">QP subproblem solver</a>). The step is then shortened, if needed, to \( \lVert p \rVert_2 \le \) <code>max_step</code> \( \times \) <code>step_scale</code> (the QP solver's step cap), and the next iterate is</p>
+
+<div class="math-block">\[
+x_{k+1} = x_k + \alpha p, \qquad \lambda_{k+1} = \lambda_{QP}
+\]</div>
+
+<p>with the step length \( \alpha \in (0, 1] \) from the <a href="#linesearch">line search</a> (or the step of the <a href="#trust-region">trust region</a>), and \( \lambda_{QP} \) the QP's multipliers of the linearized constraints. Two exceptions: with the augmented Lagrangian merit function and <code>penalty_update = sqpopt_penalty_model</code>, the multipliers move along the step too, \( \lambda_{k+1} = \lambda_k + \alpha(\lambda_{QP} - \lambda_k) \); and with the exact Hessian, after a step whose shift dominated it, the QP's multipliers are replaced by a least-squares estimate.</p>
+
+<h3 id="optimality-test">The optimality test</h3>
+
+<p>With the gradient of the Lagrangian \( r = \nabla f(x) - J^T \lambda \), the solver stops with <code>sqpopt_success</code> when all of these hold:</p>
+
+<div class="math-block">\[
+\begin{aligned}
+\text{stationarity:}\quad & \lVert \hat r \rVert_\infty \le k_{tol}\, s_d \\
+\text{complementarity:}\quad & \max_i \, d_i \le k_{tol}\, s_d \\
+\text{feasibility:}\quad & \max\big( \lVert \max(c_{lb} - c, 0, c - c_{ub}) \rVert_\infty,\; \lVert \max(x_{lb} - x, 0, x - x_{ub}) \rVert_\infty \big) \le c_{tol} \\
+\text{unscaled stationarity:}\quad & \lVert \hat r \rVert_\infty / s_f \le d_{tol}
+\end{aligned}
+\]</div>
+
+<ul>
+  <li>\( k_{tol} \), \( c_{tol} \), and \( d_{tol} \) are the options <code>ktol</code>, <code>ctol</code>, and <code>dual_inf_tol</code>.</li>
+  <li>\( \hat r \) is \( r \) projected onto the bounds: \( \hat r_j = r_j \) for a free variable, \( \min(r_j, 0) \) at its lower bound, \( \max(r_j, 0) \) at its upper bound, and \( 0 \) for a fixed variable. (A variable within <code>ctol</code> of a bound is at it.) The bound multipliers are \( z_j = r_j \) at an active bound, so this asks for \( z_j \ge 0 \) at a lower bound and \( z_j \le 0 \) at an upper one.</li>
+  <li>\( d_i \) measures a multiplier of the wrong sign for the bound its constraint is at: \( d_i = \lambda_i \min(1, c_i - c_{lb,i}) \) if \( \lambda_i > 0 \), and \( d_i = -\lambda_i \min(1, c_{ub,i} - c_i) \) if \( \lambda_i < 0 \). So \( \lambda_i > 0 \) is only allowed at the lower bound, and \( \lambda_i < 0 \) only at the upper one. Equality constraints (\( c_{ub,i} - c_{lb,i} \le c_{tol} \)) are left out.</li>
+  <li>\( s_d = \max(100, \lVert \lambda \rVert_1 / m) / 100 \) loosens the test only when the multipliers are large on average (as in IPOPT).</li>
+  <li>\( s_f \) is the objective's scale factor (see <a href="#scaling">Scaling</a>), so the last test is the stationarity of the original problem.</li>
+</ul>
+
+<p>At the end of the solve, <code>results%kkt_error</code> is \( \max(\lVert \hat r \rVert_\infty, \max_i d_i) / s_d \) (of the scaled problem, so it compares directly with <code>ktol</code>), <code>results%stationarity_error</code> is \( \lVert \hat r \rVert_\infty / s_f \), and <code>results%feasibility_error</code> is the left side of the feasibility test, for the original problem. The solver can also stop with <code>sqpopt_acceptable</code> or <code>sqpopt_stalled</code> on looser tests (see <a href="#solver-options">Stopping criteria</a>).</p>
+
+<h3 id="merit-math">Merit functions</h3>
+
+<p>The merit-function line searches (<code>armijo</code>, <code>watchdog</code>, and <code>exact</code>), and the trust region with them, measure progress by one function that combines the objective and the constraint violation (<code>options%merit_mode</code>). The default filter and funnel line searches don't use one.</p>
+
+<div class="math-block">\[
+\begin{aligned}
+\ell_1 \text{ (default):}\quad & \phi(x) = f(x) + \mu \sum_{i=1}^{m} \big( \max(c_{lb,i} - c_i(x), 0) + \max(c_i(x) - c_{ub,i}, 0) \big) \\
+\text{augmented Lagrangian:}\quad & \phi(x) = f(x) - \lambda^T (c(x) - s) + \tfrac{\rho}{2} \lVert c(x) - s \rVert_2^2, \qquad s = \min\big(\max(c(x) - \lambda/\rho,\; c_{lb}),\; c_{ub}\big)
+\end{aligned}
+\]</div>
+
+<p>where the slacks \( s \) minimize the augmented Lagrangian over \( c_{lb} \le s \le c_{ub} \). The penalty parameter (\( \mu \) or \( \rho \), <code>linesearch%merit%penalty</code>, starting at 1) is updated after each QP. By default (<code>penalty_update = sqpopt_penalty_multipliers</code>) it is kept above the QP's multipliers and never decreases:</p>
+
+<div class="math-block">\[
+\mu \leftarrow \max\big(\mu,\; \lVert \lambda_{QP} \rVert_\infty + 1\big)
+\]</div>
+
+<p>With <code>sqpopt_penalty_model</code>, the \( \ell_1 \) penalty instead follows the step's predicted decrease: if the linearized violation decreases by \( \Delta v > 0 \) and \( \mu < (g^Tp + \tfrac12 \max(p^THp, 0)) / ((1 - \rho_p)\, \Delta v) \), with \( \rho_p \) = <code>penalty_rho</code>, then \( \mu \) becomes 1.1 times that. The augmented Lagrangian's rule is described in <a href="#penalty-modes">Penalty updates</a>.</p>
+
+<h3 id="sufficient-decrease">Sufficient decrease</h3>
+
+<p>The <code>armijo</code> and <code>watchdog</code> line searches accept the step length \( \alpha \) when</p>
+
+<div class="math-block">\[
+\phi(x + \alpha p) \le \phi(x) + \sigma\, \alpha \min\big(D\phi(x; p),\, 0\big) + 10\,\varepsilon \max(1, |\phi(x)|)
+\]</div>
+
+<p>with \( \sigma \) = <code>linesearch%sigma</code> (0.1), and a round-off allowance (\( \varepsilon \) the machine epsilon) so that a good step isn't rejected near the solution, where \( \phi \) changes by rounding error. \( D\phi(x; p) \) is the merit function's directional derivative along \( p \). For the \( \ell_1 \) function it is</p>
+
+<div class="math-block">\[
+D\phi(x; p) = g^T p + \mu \, \frac{d}{dt} \Big\lVert \max\big(c_{lb} - (c + tJp),\, 0,\, (c + tJp) - c_{ub}\big) \Big\rVert_1 \Big|_{t = 0^+}
+\]</div>
+
+<p>which is \( g^T p - \mu \lVert \max(c_{lb} - c, 0, c - c_{ub}) \rVert_1 \) when \( p \) satisfies the linearized constraints. The first trial is \( \alpha = 1 \), or less if <code>major_step_limit</code> caps it. A rejected \( \alpha \) is reduced by safeguarded quadratic interpolation, to between \( 0.1\alpha \) and \( 0.5\alpha \) (<code>interpolate</code>, the default), or by the factor <code>backtrack</code>. The search fails below <code>alpha_min</code> or after <code>max_ls_iter</code> trials. If the first trial is rejected without reducing the constraint violation, a <a href="#soc">second-order correction</a> is tried before backtracking. The default filter line search accepts a step by its own test instead (see <a href="#filter-options">Filter</a>).</p>
+
 
 <!-- ============================================================ -->
 <h2 id="configuration">How configuration works</h2>
@@ -1233,7 +1318,7 @@ call problem%set_max_step([0.1_wp, 0.1_wp, sqpopt_infinity, 5.0_wp])   ! (no lim
 </table></div>
 
 <div class="callout">
-<p><strong>Second-order correction.</strong> In every line search, and in the trust region, when the first (full) trial step is rejected without reducing the constraint violation (the signature of the Maratos effect near curved constraints), a second-order-corrected step is tried before backtracking. This is a minimum-norm correction for the true constraint values at the trial point, using the current Jacobian, kept within the bounds. See <code>sqpopt_soc_module</code>.</p>
+<p id="soc"><strong>Second-order correction.</strong> In every line search, and in the trust region, when the first (full) trial step is rejected without reducing the constraint violation (the signature of the Maratos effect near curved constraints), a second-order-corrected step is tried before backtracking. This is a minimum-norm correction for the true constraint values at the trial point, using the current Jacobian, kept within the bounds. See <code>sqpopt_soc_module</code>.</p>
 </div>
 
 <!-- ============================================================ -->
