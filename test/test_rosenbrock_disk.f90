@@ -16,9 +16,13 @@ program test_rosenbrock_disk
     !! with the exact Hessian.
     !!
     !! With the option `--path=FILE`, the iterates of the default solve (the
-    !! iteration, `x`, `y`, the objective, and the constraint's value, one line
-    !! each) are also written to `FILE`, for the figure of the guide's
-    !! Performance page (see `tools/rosenbrock_disk_figure.py`):
+    !! iteration, `x`, `y`, the objective, the constraint's value, and the
+    !! solver's KKT error there, one line each) are also written to `FILE`,
+    !! for the figure of the guide's Performance page (see
+    !! `tools/rosenbrock_disk_figure.py`). The KKT error is the one of the
+    !! solver's convergence test (of the scaled problem), from the per-iteration
+    !! table of its diagnostics (`diagnostic_level = 2`, which doesn't change
+    !! the iterates):
     !!
     !!     fpm test test_rosenbrock_disk -- --path=build/rosenbrock_disk_path.txt
 
@@ -38,6 +42,7 @@ program test_rosenbrock_disk
 
     integer, parameter :: max_path = 200
     real(wp) :: path(4, max_path) !! `x`, `y`, the objective, and the constraint at each iterate
+    real(wp) :: path_kkt(max_path) !! the solver's KKT error at each iterate (with `--path`)
     integer  :: n_path            !! number of iterates recorded
 
     character(len=512) :: arg, path_file
@@ -60,9 +65,10 @@ program test_rosenbrock_disk
     call test('L-BFGS (default)', .false.)
     if (path_file /= '') then
         open(newunit=u, file=trim(path_file), status='replace', action='write')
-        write(u, '(A)') '# iterates of test_rosenbrock_disk (default options): iteration, x, y, objective, x^2 + y^2'
+        write(u, '(A)') '# iterates of test_rosenbrock_disk (default options): iteration, x, y, objective, x^2 + y^2, '// &
+                        'KKT error'
         do i = 1, n_path
-            write(u, '(I4,4ES24.15)') i - 1, path(:, i)
+            write(u, '(I4,5ES24.15)') i - 1, path(:, i), path_kkt(i)
         end do
         close(u)
         print '(A,I0,2A)', 'wrote ', n_path, ' iterates to ', trim(path_file)
@@ -82,7 +88,8 @@ program test_rosenbrock_disk
     type(sqpopt_options_type) :: options
     type(sqpopt_results_type) :: r
     real(wp) :: x(2), lambda(1)
-    integer  :: istat
+    integer  :: istat, u_diag
+    logical  :: record_kkt
 
     call problem%set_problem_size(n=2, m=1)
     call problem%set_bounds(x_lb=[-1.0e20_wp, -1.0e20_wp], x_ub=[1.0e20_wp, 1.0e20_wp], &
@@ -96,9 +103,22 @@ program test_rosenbrock_disk
         call problem%set_functions(fc=fc, gjac=gjac)
     end if
 
+    ! (with `--path`, the default solve also records the solver's KKT error at each iterate)
+    record_kkt = path_file /= '' .and. .not. exact
+    if (record_kkt) then
+        open(newunit=u_diag, status='scratch', action='readwrite', form='formatted')
+        options%diagnostic_level = 2
+        options%diagnostics_unit = u_diag
+    end if
+
     n_path = 0
+    path_kkt = -1.0_wp
     call solver%initialize(problem=problem, options=options, report=report)
     call solver%solve([-1.2_wp, 1.0_wp], istat)
+    if (record_kkt) then
+        call read_kkt(u_diag)
+        close(u_diag)
+    end if
     call solver%get_solution(x, lambda)
     call solver%get_results(r)
 
@@ -149,6 +169,25 @@ program test_rosenbrock_disk
     hess_val = [1200.0_wp*x(1)**2 - 400.0_wp*x(2) + 2.0_wp - 2.0_wp*lambda(1), -400.0_wp*x(1), &
                 200.0_wp - 2.0_wp*lambda(1)]
     end subroutine hess
+
+    subroutine read_kkt(u)
+    !! read the KKT error of each iteration from the diagnostics' table (see
+    !! [[sqpopt_diagnostics_module]]): its row `k` is for the point at the start of
+    !! iteration `k`, the iterate `k-1` of the path
+    integer, intent(in) :: u !! the unit the diagnostics wrote to (rewound here)
+    character(len=1024) :: line
+    real(wp) :: f, feas, kkt
+    integer :: k, ios
+    rewind(u)
+    read(u, '(A)', iostat=ios) line   ! (the header)
+    do
+        read(u, '(A)', iostat=ios) line
+        if (ios /= 0) exit
+        read(line, *, iostat=ios) k, f, feas, kkt
+        if (ios /= 0) cycle
+        if (k >= 1 .and. k <= max_path) path_kkt(k) = kkt
+    end do
+    end subroutine read_kkt
 
     subroutine report(iter, x, f, c, lambda, user_stop, data)
     !! record the iterate

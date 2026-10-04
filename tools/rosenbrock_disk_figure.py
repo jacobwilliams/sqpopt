@@ -7,7 +7,7 @@ follows the light and dark themes. It is written into the page between the lines
 
     <!-- rosenbrock-disk-figure:begin -->  ...  <!-- rosenbrock-disk-figure:end -->
 
-together with a table of the iterates. Run from the repository root:
+together with a table of the iterates (with the solver's KKT error at each). Run from the repository root:
 
     pixi run fpm test test_rosenbrock_disk -- --path=build/rosenbrock_disk_path.txt
     pixi run python tools/rosenbrock_disk_figure.py
@@ -58,6 +58,12 @@ def number(v, digits=4):
     return f'{v:.{digits}f}'.replace('-', '−')
 
 
+def power(v):
+    """a positive number in scientific notation, as m × 10^e (HTML)"""
+    m, e = f'{v:.1e}'.split('e')
+    return f'{m}&nbsp;&times;&nbsp;10<sup>{int(e)}</sup>'.replace('-', '−')
+
+
 def panel_svg(p, path, title, zoom_of=None, zoom_box=None):
     """the SVG of one panel. `path` is the array of the iterates (iteration, x, y, f, c)"""
     w = MARGIN['left'] + SIZE + MARGIN['right']
@@ -102,10 +108,10 @@ def panel_svg(p, path, title, zoom_of=None, zoom_box=None):
     # the path, and a point for each iterate (with its values as a tooltip)
     out.append(f'<polyline class="rd-path" points="{p.points(path[:, 1], path[:, 2])}"/>')
     last = len(path) - 1
-    for k, (it, x, y, f, c) in enumerate(path):
+    for k, (it, x, y, f, c, kkt) in enumerate(path):
         if not p.inside(x, y):
             continue
-        tip = f'iteration {int(it)}: x = {number(x)}, y = {number(y)}, f = {f:.4g}, x² + y² = {c:.4f}'
+        tip = f'iteration {int(it)}: x = {number(x)}, y = {number(y)}, f = {f:.4g}, x² + y² = {c:.4f}, KKT error = {kkt:.1e}'
         if k == last:
             s = 7.5   # (the solution: a diamond)
             out.append(f'<path class="rd-solution" d="M{p.px(x):.1f},{p.py(y) - s:.1f}l{s},{s}l{-s},{s}l{-s},{-s}z">'
@@ -151,13 +157,14 @@ def main():
                    ('solution', (x_end + 0.12, y_end - 0.04), 'start', ''),
                    ('x² + y² = 1', (-0.40, 0.56), 'middle', ''),
                    ('outside the disk', (-1.02, -1.25), 'middle', 'rd-muted')]
-    near.notes = [(str(int(it)), (x - 0.0022, y + 0.0002), 'end', '') for it, x, y, f, c in path[5:9]]
+    near.notes = [(str(int(it)), (x - 0.0022, y + 0.0002), 'end', '') for it, x, y, f, c, kkt in path[5:9]]
     near.notes += [('9', (path[9, 1] + 0.0022, path[9, 2] + 0.0014), 'start', ''),
                    ('solution (10\u201312)', (x_end - 0.003, y_end - 0.0035), 'end', ''),
                    ('outside the disk', (0.7955, 0.6125), 'middle', 'rd-muted')]
 
     rows = '\n'.join(f'<tr><td class="num">{int(it)}</td><td class="num">{number(x, 6)}</td><td class="num">{number(y, 6)}</td>'
-                     f'<td class="num">{f:.6f}</td><td class="num">{c:.6f}</td></tr>' for it, x, y, f, c in path)
+                     f'<td class="num">{f:.6f}</td><td class="num">{c:.6f}</td><td class="num">{power(kkt)}</td></tr>'
+                     for it, x, y, f, c, kkt in path)
     fragment = f'''{BEGIN}
 <div class="rd-panels">
 <figure>
@@ -173,11 +180,12 @@ def main():
 <details class="rd-data">
 <summary>The iterates as a table</summary>
 <div class="table-wrap"><table class="bench compact">
-<thead><tr><th class="num">iteration</th><th class="num">x</th><th class="num">y</th><th class="num">objective</th><th class="num">x&sup2; + y&sup2;</th></tr></thead>
+<thead><tr><th class="num">iteration</th><th class="num">x</th><th class="num">y</th><th class="num">objective</th><th class="num">x&sup2; + y&sup2;</th><th class="num">KKT error</th></tr></thead>
 <tbody>
 {rows}
 </tbody>
 </table></div>
+<p class="small">The KKT error is the one of the solver's <a href="index.html#optimality-test">optimality test</a>, for the scaled problem (the objective is scaled at the starting point so that its largest gradient element is 100, which is the first row's error): the solver stops when it is below <code>ktol</code> (10<sup>−6</sup>) and the constraint is satisfied to <code>ctol</code>.</p>
 </details>
 {END}'''
 
