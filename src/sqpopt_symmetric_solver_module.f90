@@ -3,7 +3,7 @@
 !  license: MIT
 !
 !  A direct solver for symmetric indefinite linear systems
-!  \( A x = b \), with one of three backends
+!  \( A x = b \), with one of four backends
 !  (`options%linear_solver`), each in a module of its own, behind the
 !  interface of [[sqpopt_sparse_ldl_module]]:
 !
@@ -15,12 +15,15 @@
 !  * `sqpopt_linear_solver_dense` (opt-in): the matrix as a dense array
 !    ([[sqpopt_dense_ldl_module]]), with pivoting and the exact inertia, for
 !    small matrices only (\( O(n^3) \) per factorization; it refuses an
-!    order above `dense_max_order`).
+!    order above `dense_max_order`, see [[sqpopt_linear_solver_max_order]]);
+!  * `sqpopt_linear_solver_lapack` (opt-in): the same dense matrix, factored
+!    by LAPACK's `DSYTRF` ([[sqpopt_lapack_ldl_type]]), in a library built
+!    with LAPACK (`sqpopt_has_lapack`).
 !
 !  This module chooses the backend, and does what is the same for both:
 !  the iterative refinement of the solves, the counts, and the timing.
 !
-!  **Which one.** Measured (release; see the user guide's "Sparse solver"
+!  **Which one.** Measured (release; see the user guide's "Linear solver"
 !  section): on the banded and chained problems of
 !  `example/benchmark_large.f90` (5,000 to 1,000,000 variables) both take
 !  the same iterations, and QDLDL's factorizations take 7 to 30 times less
@@ -36,7 +39,7 @@
 !  choice for the exact Hessian with inertia control, and for problems
 !  coupled in two or three dimensions that refactor many times. For a small
 !  problem with the exact Hessian and inertia control, the dense backend
-!  gives MUMPS's results (on the Hock-Schittkowski problems, 9,452
+!  gives MUMPS's results (on the Hock-Schittkowski problems, 9,426
 !  evaluations against MUMPS's 9,400 and QDLDL's 13,654) at QDLDL's speed.
 !
 !  How it is used:
@@ -67,13 +70,15 @@
     use sqpopt_sparse_ldl_module, only: sqpopt_sparse_ldl_type
     use sqpopt_qdldl_ldl_module, only: sqpopt_qdldl_ldl_type
     use sqpopt_mumps_ldl_module, only: sqpopt_mumps_ldl_type, sqpopt_has_mumps
-    use sqpopt_dense_ldl_module, only: sqpopt_dense_ldl_type
+    use sqpopt_dense_ldl_module, only: sqpopt_dense_ldl_type, sqpopt_lapack_ldl_type, sqpopt_has_lapack, &
+                                       dense_max_order
 
     implicit none
 
     private
 
     public :: sqpopt_has_mumps   ! (from [[sqpopt_mumps_ldl_module]])
+    public :: sqpopt_has_lapack  ! (from [[sqpopt_dense_ldl_module]])
 
     ! the sparse solvers (`options%linear_solver`):
     integer, parameter, public :: sqpopt_linear_solver_mumps = 1 !! MUMPS (needs a library built with it)
@@ -81,8 +86,10 @@
                                                                  !! module documentation)
     integer, parameter, public :: sqpopt_linear_solver_dense = 3 !! dense, for small matrices (always available;
                                                                  !! see [[sqpopt_dense_ldl_module]])
+    integer, parameter, public :: sqpopt_linear_solver_lapack = 4 !! dense, factored by LAPACK's `DSYTRF`, for small
+                                                                  !! matrices (needs a library built with LAPACK)
 
-    public :: sqpopt_linear_solver_available, sqpopt_linear_solver_name
+    public :: sqpopt_linear_solver_available, sqpopt_linear_solver_name, sqpopt_linear_solver_max_order
 
     type, public :: sqpopt_symmetric_solver_type
         !! a sparse symmetric indefinite solver for matrices with one sparsity
@@ -136,11 +143,33 @@
         available = .true.
     case (sqpopt_linear_solver_mumps)
         available = sqpopt_has_mumps
+    case (sqpopt_linear_solver_lapack)
+        available = sqpopt_has_lapack
     case default
         available = .false.
     end select
 
     end function sqpopt_linear_solver_available
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the largest order of matrix that the solver `solver` (a
+!  `sqpopt_linear_solver_*` value) accepts: `dense_max_order` for the dense
+!  solvers, and `huge(1)` (no limit) for the sparse ones.
+
+    pure integer function sqpopt_linear_solver_max_order(solver) result(max_order)
+
+    integer, intent(in) :: solver !! the solver (`sqpopt_linear_solver_*`)
+
+    select case (solver)
+    case (sqpopt_linear_solver_dense, sqpopt_linear_solver_lapack)
+        max_order = dense_max_order
+    case default
+        max_order = huge(1)
+    end select
+
+    end function sqpopt_linear_solver_max_order
 !*******************************************************************************
 
 !*******************************************************************************
@@ -158,6 +187,8 @@
         name = 'MUMPS'
     case (sqpopt_linear_solver_dense)
         name = 'dense'
+    case (sqpopt_linear_solver_lapack)
+        name = 'LAPACK'
     case default
         name = 'QDLDL'
     end select
@@ -205,6 +236,8 @@
         allocate(sqpopt_mumps_ldl_type :: me%ldl, stat=alloc_stat)
     case (sqpopt_linear_solver_dense)
         allocate(sqpopt_dense_ldl_type :: me%ldl, stat=alloc_stat)
+    case (sqpopt_linear_solver_lapack)
+        allocate(sqpopt_lapack_ldl_type :: me%ldl, stat=alloc_stat)
     case default
         allocate(sqpopt_qdldl_ldl_type :: me%ldl, stat=alloc_stat)
     end select

@@ -46,8 +46,8 @@ program test_direct
     use sqpopt_qp_solver_module, only: sqpopt_qp_auto, sqpopt_qp_reduced_hessian
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
     use sqpopt_symmetric_solver_module, only: sqpopt_has_mumps, sqpopt_linear_solver_mumps, &
-                                              sqpopt_linear_solver_qdldl, sqpopt_linear_solver_dense, &
-                                              sqpopt_linear_solver_name
+                                              sqpopt_linear_solver_qdldl, sqpopt_linear_solver_dense, sqpopt_linear_solver_lapack, &
+                                              sqpopt_linear_solver_available, sqpopt_linear_solver_name
     use sqpopt_types_module,     only: sqpopt_success, sqpopt_acceptable, sqpopt_stalled, sqpopt_invalid_input, &
                                        sqpopt_results_type, sqpopt_sparse_matrix, sqpopt_out_of_memory
     use sqpopt_kinds,            only: wp => sqpopt_module_wp
@@ -87,8 +87,9 @@ program test_direct
 
     integer :: i, k
     integer :: linear_solver !! the sparse solver of the runs (`options%linear_solver`)
-    integer, dimension(3), parameter :: solver_order = [sqpopt_linear_solver_qdldl, sqpopt_linear_solver_dense, &
-                                                        sqpopt_linear_solver_mumps] !! (MUMPS last: only in a build with it)
+    integer, dimension(4), parameter :: solver_order = [sqpopt_linear_solver_qdldl, sqpopt_linear_solver_dense, &
+                                                        sqpopt_linear_solver_lapack, sqpopt_linear_solver_mumps]
+                                                        !! (those not in this build are skipped)
 
     write(*,*) '----------------------------'
     write(*,*) 'test_direct'
@@ -96,16 +97,18 @@ program test_direct
 
     call test_direct_step()
     ! (with each sparse solver of the build: QDLDL, the default, dense, and MUMPS)
-    do k = 1, merge(3, 2, sqpopt_has_mumps)
+    do k = 1, size(solver_order)
+        if (.not. sqpopt_linear_solver_available(solver_order(k))) cycle
         linear_solver = solver_order(k)
         print '(2A)', 'sparse solver: ', sqpopt_linear_solver_name(linear_solver)
         do i = 1, size(configs)
             call run('hs71', configs(i))
             call run('maratos', configs(i))
-            ! (not with the dense solver: the KKT matrix of `circles` has order 3,999,
-            ! above the dense solver's limit, so the options would fall back on the
-            ! matrix-free methods)
-            if (linear_solver /= sqpopt_linear_solver_dense) call run('circles', configs(i))
+            ! (not with the dense solvers: the KKT matrix of `circles` has order 3,999,
+            ! above their limit, so the options would fall back on the matrix-free methods)
+            if (all(linear_solver /= [sqpopt_linear_solver_dense, sqpopt_linear_solver_lapack])) then
+                call run('circles', configs(i))
+            end if
         end do
     end do
     if (sqpopt_has_mumps) then

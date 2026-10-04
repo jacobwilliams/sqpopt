@@ -1951,6 +1951,82 @@ which is now double precision only.
   exact; the differences come from singular faces). The guide's "Options
   that form dense matrices" lists it with the dense QP and `dense_max_ns`.
 
+- **F29: LAPACK `DSYTRF` in the dense backend** *(done 2026-10-03)*.
+  `options%linear_solver = sqpopt_linear_solver_lapack` (opt-in, and only
+  with the `HAS_LAPACK` preprocessor directive; `sqpopt_has_lapack`):
+  `sqpopt_lapack_ldl_type` extends the dense backend, factors the dense KKT
+  matrix with `DSYTRF` (Bunch–Kaufman, lower triangle) and solves with
+  `DSYTRS`. The inertia comes from D's 1×1 and 2×2 blocks (a 1×1 pivot
+  below `1e-5*epsilon*max|a|` is null and replaced by a large pivot; a
+  singular 2×2 block switches the solves to the dense backend's null-safe
+  LU). The same limit (order 2,000). HS suite (solved/local/failed, `fc`,
+  time): exact + inertia 273/30/2 9,426 1.5 s; + direct 276/28/1 10,060
+  1.2 s (the best of every solver); SR1 + inertia 274/27/4 10,454 (as QDLDL
+  and MUMPS; the hand-written dense was 273/29/3 12,868); L-BFGS + direct
+  279/26/0 9,493; direct-ls 278/26/1 9,012. `sparse_solvers --small`: a
+  refactorization of order 1,728 to 1,944 took 0.07–0.15 s against the
+  dense backend's 2.9–5.2 s (20 to 60 times faster), but QDLDL and MUMPS
+  take about 1 ms on those sparse matrices. pixi tasks `build-lapack`,
+  `test-lapack`, `run-lapack` (`-llapack -lblas`).
+  *Then the hand-written dense backend was rewritten (2026-10-03).* It had
+  been slow for avoidable reasons: two factorizations per matrix (a
+  Householder tridiagonalization for the inertia, ~4n³/3 flops, and an LU
+  for the solves, ~2n³/3), with the LU's loops along rows (stride n in
+  column-major storage). Both were replaced by one Bunch–Kaufman LDLᵀ
+  (`dense_ldl_factor`/`dense_ldl_solve` in `sqpopt_dense_linalg_module`,
+  LAPACK's `DSYTF2`/`DSYTRS` algorithm and storage, loops down the
+  columns, ~n³/3 flops). Both dense backends now share everything but
+  their factor and solve calls: the inertia and the null-eigenvalue
+  handling (`count_inertia`, on `D`'s blocks) are common, and the LU
+  fallback is gone. Results: a refactorization of order 1,936 takes 0.20 s
+  (it took 3.95 s; LAPACK 0.08–0.17 s), and the HS counts now match
+  LAPACK's up to rounding: exact + inertia 273/30/2 9,426; + direct
+  276/28/1 9,381; SR1 + inertia 274/27/4 10,454 (the old 273/29/3 12,868
+  came from the two factorizations' disagreeing on nearly singular
+  matrices); L-BFGS + direct 279/26/0 9,604; direct-ls 278/26/1 9,026.
+  *And a problem too large for the dense solvers is now invalid input*
+  (`validate_options`, through `sqpopt_linear_solver_max_order`), when a
+  factorization option is on, instead of silently falling back on the
+  matrix-free methods.
+- **F30: speed of the dense QP solver, with LAPACK or with updated
+  factors** *(idea, not started; discussed 2026-10-03)*. The dense QP
+  (`sqpopt_qp_dense_module`) is the default for `n <= auto_dense_max_n`
+  (200), so it solves every HS problem's QPs, and is probably most of the
+  HS suite's time. Every active-set iteration rebuilds everything from
+  scratch: the null space `Z` of the working set (`dense_null_space`:
+  Householder QR of `A^T`, forming the full `n x n` `Q`), the reduced
+  Hessian `Z^T H Z` (two `matmul`s, about `2n^3` flops), and its Cholesky
+  factor (`dense_cholesky_curvature`, `dense_modified_cholesky`,
+  `dense_solve_cholesky`). Steps, in order:
+  1. *Profile* the HS suite (`gprof`, or timers) to confirm that the dense
+     QP dominates, and how its time splits between the null space, the
+     `matmul`s, and the Cholesky factors.
+  2. *`-fexternal-blas`*: gfortran then makes the `matmul` intrinsic call
+     BLAS's `DGEMM`. Build the HS suite with `--flag "-fexternal-blas"
+     --link-flag "-lblas"`: no code change, and it measures the `DGEMM`
+     share at once.
+  3. *LAPACK kernels* behind `HAS_LAPACK` (as F29), inside
+     `sqpopt_dense_linalg_module`, so the QP's code doesn't change:
+     `DGEQRF` + `DORGQR` (or `DORMQR`, without forming `Q`) for the null
+     space, `DGEMM`/`DSYMM` for `Z^T H Z`, `DPOTRF`/`DPOTRS` for the
+     Cholesky factors (the curvature test needs care: it reports where
+     positive definiteness ends, which `DPOTRF`'s `info` only partly
+     gives).
+  4. *Updated factors*, probably the larger gain, with or without LAPACK:
+     one row joins or leaves the working set per iteration, so the QR and
+     Cholesky factors can be updated in `O(n^2)` (Givens rotations, as
+     QPOPT and SNOPT do) instead of refactored in `O(n^3)`. Related to F17
+     (the same for the sparse QP's reduced Hessian).
+  If the dense QP becomes much faster, re-measure `auto_dense_max_n`.
+  *Not worth comparing with LAPACK* (checked 2026-10-03): the compact
+  Hessian's middle matrix (`sqpopt_hessian_module`, order twice the
+  L-BFGS memory, 10 to 20) and the KKT module's quasi-Newton correction
+  (`dense_symmetric_inertia`, `dense_lu_factor` on matrices of that
+  order), where LAPACK's call overhead would match its gain; the sparse
+  QP's dense reduced Hessian (`dense_max_ns = 50`); LUSOL and LSQR (sparse
+  and iterative, not dense kernels); and the order-`n` vector operations of
+  the merit, line search, and restoration (memory-bound).
+
 ## 6. Testing and infrastructure
 
 - **CUTEst benchmark: performance profiles and false infeasibility**

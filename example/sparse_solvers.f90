@@ -9,7 +9,7 @@ program sparse_solvers
     !! major iteration costs), and a solve with iterative refinement, and
     !! checks the residual. Without MUMPS, only QDLDL is run.
     !!
-    !!    fpm run --example sparse_solvers --profile release -- [--threads=T] [--max-n=N] [--matrix=NAME]
+    !!    fpm run --example sparse_solvers --profile release -- [--threads=T] [--max-n=N] [--matrix=NAME] [--small]
     !!
     !! or, with MUMPS (see the README):
     !!
@@ -19,7 +19,9 @@ program sparse_solvers
     !! thread only); `--max-n=N` skips matrices of order above `N`, and
     !! `--matrix=NAME` runs only the matrices of that kind (`grid2`, `grid3`,
     !! `kkt2`, or `kkt3`). Without `--max-n`, the largest 3-D matrices take
-    !! QDLDL minutes.
+    !! QDLDL minutes. `--small` runs smaller matrices instead (orders of about
+    !! 400 to 2,000), with the dense solver too, and LAPACK's in a library
+    !! built with it (`pixi run run-lapack ...`).
     !!
     !! The matrices (`N` points per side):
     !!
@@ -32,7 +34,8 @@ program sparse_solvers
     !!   discretized derivative), with each constraint's row ordered after its
     !!   variables, as the KKT matrices of the solver are.
 
-    use sqpopt_symmetric_solver_module, only: sqpopt_symmetric_solver_type, sqpopt_has_mumps, &
+    use sqpopt_symmetric_solver_module, only: sqpopt_symmetric_solver_type, sqpopt_has_mumps, sqpopt_has_lapack, &
+                                              sqpopt_linear_solver_dense, sqpopt_linear_solver_lapack, &
                                               sqpopt_linear_solver_qdldl, sqpopt_linear_solver_mumps, &
                                               sqpopt_linear_solver_name
     use sqpopt_kinds, only: wp => sqpopt_module_wp
@@ -43,10 +46,12 @@ program sparse_solvers
     integer :: threads, max_n, i, ios
     character(len=64) :: arg
     character(len=:), allocatable :: only !! `--matrix` (empty: all of them)
+    logical :: small !! `--small`
 
     threads = 1
     max_n = huge(1)
     only = ''
+    small = .false.
     do i = 1, command_argument_count()
         call get_command_argument(i, arg)
         if (arg(1:10) == '--threads=') then
@@ -55,6 +60,8 @@ program sparse_solvers
         else if (arg(1:8) == '--max-n=') then
             read(arg(9:), *, iostat=ios) max_n
             if (ios /= 0 .or. max_n < 1) error stop 'sparse_solvers: bad --max-n value'
+        else if (arg == '--small') then
+            small = .true.
         else if (arg(1:9) == '--matrix=') then
             only = trim(arg(10:))
         else
@@ -64,15 +71,26 @@ program sparse_solvers
 
     write(*,'(A8,A9,A10,2X,A14,4A10,A10)') 'matrix', 'order', 'nonzeros', 'solver', 'start', 'factor 1', &
         'factor 2', 'solve', 'residual'
-    call run_all('grid2', 2, 300)
-    call run_all('grid2', 2, 700)
-    call run_all('kkt2',  2, 300)
-    call run_all('kkt2',  2, 700)
-    call run_all('grid3', 3, 30)
-    call run_all('grid3', 3, 50)
-    call run_all('grid3', 3, 60)
-    call run_all('kkt3',  3, 30)
-    call run_all('kkt3',  3, 50)
+    if (small) then
+        call run_all('grid2', 2, 20)
+        call run_all('grid2', 2, 30)
+        call run_all('grid2', 2, 44)
+        call run_all('kkt2',  2, 16)
+        call run_all('kkt2',  2, 24)
+        call run_all('kkt2',  2, 36)
+        call run_all('grid3', 3, 8)
+        call run_all('grid3', 3, 12)
+    else
+        call run_all('grid2', 2, 300)
+        call run_all('grid2', 2, 700)
+        call run_all('kkt2',  2, 300)
+        call run_all('kkt2',  2, 700)
+        call run_all('grid3', 3, 30)
+        call run_all('grid3', 3, 50)
+        call run_all('grid3', 3, 60)
+        call run_all('kkt3',  3, 30)
+        call run_all('kkt3',  3, 50)
+    end if
 
     contains
 
@@ -88,6 +106,10 @@ program sparse_solvers
     call build(name(1:3) == 'kkt', dims, npts, n, irow, icol, val, signs)
     if (n > max_n) return
     call run(name, n, irow, icol, val, signs, sqpopt_linear_solver_qdldl, 1)
+    if (small) then
+        call run(name, n, irow, icol, val, signs, sqpopt_linear_solver_dense, 1)
+        if (sqpopt_has_lapack) call run(name, n, irow, icol, val, signs, sqpopt_linear_solver_lapack, 1)
+    end if
     if (sqpopt_has_mumps) then
         call run(name, n, irow, icol, val, signs, sqpopt_linear_solver_mumps, 1)
         if (threads > 1) call run(name, n, irow, icol, val, signs, sqpopt_linear_solver_mumps, threads)

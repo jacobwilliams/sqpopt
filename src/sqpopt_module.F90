@@ -48,7 +48,8 @@
     use sqpopt_kkt_module,        only: sqpopt_kkt_type
     use sqpopt_least_squares_module,    only: sqpopt_least_squares_type
     use sqpopt_symmetric_solver_module, only: sqpopt_linear_solver_available, sqpopt_linear_solver_name, &
-                                              sqpopt_linear_solver_mumps
+                                              sqpopt_linear_solver_max_order, &
+                                              sqpopt_linear_solver_mumps, sqpopt_linear_solver_lapack
     use sqpopt_diagnostics_module,      only: sqpopt_diagnostics_type, sqpopt_diagnostics_write
 
     implicit none
@@ -987,9 +988,23 @@
         if (o%linear_solver == sqpopt_linear_solver_mumps) then
             msg = 'options%linear_solver = sqpopt_linear_solver_mumps requires a library built with MUMPS '// &
                   '(the HAS_MUMPS preprocessor directive)'
+        else if (o%linear_solver == sqpopt_linear_solver_lapack) then
+            msg = 'options%linear_solver = sqpopt_linear_solver_lapack requires a library built with LAPACK '// &
+                  '(the HAS_LAPACK preprocessor directive)'
         else
             msg = 'options%linear_solver is not a valid sqpopt_linear_solver_* value'
         end if
+        return
+    end if
+    ! (the factorizations' matrices have the order n+m: a solver with a size limit, the
+    ! dense ones, is refused here rather than left unused)
+    if (((o%inertia_control .and. o%hessian_mode /= sqpopt_hessian_bfgs) .or. o%direct_qp .or. &
+         (o%direct_least_squares .and. me%problem%m > 0)) .and. &
+        me%problem%n + me%problem%m > sqpopt_linear_solver_max_order(o%linear_solver)) then
+        msg = 'options%linear_solver: the '//sqpopt_linear_solver_name(o%linear_solver)// &
+              ' solver is limited to matrices of order '//fmt_i(sqpopt_linear_solver_max_order(o%linear_solver))// &
+              ' (this problem''s are of order n+m = '//fmt_i(me%problem%n + me%problem%m)// &
+              '): use sqpopt_linear_solver_qdldl'
         return
     end if
     if (o%factorization_threads < 0) then
