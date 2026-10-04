@@ -11,7 +11,8 @@ program test_input_validation
     use sqpopt_options_module, only: sqpopt_options_type
     use sqpopt_hessian_module, only: sqpopt_hessian_exact
     use sqpopt_symmetric_solver_module, only: sqpopt_has_mumps, sqpopt_linear_solver_mumps, sqpopt_has_lapack, &
-                                              sqpopt_linear_solver_lapack
+                                              sqpopt_linear_solver_lapack, sqpopt_linear_solver_dense, &
+                                              sqpopt_linear_solver_max_order
     use sqpopt_types_module,   only: sqpopt_invalid_input, sqpopt_success
     use sqpopt_linesearch_module,   only: sqpopt_linesearch_type
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
@@ -122,6 +123,21 @@ program test_input_validation
     options = sqpopt_options_type()
     options%linear_solver = 99
     call expect_invalid('linear_solver', problem, options, [0.0_wp, 0.0_wp])
+    block
+        ! (a dense solver, with a factorization option, on a problem too large for it)
+        type(sqpopt_problem_type) :: p3
+        integer :: n3
+        real(wp), dimension(:), allocatable :: x3
+        n3 = sqpopt_linear_solver_max_order(sqpopt_linear_solver_dense) + 1
+        allocate(x3(n3), source=0.0_wp)
+        call p3%set_problem_size(n=n3, m=0)
+        call p3%set_bounds(x3 - 2.0_wp, x3 + 2.0_wp, [real(wp) ::], [real(wp) ::])
+        call p3%set_functions(fc=fc_obj_cons, gjac=gjac_grad_jacv)
+        options = sqpopt_options_type()
+        options%linear_solver = sqpopt_linear_solver_dense
+        options%direct_qp = .true.
+        call expect_invalid('linear_solver = dense, n+m above its limit', p3, options, x3)
+    end block
     block
         type(sqpopt_problem_type) :: p2
         call valid_problem(p2)

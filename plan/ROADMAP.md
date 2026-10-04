@@ -1984,6 +1984,10 @@ which is now double precision only.
   276/28/1 9,381; SR1 + inertia 274/27/4 10,454 (the old 273/29/3 12,868
   came from the two factorizations' disagreeing on nearly singular
   matrices); L-BFGS + direct 279/26/0 9,604; direct-ls 278/26/1 9,026.
+  *And a problem too large for the dense solvers is now invalid input*
+  (`validate_options`, through `sqpopt_linear_solver_max_order`), when a
+  factorization option is on, instead of silently falling back on the
+  matrix-free methods.
 
 ## 6. Testing and infrastructure
 

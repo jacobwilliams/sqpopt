@@ -11,8 +11,9 @@
 !  QDLDL, it always knows the inertia, also of a Hessian with zeros on its
 !  diagonal, and, unlike MUMPS, it has almost no overhead per call. But
 !  each factorization costs \( O(n^3) \): it is meant for small matrices,
-!  and refuses to start above `dense_max_order` (the factorization options
-!  then fall back on the matrix-free methods). There are two:
+!  and refuses to start above `dense_max_order` (which `solve` checks
+!  first: a larger problem is invalid input with these solvers, see
+!  `sqpopt_linear_solver_max_order`). There are two:
 !
 !  * [[sqpopt_dense_ldl_type]] (`options%linear_solver =
 !    sqpopt_linear_solver_dense`): SQPOPT's own factorization,

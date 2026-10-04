@@ -112,8 +112,8 @@
                                                    !! `sqpopt_linear_solver_mumps` (with pivoting and threads; a
                                                    !! library built with MUMPS), `sqpopt_linear_solver_dense`
                                                    !! (opt-in: forms the KKT matrix as a dense array, of order
-                                                   !! `n+m`, so for small problems only; it refuses an order above
-                                                   !! 2,000, see [[sqpopt_dense_ldl_module]]), or
+                                                   !! `n+m`, so for small problems only; above an order of 2,000
+                                                   !! it is invalid input, see [[sqpopt_dense_ldl_module]]), or
                                                    !! `sqpopt_linear_solver_lapack` (the same dense matrix,
                                                    !! factored by LAPACK's `DSYTRF`: much faster near that limit;
                                                    !! a library built with LAPACK). QDLDL is exact for the least-squares

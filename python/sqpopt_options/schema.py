@@ -506,7 +506,7 @@ TOPICS: tuple[Topic, ...] = (
                'shifts it more than needed: about 45% more evaluations on the HS problems), and for problems '
                'coupled in two or three dimensions, whose factors are dense (MUMPS refactored 3-D grid matrices '
                '9 to 34 times faster, and can use threads). Dense (opt-in) forms the KKT matrix as a dense array, of '
-               'order n+m, so it is for small problems only (it refuses an order above 2,000): there, with the exact '
+               'order n+m, so it is for small problems only (above n+m = 2,000 it is invalid input): there, with the exact '
                'Hessian and inertia_control, it gives MUMPS\'s results at QDLDL\'s speed. LAPACK (a library built with '
                'HAS_LAPACK) does the same factorization with DSYTRF: the same algorithm (results differ only by rounding), and up to 2.4 times faster '
                'near the size limit.',
