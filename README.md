@@ -284,12 +284,13 @@ Fetched and built by fpm:
 - [LSQR](https://github.com/jacobwilliams/LSQR): iterative sparse least-squares solver
 - [lusol](https://github.com/jacobwilliams/lusol): sparse LU factorization (the sparse QP's basis factors and updates)
 - [fmin](https://github.com/jacobwilliams/fmin): derivative-free 1-D minimization (the exact line search)
-- [qdldl-fortran](https://github.com/jacobwilliams/qdldl-fortran): sparse LDLᵀ factorization without pivoting (the default sparse solver without MUMPS)
+- [qdldl-fortran](https://github.com/jacobwilliams/qdldl-fortran): sparse LDLᵀ factorization without pivoting (the default linear solver, in every build)
 - [slsqp](https://github.com/jacobwilliams/slsqp) (tests only): the SLSQP comparison
 
-Optional, from the pixi environment (see "Sparse factorizations"):
+Optional, from the pixi environment (see "Sparse factorizations" and "LAPACK"):
 
 - [MUMPS](https://mumps-solver.org): sparse symmetric indefinite factorization (inertia control, the direct QP method, and direct least-squares solves)
+- [LAPACK](https://www.netlib.org/lapack/) and BLAS: the dense Bunch–Kaufman LDLᵀ factorization `DSYTRF`, for the dense linear solver `sqpopt_linear_solver_lapack`
 
 ## License
 
