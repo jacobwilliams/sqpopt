@@ -719,6 +719,82 @@ print(res.x, res.fun, res.message)</code></pre>
 
 <p>This section gives the equations of one major iteration, which many of the options below refer to. They are written for the <em>scaled</em> problem (see <a href="#scaling">Scaling</a>): \( f \), \( c \), their derivatives, and \( \lambda \) are scaled, and the results are converted back to the original problem.</p>
 
+<p>Each major iteration does five things. The labels under each block are the options that choose how it is done (they link to their sections):</p>
+
+<div class="iter-diagram" role="group" aria-label="One major iteration">
+  <div class="iter-start"><span class="iter-pill">start: \( x_0 \), scaled once (<a href="#scaling"><code>scaling</code></a>)</span></div>
+
+  <div class="iter-step">
+    <div class="iter-num">1</div>
+    <div class="iter-body">
+      <div class="iter-title">Evaluate at \( x_k \)</div>
+      <div class="iter-desc">\( f \), \( c \) (<code>fc</code>); \( \nabla f \), \( J \) (<code>gjac</code>); and the Hessian: \( \nabla^2_{xx}L \) (<code>hess</code>), or a quasi-Newton update from the last step</div>
+      <div class="iter-opts">
+        <a class="iter-opt" href="#hessian">hessian_mode: bfgs | sr1 | exact</a>
+        <a class="iter-opt" href="#fast-derivatives">derivative_accuracy</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="iter-step">
+    <div class="iter-num">2</div>
+    <div class="iter-body">
+      <div class="iter-title">Optimality test</div>
+      <div class="iter-desc">stationarity and complementarity \( \le \) <code>ktol</code>, violation \( \le \) <code>ctol</code> (<a href="#optimality-test">details</a>)</div>
+      <div class="iter-opts">
+        <a class="iter-opt" href="#solver-options">ktol, ctol, dual_inf_tol</a>
+        <a class="iter-opt" href="#solver-options">acceptable_*, ftol, xtol</a>
+        <a class="iter-opt" href="#solver-options">max_iter, max_evals, max_time</a>
+      </div>
+    </div>
+    <a class="iter-exit iter-exit-ok" href="#status-codes">converged or a limit: stop</a>
+  </div>
+
+  <div class="iter-step">
+    <div class="iter-num">3</div>
+    <div class="iter-body">
+      <div class="iter-title">Solve the QP subproblem for \( p \), \( \lambda_{QP} \)</div>
+      <div class="iter-desc">\( \min\, g^Tp + \tfrac12 p^THp \) subject to the linearized constraints and the bounds (<a href="#qp-subproblem">details</a>); elastic if they are inconsistent</div>
+      <div class="iter-opts">
+        <a class="iter-opt" href="#unconstrained-step">unconstrained_step</a>
+        <a class="iter-opt" href="#direct-qp">direct_qp</a>
+        <a class="iter-opt" href="#qp-modes">qp_solver_mode: dense | sparse</a>
+        <a class="iter-opt" href="#inertia-control">inertia_control</a>
+        <a class="iter-opt" href="#linear-solver">linear_solver</a>
+      </div>
+    </div>
+    <div class="iter-exit iter-exit-warn">not a usable descent step: shift or reset \( H \), and re-solve</div>
+  </div>
+
+  <div class="iter-step">
+    <div class="iter-num">4</div>
+    <div class="iter-body">
+      <div class="iter-title">Find an acceptable step</div>
+      <div class="iter-desc">a step length \( \alpha \) along \( p \) (line search), or a radius for \( p \) (trust region), accepted by a filter, a funnel, or a <a href="#merit-math">merit function</a>; a <a href="#soc">second-order correction</a> if the full step is rejected</div>
+      <div class="iter-opts">
+        <a class="iter-opt" href="#linesearch-modes">linesearch_mode: filter | funnel | armijo | watchdog | exact</a>
+        <a class="iter-opt" href="#trust-region">trust_region</a>
+        <a class="iter-opt" href="#merit-modes">merit_mode: l1 | augmented Lagrangian</a>
+      </div>
+    </div>
+    <a class="iter-exit iter-exit-warn" href="#restoration">no acceptable step: restoration (filter, funnel, trust region), or a failed iteration</a>
+  </div>
+
+  <div class="iter-step">
+    <div class="iter-num">5</div>
+    <div class="iter-body">
+      <div class="iter-title">Update</div>
+      <div class="iter-desc">\( x_{k+1} = x_k + \alpha p \), \( \lambda_{k+1} = \lambda_{QP} \)</div>
+      <div class="iter-opts">
+        <a class="iter-opt" href="#qp-solver">max_step (the step cap adapts)</a>
+        <a class="iter-opt" href="#max-step">set_max_step</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="iter-loop"><span class="iter-pill">&#8634; repeat from 1 with \( k + 1 \)</span></div>
+</div>
+
 <h3 id="qp-subproblem">The QP subproblem</h3>
 
 <p>At the current point \( x_k \), with the multipliers \( \lambda_k \), the step \( p \) solves the quadratic program</p>
