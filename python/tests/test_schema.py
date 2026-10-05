@@ -29,7 +29,7 @@ TYPES = {
                      {'mode', 'step_scale', 'capped', 'n_short', 'n_elastic', 'n_iter', 'negative_curvature', 'n_working',
                       'n_slacks', 'time', 'out_of_memory', 'direct', 'direct_used', 'direct_outcome', 'direct_changes',
                       'n_solves', 'n_direct', 'unconstrained_used', 'n_unconstrained', 'daqp_fallback',
-                      'n_daqp_fallbacks'}),
+                      'daqp_used', 'n_daqp_fallbacks'}),
     ('qp_solver', 'dense_qp'): ('sqpopt_qp_dense_module.f90', 'sqpopt_dense_qp_type',
                                 {'n_iter', 'negative_curvature', 'force_weight', 'n_working', 'n_slacks', 'keep_slacks'}),
     ('qp_solver', 'sparse_qp'): ('sqpopt_qp_reduced_hessian_module.f90', 'sqpopt_reduced_hessian_qp_type',

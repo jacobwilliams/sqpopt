@@ -133,6 +133,9 @@
         integer :: n_direct = 0            !! of which, by the direct method (output)
         logical :: daqp_fallback = .false. !! whether DAQP didn't solve the last QP, and the dense QP solver did
                                            !! (output; with `mode==sqpopt_qp_daqp`)
+        logical :: daqp_used = .false.     !! whether DAQP solved the last QP (output; with `mode==sqpopt_qp_daqp`,
+                                           !! the dense QP solver solved it otherwise: a fallback, or a forced
+                                           !! elastic re-solve)
         integer :: n_daqp_fallbacks = 0    !! number of QPs of this `solve` that DAQP didn't solve, solved by the
                                            !! dense QP solver instead (output)
         type(sqpopt_dense_qp_type)           :: dense_qp    !! the dense QP solver (used only when `mode` is
@@ -144,6 +147,7 @@
 
         procedure, public :: solve => solve_qp_subproblem
         procedure, public :: mode_name
+        procedure, public :: solver_name
         procedure, public :: working_set
         procedure, public :: starting_working_set
         procedure, public :: elastic_slacks
@@ -218,6 +222,8 @@
     forced = present(elastic_sign) .and. present(elastic_weight)
     me%n_solves    = me%n_solves + 1
     me%unconstrained_used = .false.
+    me%daqp_fallback  = .false.
+    me%daqp_used      = .false.
     me%direct_used    = .false.
     me%direct_outcome = -1
     me%direct_changes = 0
@@ -313,13 +319,13 @@
 
         subroutine solve_active_set()
         !! solve the QP with the active-set solver selected by `me%mode`
-        me%daqp_fallback = .false.
         select case (resolved_mode(me, size(g)))
         case (sqpopt_qp_daqp)
             if (.not. forced) then
                 call me%daqp_qp%solve(hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, me%dense_qp%warm_status, &
                                       p, lambda, istat)
                 if (istat == sqpopt_success) then
+                    me%daqp_used = .true.
                     me%n_iter    = me%daqp_qp%n_iter
                     me%n_working = me%daqp_qp%n_working
                     me%n_slacks  = 0
@@ -516,6 +522,28 @@
     if (me%mode == sqpopt_qp_auto) name = name//' (auto)'
 
     end function mode_name
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the name of the QP solver that solved the last QP with `n` variables, for
+!  the printed output: [[mode_name]], except that with `sqpopt_qp_daqp`, a
+!  QP that DAQP didn't solve (a fallback, or a forced elastic re-solve) was
+!  solved by the dense QP solver.
+
+    function solver_name(me, n) result(name)
+
+    class(sqpopt_qp_solver_type), intent(in) :: me
+    integer,                      intent(in) :: n !! number of variables
+    character(len=:), allocatable :: name
+
+    if (resolved_mode(me, n) == sqpopt_qp_daqp .and. .not. me%daqp_used) then
+        name = 'dense QP'
+    else
+        name = me%mode_name(n)
+    end if
+
+    end function solver_name
 !*******************************************************************************
 
     end module sqpopt_qp_solver_module

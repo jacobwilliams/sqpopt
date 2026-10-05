@@ -819,8 +819,11 @@
         else if (qp_solver%direct_used) then
             line = line//', solved directly'
         else
-            if (qp_solver%daqp_fallback) line = line//', solved by the dense QP solver (DAQP: '// &
-                                                daqp_status_text(qp_solver%daqp_qp%status)//')'
+            if (qp_solver%daqp_fallback) then
+                line = line//', solved by the dense QP solver (DAQP: '//daqp_status_text(qp_solver%daqp_qp%status)//')'
+            else if (qp_solver%solver_name(n) /= qp_solver%mode_name(n)) then
+                line = line//', solved by the '//qp_solver%solver_name(n)//' solver (an elastic re-solve)'
+            end if
             line = line//', '//plural(qp_solver%n_iter, 'iteration', 'iterations')
         end if
         line = line//', working set '//fmt_i(qp_solver%n_working)//' (of '//fmt_i(n)//' variables)'

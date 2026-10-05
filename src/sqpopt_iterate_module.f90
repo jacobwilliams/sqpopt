@@ -848,13 +848,9 @@
                         plural(qp_solver%direct_changes, 'change', 'changes')//' of the working set ('// &
                         direct_outcome_text(qp_solver%direct_outcome)//')')
         end if
-        if (qp_solver%daqp_fallback) then
-            call lg%put(sqpopt_log_detail, 'DAQP: not solved ('//daqp_status_text(qp_solver%daqp_qp%status)// &
-                        '), the dense QP solver takes over')
-            name = 'dense QP'
-        else
-            name = qp_solver%mode_name(problem%n)
-        end if
+        if (qp_solver%daqp_fallback) call lg%put(sqpopt_log_detail, 'DAQP: not solved ('// &
+            daqp_status_text(qp_solver%daqp_qp%status)//'), the dense QP solver takes over')
+        name = qp_solver%solver_name(problem%n)
         call lg%put(sqpopt_log_detail, name//': '// &
                     plural(qp_solver%n_iter, 'iteration', 'iterations')//', working set '//fmt_i(qp_solver%n_working)// &
                     ', '//plural(qp_solver%n_slacks, 'elastic slack', 'elastic slacks')//', '//qp_status_text(qp_istat)// &

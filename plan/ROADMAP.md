@@ -2040,8 +2040,8 @@ which is now double precision only.
   QP's dense reduced Hessian (`dense_max_ns = 50`); LUSOL and LSQR (sparse
   and iterative, not dense kernels); and the order-`n` vector operations of
   the merit, line search, and restoration (memory-bound).
-- **F31: DAQP as the default dense QP of `sqpopt_qp_auto`** *(idea, not
-  started; discussed 2026-10-04)*. With a positive definite Hessian (the
+- **F31: DAQP as the default dense QP of `sqpopt_qp_auto`** *(checks 1-4
+  done 2026-10-04: not adopted; see "Findings" at the end)*. With a positive definite Hessian (the
   default L-BFGS), the DAQP mode (F30) solves the same strictly convex QP
   as the dense solver, so it takes the same steps, faster: the standard
   design of NLPQL and SLSQP (a convex QP solver behind a positive definite
@@ -2091,6 +2091,55 @@ which is now double precision only.
   guide's numbers (the QP modes, "Options that form dense matrices", the
   DAQP section), the Choosing settings page, the Python schema's text for
   `qp_solver_mode`, and the README.
+  *Findings (2026-10-04, release build, every configuration of the
+  protocol and of the Performance table, dense QP against DAQP):*
+  - The default configuration and most others gain slightly (default
+    282/23/0 against 281/24/0; exact Hessian with inertia control
+    274/28/3 against 273/29/3, and 13,187 `fc` against 13,654; QDLDL and
+    the dense linear solver alike), and the exact and SR1 Hessians take
+    5-30% less time. But five configurations have new failures, all at
+    `max_iter`: the funnel (TP230), the trust region with the funnel
+    (TP230), Armijo with the augmented Lagrangian (TP230, TP373), the
+    same with the non-monotone retry (TP87, TP230, TP373), and the
+    watchdog (TP373); and SR1 with inertia control loses 2 solved
+    problems (TP359 fails) and needs 15% more `fc`, and `--direct` 10%
+    more `fc` (with 2 more solved). With MUMPS (`--linear-solver=mumps`),
+    the same: SR1 with inertia control 272/29/4 against 274/27/4 (TP359
+    fails), the other four configurations equal or slightly better.
+  - TP230 (symmetric): the full QP steps alternate between (0,0) and
+    (1,0), each infeasible by 1. The dense QP's rounding errors break the
+    symmetry, and the iterates leave by iteration 26; DAQP's steps are
+    exact, and the iteration cycles to `max_iter`. Not a DAQP error, a
+    2-cycle of the SQP iteration that the dense QP escapes by luck.
+  - TP359 (SR1, inertia control): at iteration 5 the two solvers return
+    different solutions of the same strictly convex QP (dense: a step of
+    83 with 5 active rows, then converged; DAQP: "optimal" with a step of
+    4.2e-3 and 4 active rows, and the same at every later iteration). So
+    DAQP returned an inaccurate solution, presumably because the Hessian
+    is nearly singular: a dual method works with `R^{-1}`, so its
+    accuracy follows the condition of `H`, where the primal null-space
+    method only needs the reduced Hessian's. TP373 (augmented
+    Lagrangian): in a degenerate state (multipliers near 4e18), DAQP
+    returned "optimal" with an *empty* working set on a problem with six
+    equality constraints.
+  - Check 3: of the 36 QPs that DAQP called nonconvex with L-BFGS on the
+    HS suite, 34 are numerically singular (condition above 1e10, largest
+    diagonals up to 3e8; the dense QP's own Cholesky test rejects them
+    too), and 2 are tiny matrices (largest diagonal about 1e-7) that
+    DAQP's absolute pivot tolerance (`zero_tol = 1e-11`) rejects.
+  - Check 4 (`example/settings_study.f90`, now with DAQP): DAQP is the
+    fastest with a dense Jacobian (6x the sparse QP from 100 to 400
+    variables), the sparse QP from about 200 variables with a sparse one.
+    Moot until the rest is resolved.
+  - Also fixed: the detailed log named forced elastic re-solves "DAQP QP"
+    though the dense QP solved them (`qp_solver%daqp_used`, `solver_name`).
+  *Next, if pursued:* verify each solution DAQP reports against the
+  original QP (the linearized constraints, including the equalities, and
+  the bounds, to a relative tolerance; stationarity, and the multipliers'
+  signs) and give the QP to the dense solver if it fails, the usual
+  safeguard for a subproblem solver; then repeat the comparison above.
+  TP230's cycle would remain (an iteration that only rounding errors
+  break), and needs its own look.
 
 ## 6. Testing and infrastructure
 
