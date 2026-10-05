@@ -1,6 +1,6 @@
 program test_qp_fuzz
 
-    !! Randomized test of the two active-set QP solvers
+    !! Randomized test of the dense and sparse active-set QP solvers
     !! (`sqpopt_dense_qp_type`, and `sqpopt_reduced_hessian_qp_type` with both
     !! of its null-space methods, LU and LSQR) on many small random QPs
     !!
@@ -32,6 +32,12 @@ program test_qp_fuzz
     !! solution, that must pass the same checks; and it must solve most of the
     !! convex QPs.
     !!
+    !! So are they to DAQP ([[sqpopt_daqp_qp_type]], `sqpopt_qp_daqp`), whose
+    !! failures the dense solver takes over in the SQP iterations: it must
+    !! never report an infeasible QP as solved, every solution it reports
+    !! (cold, and warm-started from its own working set) must pass the same
+    !! checks, and it must solve most of the convex QPs.
+    !!
     !! The random sequence is fixed (seeded), so failures are reproducible.
 
     use sqpopt_hessian_module,            only: sqpopt_hessian_type
@@ -40,21 +46,25 @@ program test_qp_fuzz
     use sqpopt_types_module,              only: sqpopt_sparse_matrix, sqpopt_success, sqpopt_infeasible, sqpopt_infinity
     use sqpopt_kkt_module,                only: sqpopt_kkt_type
     use sqpopt_qp_direct_module,          only: direct_qp_step, sqpopt_direct_solved
+    use sqpopt_qp_daqp_module,            only: sqpopt_daqp_qp_type
     use sqpopt_kinds,                     only: wp => sqpopt_module_wp
 
     implicit none
 
     integer, parameter :: n_trials = 400
-    integer, parameter :: solver_dense = 1, solver_rh = 2, solver_rh_lsqr = 3, solver_direct = 4
+    integer, parameter :: solver_dense = 1, solver_rh = 2, solver_rh_lsqr = 3, solver_direct = 4, solver_daqp = 5
 
-    integer :: trial, solver, kind, n_fail(4), n_run(4)
+    integer :: trial, solver, kind, n_fail(5), n_run(5)
     integer :: n_direct_convex !! convex, feasible QPs given to the direct method
     integer :: n_direct_solved !! of which, it solved
     logical :: direct_solved   !! whether the direct method solved the current trial (set by `run_trial`)
+    integer :: n_daqp_solved   !! convex, feasible QPs that DAQP solved
+    logical :: daqp_solved     !! whether DAQP solved the current trial (set by `run_trial`)
     logical :: trial_ok                          !! result of the current trial (set by `fail`)
     character(len=:), allocatable :: trial_why   !! why the current trial failed
-    character(len=*), parameter :: solver_name(4) = ['dense                 ', 'reduced-Hessian (LU)  ', &
-                                                     'reduced-Hessian (LSQR)', 'direct                ']
+    character(len=*), parameter :: solver_name(5) = ['dense                 ', 'reduced-Hessian (LU)  ', &
+                                                     'reduced-Hessian (LSQR)', 'direct                ', &
+                                                     'DAQP                  ']
 
     write(*,*) '----------------------------'
     write(*,*) 'test_qp_fuzz'
@@ -88,14 +98,27 @@ program test_qp_fuzz
         end if
     end do
 
-    do solver = solver_dense, solver_direct
+    ! DAQP (also after the others)
+    n_daqp_solved = 0
+    do trial = 1, n_trials
+        kind = 1 + mod(trial-1, 8)
+        n_run(solver_daqp) = n_run(solver_daqp) + 1
+        if (.not. run_trial(trial, kind, solver_daqp)) n_fail(solver_daqp) = n_fail(solver_daqp) + 1
+        if (kind <= 6 .and. daqp_solved) n_daqp_solved = n_daqp_solved + 1
+    end do
+
+    do solver = solver_dense, solver_daqp
         if (n_run(solver) == 0) cycle
         print '(A,A,A,I0,A,I0)', 'solver ', trim(solver_name(solver)), ': failures = ', n_fail(solver), ' / ', n_run(solver)
     end do
     print '(A,I0,A,I0,A)', 'the direct method solved ', n_direct_solved, ' of the ', n_direct_convex, ' convex QPs'
+    print '(A,I0,A,I0,A)', 'DAQP solved ', n_daqp_solved, ' of the ', n_direct_convex, ' convex QPs'
     if (any(n_fail > 0)) error stop 'test_qp_fuzz FAILED'
     if (2*n_direct_solved < n_direct_convex) then
         error stop 'test_qp_fuzz FAILED: the direct method solved fewer than half of the convex QPs'
+    end if
+    if (10*n_daqp_solved < 9*n_direct_convex) then
+        error stop 'test_qp_fuzz FAILED: DAQP solved fewer than 90% of the convex QPs'
     end if
     print '(A)', 'test_qp_fuzz PASSED'
 
@@ -132,8 +155,8 @@ program test_qp_fuzz
     !! warm-started), and check the KKT conditions; `.false.` if a check failed
     integer, intent(in) :: trial  !! trial number
     integer, intent(in) :: kind   !! the kind of QP: 1-6 convex and feasible (various degeneracies), 7 nonconvex, 8 infeasible
-    integer, intent(in) :: solver !! which solver: `solver_dense`, `solver_rh` (LU), `solver_rh_lsqr`, or
-                                  !! `solver_direct`
+    integer, intent(in) :: solver !! which solver: `solver_dense`, `solver_rh` (LU), `solver_rh_lsqr`,
+                                  !! `solver_direct`, or `solver_daqp`
 
     integer :: n, m, i, j, k
     real(wp), dimension(:,:), allocatable :: jd, bd, a
@@ -143,7 +166,9 @@ program test_qp_fuzz
     type(sqpopt_dense_qp_type) :: dense_qp
     type(sqpopt_reduced_hessian_qp_type) :: rh_qp
     type(sqpopt_kkt_type) :: kkt
+    type(sqpopt_daqp_qp_type) :: daqp_qp
     integer, dimension(:), allocatable :: status
+    integer, dimension(:), allocatable :: warm_status !! DAQP's working set (pass 2 starts from pass 1's)
     integer :: n_changes, outcome
     logical :: started
     integer :: istat, pass
@@ -280,6 +305,7 @@ program test_qp_fuzz
     trial_ok  = .true.
     trial_why = ''
     direct_solved = .false.
+    daqp_solved   = .false.
     if (solver == solver_direct) then
         ! (the starting working set: the equality rows and the fixed variables)
         call kkt%initialize(n, m, jac%irow, jac%icol, started)
@@ -301,6 +327,13 @@ program test_qp_fuzz
     else if (solver == solver_dense) then
         call dense_qp%solve(hess, jac, zero_n, g, zero_m, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
         tol = 1.0e-6_wp
+    else if (solver == solver_daqp) then
+        call daqp_qp%solve(hess, jac, zero_n, g, zero_m, x_lb, x_ub, c_lb, c_ub, warm_status, p, lambda, istat)
+        ! (not solved: in the SQP iterations, the dense solver would take over; nothing to check, but an
+        ! infeasible QP must not be reported solved)
+        if (istat /= sqpopt_success .and. .not. infeasible) exit
+        if (pass == 1 .and. istat == sqpopt_success) daqp_solved = .true.
+        tol = 1.0e-6_wp
     else
         rh_qp%max_pcg_iter = 4*n
         rh_qp%null_space = merge(sqpopt_null_space_lsqr, sqpopt_null_space_lu, solver == solver_rh_lsqr)
@@ -308,7 +341,10 @@ program test_qp_fuzz
         tol = merge(1.0e-5_wp, 1.0e-6_wp, solver == solver_rh_lsqr)   ! (LSQR's projections are iterative)
     end if
 
-    if (infeasible) then
+    if (infeasible .and. solver == solver_daqp) then
+        if (istat == sqpopt_success) call fail('infeasible QP reported solved')
+        exit
+    else if (infeasible) then
         if (istat /= sqpopt_infeasible) call fail('infeasible QP not reported as sqpopt_infeasible')
     else if (istat /= sqpopt_success) then
         call fail('feasible QP not solved')

@@ -31,22 +31,24 @@ program settings_study
     !!
     !! Studies:
     !!
-    !! 1. QP solver against problem size: the dense QP and the sparse QP (with
-    !!    `LU` and with `LSQR` null spaces), on `control` and `elliptic` with
-    !!    many degrees of freedom (`K = N`), from `n` of about 50 to 1600.
+    !! 1. QP solver against problem size: the dense QP, the sparse QP (with
+    !!    `LU` and with `LSQR` null spaces), and DAQP (`sqpopt_qp_daqp`), on
+    !!    `control` and `elliptic` with many degrees of freedom (`K = N`), from
+    !!    `n` of about 50 to 1600.
     !! 2. Degrees of freedom: the `control` problem with `N = 1000` steps and
     !!    `K` from 5 to 1000 controls, with the L-BFGS memory, the exact
     !!    Hessian, and `dense_max_ns`.
-    !! 3. QP solver against problem size, on `dense`, from `n = 20` to 400.
+    !! 3. QP solver against problem size, on `dense`, from `n = 20` to 400
+    !!    (without `LSQR`).
     !!
-    !! (The dense QP is skipped above `n = 500`, and `LSQR` above `n = 1000`:
-    !! each would take minutes.)
+    !! (The dense QP and DAQP are skipped above `n = 500`, and `LSQR` above
+    !! `n = 1000`: each would take minutes.)
 
     use sqpopt_module,           only: sqpopt_type
     use sqpopt_problem_module,   only: sqpopt_problem_type
     use sqpopt_options_module,   only: sqpopt_options_type
     use sqpopt_hessian_module,   only: sqpopt_hessian_bfgs, sqpopt_hessian_exact
-    use sqpopt_qp_solver_module, only: sqpopt_qp_solver_type, sqpopt_qp_dense, sqpopt_qp_reduced_hessian
+    use sqpopt_qp_solver_module, only: sqpopt_qp_solver_type, sqpopt_qp_dense, sqpopt_qp_reduced_hessian, sqpopt_qp_daqp
     use sqpopt_qp_reduced_hessian_module, only: sqpopt_null_space_lu, sqpopt_null_space_lsqr
     use sqpopt_types_module,     only: sqpopt_results_type, sqpopt_infinity
     use sqpopt_kinds,            only: wp => sqpopt_module_wp
@@ -54,7 +56,8 @@ program settings_study
     implicit none
 
     real(wp), parameter :: pi = acos(-1.0_wp)
-    integer,  parameter :: dense_max_n = 500 !! the dense QP is skipped above this many variables (it takes minutes)
+    integer,  parameter :: dense_max_n = 500 !! the dense QP and DAQP are skipped above this many variables (they take
+                                             !! minutes)
     integer,  parameter :: lsqr_max_n = 1000 !! and the `LSQR` null space above this many
 
     type :: config_type
@@ -81,7 +84,8 @@ program settings_study
     type(config_type), dimension(*), parameter :: qp_configs = [ &
         config_type(name='dense QP', qp_mode=sqpopt_qp_dense), &
         config_type(name='sparse QP (LU)'), &
-        config_type(name='sparse QP (LSQR)', null_space=sqpopt_null_space_lsqr) ]
+        config_type(name='sparse QP (LSQR)', null_space=sqpopt_null_space_lsqr), &
+        config_type(name='DAQP', qp_mode=sqpopt_qp_daqp) ]
 
     type(config_type), dimension(*), parameter :: dof_configs = [ &
         config_type(name='default (L-BFGS, 100 pairs)'), &
@@ -130,7 +134,8 @@ program settings_study
     call header()
     do i = 1, size(dense_sizes)
         call setup_dense(dense_sizes(i), problem, x0)
-        do j = 1, 2
+        do j = 1, size(qp_configs)
+            if (qp_configs(j)%null_space == sqpopt_null_space_lsqr) cycle
             call run('dense', qp_configs(j), problem, x0)
         end do
     end do
@@ -155,7 +160,7 @@ program settings_study
     type(sqpopt_results_type)   :: r
     integer :: istat
 
-    if ((cfg%qp_mode == sqpopt_qp_dense .and. problem%n > dense_max_n) .or. &
+    if ((any(cfg%qp_mode == [sqpopt_qp_dense, sqpopt_qp_daqp]) .and. problem%n > dense_max_n) .or. &
         (cfg%null_space == sqpopt_null_space_lsqr .and. problem%n > lsqr_max_n)) then
         write(*,'(A10,I6,I6,I5,1X,A28,A)') name, problem%n, problem%m, problem%n - problem%m, cfg%name, &
             '  (skipped: too slow)'

@@ -32,7 +32,7 @@
 
     private
 
-    integer(int32), parameter, public :: sqpopt_python_n_iinfo = 31 !! size of `iinfo` (see [[sqpopt_python_solve]])
+    integer(int32), parameter, public :: sqpopt_python_n_iinfo = 32 !! size of `iinfo` (see [[sqpopt_python_solve]])
     integer(int32), parameter, public :: sqpopt_python_n_rinfo = 12 !! size of `rinfo`
     integer(int32), parameter, public :: sqpopt_python_n_diag  = 25 !! size of `diag_index` and `diag_value`: five
                                                                     !! lists of at most five entries
@@ -144,7 +144,7 @@
 !  `n_active_set_flips`, `objective_derivative_suspect`,
 !  `slowest_iteration`, `n_constant_constraints`,
 !  `n_single_variable_constraints`, `n_dependent_equalities`,
-!  `probe_not_finite`.
+!  `probe_not_finite`; then `n_daqp_fallbacks`.
 !
 !  `rinfo`: `f`, `kkt_error`, `feasibility_error`, `stationarity_error`,
 !  `time`, `time_functions`, `time_qp`, `time_factorization`; then, of the
@@ -330,7 +330,8 @@
                    r%diagnosis%iterations_needed, r%diagnosis%n_active_set_flips, &
                    merge(1, 0, r%diagnosis%objective_derivative_suspect), r%diagnosis%slowest_iteration, &
                    r%diagnosis%n_constant_constraints, r%diagnosis%n_single_variable_constraints, &
-                   r%diagnosis%n_dependent_equalities, merge(1, 0, r%diagnosis%probe_not_finite)]
+                   r%diagnosis%n_dependent_equalities, merge(1, 0, r%diagnosis%probe_not_finite), &
+                   r%n_daqp_fallbacks]
     rinfo(1:sqpopt_python_n_rinfo) = [r%f, r%kkt_error, r%feasibility_error, r%stationarity_error, r%time, &
                                       r%time_functions, r%time_qp, r%time_factorization, &
                                       r%diagnosis%convergence_rate, r%diagnosis%slowest_iteration_time, &

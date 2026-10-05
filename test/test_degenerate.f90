@@ -13,14 +13,15 @@ program test_degenerate
     !! doubles every iteration, and the solver used to stop there (stalled,
     !! failed line search, or, with the sparse QP, a false success). The
     !! elastic re-solve lets the iterates leave. Each corner is solved with
-    !! the filter, funnel, and Armijo line searches, and both QP solvers.
+    !! the filter, funnel, and Armijo line searches, and each QP solver
+    !! (DAQP with its fallback to the dense one for the elastic re-solves).
     !! (From (1,1), the iterates stay on the diagonal and converge to the
     !! maximum, a first-order KKT point; that corner is not tested.)
 
     use sqpopt_module,            only: sqpopt_type
     use sqpopt_problem_module,    only: sqpopt_problem_type
     use sqpopt_options_module,    only: sqpopt_options_type
-    use sqpopt_qp_solver_module,  only: sqpopt_qp_dense, sqpopt_qp_reduced_hessian
+    use sqpopt_qp_solver_module,  only: sqpopt_qp_dense, sqpopt_qp_reduced_hessian, sqpopt_qp_daqp
     use sqpopt_linesearch_module, only: sqpopt_linesearch_filter, sqpopt_linesearch_funnel, sqpopt_linesearch_armijo
     use sqpopt_types_module,      only: sqpopt_success
     use sqpopt_kinds,             only: wp => sqpopt_module_wp
@@ -33,8 +34,8 @@ program test_degenerate
     integer,  dimension(3),   parameter :: modes = [sqpopt_linesearch_filter, sqpopt_linesearch_funnel, &
                                                     sqpopt_linesearch_armijo]
     character(len=6), dimension(3), parameter :: mode_names = ['filter', 'funnel', 'armijo']
-    integer,  dimension(2),   parameter :: qps = [sqpopt_qp_dense, sqpopt_qp_reduced_hessian]
-    character(len=6), dimension(2), parameter :: qp_names = ['dense ', 'sparse']
+    integer,  dimension(3),   parameter :: qps = [sqpopt_qp_dense, sqpopt_qp_reduced_hessian, sqpopt_qp_daqp]
+    character(len=6), dimension(3), parameter :: qp_names = ['dense ', 'sparse', 'DAQP  ']
 
     integer :: ls, qp, k, n_fail
 

@@ -67,6 +67,7 @@
     <a href="#inertia-control" class="toc-sub">Inertia control</a>
     <a href="#qp-solver">QP subproblem solver</a>
     <a href="#unconstrained-step" class="toc-sub">Unconstrained step</a>
+    <a href="#daqp" class="toc-sub">DAQP</a>
     <a href="#direct-qp" class="toc-sub">Direct method</a>
     <a href="#linear-solver" class="toc-sub">Linear solver</a>
     <a href="#dense-qp" class="toc-sub">Dense QP options</a>
@@ -147,7 +148,7 @@ fpm build --profile release --flag "-DREAL128"   # quadruple precision</code></p
 
 <div class="callout note"><p><strong>Large problems and the stack.</strong> Some compilers and flags put local arrays whose size is only known at run time, and the temporary arrays of expressions, on the stack: gfortran with <code>-fstack-arrays</code> (which <code>-Ofast</code> turns on), and the Intel compilers unless <code>-heap-arrays</code> is given. A large problem then overflows the stack (usually 8 MB), and the program crashes without a message. The library doesn't depend on this: every array of its own whose size grows with the problem is allocated on the heap. Built with gfortran's <code>-fstack-arrays</code>, it solves problems with a million variables in an 8 MB stack. Two things are not covered:</p>
 <ul>
-  <li>the dense QP solver (<code>sqpopt_qp_dense</code>), which is meant for small problems and works with dense temporary matrices: with such flags, use it for a few hundred variables at most;</li>
+  <li>the dense QP solvers (<code>sqpopt_qp_dense</code>, and <code>sqpopt_qp_daqp</code> with the DAQP package it calls), which are meant for small problems and work with dense matrices, some of them temporary: with such flags, use them for a few hundred variables at most;</li>
   <li>your own code. An array sized by the problem that is a local variable of the program or of <code>fc</code>/<code>gjac</code>, or an array expression given as an argument (<code>spread(...)</code>, an array constructor), is placed as your compiler decides. Make such arrays allocatable, or raise the stack limit (<code>ulimit -s</code>, and <code>OMP_STACKSIZE</code> for the threads of an OpenMP program).</li>
 </ul></div>
 
@@ -379,6 +380,7 @@ end program hs71</code></pre>
 <tr><td><code>stationarity_error</code></td><td>stationarity error of the original (unscaled) problem (see <code>dual_inf_tol</code>)</td></tr>
 <tr><td><code>n_qp_iterations</code></td><td>total active-set iterations of the QP subproblem solves, and, for those solved by the <a href="#direct-qp">direct method</a>, changes of the working set</td></tr>
 <tr><td><code>n_unconstrained_qp</code></td><td>QP subproblems solved by the <a href="#unconstrained-step">unconstrained step</a> of the L-BFGS Hessian, without a QP solver</td></tr>
+<tr><td><code>n_daqp_fallbacks</code></td><td>with <code>qp_solver_mode = sqpopt_qp_daqp</code>: QP subproblems that <a href="#daqp">DAQP</a> didn't solve (a nonconvex QP, inconsistent linearized constraints, &hellip;), solved by the dense QP solver instead</td></tr>
 <tr><td><code>n_qp_solves</code>, <code>n_direct_qp</code></td><td>QP subproblems solved (without those of restoration phases), and how many of them the <a href="#direct-qp">direct method</a> solved</td></tr>
 <tr><td><code>n_factorizations</code></td><td>sparse factorizations, by the <a href="#inertia-control">inertia control</a>, the <a href="#direct-qp">direct QP method</a>, and the <a href="#direct-least-squares">direct least-squares solves</a> (<code>0</code> without them)</td></tr>
 <tr><td><code>n_soc</code>, <code>n_hessian_resets</code>, <code>n_restoration_steps</code>, <code>n_restoration_phases</code>, <code>n_elastic</code>, <code>n_escape</code></td><td>counts of the solve's events: accepted second-order corrections, Hessian resets (or shift increases), iterations with a restoration step, restoration phases entered, elastic QP re-solves, and escape steps</td></tr>
@@ -413,7 +415,7 @@ end program hs71</code></pre>
 <tr class="bad"><td><code>sqpopt_invalid_input</code></td><td class="num">24</td><td>the problem definition or options are invalid (see <code>status_message()</code>)</td></tr>
 <tr class="bad"><td><code>sqpopt_function_error</code></td><td class="num">25</td><td>a problem function returned a non-finite value (NaN or Inf), or <code>status &gt; 0</code>, at the current point. At a <em>trial</em> point, that only makes the line search or trust region reject the point and back off.</td></tr>
 <tr class="bad"><td><code>sqpopt_unbounded</code></td><td class="num">26</td><td>the objective fell below <code>obj_lower_limit</code> at a feasible point</td></tr>
-<tr class="bad"><td><code>sqpopt_out_of_memory</code></td><td class="num">27</td><td>the dense QP solver could not allocate its matrices (of the order of \( n^2 \) and \( mn \) elements): use the sparse QP solver (<code>qp_solver_mode</code>) for a problem of this size. The point is the last iterate.</td></tr>
+<tr class="bad"><td><code>sqpopt_out_of_memory</code></td><td class="num">27</td><td>the dense QP solver (or DAQP) could not allocate its matrices (of the order of \( n^2 \) and \( mn \) elements): use the sparse QP solver (<code>qp_solver_mode</code>) for a problem of this size. The point is the last iterate.</td></tr>
 </tbody>
 </table></div>
 <p class="legend"><span><span class="dot ok"></span>solution found</span> <span><span class="dot warn"></span>stopped by a limit or by you</span> <span><span class="dot bad"></span>failure</span></p>
@@ -758,7 +760,7 @@ print(res.x, res.fun, res.message)</code></pre>
       <div class="iter-opts">
         <a class="iter-opt" href="#unconstrained-step">unconstrained_step</a>
         <a class="iter-opt" href="#direct-qp">direct_qp</a>
-        <a class="iter-opt" href="#qp-modes">qp_solver_mode: dense | sparse</a>
+        <a class="iter-opt" href="#qp-modes">qp_solver_mode: dense | sparse | DAQP</a>
         <a class="iter-opt" href="#inertia-control">inertia_control</a>
         <a class="iter-opt" href="#linear-solver">linear_solver</a>
       </div>
@@ -890,7 +892,7 @@ D\phi(x; p) = g^T p + \mu \, \frac{d}{dt} \Big\lVert \max\big(c_{lb} - (c + tJp)
     <a class="comp" href="#hessian"><code>sqpopt_hessian_type</code><span>quasi-Newton or exact Hessian</span></a>
     <div class="comp">
       <a href="#qp-solver"><code>sqpopt_qp_solver_type</code></a><span>QP subproblem</span>
-      <div class="comp-subs"><a class="comp-sub" href="#dense-qp">%dense_qp</a><a class="comp-sub" href="#sparse-qp">%sparse_qp</a></div>
+      <div class="comp-subs"><a class="comp-sub" href="#dense-qp">%dense_qp</a><a class="comp-sub" href="#sparse-qp">%sparse_qp</a><a class="comp-sub" href="#daqp-qp">%daqp_qp</a></div>
     </div>
     <div class="comp">
       <a href="#linesearch"><code>sqpopt_linesearch_type</code></a><span>line search &amp; acceptance tests</span>
@@ -902,7 +904,7 @@ D\phi(x; p) = g^T p + \mu \, \frac{d}{dt} \Big\lVert \max\big(c_{lb} - (c + tJp)
 
 <p><code>sqpopt_options_type</code> holds the most commonly tuned settings, including the ones that <em>select</em> an algorithm. The other types expose further tuning parameters for each algorithm. You set those by constructing the component yourself and passing it in.</p>
 
-<p>Two of the components contain components of their own, each with its own options: the QP solver holds the dense and sparse QP solvers (<code>qp_solver%dense_qp</code>, <code>qp_solver%sparse_qp</code>), and the line search holds the acceptance tests (<code>linesearch%merit</code>, the merit function and its penalty parameter; <code>linesearch%filter</code>; <code>linesearch%funnel</code>). The trust region judges its steps with those same acceptance tests, so the filter, funnel, and merit-function settings are made on <code>linesearch</code> even when the trust region is enabled.</p>
+<p>Two of the components contain components of their own, each with its own options: the QP solver holds the dense, sparse, and DAQP QP solvers (<code>qp_solver%dense_qp</code>, <code>qp_solver%sparse_qp</code>, <code>qp_solver%daqp_qp</code>), and the line search holds the acceptance tests (<code>linesearch%merit</code>, the merit function and its penalty parameter; <code>linesearch%filter</code>; <code>linesearch%funnel</code>). The trust region judges its steps with those same acceptance tests, so the filter, funnel, and merit-function settings are made on <code>linesearch</code> even when the trust region is enabled.</p>
 
 <pre><code class="language-fortran">type(sqpopt_qp_solver_type)  :: qp_solver
 type(sqpopt_linesearch_type) :: linesearch
@@ -938,6 +940,7 @@ call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, li
 <thead><tr><th>setting</th><th>dense matrices</th><th>when it is used</th></tr></thead>
 <tbody>
 <tr><td><code>options%qp_solver_mode = sqpopt_qp_dense</code> (the <a href="#dense-qp">dense QP solver</a>)</td><td>the Hessian (\( n \times n \)), the Jacobian (\( m \times n \)), and the working set's null space, formed for every QP</td><td>by default (<code>sqpopt_qp_auto</code>) for up to <code>qp_solver%auto_dense_max_n</code> = 200 variables; always, if you choose it</td></tr>
+<tr><td><code>options%qp_solver_mode = sqpopt_qp_daqp</code> (<a href="#daqp">DAQP</a>)</td><td>the Hessian (\( n \times n \)) and the Jacobian (\( m \times n \)), and DAQP's own copies and factors of them, formed for every QP; and the dense QP solver's, for the QPs that DAQP doesn't solve</td><td>only if you choose it</td></tr>
 <tr><td><code>options%linear_solver = sqpopt_linear_solver_dense</code> or <code>sqpopt_linear_solver_lapack</code> (the <a href="#linear-solver">dense solvers</a>)</td><td>the KKT matrix and its factors, two arrays of order \( n + m \)</td><td>only if you choose it, and only with <code>inertia_control</code>, <code>direct_qp</code>, or <code>direct_least_squares</code>; above an order of 2,000 it is invalid input</td></tr>
 <tr><td><code>qp_solver%sparse_qp%dense_max_ns</code> (the <a href="#sparse-qp">sparse QP</a>)</td><td>the reduced Hessian of a face, of order the number of superbasic variables</td><td>for faces with at most <code>dense_max_ns</code> = 50 superbasics (more are solved by conjugate gradients)</td></tr>
 </tbody>
@@ -1047,7 +1050,7 @@ call problem%set_max_step([0.1_wp, 0.1_wp, sqpopt_infinity, 5.0_wp])   ! (no lim
   <code>0</code>: no output.
   <code>1</code>: the problem (sizes), the method (globalization, QP solver, Hessian and whether it has inertia control and the direct QP method, restoration, direct least squares), the scaling and the tolerances; one line per major iteration (objective, infeasibility and KKT error of the scaled problem, step length, <code>fc</code> calls so far, and flags for the iteration's events: <code>R</code> restoration step, <code>P</code> restoration phase, <code>S</code> second-order correction, <code>H</code> Hessian reset, <code>E</code> elastic QP re-solve, <code>X</code> escape step, <code>N</code> non-monotone step, <code>W</code> watchdog relaxed step, <code>D</code> switched to accurate derivatives, <code>Q</code> QP failed, <code>F</code> no acceptable step); and a summary (status, objective, feasibility, KKT and unscaled stationarity errors, largest multiplier, active constraints and bounds, evaluations, QP iterations and how many QPs were solved directly, sparse factorizations, counts of the events, and the time split between the user functions, the QP, the factorizations, and the rest).
   <code>2</code>: also, per iteration, the step norm, QP iterations, <code>fc</code> calls, largest multiplier, unscaled stationarity error, the globalization's state (merit penalty, filter entries, funnel width, or trust-region radius), and the Hessian's (stored quasi-Newton pairs, or the exact Hessian's shift).
-  <code>3</code>: also indented detail lines under each iteration: every QP solve (solver, iterations, working-set size, elastic slacks, status, negative curvature; for the direct method, its changes of the working set, or why it gave up), every line-search or trust-region trial (step length or radius, violation and objective or merit value, and why it was accepted or rejected), second-order corrections, restoration phases (start, iterations, end and why), elastic re-solves, escape steps, Hessian resets (and why), multipliers re-estimated by least squares, and the shifts of the inertia control (for which working set, the number of directions of negative curvature, and the factorizations it took); the smallest constraint scale factors; and the solution: the variables and constraints with their bounds, multipliers, and which are active (up to 100 of each).
+  <code>3</code>: also indented detail lines under each iteration: every QP solve (solver, iterations, working-set size, elastic slacks, status, negative curvature; for the direct method, its changes of the working set, or why it gave up; with <code>sqpopt_qp_daqp</code>, why DAQP didn't solve a QP that the dense QP solver took over), every line-search or trust-region trial (step length or radius, violation and objective or merit value, and why it was accepted or rejected), second-order corrections, restoration phases (start, iterations, end and why), elastic re-solves, escape steps, Hessian resets (and why), multipliers re-estimated by least squares, and the shifts of the inertia control (for which working set, the number of directions of negative curvature, and the factorizations it took); the smallest constraint scale factors; and the solution: the variables and constraints with their bounds, multipliers, and which are active (up to 100 of each).
 </td></tr>
 <tr><td><code>output_unit</code></td><td>standard output</td><td>Fortran unit the output is written to</td></tr>
 <tr><td><code>diagnostic_level</code></td><td><code>0</code></td><td>diagnostics of the solve, to help when it doesn't converge (see <a href="#diagnostics">Diagnostics</a>). <code>0</code>: none. <code>1</code>: a diagnosis of the final point. <code>2</code>: also a report on the starting point, and what the iterations showed. <code>3</code>: also the diagnostics that call the user's functions (two calls of <code>fc</code>). Levels <code>0</code> to <code>2</code> cost no function evaluations, and no level changes the iterates. They are returned in <code>results%diagnosis</code>, and printed if <code>print_level &ge; 1</code></td></tr>
@@ -1108,8 +1111,9 @@ call problem%set_max_step([0.1_wp, 0.1_wp, sqpopt_infinity, 5.0_wp])   ! (no lim
 <tr><td><code>unconstrained_step</code></td><td><code>.true.</code></td><td>with the L-BFGS Hessian, first try the <a href="#unconstrained-step">unconstrained step</a> \( -H^{-1}g \): if it satisfies the bounds and the linearized constraints, it is the QP's solution, and no QP solver is run</td></tr>
 <tr><td><code>direct_max_changes</code></td><td><code>10</code></td><td>with <code>options%direct_qp</code>: the <a href="#direct-qp">direct method</a> gives up, and the active-set solver is run, after this many changes of the working set (each is a factorization) without reaching the QP's solution</td></tr>
 <tr><td><code>direct_tol</code></td><td><code>1e-8</code></td><td>the direct method's relative tolerance for a violated row or bound, and for the sign of a multiplier</td></tr>
-<tr><td><code>dense_qp</code></td><td>&mdash;</td><td>the dense QP solver's own options (used only when <code>mode == sqpopt_qp_dense</code>); see <a href="#dense-qp">below</a></td></tr>
+<tr><td><code>dense_qp</code></td><td>&mdash;</td><td>the dense QP solver's own options (used only when <code>mode == sqpopt_qp_dense</code>, or <code>sqpopt_qp_daqp</code> as its fallback); see <a href="#dense-qp">below</a></td></tr>
 <tr><td><code>sparse_qp</code></td><td>&mdash;</td><td>the sparse QP solver's own options (used only when <code>mode == sqpopt_qp_reduced_hessian</code>); see <a href="#sparse-qp">below</a></td></tr>
+<tr><td><code>daqp_qp</code></td><td>&mdash;</td><td>DAQP's options (used only when <code>mode == sqpopt_qp_daqp</code>); see <a href="#daqp-qp">below</a></td></tr>
 </tbody>
 </table></div>
 
@@ -1126,10 +1130,11 @@ call problem%set_max_step([0.1_wp, 0.1_wp, sqpopt_infinity, 5.0_wp])   ! (no lim
 <tr><td><code>sqpopt_qp_auto</code> <span class="badge">default</span></td><td><code>sqpopt_qp_dense</code> if <code>n &lt;= auto_dense_max_n</code>, else <code>sqpopt_qp_reduced_hessian</code></td></tr>
 <tr><td><code>sqpopt_qp_dense</code></td><td>dense active-set QP (Householder QR null space, Cholesky factorization of the reduced Hessian). It forms <code>O(n²)</code>/<code>O(mn)</code> dense arrays on each call, so it is best for small-to-moderate problems. If they can't be allocated, the solve stops with <code>sqpopt_out_of_memory</code>.</td></tr>
 <tr><td><code>sqpopt_qp_reduced_hessian</code></td><td>sparse active-set QP (SQOPT-style basis partition of the working set with sparse <code>LUSOL</code> factors, conjugate gradients on the reduced Hessian, active bounds handled by fixing variables). It forms no dense array whose size grows with the problem (only a reduced Hessian of at most <code>dense_max_ns</code> rows, see <a href="#dense-matrices">Options that form dense matrices</a>), so it scales to larger problems.</td></tr>
+<tr><td><code>sqpopt_qp_daqp</code></td><td><a href="#daqp">DAQP</a>'s dual active-set QP, for dense <em>convex</em> QPs, with <code>sqpopt_qp_dense</code> taking over the QPs it doesn't solve. Like the dense solver, it forms <code>O(n²)</code>/<code>O(mn)</code> dense arrays, but it updates its factorizations instead of recomputing them, and is many times faster.</td></tr>
 </tbody>
 </table></div>
 
-<p>Both active-set solvers enforce the linearized constraints and bounds exactly, and share the same robustness features:</p>
+<p>The dense and sparse active-set solvers enforce the linearized constraints and bounds exactly, and share the same robustness features:</p>
 
 <ul class="features-list">
   <li><strong>Elastic mode.</strong> Each linearized constraint violated at <code>p = 0</code> gets a nonnegative slack with an \( \ell_1 \) penalty (SNOPT's elastic mode). This gives a feasible starting point with no separate phase-1 problem. If slacks remain positive at the solution, the penalty weight is raised (up to <code>elastic_weight_max</code>). If they are still positive then, the linearized constraints are inconsistent: the QP returns <code>sqpopt_infeasible</code>, and the major iteration takes a feasibility-restoration step instead.</li>
@@ -1138,6 +1143,25 @@ call problem%set_max_step([0.1_wp, 0.1_wp, sqpopt_infinity, 5.0_wp])   ! (no lim
   <li><strong>Crash and warm starts.</strong> Iterations start from the minimum-norm step satisfying an initial working-set guess, rather than from <code>p = 0</code>, so only the constraints the guess leaves violated need elastic slacks. The guess is the previous QP's final working set (<code>warm_start</code>, on by default; near a solution the active set settles and the QP finishes in one or two iterations), or else the equality constraints and fixed variables.</li>
   <li><strong>Tested.</strong> Both are checked against the KKT conditions on thousands of random convex, nonconvex, degenerate, and infeasible QPs (<code>test/test_qp_fuzz.f90</code>).</li>
 </ul>
+
+<h3 id="daqp">DAQP <span class="h-note"><code>options%qp_solver_mode = sqpopt_qp_daqp</code></span></h3>
+
+<p><a href="https://github.com/darnstrom/daqp">DAQP</a> (D. Arnstr&ouml;m, A. Bemporad, D. Axehill, <em>A dual active-set solver for embedded quadratic programming using recursive LDL<sup>T</sup> updates</em>, IEEE Transactions on Automatic Control 67(8), 2022) is a dual active-set method for dense convex QPs, used here through its Fortran port, <a href="https://github.com/jacobwilliams/daqp-fortran">daqp-fortran</a>, which FPM fetches. Like the dense QP solver, it forms the dense Hessian and Jacobian; the variable bounds are its &ldquo;simple bounds&rdquo;, which it handles without forming their rows. It factors \( H \) once per QP (Cholesky), and then <em>updates</em> the \( LDL^T \) factors of the working set as constraints enter and leave it, where the dense solver refactors everything at every iteration; and being a dual method, it needs no feasible starting point. Each QP starts from the previous one's final working set (<code>warm_start</code>).</p>
+
+<p>It only solves convex QPs whose constraints are consistent. A QP it doesn't solve is solved by the dense QP solver, with its elastic mode and its handling of negative curvature: a nonconvex QP (an indefinite exact or SR1 Hessian; DAQP's proximal-point loop for semidefinite Hessians is not used, since it cost many iterations on such QPs), inconsistent linearized constraints, or the iteration limit. So are the elastic re-solves of <code>elastic_multiplier_limit</code>. The two solvers share the working set each QP starts from, and <code>results%n_daqp_fallbacks</code> counts the QPs that the dense solver took over (the final summary prints that count, and the iteration log reports each one, with DAQP's reason, at <code>print_level = 3</code>). With the default L-BFGS Hessian, which is positive definite, these are mostly the QPs with inconsistent constraints.</p>
+
+<p>On the Hock&ndash;Schittkowski problems it gives the dense solver's results, or better: 282 problems solved, 23 local solutions, and none failed, with 9,044 <code>fc</code> calls, against 281, 24, 0, and 9,121; 102 of the 7,608 QPs fell back. With the exact Hessian, 270, 32, and 3, with 10,108 <code>fc</code> calls instead of 11,197. Its advantage is speed. With the same iterates as the dense solver, it was 6 to 40 times faster on problems of 100 to 200 variables (see <a href="choosing_settings.html#qp-solver">Which QP solver</a>), and more on larger ones: on the <code>benchmark</code> example's problems, the control problem with 301 variables took 0.09 seconds instead of 2.0, and the constrained chained Rosenbrock function with 300 variables 0.1 seconds instead of 73. With a dense Jacobian it was also faster than the sparse QP solver (6 times, from 100 to 400 variables); with a sparse Jacobian, the sparse QP solver was faster from about 200 variables, and for thousands of variables it is the one to use: DAQP's matrices are dense. It is not chosen by <code>sqpopt_qp_auto</code>: set <code>qp_solver_mode</code> to use it.</p>
+
+<p class="set-on" id="daqp-qp">Options: <code>qp_solver%daqp_qp%&lt;name&gt;</code>, used when <code>mode == sqpopt_qp_daqp</code> (and <code>qp_solver%dense_qp</code> for its fallback).</p>
+<div class="table-wrap"><table class="opt-table">
+<thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>max_iter</code></td><td><code>1000</code></td><td>DAQP's limit on the active-set iterations of a QP solve (at the limit, the dense QP solver takes over)</td></tr>
+<tr><td><code>primal_tol</code></td><td><code>1e-12</code></td><td>DAQP's tolerance on the violation of a constraint (on its normalized rows). DAQP's own default, <code>1e-6</code>, lets the steps violate the linearized constraints slightly, which cost 18% more <code>fc</code> calls on the Hock&ndash;Schittkowski problems; values from <code>1e-10</code> to <code>1e-13</code> all did about equally well</td></tr>
+<tr><td><code>dual_tol</code></td><td><code>1e-12</code></td><td>DAQP's tolerance on the sign of a multiplier</td></tr>
+<tr><td><code>warm_start</code></td><td><code>.true.</code></td><td>start each QP from the previous QP's final working set (within one <code>solve</code>)</td></tr>
+</tbody>
+</table></div>
 
 <h3 id="direct-qp">Direct method <span class="h-note"><code>options%direct_qp</code></span></h3>
 
@@ -1247,7 +1271,7 @@ call problem%set_max_step([0.1_wp, 0.1_wp, sqpopt_infinity, 5.0_wp])   ! (no lim
 <p>On small problems it changes little, and not always for the better: on the Hock&ndash;Schittkowski problems the default options solve 278 problems with it and fail on one (TP106, where a more accurate correction leads to a slow crawl), against 281 and none without it. So it is off by default: turn it on for large problems that take corrections or restoration steps (<code>results%n_soc</code>, <code>results%n_restoration_steps</code>) and spend their time outside the QP and the user functions.</p>
 
 <h3 id="dense-qp">Dense QP options <span class="h-note"><code>qp_solver%dense_qp%&lt;name&gt;</code></span></h3>
-<p class="set-on">Used when <code>mode == sqpopt_qp_dense</code>.</p>
+<p class="set-on">Used when <code>mode == sqpopt_qp_dense</code>, and when <code>mode == sqpopt_qp_daqp</code> for the QPs that <a href="#daqp">DAQP</a> doesn't solve.</p>
 <div class="table-wrap"><table class="opt-table">
 <thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
 <tbody>
@@ -1501,6 +1525,7 @@ fpm test --profile release</code></pre>
   <li><a href="https://github.com/jacobwilliams/lusol">lusol</a>: sparse LU factorization (the sparse QP's basis factors and updates, and its rank-revealing basis choice)</li>
   <li><a href="https://github.com/jacobwilliams/fmin">fmin</a>: derivative-free minimization routine used by the exact line search</li>
   <li><a href="https://github.com/jacobwilliams/qdldl-fortran">qdldl-fortran</a>: sparse \( LDL^T \) factorization without pivoting (a Fortran port of OSQP's QDLDL), the default <a href="#linear-solver">linear solver</a></li>
+  <li><a href="https://github.com/jacobwilliams/daqp-fortran">daqp-fortran</a>: a Fortran port of DAQP, the dual active-set solver for dense convex QPs, for <a href="#daqp">qp_solver_mode = sqpopt_qp_daqp</a></li>
 </ul>
 
 <p>Optional, and not fetched by FPM (see <a href="#installation">Installation</a>):</p>

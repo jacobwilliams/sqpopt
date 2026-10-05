@@ -9,7 +9,7 @@ program test_direct
     !!    fpm test test_direct --flag "-DHAS_MUMPS -I$CONDA_PREFIX/include" --link-flag "-ldmumps_seq"
     !!
     !! Two small problems are solved with each Hessian mode and
-    !! several combinations of those options, with both QP solvers, with the
+    !! several combinations of those options, with the dense and the sparse QP solvers, with the
     !! trust region, and on two OpenMP threads
     !! (`options%factorization_threads`). Each run must converge to the known solution, solve
     !! QPs directly (if `direct_qp`), factor matrices, and give the same

@@ -2018,6 +2018,21 @@ which is now double precision only.
      QPOPT and SNOPT do) instead of refactored in `O(n^3)`. Related to F17
      (the same for the sparse QP's reduced Hessian).
   If the dense QP becomes much faster, re-measure `auto_dense_max_n`.
+  *Alternative to steps 3 and 4:* a Fortran port of DAQP (a dual
+  active-set solver for dense convex QPs that updates its LDLᵀ factors as
+  the working set changes), as a separate fpm package: see
+  [DAQP_PLAN.md](DAQP_PLAN.md) (2026-10-04). *Done as an opt-in QP mode
+  (2026-10-04):* the package is `daqp-fortran` (an fpm dependency), and
+  `options%qp_solver_mode = sqpopt_qp_daqp` (`sqpopt_qp_daqp_module`)
+  solves the QPs with it, with the dense QP taking over those it doesn't
+  solve (nonconvex, inconsistent, ...; DAQP's proximal loop off, which was
+  much worse with SR1). HS suite: 282/23/0 and 9,044 `fc` (dense QP:
+  281/24/0, 9,121), exact Hessian 270/32/3 and 10,108 (11,197); the
+  `benchmark` example's dense-size problems 20 to 700 times faster, with
+  the same iterates. *Open:* whether to make it the default of
+  `sqpopt_qp_auto` for `n <= auto_dense_max_n` (and re-measure that
+  threshold, and the factorization-based options' HS runs, with it); and,
+  for the dense fallback, steps 1-4 above matter much less.
   *Not worth comparing with LAPACK* (checked 2026-10-03): the compact
   Hessian's middle matrix (`sqpopt_hessian_module`, order twice the
   L-BFGS memory, 10 to 20) and the KKT module's quasi-Newton correction

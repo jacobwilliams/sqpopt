@@ -93,6 +93,8 @@ an `OptimizeResult`.
   * `constr_violation`, `kkt_error`, `stationarity_error`, and
     `execution_time`;
   * `n_qp_iterations`, `derivative_switch_iteration`, `n_unconstrained_qp`,
+    `n_daqp_fallbacks` (with `qp_solver_mode = sqpopt_qp_daqp`, the QPs that
+    DAQP didn't solve, solved by the dense QP solver instead),
     `n_factorizations`,
     `n_qp_solves`, `n_direct_qp`, and `time_factorization` (the last four for
     the options that use sparse factorizations, see below;

@@ -22,7 +22,7 @@ program test_infeasible
     use sqpopt_module,           only: sqpopt_type
     use sqpopt_problem_module,   only: sqpopt_problem_type
     use sqpopt_options_module,   only: sqpopt_options_type
-    use sqpopt_qp_solver_module, only: sqpopt_qp_auto, sqpopt_qp_dense, sqpopt_qp_reduced_hessian
+    use sqpopt_qp_solver_module, only: sqpopt_qp_auto, sqpopt_qp_dense, sqpopt_qp_reduced_hessian, sqpopt_qp_daqp
     use sqpopt_types_module,     only: sqpopt_infeasible
     use sqpopt_linesearch_module, only: sqpopt_linesearch_armijo, sqpopt_linesearch_filter, sqpopt_linesearch_funnel
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
@@ -30,7 +30,7 @@ program test_infeasible
 
     implicit none
 
-    integer, parameter :: modes(3) = [sqpopt_qp_auto, sqpopt_qp_dense, sqpopt_qp_reduced_hessian]
+    integer, parameter :: modes(4) = [sqpopt_qp_auto, sqpopt_qp_dense, sqpopt_qp_reduced_hessian, sqpopt_qp_daqp]
 
     type(sqpopt_type)         :: solver
     type(sqpopt_problem_type) :: problem
