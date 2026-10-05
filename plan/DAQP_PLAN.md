@@ -524,7 +524,8 @@ iteration limit, 17.5 s for the HS suite instead of 1.0), and its
 HS suite, release build: L-BFGS 282/23/0 and 9,044 `fc` (dense QP 281/24/0,
 9,121; 102 of 7,608 QPs fell back, 63 inconsistent, 36 nonconvex, 3 with
 dependent equalities); exact Hessian 270/32/3 and 10,108 (11,197); SR1
-244/31/30 and 42,346 (44,905). Step 4 (the default) is not done.
+244/31/30 and 42,346 (44,905). Step 4 (the default) is not done: the
+checks it needs first are roadmap item F31 (`plan/ROADMAP.md`).
 
 ---
 

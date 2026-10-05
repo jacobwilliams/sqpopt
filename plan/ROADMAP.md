@@ -2030,9 +2030,8 @@ which is now double precision only.
   281/24/0, 9,121), exact Hessian 270/32/3 and 10,108 (11,197); the
   `benchmark` example's dense-size problems 20 to 700 times faster, with
   the same iterates. *Open:* whether to make it the default of
-  `sqpopt_qp_auto` for `n <= auto_dense_max_n` (and re-measure that
-  threshold, and the factorization-based options' HS runs, with it); and,
-  for the dense fallback, steps 1-4 above matter much less.
+  `sqpopt_qp_auto` for `n <= auto_dense_max_n`: see F31. With DAQP, steps
+  1-4 above matter much less (the dense QP is then only its fallback).
   *Not worth comparing with LAPACK* (checked 2026-10-03): the compact
   Hessian's middle matrix (`sqpopt_hessian_module`, order twice the
   L-BFGS memory, 10 to 20) and the KKT module's quasi-Newton correction
@@ -2041,6 +2040,57 @@ which is now double precision only.
   QP's dense reduced Hessian (`dense_max_ns = 50`); LUSOL and LSQR (sparse
   and iterative, not dense kernels); and the order-`n` vector operations of
   the merit, line search, and restoration (memory-bound).
+- **F31: DAQP as the default dense QP of `sqpopt_qp_auto`** *(idea, not
+  started; discussed 2026-10-04)*. With a positive definite Hessian (the
+  default L-BFGS), the DAQP mode (F30) solves the same strictly convex QP
+  as the dense solver, so it takes the same steps, faster: the standard
+  design of NLPQL and SLSQP (a convex QP solver behind a positive definite
+  quasi-Newton Hessian), with the dense QP's elastic mode, as SNOPT's
+  SQOPT switches to it, for inconsistent constraints. Only with the exact
+  and SR1 Hessians is it unusual (a convex solver with a nonconvex one
+  behind it; 40-50% of their QPs fall back). The proposal: `sqpopt_qp_auto`
+  uses `sqpopt_qp_daqp` instead of `sqpopt_qp_dense` for
+  `n <= auto_dense_max_n`. Before deciding, check:
+  1. *The rest of the CLAUDE.md protocol, with `--qp=daqp`*: the HS suite
+     (release build) with `--hessian=exact --inertia`, `--hessian=exact
+     --inertia --direct`, `--hessian=sr1 --inertia`, `--direct`, and
+     `--direct-ls`, with QDLDL and, in the build with MUMPS, with
+     `--linear-solver=mumps`; and `--trust-region`, and the other
+     globalizations of the Performance table
+     (`tools/hs_performance_table.sh`'s configurations). Compare each with
+     its dense-QP baseline: solved/local/failed, `fc`, and time, and count
+     the fallbacks. Only the default, `--hessian=exact`, and `--hessian=sr1`
+     were run so far (all without regression).
+  2. *The HS problems whose outcome changed* between the dense QP and
+     DAQP (282/23/0 against 281/24/0 with the defaults): which ones, and
+     why. Suspects: degenerate QPs with non-unique multipliers, or a
+     working set that DAQP's tolerances (`primal_tol`, `dual_tol`) choose
+     differently.
+  3. *The 36 QPs that DAQP reported nonconvex with L-BFGS* (of 7,608 on
+     the HS suite; that matrix is positive definite in exact arithmetic):
+     nearly singular Hessians at DAQP's Cholesky tolerance? If so, whether
+     a tolerance or a tiny regularization keeps them in DAQP.
+  4. *`auto_dense_max_n` with DAQP*: `example/settings_study.f90` (now with
+     DAQP) showed DAQP fastest at every size with a dense Jacobian (6x the
+     sparse QP from 100 to 400 variables), but the sparse QP faster from
+     about 200 variables with a sparse one. Re-measure the threshold, and
+     consider whether it should depend on the Jacobian's density.
+  5. *Optional, for the exact and SR1 Hessians only*: convexify the
+     Hessian before each QP instead of falling back (the textbook
+     "Cholesky with added multiple of the identity", Nocedal & Wright
+     Algorithm 3.3, as CasADi's `convexify_strategy = regularize`: add
+     `tau*I`, raised until the Cholesky factorization succeeds, for that
+     QP only, through `hessian%shift`). Expected to cut the fallbacks but
+     to cost iterations (a full-space shift needn't vanish near a
+     solution, where only the reduced Hessian must be positive definite).
+     Not needed for the decision on the default, which uses L-BFGS.
+  If adopted, follow CLAUDE.md's "Change that can affect convergence":
+  new baselines (the `known_unsolved` comment and list, and the counts of
+  every configuration listed in CLAUDE.md), the Performance table
+  (`tools/hs_performance_table.sh --mumps`) and its data files, the
+  guide's numbers (the QP modes, "Options that form dense matrices", the
+  DAQP section), the Choosing settings page, the Python schema's text for
+  `qp_solver_mode`, and the README.
 
 ## 6. Testing and infrastructure
 
