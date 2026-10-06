@@ -33,7 +33,7 @@
     use sqpopt_options_module,    only: sqpopt_options_type
     use sqpopt_hessian_module,    only: sqpopt_hessian_type, sqpopt_hessian_bfgs, sqpopt_hessian_sr1, sqpopt_hessian_exact
     use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type, sqpopt_qp_auto, sqpopt_qp_dense, &
-                                         sqpopt_qp_reduced_hessian
+                                         sqpopt_qp_reduced_hessian, sqpopt_qp_daqp
     use sqpopt_qp_reduced_hessian_module, only: sqpopt_null_space_lu, sqpopt_null_space_lsqr
     use sqpopt_linesearch_module, only: sqpopt_linesearch_type, sqpopt_linesearch_armijo, sqpopt_linesearch_funnel, &
                                          sqpopt_linesearch_filter, sqpopt_linesearch_watchdog, &
@@ -404,6 +404,7 @@
         me%results%n_qp_solves    = me%qp_solver%n_solves
         me%results%n_direct_qp    = me%qp_solver%n_direct
         me%results%n_unconstrained_qp = me%qp_solver%n_unconstrained
+        me%results%n_daqp_fallbacks   = me%qp_solver%n_daqp_fallbacks
         me%results%n_factorizations   = kkt%solver%n_factor + least_squares%kkt%solver%n_factor
         me%results%time_factorization = kkt%solver%time + least_squares%kkt%solver%time
         if (valid) call diagnostics%finish(me%problem, me%options, me%results, me%x, me%lambda, cs, jac, &
@@ -760,6 +761,10 @@
         else
             write(u, '(A,I0)', iostat=ios)  '   QP iterations       = ', me%results%n_qp_iterations
         end if
+        if (me%results%n_daqp_fallbacks > 0) then
+            write(u, '(A,2(I0,A))', iostat=ios) '   DAQP fallbacks      = ', me%results%n_daqp_fallbacks, ' of ', &
+                                   me%results%n_qp_solves, ' QPs solved by the dense QP solver instead'
+        end if
         if (me%results%n_factorizations > 0) then
             write(u, '(A,I0)', iostat=ios)  '   factorizations      = ', me%results%n_factorizations
         end if
@@ -1011,7 +1016,7 @@
         msg = 'options%factorization_threads must be >= 0 (0: as the OpenMP environment says)'
         return
     end if
-    if (all(o%qp_solver_mode /= [sqpopt_qp_auto, sqpopt_qp_dense, sqpopt_qp_reduced_hessian])) then
+    if (all(o%qp_solver_mode /= [sqpopt_qp_auto, sqpopt_qp_dense, sqpopt_qp_reduced_hessian, sqpopt_qp_daqp])) then
         msg = 'options%qp_solver_mode is not a valid sqpopt_qp_* value'
         return
     end if
@@ -1153,7 +1158,7 @@
         msg = 'qp_solver%direct_max_changes must be >= 0, and direct_tol > 0'
         return
     end if
-    associate (d => qp%dense_qp, r => qp%sparse_qp)
+    associate (d => qp%dense_qp, r => qp%sparse_qp, a => qp%daqp_qp)
     if (.not. (d%active_tol > 0.0_wp .and. d%opt_tol > 0.0_wp .and. d%feas_tol > 0.0_wp .and. &
                d%elastic_weight > 0.0_wp .and. d%elastic_weight_max >= d%elastic_weight) .or. d%max_iter < 1) then
         msg = 'a qp_solver%dense_qp setting is out of range'
@@ -1164,6 +1169,10 @@
                .and. r%lsqr_atol >= 0.0_wp .and. r%lsqr_btol >= 0.0_wp .and. r%lsqr_conlim >= 0.0_wp) &
         .or. r%max_iter < 1 .or. r%dense_max_ns < 0 .or. all(r%null_space /= [sqpopt_null_space_lu, sqpopt_null_space_lsqr])) then
         msg = 'a qp_solver%sparse_qp setting is out of range'
+        return
+    end if
+    if (.not. (a%primal_tol > 0.0_wp .and. a%dual_tol > 0.0_wp) .or. a%max_iter < 1) then
+        msg = 'a qp_solver%daqp_qp setting is out of range'
         return
     end if
     end associate

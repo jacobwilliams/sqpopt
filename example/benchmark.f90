@@ -7,6 +7,11 @@ program benchmark
     !!
     !!    fpm run --example benchmark --profile release
     !!
+    !! Command-line options: `--qp=auto|dense|sparse|daqp` (the QP solver,
+    !! `options%qp_solver_mode`; the default is `auto`), and `--max-n=N` (skip
+    !! the problems with more than `N` variables: the dense QP solvers form
+    !! dense matrices of order `n`).
+    !!
     !! Problems:
     !!
     !! * `control`: a discretized nonlinear optimal-control problem with `N`
@@ -29,25 +34,53 @@ program benchmark
     use sqpopt_problem_module, only: sqpopt_problem_type
     use sqpopt_options_module, only: sqpopt_options_type
     use sqpopt_types_module,   only: sqpopt_results_type
+    use sqpopt_qp_solver_module, only: sqpopt_qp_auto, sqpopt_qp_dense, sqpopt_qp_reduced_hessian, sqpopt_qp_daqp
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
 
     implicit none
 
     integer :: nsteps               !! `control`: number of steps `N`
     real(wp) :: h                   !! `control`: step size
+    integer :: qp_mode              !! `--qp=`: `options%qp_solver_mode`
+    integer :: max_n                !! `--max-n=`: the largest number of variables to solve
 
+    call parse_arguments()
     write(*,'(A)') ''
     write(*,'(A12,A8,A6,A6,A6,A8,A8,A10,A16)') 'problem', 'size', 'n', 'm', 'istat', &
         'n_fc', 'n_gjac', 'time (s)', 'f'
 
-    call run_control(50)
-    call run_control(150)
-    call run_control(500)
-    call run_rosenbrock(40)
-    call run_rosenbrock(300)
-    call run_rosenbrock(2000)
+    if (2*50+1 <= max_n)  call run_control(50)
+    if (2*150+1 <= max_n) call run_control(150)
+    if (2*500+1 <= max_n) call run_control(500)
+    if (40 <= max_n)      call run_rosenbrock(40)
+    if (300 <= max_n)     call run_rosenbrock(300)
+    if (2000 <= max_n)    call run_rosenbrock(2000)
 
     contains
+
+    subroutine parse_arguments()
+    !! read the command-line options (see the program's documentation)
+    character(len=64) :: arg
+    integer :: i, ios
+    qp_mode = sqpopt_qp_auto
+    max_n   = huge(1)
+    do i = 1, command_argument_count()
+        call get_command_argument(i, arg)
+        select case (trim(arg))
+        case ('--qp=auto');   qp_mode = sqpopt_qp_auto
+        case ('--qp=dense');  qp_mode = sqpopt_qp_dense
+        case ('--qp=sparse'); qp_mode = sqpopt_qp_reduced_hessian
+        case ('--qp=daqp');   qp_mode = sqpopt_qp_daqp
+        case default
+            if (arg(1:8) == '--max-n=') then
+                read(arg(9:), *, iostat=ios) max_n
+                if (ios /= 0) error stop 'benchmark: bad --max-n value'
+            else
+                error stop 'benchmark: unknown option '//trim(arg)
+            end if
+        end select
+    end do
+    end subroutine parse_arguments
 
     subroutine report(name, size_param, n, m, solver)
     !! print one line of results (from the solver's results object)
@@ -103,6 +136,7 @@ program benchmark
     call problem%set_functions(fc=fc_control, gjac=gjac_control)
 
     options%max_iter = 2000
+    options%qp_solver_mode = qp_mode
     allocate(x(n))
     x = 0.0_wp
     x(1:nsteps+1) = 1.0_wp
@@ -173,6 +207,7 @@ program benchmark
     call problem%set_functions(fc=fc_rosen, gjac=gjac_rosen)
 
     options%max_iter = 2000
+    options%qp_solver_mode = qp_mode
     allocate(x(n))
     do i = 1, n
         x(i) = merge(-1.2_wp, 1.0_wp, mod(i,2) == 1)

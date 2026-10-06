@@ -69,10 +69,12 @@ program test_hs_suite
     !! * `--penalty=multipliers|model` (`options%penalty_update`)
     !! * `--no-interpolate` (`linesearch%interpolate = .false.`)
     !! * `--nonmonotone=N` (`linesearch%nonmonotone_len = N`)
-    !! * `--qp=auto|dense|sparse|sparse-lsqr` (`options%qp_solver_mode`; the
-    !!   HS problems are small, so `auto` picks the dense QP for all of them:
-    !!   `sparse` runs them through the sparse QP instead, and `sparse-lsqr`
-    !!   through its `LSQR` null-space method)
+    !! * `--qp=auto|dense|sparse|sparse-lsqr|daqp` (`options%qp_solver_mode`;
+    !!   the HS problems are small, so `auto` picks the dense QP for all of
+    !!   them: `sparse` runs them through the sparse QP instead, `sparse-lsqr`
+    !!   through its `LSQR` null-space method, and `daqp` through DAQP, with
+    !!   the dense QP as its fallback; the number of QPs that fell back is
+    !!   reported)
     !! * `--derivatives=central|forward|fast`: finite-difference derivatives
     !!   for *every* problem (as if none had analytic ones): central
     !!   differences, forward differences (half the function evaluations,
@@ -106,7 +108,7 @@ program test_hs_suite
     use sqpopt_options_module, only: sqpopt_options_type
     use sqpopt_hessian_module, only: sqpopt_hessian_bfgs, sqpopt_hessian_sr1, sqpopt_hessian_exact
     use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type, sqpopt_qp_auto, sqpopt_qp_dense, &
-                                        sqpopt_qp_reduced_hessian
+                                        sqpopt_qp_reduced_hessian, sqpopt_qp_daqp
     use sqpopt_qp_reduced_hessian_module, only: sqpopt_null_space_lu, sqpopt_null_space_lsqr
     use sqpopt_linesearch_module, only: sqpopt_linesearch_type, sqpopt_linesearch_armijo, sqpopt_linesearch_exact, &
                                         sqpopt_linesearch_watchdog, sqpopt_linesearch_filter, sqpopt_merit_l1, &
@@ -166,6 +168,7 @@ program test_hs_suite
     integer :: sum_nf, sum_ng, sum_nlpqlp_nf, sum_nlpqlp_ndf
     integer :: sum_nfd !! function evaluations of the finite differences (solved problems)
     integer :: n_switched !! problems on which the solver switched to accurate derivatives
+    integer :: sum_qp_solves, sum_daqp_fallbacks !! QP solves, and of which DAQP's fallbacks (all problems)
     character(len=6) :: outcome
     integer(int64) :: t0, t1, rate
     character(len=:), allocatable :: report_file
@@ -209,6 +212,7 @@ program test_hs_suite
     n_solved = 0; n_local = 0; n_failed = 0; n_fd = 0; n_regressions = 0; n_improved = 0
     sum_nf = 0; sum_ng = 0; sum_nlpqlp_nf = 0; sum_nlpqlp_ndf = 0; sum_nfd = 0; n_switched = 0
     n_suspected = 0
+    sum_qp_solves = 0; sum_daqp_fallbacks = 0
     call system_clock(t0, rate)
 
     do k = 1, hs_n_problems
@@ -231,6 +235,8 @@ program test_hs_suite
         if (cfg_derivatives == 3) write(*,'(A,I0)') 'switched to accurate derivatives: ', n_switched
         if (cfg_diagnostics >= 2) write(*,'(A,I0)') 'diagnostics suspected a derivative on: ', n_suspected
     end if
+    if (cfg_qp == sqpopt_qp_daqp) write(*,'(A,I0,A,I0,A)') 'DAQP fallbacks: ', sum_daqp_fallbacks, ' of ', &
+                                                            sum_qp_solves, ' QPs (all problems)'
     write(*,'(A,F0.2,A)') 'time: ', real(t1-t0, dp)/real(rate, dp), ' s'
 
     if (cfg_problem == 0) then
@@ -314,6 +320,7 @@ program test_hs_suite
         case ('--qp=auto');             cfg_qp = sqpopt_qp_auto
         case ('--qp=dense');            cfg_qp = sqpopt_qp_dense
         case ('--qp=sparse');           cfg_qp = sqpopt_qp_reduced_hessian
+        case ('--qp=daqp');             cfg_qp = sqpopt_qp_daqp
         case ('--qp=sparse-lsqr');      cfg_qp = sqpopt_qp_reduced_hessian; cfg_null_space = sqpopt_null_space_lsqr
         case ('--derivatives=central'); cfg_derivatives = 1
         case ('--derivatives=forward'); cfg_derivatives = 2
@@ -434,6 +441,8 @@ program test_hs_suite
                            trust_region=trust_region)
     call solver%solve(real(p%x0, wp), istat)
     call solver%get_results(r)
+    sum_qp_solves      = sum_qp_solves + r%n_qp_solves
+    sum_daqp_fallbacks = sum_daqp_fallbacks + r%n_daqp_fallbacks
     if (cfg_diagnostics >= 2) then
         if (r%diagnosis%objective_derivative_suspect .or. size(r%diagnosis%derivative_suspects) > 0) then
             n_suspected = n_suspected + 1

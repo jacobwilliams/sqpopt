@@ -32,7 +32,8 @@ program test_hs71
     !! `sqpopt_linesearch_watchdog` (Powell's VF13 watchdog technique, see
     !! PLAN.md section 6.3), `sqpopt_qp_dense` and
     !! `sqpopt_qp_reduced_hessian` explicitly (see `DENSE_QP_PLAN.md` and
-    !! `REDUCED_HESSIAN_QP_PLAN.md`), the reduced-Hessian solver with tuned
+    !! `REDUCED_HESSIAN_QP_PLAN.md`), `sqpopt_qp_daqp` (DAQP, with the
+    !! quasi-Newton and the exact Hessian), the reduced-Hessian solver with tuned
     !! `LSQR` tolerances (`lsqr_atol`/`lsqr_btol`, exposed as user-settable
     !! fields on `sqpopt_reduced_hessian_qp_type`), and the filter line
     !! search with the dense QP solver. The function-call counts
@@ -46,7 +47,8 @@ program test_hs71
                                         sqpopt_linesearch_armijo, sqpopt_linesearch_watchdog, sqpopt_linesearch_filter, &
                                         sqpopt_linesearch_funnel, &
                                         sqpopt_penalty_multipliers, sqpopt_penalty_model, sqpopt_linesearch_type
-    use sqpopt_qp_solver_module, only: sqpopt_qp_auto, sqpopt_qp_dense, sqpopt_qp_reduced_hessian, sqpopt_qp_solver_type
+    use sqpopt_qp_solver_module, only: sqpopt_qp_auto, sqpopt_qp_dense, sqpopt_qp_reduced_hessian, sqpopt_qp_daqp, &
+                                       sqpopt_qp_solver_type
     use sqpopt_types_module,   only: sqpopt_success, sqpopt_results_type
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
 
@@ -74,6 +76,7 @@ program test_hs71
     call run_hs71('watchdog',               sqpopt_merit_l1,                   sqpopt_linesearch_watchdog, sqpopt_qp_auto)
     call run_hs71('dense QP',               sqpopt_merit_l1,                   sqpopt_linesearch_armijo,   sqpopt_qp_dense)
     call run_hs71('reduced-Hessian QP',     sqpopt_merit_l1,                   sqpopt_linesearch_armijo,   sqpopt_qp_reduced_hessian)
+    call run_hs71('DAQP',                   sqpopt_merit_l1,                   sqpopt_linesearch_filter,   sqpopt_qp_daqp)
     ! the reduced-Hessian solver's LSQR tolerances are user-tunable (see
     ! PLAN.md section 6.2); kept as an example of setting them (loosening
     ! them trades QP accuracy for speed):
@@ -87,11 +90,13 @@ program test_hs71
     ! the funnel method (Kiessling, Leyffer & Vanaret; also no merit function):
     call run_hs71('funnel',                 sqpopt_merit_l1,                   sqpopt_linesearch_funnel,  sqpopt_qp_auto)
     ! the user's exact Hessian of the Lagrangian instead of the quasi-Newton
-    ! approximation (with both QP solvers):
+    ! approximation (with each QP solver):
     call run_hs71('exact Hessian',          sqpopt_merit_l1,                   sqpopt_linesearch_filter,  sqpopt_qp_auto, &
                   exact_hessian=.true.)
     call run_hs71('exact Hessian, sparse QP', sqpopt_merit_l1,                 sqpopt_linesearch_filter,  &
                   sqpopt_qp_reduced_hessian, exact_hessian=.true.)
+    call run_hs71('exact Hessian, DAQP',    sqpopt_merit_l1,                   sqpopt_linesearch_filter,  &
+                  sqpopt_qp_daqp, exact_hessian=.true.)
 
     contains
 

@@ -48,6 +48,7 @@
     use sqpopt_kkt_module,          only: sqpopt_kkt_type
     use sqpopt_least_squares_module, only: sqpopt_least_squares_type, multiplier_estimate
     use sqpopt_qp_direct_module,    only: direct_outcome_text
+    use sqpopt_qp_daqp_module,      only: daqp_status_text
     use sqpopt_diagnostics_module,  only: sqpopt_diagnostics_type
 
     implicit none
@@ -831,6 +832,7 @@
 
         subroutine note_qp()
         !! the detailed log's line for the QP solve just done
+        character(len=:), allocatable :: name !! the QP solver that solved it
         if (.not. lg%on(sqpopt_log_detail)) return
         if (qp_solver%unconstrained_used) then
             call lg%put(sqpopt_log_detail, 'QP: the unconstrained quasi-Newton step is feasible (no QP solver run)')
@@ -846,7 +848,10 @@
                         plural(qp_solver%direct_changes, 'change', 'changes')//' of the working set ('// &
                         direct_outcome_text(qp_solver%direct_outcome)//')')
         end if
-        call lg%put(sqpopt_log_detail, qp_solver%mode_name(problem%n)//': '// &
+        if (qp_solver%daqp_fallback) call lg%put(sqpopt_log_detail, 'DAQP: not solved ('// &
+            daqp_status_text(qp_solver%daqp_qp%status)//'), the dense QP solver takes over')
+        name = qp_solver%solver_name(problem%n)
+        call lg%put(sqpopt_log_detail, name//': '// &
                     plural(qp_solver%n_iter, 'iteration', 'iterations')//', working set '//fmt_i(qp_solver%n_working)// &
                     ', '//plural(qp_solver%n_slacks, 'elastic slack', 'elastic slacks')//', '//qp_status_text(qp_istat)// &
                     trim(merge(', negative curvature', '                    ', qp_solver%negative_curvature)))

@@ -2018,6 +2018,20 @@ which is now double precision only.
      QPOPT and SNOPT do) instead of refactored in `O(n^3)`. Related to F17
      (the same for the sparse QP's reduced Hessian).
   If the dense QP becomes much faster, re-measure `auto_dense_max_n`.
+  *Alternative to steps 3 and 4:* a Fortran port of DAQP (a dual
+  active-set solver for dense convex QPs that updates its LDLᵀ factors as
+  the working set changes), as a separate fpm package: see
+  [DAQP_PLAN.md](DAQP_PLAN.md) (2026-10-04). *Done as an opt-in QP mode
+  (2026-10-04):* the package is `daqp-fortran` (an fpm dependency), and
+  `options%qp_solver_mode = sqpopt_qp_daqp` (`sqpopt_qp_daqp_module`)
+  solves the QPs with it, with the dense QP taking over those it doesn't
+  solve (nonconvex, inconsistent, ...; DAQP's proximal loop off, which was
+  much worse with SR1). HS suite: 282/23/0 and 9,044 `fc` (dense QP:
+  281/24/0, 9,121), exact Hessian 270/32/3 and 10,108 (11,197); the
+  `benchmark` example's dense-size problems 20 to 700 times faster, with
+  the same iterates. *Open:* whether to make it the default of
+  `sqpopt_qp_auto` for `n <= auto_dense_max_n`: see F31. With DAQP, steps
+  1-4 above matter much less (the dense QP is then only its fallback).
   *Not worth comparing with LAPACK* (checked 2026-10-03): the compact
   Hessian's middle matrix (`sqpopt_hessian_module`, order twice the
   L-BFGS memory, 10 to 20) and the KKT module's quasi-Newton correction
@@ -2026,6 +2040,106 @@ which is now double precision only.
   QP's dense reduced Hessian (`dense_max_ns = 50`); LUSOL and LSQR (sparse
   and iterative, not dense kernels); and the order-`n` vector operations of
   the merit, line search, and restoration (memory-bound).
+- **F31: DAQP as the default dense QP of `sqpopt_qp_auto`** *(checks 1-4
+  done 2026-10-04: not adopted; see "Findings" at the end)*. With a positive definite Hessian (the
+  default L-BFGS), the DAQP mode (F30) solves the same strictly convex QP
+  as the dense solver, so it takes the same steps, faster: the standard
+  design of NLPQL and SLSQP (a convex QP solver behind a positive definite
+  quasi-Newton Hessian), with the dense QP's elastic mode, as SNOPT's
+  SQOPT switches to it, for inconsistent constraints. Only with the exact
+  and SR1 Hessians is it unusual (a convex solver with a nonconvex one
+  behind it; 40-50% of their QPs fall back). The proposal: `sqpopt_qp_auto`
+  uses `sqpopt_qp_daqp` instead of `sqpopt_qp_dense` for
+  `n <= auto_dense_max_n`. Before deciding, check:
+  1. *The rest of the CLAUDE.md protocol, with `--qp=daqp`*: the HS suite
+     (release build) with `--hessian=exact --inertia`, `--hessian=exact
+     --inertia --direct`, `--hessian=sr1 --inertia`, `--direct`, and
+     `--direct-ls`, with QDLDL and, in the build with MUMPS, with
+     `--linear-solver=mumps`; and `--trust-region`, and the other
+     globalizations of the Performance table
+     (`tools/hs_performance_table.sh`'s configurations). Compare each with
+     its dense-QP baseline: solved/local/failed, `fc`, and time, and count
+     the fallbacks. Only the default, `--hessian=exact`, and `--hessian=sr1`
+     were run so far (all without regression).
+  2. *The HS problems whose outcome changed* between the dense QP and
+     DAQP (282/23/0 against 281/24/0 with the defaults): which ones, and
+     why. Suspects: degenerate QPs with non-unique multipliers, or a
+     working set that DAQP's tolerances (`primal_tol`, `dual_tol`) choose
+     differently.
+  3. *The 36 QPs that DAQP reported nonconvex with L-BFGS* (of 7,608 on
+     the HS suite; that matrix is positive definite in exact arithmetic):
+     nearly singular Hessians at DAQP's Cholesky tolerance? If so, whether
+     a tolerance or a tiny regularization keeps them in DAQP.
+  4. *`auto_dense_max_n` with DAQP*: `example/settings_study.f90` (now with
+     DAQP) showed DAQP fastest at every size with a dense Jacobian (6x the
+     sparse QP from 100 to 400 variables), but the sparse QP faster from
+     about 200 variables with a sparse one. Re-measure the threshold, and
+     consider whether it should depend on the Jacobian's density.
+  5. *Optional, for the exact and SR1 Hessians only*: convexify the
+     Hessian before each QP instead of falling back (the textbook
+     "Cholesky with added multiple of the identity", Nocedal & Wright
+     Algorithm 3.3, as CasADi's `convexify_strategy = regularize`: add
+     `tau*I`, raised until the Cholesky factorization succeeds, for that
+     QP only, through `hessian%shift`). Expected to cut the fallbacks but
+     to cost iterations (a full-space shift needn't vanish near a
+     solution, where only the reduced Hessian must be positive definite).
+     Not needed for the decision on the default, which uses L-BFGS.
+  If adopted, follow CLAUDE.md's "Change that can affect convergence":
+  new baselines (the `known_unsolved` comment and list, and the counts of
+  every configuration listed in CLAUDE.md), the Performance table
+  (`tools/hs_performance_table.sh --mumps`) and its data files, the
+  guide's numbers (the QP modes, "Options that form dense matrices", the
+  DAQP section), the Choosing settings page, the Python schema's text for
+  `qp_solver_mode`, and the README.
+  *Findings (2026-10-04, release build, every configuration of the
+  protocol and of the Performance table, dense QP against DAQP):*
+  - The default configuration and most others gain slightly (default
+    282/23/0 against 281/24/0; exact Hessian with inertia control
+    274/28/3 against 273/29/3, and 13,187 `fc` against 13,654; QDLDL and
+    the dense linear solver alike), and the exact and SR1 Hessians take
+    5-30% less time. But five configurations have new failures, all at
+    `max_iter`: the funnel (TP230), the trust region with the funnel
+    (TP230), Armijo with the augmented Lagrangian (TP230, TP373), the
+    same with the non-monotone retry (TP87, TP230, TP373), and the
+    watchdog (TP373); and SR1 with inertia control loses 2 solved
+    problems (TP359 fails) and needs 15% more `fc`, and `--direct` 10%
+    more `fc` (with 2 more solved). With MUMPS (`--linear-solver=mumps`),
+    the same: SR1 with inertia control 272/29/4 against 274/27/4 (TP359
+    fails), the other four configurations equal or slightly better.
+  - TP230 (symmetric): the full QP steps alternate between (0,0) and
+    (1,0), each infeasible by 1. The dense QP's rounding errors break the
+    symmetry, and the iterates leave by iteration 26; DAQP's steps are
+    exact, and the iteration cycles to `max_iter`. Not a DAQP error, a
+    2-cycle of the SQP iteration that the dense QP escapes by luck.
+  - TP359 (SR1, inertia control): at iteration 5 the two solvers return
+    different solutions of the same strictly convex QP (dense: a step of
+    83 with 5 active rows, then converged; DAQP: "optimal" with a step of
+    4.2e-3 and 4 active rows, and the same at every later iteration). So
+    DAQP returned an inaccurate solution, presumably because the Hessian
+    is nearly singular: a dual method works with `R^{-1}`, so its
+    accuracy follows the condition of `H`, where the primal null-space
+    method only needs the reduced Hessian's. TP373 (augmented
+    Lagrangian): in a degenerate state (multipliers near 4e18), DAQP
+    returned "optimal" with an *empty* working set on a problem with six
+    equality constraints.
+  - Check 3: of the 36 QPs that DAQP called nonconvex with L-BFGS on the
+    HS suite, 34 are numerically singular (condition above 1e10, largest
+    diagonals up to 3e8; the dense QP's own Cholesky test rejects them
+    too), and 2 are tiny matrices (largest diagonal about 1e-7) that
+    DAQP's absolute pivot tolerance (`zero_tol = 1e-11`) rejects.
+  - Check 4 (`example/settings_study.f90`, now with DAQP): DAQP is the
+    fastest with a dense Jacobian (6x the sparse QP from 100 to 400
+    variables), the sparse QP from about 200 variables with a sparse one.
+    Moot until the rest is resolved.
+  - Also fixed: the detailed log named forced elastic re-solves "DAQP QP"
+    though the dense QP solved them (`qp_solver%daqp_used`, `solver_name`).
+  *Next, if pursued:* verify each solution DAQP reports against the
+  original QP (the linearized constraints, including the equalities, and
+  the bounds, to a relative tolerance; stationarity, and the multipliers'
+  signs) and give the QP to the dense solver if it fails, the usual
+  safeguard for a subproblem solver; then repeat the comparison above.
+  TP230's cycle would remain (an iteration that only rounding errors
+  break), and needs its own look.
 
 ## 6. Testing and infrastructure
 

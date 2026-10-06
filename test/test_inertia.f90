@@ -9,7 +9,7 @@ program test_inertia
     !!
     !! It checks the shift that [[inertia_correct]] finds for small matrices
     !! whose inertia is known, and solves a nonconvex problem with inertia
-    !! control (with both QP solvers, and with the trust region). Without
+    !! control (with the dense and the sparse QP solvers, and with the trust region). Without
     !! MUMPS, it also checks that asking for MUMPS is rejected as invalid
     !! input.
 

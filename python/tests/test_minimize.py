@@ -159,6 +159,24 @@ class TestMinimize(unittest.TestCase):
                     self.assertGreater(r.n_direct_qp, 0)
                     self.assertLessEqual(r.n_direct_qp, r.n_qp_solves)
 
+    def test_daqp(self):
+        # (DAQP for the QP subproblems: the same solution as the default QP solver)
+        hs71 = dict(jac=hs71_g, bounds=[(1, 5)] * 4,
+                    constraints=[NonlinearConstraint(hs71_c, [40, 25], [40, np.inf], jac=hs71_cj)])
+        r = minimize(hs71_f, [1, 5, 5, 1], options={'qp_solver_mode': 'daqp'}, **hs71)
+        self.check_hs71(r)
+        self.assertGreater(r.n_qp_solves, 0)
+        self.assertLessEqual(r.n_daqp_fallbacks, r.n_qp_solves)
+        self.assertEqual(minimize(hs71_f, [1, 5, 5, 1], **hs71).n_daqp_fallbacks, 0)
+        # inconsistent linearized constraints (x1 in [0,1] and in [2,3]): DAQP can't solve the QPs, and the
+        # dense QP solver's elastic mode takes over
+        r = minimize(lambda x: x @ x, [0.5, 0.0], jac=lambda x: 2 * x, bounds=[(-10, 10)] * 2,
+                     constraints=LinearConstraint([[1, 0], [1, 0]], [0, 2], [1, 3]),
+                     options={'qp_solver_mode': 'daqp'})
+        self.assertFalse(r.success)
+        self.assertGreater(r.n_daqp_fallbacks, 0)
+        self.assertAlmostEqual(r.x[0], 1.5, places=4)
+
     def test_callback(self):
         seen = []
         r = minimize(rosen, [-1.2, 1], jac=rosen_g, callback=lambda intermediate_result: seen.append(

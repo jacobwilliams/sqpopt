@@ -12,12 +12,18 @@
 !  $$ c_l - c(x) \le J(x) p \le c_u - c(x) $$
 !  $$ x_l - x \le p \le x_u - x $$
 !
-!  The subproblem is solved by one of two active-set QP solvers, selected
+!  The subproblem is solved by one of the active-set QP solvers, selected
 !  by `mode`:
 !
 !  * `sqpopt_qp_dense`: a dense active-set QP (see [[sqpopt_qp_dense_module]]);
 !  * `sqpopt_qp_reduced_hessian`: a sparse/matrix-free active-set QP (see
 !    [[sqpopt_qp_reduced_hessian_module]]);
+!  * `sqpopt_qp_daqp`: DAQP's dual active-set solver for dense convex QPs
+!    (see [[sqpopt_qp_daqp_module]]), with `sqpopt_qp_dense` as its
+!    fallback: a QP that DAQP doesn't solve (a nonconvex one, inconsistent
+!    linearized constraints, ...), and a forced elastic re-solve, are solved
+!    by the dense solver. The two share the working set that each QP starts
+!    from;
 !  * `sqpopt_qp_auto` (the default): `sqpopt_qp_dense` when
 !    `n <= auto_dense_max_n`, else `sqpopt_qp_reduced_hessian`.
 !
@@ -61,6 +67,7 @@
     use sqpopt_hessian_module, only: sqpopt_hessian_type
     use sqpopt_qp_dense_module, only: sqpopt_dense_qp_type
     use sqpopt_qp_reduced_hessian_module, only: sqpopt_reduced_hessian_qp_type
+    use sqpopt_qp_daqp_module,   only: sqpopt_daqp_qp_type
     use sqpopt_kkt_module,       only: sqpopt_kkt_type
     use sqpopt_inertia_module,   only: sqpopt_inertia_type
     use sqpopt_qp_direct_module, only: direct_qp_step, sqpopt_direct_solved
@@ -74,6 +81,8 @@
     integer, parameter, public :: sqpopt_qp_dense           = 2  !! dense active-set QP solver (see [[sqpopt_qp_dense_module]])
     integer, parameter, public :: sqpopt_qp_reduced_hessian = 3  !! sparse (projected-CG) active-set QP solver (see [[sqpopt_qp_reduced_hessian_module]])
                                                                   !! (value 1 was the removed composite-step heuristic)
+    integer, parameter, public :: sqpopt_qp_daqp            = 4  !! DAQP's dual active-set solver for dense convex QPs, with
+                                                                  !! `sqpopt_qp_dense` as its fallback (see [[sqpopt_qp_daqp_module]])
 
     type, public :: sqpopt_qp_solver_type
         !! workspace and options for the QP subproblem solver.
@@ -122,13 +131,23 @@
         integer :: direct_changes = 0      !! the changes of the working set it made there (output)
         integer :: n_solves = 0            !! number of QP solves in this `solve` (output)
         integer :: n_direct = 0            !! of which, by the direct method (output)
-        type(sqpopt_dense_qp_type)           :: dense_qp    !! the dense QP solver (used only when `mode==sqpopt_qp_dense`)
+        logical :: daqp_fallback = .false. !! whether DAQP didn't solve the last QP, and the dense QP solver did
+                                           !! (output; with `mode==sqpopt_qp_daqp`)
+        logical :: daqp_used = .false.     !! whether DAQP solved the last QP (output; with `mode==sqpopt_qp_daqp`,
+                                           !! the dense QP solver solved it otherwise: a fallback, or a forced
+                                           !! elastic re-solve)
+        integer :: n_daqp_fallbacks = 0    !! number of QPs of this `solve` that DAQP didn't solve, solved by the
+                                           !! dense QP solver instead (output)
+        type(sqpopt_dense_qp_type)           :: dense_qp    !! the dense QP solver (used only when `mode` is
+                                                            !! `sqpopt_qp_dense`, or `sqpopt_qp_daqp` as its fallback)
         type(sqpopt_reduced_hessian_qp_type) :: sparse_qp   !! the sparse QP solver (used only when `mode==sqpopt_qp_reduced_hessian`)
+        type(sqpopt_daqp_qp_type)            :: daqp_qp     !! the DAQP QP solver (used only when `mode==sqpopt_qp_daqp`)
 
         contains
 
         procedure, public :: solve => solve_qp_subproblem
         procedure, public :: mode_name
+        procedure, public :: solver_name
         procedure, public :: working_set
         procedure, public :: starting_working_set
         procedure, public :: elastic_slacks
@@ -143,7 +162,10 @@
 !  solve the linearized QP subproblem for the search direction `p` and
 !  the associated Lagrange multipliers `lambda`, dispatching to the
 !  active-set solver selected by `me%mode` (see [[sqpopt_qp_dense_module]],
-!  [[sqpopt_qp_reduced_hessian_module]]). If the solver returns
+!  [[sqpopt_qp_reduced_hessian_module]], [[sqpopt_qp_daqp_module]]; with
+!  `sqpopt_qp_daqp`, a QP that DAQP doesn't solve, and a forced elastic
+!  solve, go to the dense solver, and `me%daqp_fallback` is set in the
+!  first case). If the solver returns
 !  `istat=sqpopt_out_of_memory`, `me%out_of_memory` is also set (and stays
 !  set), for [[sqpopt_iterate]] to stop the solve.
 !
@@ -200,6 +222,8 @@
     forced = present(elastic_sign) .and. present(elastic_weight)
     me%n_solves    = me%n_solves + 1
     me%unconstrained_used = .false.
+    me%daqp_fallback  = .false.
+    me%daqp_used      = .false.
     me%direct_used    = .false.
     me%direct_outcome = -1
     me%direct_changes = 0
@@ -257,7 +281,7 @@
         me%n_slacks  = 0
         me%negative_curvature = .false.
         ! (the next QP starts from the empty working set)
-        if (resolved_mode(me, n) == sqpopt_qp_dense) then
+        if (uses_dense_working_set(me, n)) then
             if (allocated(me%dense_qp%warm_status)) deallocate(me%dense_qp%warm_status)
             allocate(me%dense_qp%warm_status(m + n), source=0)
         else
@@ -286,7 +310,7 @@
         me%n_slacks  = 0
         me%negative_curvature = .false.
         ! (the next QP starts from this working set)
-        if (resolved_mode(me, size(g)) == sqpopt_qp_dense) then
+        if (uses_dense_working_set(me, size(g))) then
             me%dense_qp%warm_status = status
         else
             me%sparse_qp%warm_status = status
@@ -296,20 +320,24 @@
         subroutine solve_active_set()
         !! solve the QP with the active-set solver selected by `me%mode`
         select case (resolved_mode(me, size(g)))
+        case (sqpopt_qp_daqp)
+            if (.not. forced) then
+                call me%daqp_qp%solve(hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, me%dense_qp%warm_status, &
+                                      p, lambda, istat)
+                if (istat == sqpopt_success) then
+                    me%daqp_used = .true.
+                    me%n_iter    = me%daqp_qp%n_iter
+                    me%n_working = me%daqp_qp%n_working
+                    me%n_slacks  = 0
+                    me%negative_curvature = .false.
+                    return
+                end if
+                me%daqp_fallback    = .true.
+                me%n_daqp_fallbacks = me%n_daqp_fallbacks + 1
+            end if
+            call solve_dense()
         case (sqpopt_qp_dense)
-            if (forced) then
-                me%dense_qp%force_sign   = elastic_sign
-                me%dense_qp%force_weight = elastic_weight
-            end if
-            call me%dense_qp%solve(hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
-            if (forced) then
-                deallocate(me%dense_qp%force_sign)
-                me%dense_qp%force_weight = 0.0_wp
-            end if
-            me%n_iter = me%dense_qp%n_iter
-            me%n_working = me%dense_qp%n_working
-            me%n_slacks  = me%dense_qp%n_slacks
-            me%negative_curvature = me%dense_qp%negative_curvature
+            call solve_dense()
         case default ! sqpopt_qp_reduced_hessian
             if (forced) then
                 me%sparse_qp%force_sign   = elastic_sign
@@ -326,6 +354,23 @@
             me%negative_curvature = me%sparse_qp%negative_curvature
         end select
         end subroutine solve_active_set
+
+        subroutine solve_dense()
+        !! solve the QP with the dense active-set solver
+        if (forced) then
+            me%dense_qp%force_sign   = elastic_sign
+            me%dense_qp%force_weight = elastic_weight
+        end if
+        call me%dense_qp%solve(hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)
+        if (forced) then
+            deallocate(me%dense_qp%force_sign)
+            me%dense_qp%force_weight = 0.0_wp
+        end if
+        me%n_iter = me%dense_qp%n_iter
+        me%n_working = me%dense_qp%n_working
+        me%n_slacks  = me%dense_qp%n_slacks
+        me%negative_curvature = me%dense_qp%negative_curvature
+        end subroutine solve_dense
 
     end subroutine solve_qp_subproblem
 !*******************************************************************************
@@ -351,6 +396,22 @@
 
 !*******************************************************************************
 !>
+!  whether the working set of the QPs with `n` variables is kept by the
+!  dense QP solver: with `sqpopt_qp_dense`, and with `sqpopt_qp_daqp`,
+!  which shares it with the dense solver, its fallback.
+
+    pure logical function uses_dense_working_set(me, n)
+
+    class(sqpopt_qp_solver_type), intent(in) :: me
+    integer,                      intent(in) :: n !! number of variables
+
+    uses_dense_working_set = any(resolved_mode(me, n) == [sqpopt_qp_dense, sqpopt_qp_daqp])
+
+    end function uses_dense_working_set
+!*******************************************************************************
+
+!*******************************************************************************
+!>
 !  the final working set of the last QP solve with `n` variables and `m`
 !  constraints: the side (`-1` lower, `+1` upper, `0` not in the working
 !  set) of each general row, then of each variable bound. `status` is
@@ -364,12 +425,11 @@
     integer,                            intent(in)  :: m      !! number of constraints
     integer, dimension(:), allocatable, intent(out) :: status !! the working set `dimension(m+n)` (see above)
 
-    select case (resolved_mode(me, n))
-    case (sqpopt_qp_dense)
+    if (uses_dense_working_set(me, n)) then
         if (allocated(me%dense_qp%warm_status)) status = me%dense_qp%warm_status
-    case default
+    else
         if (allocated(me%sparse_qp%warm_status)) status = me%sparse_qp%warm_status
-    end select
+    end if
     if (allocated(status)) then
         if (size(status) /= m + n) deallocate(status)
     end if
@@ -393,20 +453,20 @@
     real(wp), dimension(:), allocatable, intent(out) :: slack !! its value
 
     if (me%n_slacks > 0) then
-        select case (resolved_mode(me, n))
-        case (sqpopt_qp_dense)
+        ! (with `sqpopt_qp_daqp`, slacks only come from its fallback, the dense solver)
+        if (uses_dense_working_set(me, n)) then
             if (allocated(me%dense_qp%slack_row)) then
                 allocate(row(size(me%dense_qp%slack_row)), slack(size(me%dense_qp%slack_row)))
                 row   = me%dense_qp%slack_row
                 slack = me%dense_qp%slack_value
             end if
-        case default
+        else
             if (allocated(me%sparse_qp%slack_row)) then
                 allocate(row(size(me%sparse_qp%slack_row)), slack(size(me%sparse_qp%slack_row)))
                 row   = me%sparse_qp%slack_row
                 slack = me%sparse_qp%slack_value
             end if
-        end select
+        end if
     end if
     if (.not. allocated(row)) allocate(row(0), slack(0))
 
@@ -456,11 +516,34 @@
 
     select case (resolved_mode(me, n))
     case (sqpopt_qp_dense); name = 'dense QP'
+    case (sqpopt_qp_daqp);  name = 'DAQP QP'
     case default;           name = 'sparse QP'
     end select
     if (me%mode == sqpopt_qp_auto) name = name//' (auto)'
 
     end function mode_name
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the name of the QP solver that solved the last QP with `n` variables, for
+!  the printed output: [[mode_name]], except that with `sqpopt_qp_daqp`, a
+!  QP that DAQP didn't solve (a fallback, or a forced elastic re-solve) was
+!  solved by the dense QP solver.
+
+    function solver_name(me, n) result(name)
+
+    class(sqpopt_qp_solver_type), intent(in) :: me
+    integer,                      intent(in) :: n !! number of variables
+    character(len=:), allocatable :: name
+
+    if (resolved_mode(me, n) == sqpopt_qp_daqp .and. .not. me%daqp_used) then
+        name = 'dense QP'
+    else
+        name = me%mode_name(n)
+    end if
+
+    end function solver_name
 !*******************************************************************************
 
     end module sqpopt_qp_solver_module

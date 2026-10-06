@@ -441,6 +441,7 @@ class _Solve:
             execution_time=float(rinfo[4]), n_qp_iterations=int(iinfo[5]),
             derivative_switch_iteration=int(iinfo[6]), n_factorizations=int(iinfo[13]),
             n_qp_solves=int(iinfo[14]), n_direct_qp=int(iinfo[15]), n_unconstrained_qp=int(iinfo[16]),
+            n_daqp_fallbacks=int(iinfo[31]),
             time_factorization=float(rinfo[7]),
             diagnostics=_diagnostics(iinfo, rinfo, diag_index, diag_value, report, problem_report))
 
@@ -545,7 +546,8 @@ def minimize(fun: Callable, x0, args=(), jac=None, hess=None, bounds=None, const
         variable-bound multipliers), ``constr_violation``, ``kkt_error``, ``stationarity_error``,
         ``execution_time``, ``n_qp_iterations``, ``derivative_switch_iteration``, ``n_unconstrained_qp`` (QPs
         solved by the unconstrained step, without a QP solver: see ``qp_solver%unconstrained_step``),
-        ``n_factorizations``,
+        ``n_daqp_fallbacks`` (with ``qp_solver_mode = sqpopt_qp_daqp``, QPs that DAQP didn't solve, solved by the
+        dense QP solver instead), ``n_factorizations``,
         ``n_qp_solves``, ``n_direct_qp``, and ``time_factorization`` (the last four for the options that use
         sparse factorizations: ``inertia_control``, ``direct_qp``, and ``direct_least_squares``;
         ``time_factorization`` is the part of ``execution_time``, in seconds, spent in them). The multipliers are

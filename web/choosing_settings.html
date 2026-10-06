@@ -71,8 +71,8 @@
 <div class="table-wrap"><table>
 <thead><tr><th>your problem</th><th>start with</th><th>why</th></tr></thead>
 <tbody>
-<tr><td>Small (up to about 50 variables), any structure</td><td>the defaults</td><td>The dense QP is chosen automatically. At this size every QP takes milliseconds, and the dense one needs slightly fewer function evaluations than the sparse one.</td></tr>
-<tr><td>50&ndash;200 variables, cheap functions</td><td><code>options%qp_solver_mode = sqpopt_qp_reduced_hessian</code></td><td>The default switches to the sparse QP only above 200 variables, but the sparse QP was 2&ndash;11&times; faster at about 100 variables, and 6&ndash;100&times; at 200, even with a dense Jacobian (<a href="#qp-solver">details</a>).</td></tr>
+<tr><td>Small (up to about 50 variables), any structure</td><td>the defaults</td><td>The dense QP is chosen automatically. At this size every QP takes milliseconds, and the dense one needs slightly fewer function evaluations than the sparse one. <code>options%qp_solver_mode = sqpopt_qp_daqp</code> takes the same steps faster, but the difference is a few milliseconds.</td></tr>
+<tr><td>50&ndash;200 variables, cheap functions</td><td><code>options%qp_solver_mode = sqpopt_qp_daqp</code> if the Jacobian is dense; <code>sqpopt_qp_reduced_hessian</code> if it is sparse</td><td>The default switches to the sparse QP only above 200 variables, but the dense QP it uses until then is slow: the sparse QP was 2&ndash;11&times; faster at about 100 variables, and 7&ndash;100&times; at 200. <a href="index.html#daqp">DAQP</a> takes the dense QP's steps 6&ndash;40&times; faster. With a dense Jacobian it was the fastest, 6&times; faster than the sparse QP, with fewer function evaluations; with a sparse one, the sparse QP was faster from about 200 variables (<a href="#qp-solver">details</a>).</td></tr>
 <tr><td>Large and sparse (more than 200 variables)</td><td>the defaults, and perhaps a larger <code>max_iter</code></td><td>The sparse QP with its LU null space is chosen automatically. The default limit of 100 major iterations can be low for large problems solved with a quasi-Newton Hessian.</td></tr>
 <tr><td>Second derivatives available</td><td><code>options%hessian_mode = sqpopt_hessian_exact</code></td><td>On large problems, 1.4&ndash;7&times; fewer iterations than L-BFGS, and convergence to the full tolerances (<a href="#large-sparse">details</a>). On small problems the default L-BFGS is just as good.</td></tr>
 <tr><td>Second derivatives available, and a small problem (up to a few hundred variables and constraints)</td><td>the exact Hessian with <code>options%inertia_control</code> and <code>options%linear_solver = sqpopt_linear_solver_dense</code></td><td>Inertia control finds the shift that makes an indefinite Hessian convex, and with the exact Hessian it needs a solver that pivots. The dense solver does, and forms the KKT matrix as a dense array, which costs nothing at this size: on the HS problems it needed 9,426 evaluations, like MUMPS (9,400), against 13,654 with the default QDLDL (<a href="index.html#linear-solver">details</a>). Don't use it on large problems (<a href="index.html#dense-matrices">why</a>).</td></tr>
@@ -108,6 +108,7 @@
 <tbody>
 <tr class="best"><td><strong>defaults</strong> (dense QP, L-BFGS with \( \max(10,\min(n,100)) \) pairs)</td><td class="num"><strong>281</strong></td><td class="num">24</td><td class="num">0</td><td class="num"><strong>9,121</strong></td><td class="num">0.7 s</td></tr>
 <tr><td>sparse QP (LU)</td><td class="num">281</td><td class="num">24</td><td class="num">0</td><td class="num">10,191</td><td class="num">0.8 s</td></tr>
+<tr><td><a href="index.html#daqp">DAQP</a> (<code>qp_solver_mode = sqpopt_qp_daqp</code>)</td><td class="num">282</td><td class="num">23</td><td class="num">0</td><td class="num">9,044</td><td class="num">0.6 s</td></tr>
 <tr><td>sparse QP (<code>LSQR</code>)</td><td class="num">279</td><td class="num">26</td><td class="num">0</td><td class="num">9,016</td><td class="num">0.7 s</td></tr>
 <tr><td>L-BFGS, 5 pairs</td><td class="num">279</td><td class="num">26</td><td class="num">0</td><td class="num">10,967</td><td class="num">0.2 s</td></tr>
 <tr><td>L-BFGS, 10 pairs</td><td class="num">281</td><td class="num">24</td><td class="num">0</td><td class="num">9,656</td><td class="num">0.1 s</td></tr>
@@ -124,6 +125,7 @@
 <ul>
   <li><strong>Keep the defaults.</strong> At this size, solving all 305 problems takes about a second whatever the settings, so only robustness and the number of function evaluations matter, and the defaults are best or close to best on both.</li>
   <li><strong>The dense QP needs about 10% fewer evaluations</strong> than the sparse one here. When your functions are expensive and the problem is small, that is worth more than the QP's run time.</li>
+  <li><strong>DAQP does as well as the dense QP</strong>, with one more problem solved and slightly fewer evaluations. It solves the convex QPs, and the dense QP the others (102 of the 7,608 QPs, mostly ones whose linearized constraints were inconsistent). At this size its speed doesn't show.</li>
   <li><strong>L-SR1 needs inertia control.</strong> With it, SR1 solves 274 problems and fails on 4, close to the defaults, though it takes longer (the same with QDLDL or MUMPS; QDLDL is three times faster here).</li>
   <li><strong>Avoid L-SR1 on small problems.</strong> It failed on 30 problems and needed 5&times; the evaluations. SR1 is not guaranteed to stay positive definite, and on small problems the QP then often ends at a bound or takes a poor step.</li>
   <li><strong>Fewer L-BFGS pairs</strong> make each iteration cheaper but cost more iterations. The automatic memory keeps up to 100 pairs, which matters on the larger HS problems (TP302, <code>n</code>&nbsp;=&nbsp;100, needs 491 iterations with 10 pairs and 143 with 100).</li>
@@ -133,43 +135,45 @@
 <!-- ============================================================ -->
 <h2 id="qp-solver">Which QP solver</h2>
 
-<p><code>options%qp_solver_mode = sqpopt_qp_auto</code> (the default) uses the dense QP for problems with at most <code>qp_solver%auto_dense_max_n = 200</code> variables, and the sparse QP above. The dense QP refactorizes dense matrices whenever its working set changes, so its cost grows roughly as \( n^3 \) per QP iteration; the sparse QP's grows with the number of nonzeros and the fill-in of the LU factors.</p>
+<p><code>options%qp_solver_mode = sqpopt_qp_auto</code> (the default) uses the dense QP for problems with at most <code>qp_solver%auto_dense_max_n = 200</code> variables, and the sparse QP above. The dense QP refactorizes dense matrices whenever its working set changes, so its cost grows roughly as \( n^3 \) per QP iteration; the sparse QP's grows with the number of nonzeros and the fill-in of the LU factors. <a href="index.html#daqp">DAQP</a> (<code>sqpopt_qp_daqp</code>, never chosen automatically) also works with dense matrices, but factors the Hessian once per QP and then updates its factors as the working set changes. It solves the convex QPs, and leaves the others to the dense QP.</p>
 
-<p>Total solve time in seconds, on three problem families (<code>example/settings_study.f90</code>). The number of iterations was the same for each QP solver, or nearly so (the dense QP needed up to 30% fewer function evaluations on the <code>dense</code> family), so the differences are almost all QP time:</p>
+<p>Total solve time in seconds, on three problem families (<code>example/settings_study.f90</code>, the faster of two runs). The number of iterations was the same for each QP solver, or nearly so, so the differences are almost all QP time. DAQP took the dense QP's steps, with the same function evaluations; on the <code>dense</code> family, those were up to 30% fewer than the sparse QP's:</p>
 
 <div class="table-wrap"><table class="bench compact">
-<thead><tr><th>problem</th><th class="num"><code>n</code></th><th class="num">dense QP</th><th class="num">sparse QP (LU)</th><th class="num">sparse QP (<code>LSQR</code>)</th></tr></thead>
+<thead><tr><th>problem</th><th class="num"><code>n</code></th><th class="num">dense QP</th><th class="num">sparse QP (LU)</th><th class="num">sparse QP (<code>LSQR</code>)</th><th class="num">DAQP</th></tr></thead>
 <tbody>
-<tr><td rowspan="6"><code>control</code>: optimal control, 3 nonzeros per Jacobian row</td><td class="num">51</td><td class="num">0.003</td><td class="num"><strong>0.001</strong></td><td class="num">0.005</td></tr>
-<tr><td class="num">101</td><td class="num">0.034</td><td class="num"><strong>0.003</strong></td><td class="num">0.021</td></tr>
-<tr><td class="num">201</td><td class="num">0.42</td><td class="num"><strong>0.004</strong></td><td class="num">0.12</td></tr>
-<tr><td class="num">401</td><td class="num">8.5</td><td class="num"><strong>0.015</strong></td><td class="num">1.6</td></tr>
-<tr><td class="num">801</td><td class="num">&mdash;</td><td class="num"><strong>0.060</strong></td><td class="num">12</td></tr>
-<tr><td class="num">1601</td><td class="num">&mdash;</td><td class="num"><strong>0.076</strong></td><td class="num">&mdash;</td></tr>
-<tr><td rowspan="6"><code>elliptic</code>: control on a 2D grid, 6 nonzeros per row, LU fill-in</td><td class="num">50</td><td class="num"><strong>0.007</strong></td><td class="num">0.008</td><td class="num">0.014</td></tr>
-<tr><td class="num">98</td><td class="num">0.056</td><td class="num"><strong>0.015</strong></td><td class="num">0.047</td></tr>
-<tr><td class="num">200</td><td class="num">0.62</td><td class="num"><strong>0.047</strong></td><td class="num">0.23</td></tr>
-<tr><td class="num">392</td><td class="num">4.8</td><td class="num"><strong>0.12</strong></td><td class="num">0.66</td></tr>
-<tr><td class="num">800</td><td class="num">&mdash;</td><td class="num"><strong>0.42</strong></td><td class="num">2.2</td></tr>
-<tr><td class="num">1568</td><td class="num">&mdash;</td><td class="num"><strong>3.2</strong></td><td class="num">&mdash;</td></tr>
-<tr><td rowspan="5"><code>dense</code>: every constraint depends on every variable (\( m = n/2 \))</td><td class="num">20</td><td class="num"><strong>&lt;0.001</strong></td><td class="num">0.002</td><td class="num"></td></tr>
-<tr><td class="num">50</td><td class="num"><strong>0.005</strong></td><td class="num">0.010</td><td class="num"></td></tr>
-<tr><td class="num">100</td><td class="num">0.062</td><td class="num"><strong>0.034</strong></td><td class="num"></td></tr>
-<tr><td class="num">200</td><td class="num">1.2</td><td class="num"><strong>0.20</strong></td><td class="num"></td></tr>
-<tr><td class="num">400</td><td class="num">15</td><td class="num"><strong>1.1</strong></td><td class="num"></td></tr>
+<tr><td rowspan="6"><code>control</code>: optimal control, 3 nonzeros per Jacobian row</td><td class="num">51</td><td class="num">0.007</td><td class="num">0.002</td><td class="num">0.005</td><td class="num"><strong>0.001</strong></td></tr>
+<tr><td class="num">101</td><td class="num">0.034</td><td class="num"><strong>0.003</strong></td><td class="num">0.021</td><td class="num">0.004</td></tr>
+<tr><td class="num">201</td><td class="num">0.41</td><td class="num"><strong>0.004</strong></td><td class="num">0.12</td><td class="num">0.029</td></tr>
+<tr><td class="num">401</td><td class="num">8.3</td><td class="num"><strong>0.014</strong></td><td class="num">1.6</td><td class="num">0.30</td></tr>
+<tr><td class="num">801</td><td class="num">&mdash;</td><td class="num"><strong>0.038</strong></td><td class="num">12</td><td class="num">&mdash;</td></tr>
+<tr><td class="num">1601</td><td class="num">&mdash;</td><td class="num"><strong>0.073</strong></td><td class="num">&mdash;</td><td class="num">&mdash;</td></tr>
+<tr><td rowspan="6"><code>elliptic</code>: control on a 2D grid, 6 nonzeros per row, LU fill-in</td><td class="num">50</td><td class="num">0.007</td><td class="num">0.007</td><td class="num">0.014</td><td class="num"><strong>0.003</strong></td></tr>
+<tr><td class="num">98</td><td class="num">0.055</td><td class="num">0.013</td><td class="num">0.047</td><td class="num"><strong>0.010</strong></td></tr>
+<tr><td class="num">200</td><td class="num">0.62</td><td class="num"><strong>0.044</strong></td><td class="num">0.23</td><td class="num">0.072</td></tr>
+<tr><td class="num">392</td><td class="num">4.8</td><td class="num"><strong>0.12</strong></td><td class="num">0.67</td><td class="num">0.47</td></tr>
+<tr><td class="num">800</td><td class="num">&mdash;</td><td class="num"><strong>0.38</strong></td><td class="num">2.2</td><td class="num">&mdash;</td></tr>
+<tr><td class="num">1568</td><td class="num">&mdash;</td><td class="num"><strong>3.2</strong></td><td class="num">&mdash;</td><td class="num">&mdash;</td></tr>
+<tr><td rowspan="5"><code>dense</code>: every constraint depends on every variable (\( m = n/2 \))</td><td class="num">20</td><td class="num">0.001</td><td class="num">0.001</td><td class="num"></td><td class="num"><strong>&lt;0.001</strong></td></tr>
+<tr><td class="num">50</td><td class="num">0.005</td><td class="num">0.007</td><td class="num"></td><td class="num"><strong>0.001</strong></td></tr>
+<tr><td class="num">100</td><td class="num">0.058</td><td class="num">0.032</td><td class="num"></td><td class="num"><strong>0.005</strong></td></tr>
+<tr><td class="num">200</td><td class="num">1.2</td><td class="num">0.18</td><td class="num"></td><td class="num"><strong>0.031</strong></td></tr>
+<tr><td class="num">400</td><td class="num">15</td><td class="num">1.1</td><td class="num"></td><td class="num"><strong>0.18</strong></td></tr>
 </tbody>
 </table></div>
-<p class="small">&mdash;: not run (minutes). The dense problem's <code>LSQR</code> column was not measured.</p>
+<p class="small">&mdash;: not run (minutes; the dense QP and DAQP are not run above 500 variables). The dense problem's <code>LSQR</code> column was not measured.</p>
 
 <ul>
-  <li><strong>Up to about 50 variables</strong>, both QPs take milliseconds, and the dense one needs slightly fewer function evaluations (on the HS problems and the <code>dense</code> family). The default does the right thing.</li>
-  <li><strong>From about 50 to 200 variables</strong>, the default still picks the dense QP, but the sparse QP is faster: about 2&ndash;6&times; on the fully dense problem, and up to 100&times; on the sparse ones. If your functions are cheap, choose the sparse QP explicitly, or lower the switch-over point:
-<pre><code class="language-fortran">options%qp_solver_mode = sqpopt_qp_reduced_hessian    ! always the sparse QP
+  <li><strong>Up to about 50 variables</strong>, every QP solver takes milliseconds, and the dense QP (and DAQP, with the same steps) needs slightly fewer function evaluations than the sparse one (on the HS problems and the <code>dense</code> family). The default does the right thing.</li>
+  <li><strong>From about 50 to 200 variables</strong>, the default still picks the dense QP, which is the slowest choice here. <strong>DAQP</strong> takes the same steps 6&ndash;40&times; faster, and with a dense Jacobian it was the fastest of all (6&times; faster than the sparse QP at 100 and 200 variables). With a sparse Jacobian, the sparse QP was faster from about 200 variables (7&times; on <code>control</code>), and up to 100&times; faster than the dense QP. If your functions are cheap, choose one explicitly, or lower the switch-over point:
+<pre><code class="language-fortran">options%qp_solver_mode = sqpopt_qp_daqp               ! DAQP (dense Jacobians)
+! or:
+options%qp_solver_mode = sqpopt_qp_reduced_hessian    ! always the sparse QP
 ! or:
 qp_solver%auto_dense_max_n = 50                       ! the sparse QP above 50 variables
 call solver%initialize(problem=problem, options=options, qp_solver=qp_solver)</code></pre>
-  If your functions are expensive, the dense QP's slightly better steps may still be worth its cost at this size; compare <code>results%n_eval_fc</code> both ways.</li>
-  <li><strong>Above 200 variables</strong>, use the sparse QP (the default). The dense QP stores <code>n&times;n</code> and <code>m&times;n</code> arrays and quickly becomes impractical.</li>
+  If your functions are expensive, the dense QP's slightly better steps may still be worth its cost at this size (DAQP gives them faster); compare <code>results%n_eval_fc</code> both ways.</li>
+  <li><strong>Above 200 variables</strong>, use the sparse QP (the default). The dense QP stores <code>n&times;n</code> and <code>m&times;n</code> arrays and quickly becomes impractical. DAQP stores them too, but it was still 6&times; faster than the sparse QP on the <code>dense</code> problem with 400 variables; on the sparse problems, the sparse QP was 4&ndash;20&times; faster at that size.</li>
   <li><strong>Keep the LU null space.</strong> <code>LSQR</code> was 2&ndash;200&times; slower than LU on the sparse problems here, and the gap grows with the size. (It was faster only on the small, dense HS problems, 1.5&nbsp;s against 4.0&nbsp;s in all, where the dense QP is faster still, and on <code>ball</code> with the exact Hessian below.)</li>
 </ul>
 

@@ -145,6 +145,7 @@ QP_MODES = (
     Choice(0, 'automatic (dense if n <= auto_dense_max_n, else sparse)', 'sqpopt_qp_auto'),
     Choice(2, 'dense active-set QP', 'sqpopt_qp_dense'),
     Choice(3, 'sparse reduced-Hessian active-set QP', 'sqpopt_qp_reduced_hessian'),
+    Choice(4, 'DAQP dual active-set QP (dense, convex; the dense QP takes over the others)', 'sqpopt_qp_daqp'),
 )
 LINESEARCH_MODES = (
     Choice(4, 'filter (Fletcher & Leyffer; Wächter & Biegler)', 'sqpopt_linesearch_filter'),
@@ -264,6 +265,12 @@ def _qp_used(*modes: int):
     return rel
 
 
+def _daqp_used(values: dict) -> str | None:
+    if get_value(values, ('options', 'qp_solver_mode')) == 4:
+        return None
+    return 'only used with qp_solver_mode = sqpopt_qp_daqp'
+
+
 def _quasi_newton_used(values: dict) -> str | None:
     if get_value(values, ('options', 'hessian_mode')) == 3:
         return 'not used with hessian_mode = sqpopt_hessian_exact'
@@ -358,7 +365,9 @@ TOPICS: tuple[Topic, ...] = (
             _o('options%qp_solver_mode', 'choice', 0,
                'QP subproblem algorithm. The dense solver forms O(n²) arrays and suits small-to-moderate problems; '
                'the sparse one never forms a dense array. Automatic picks the dense solver when '
-               'n <= qp_solver%auto_dense_max_n.', choices=QP_MODES),
+               'n <= qp_solver%auto_dense_max_n. DAQP (a dual active-set method that updates its factors) also '
+               'forms O(n²) arrays and is much faster than the dense solver; a QP it does not solve (nonconvex, '
+               'or with inconsistent linearized constraints) is solved by the dense solver.', choices=QP_MODES),
             _o('options%linesearch_mode', 'choice', 4,
                'Globalization. The filter (default) and funnel methods use no merit function; the Armijo, '
                'watchdog, and exact searches use the merit function selected by merit_mode. With the trust '
@@ -560,7 +569,19 @@ TOPICS: tuple[Topic, ...] = (
                       'inconsistent. Must be >= elastic_weight.'),
             _o('qp_solver%dense_qp%warm_start', 'bool', True,
                "Start each QP from the previous QP's final working set (within one solve)."),
-        ), relevance=_qp_used(2)),
+        ), relevance=_qp_used(2, 4)),
+        Section('DAQP QP', (
+            _o('qp_solver%daqp_qp%max_iter', 'int', 1000,
+               "DAQP's limit on the active-set iterations of a QP solve (at the limit, the dense QP solver takes "
+               'over).', minimum=1),
+            _positive('qp_solver%daqp_qp%primal_tol', 1e-12,
+                      "DAQP's tolerance on the violation of a constraint (on its normalized rows). Looser values "
+                      'let the steps violate the linearized constraints, and cost iterations.'),
+            _positive('qp_solver%daqp_qp%dual_tol', 1e-12,
+                      "DAQP's tolerance on the sign of a multiplier."),
+            _o('qp_solver%daqp_qp%warm_start', 'bool', True,
+               "Start each QP from the previous QP's final working set (within one solve)."),
+        ), relevance=_daqp_used),
         Section('Sparse QP', (
             _o('qp_solver%sparse_qp%null_space', 'choice', 1,
                'How the null space of the working set is handled: a sparse LU basis partition (SQOPT-style, with '

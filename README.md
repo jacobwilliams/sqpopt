@@ -129,14 +129,16 @@ They run fpm with `--flag "-DHAS_LAPACK" --link-flag "-llapack -lblas"`.
 The tests are in `test/`:
 
 - **Unit tests** of the components on their own: `test_qp_dense`,
-  `test_qp_reduced_hessian`, and `test_qp_fuzz` (both QP solvers on thousands
-  of random convex, nonconvex, degenerate, and infeasible QPs, checked against
-  the KKT conditions), `test_hessian_consistency`, `test_acceptance` (merit
+  `test_qp_reduced_hessian`, and `test_qp_fuzz` (the dense and sparse QP
+  solvers on thousands of random convex, nonconvex, degenerate, and infeasible
+  QPs, checked against the KKT conditions), `test_hessian_consistency`, `test_acceptance` (merit
   function, filter, funnel), `test_convergence`,
   `test_independent_columns`, and, for the sparse factorizations (with
   each solver of the build), `test_kkt` (the sparse solver, the KKT matrix against a dense
   reference, and the least-squares solver) and `test_inertia` (the shift's
-  search). `test_qp_fuzz` gives its QPs to the direct method too.
+  search). `test_qp_fuzz` gives its QPs to the direct method and to DAQP
+  too, and `test_qp_daqp` tests the DAQP mode and its fallback to the dense
+  QP in the SQP iterations.
 - **Solver tests** on small problems with known solutions (`test_basic`,
   `test_hs71`, `test_medium`, `test_maratos`, `test_degenerate` (a
   constraint tangent to a bound), `test_direct` (the options that factor
@@ -181,10 +183,13 @@ The tests are in `test/`:
 
 `example/benchmark.f90` measures function evaluations and run time on a
 discretized optimal-control problem and a constrained chained-Rosenbrock
-problem, at sizes that use each QP solver:
+problem, at sizes that use each QP solver of the automatic choice
+(`--qp=dense|sparse|daqp` chooses one, and `--max-n=N` skips the larger
+problems):
 
 ```sh
 pixi run fpm run --example benchmark --profile release
+pixi run fpm run --example benchmark --profile release -- --qp=daqp --max-n=400
 ```
 
 `example/benchmark_large.f90` solves larger problems with analytic second
@@ -258,6 +263,7 @@ architecture ([PLAN.md](plan/PLAN.md)), the backlog
 | `sqpopt_qp_solver_module` | the QP subproblem front end, which chooses a solver (and tries the unconstrained quasi-Newton step first) |
 | `sqpopt_qp_dense_module` | the dense active-set QP |
 | `sqpopt_qp_reduced_hessian_module` | the sparse active-set QP (LUSOL basis, reduced-Hessian CG) |
+| `sqpopt_qp_daqp_module` | the QP solved by DAQP (`qp_solver_mode = sqpopt_qp_daqp`; the dense QP takes over the QPs it doesn't solve) |
 | `sqpopt_linesearch_module` | the line searches (Armijo, exact, watchdog, filter, funnel) |
 | `sqpopt_merit_module`, `sqpopt_filter_module`, `sqpopt_funnel_module` | the acceptance tests the line searches and the trust region use |
 | `sqpopt_trust_region_module` | the trust-region globalization |
@@ -285,6 +291,7 @@ Fetched and built by fpm:
 - [lusol](https://github.com/jacobwilliams/lusol): sparse LU factorization (the sparse QP's basis factors and updates)
 - [fmin](https://github.com/jacobwilliams/fmin): derivative-free 1-D minimization (the exact line search)
 - [qdldl-fortran](https://github.com/jacobwilliams/qdldl-fortran): sparse LDLᵀ factorization without pivoting (the default linear solver, in every build)
+- [daqp-fortran](https://github.com/jacobwilliams/daqp-fortran): a Fortran port of DAQP, the dual active-set solver for dense convex QPs (`qp_solver_mode = sqpopt_qp_daqp`)
 - [slsqp](https://github.com/jacobwilliams/slsqp) (tests only): the SLSQP comparison
 
 Optional, from the pixi environment (see "Sparse factorizations" and "LAPACK"):

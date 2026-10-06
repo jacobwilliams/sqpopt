@@ -196,6 +196,9 @@
         integer  :: n_unconstrained_qp   = 0 !! of which, solved by the unconstrained step of the limited-memory
                                              !! BFGS Hessian, without a QP solver (see
                                              !! `qp_solver%unconstrained_step`)
+        integer  :: n_daqp_fallbacks     = 0 !! of which, with `options%qp_solver_mode = sqpopt_qp_daqp`, not solved
+                                             !! by DAQP (a nonconvex QP, inconsistent linearized constraints, ...),
+                                             !! but by the dense QP solver instead
         integer  :: n_factorizations     = 0 !! sparse factorizations, by the inertia control, the direct QP
                                              !! method, and the direct least-squares solves (see
                                              !! `options%inertia_control`, `direct_qp`, and
