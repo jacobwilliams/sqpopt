@@ -66,12 +66,16 @@
     <a href="#hessian">Hessian approximation</a>
     <a href="#inertia-control" class="toc-sub">Inertia control</a>
     <a href="#qp-solver">QP subproblem solver</a>
-    <a href="#unconstrained-step" class="toc-sub">Unconstrained step</a>
-    <a href="#daqp" class="toc-sub">DAQP</a>
-    <a href="#direct-qp" class="toc-sub">Direct method</a>
-    <a href="#linear-solver" class="toc-sub">Linear solver</a>
+    <a href="#qp-modes" class="toc-sub">QP solvers</a>
     <a href="#dense-qp" class="toc-sub">Dense QP options</a>
     <a href="#sparse-qp" class="toc-sub">Sparse QP options</a>
+    <a href="#daqp" class="toc-sub">DAQP</a>
+    <a href="#unconstrained-step" class="toc-sub">Unconstrained step</a>
+    <a href="#direct-qp" class="toc-sub">Direct method</a>
+    <a href="#sparse-factorizations">Sparse factorizations</a>
+    <a href="#direct-least-squares" class="toc-sub">Direct least squares</a>
+    <a href="#linear-solver" class="toc-sub">Linear solver</a>
+    <a href="#factorization-threads" class="toc-sub">Threads</a>
     <a href="#linesearch">Line search &amp; merit</a>
     <a href="#trust-region">Trust region</a>
     <a href="#restoration">Feasibility restoration</a>
@@ -1061,9 +1065,17 @@ call problem%set_max_step([0.1_wp, 0.1_wp, sqpopt_infinity, 5.0_wp])   ! (no lim
 <!-- ============================================================ -->
 <h2 id="hessian">Hessian approximation <code class="h-type">sqpopt_hessian_type</code></h2>
 
-<p>A limited-memory quasi-Newton approximation (never a dense <code>n&times;n</code> matrix), or the user's exact sparse Hessian (<code>sqpopt_hessian_exact</code>, see <a href="#exact-hessian">Exact Hessian</a>). <code>solve()</code> always re-initializes it from <code>options%lbfgs_memory</code> and <code>options%hessian_mode</code>. Apart from those two <code>options</code> fields and <code>options%inertia_control</code>, only <code>damping</code>, <code>shift_min</code>, and <code>shift_max</code> are configurable, on a <code>sqpopt_hessian_type</code> you construct yourself.</p>
+<p>The matrix \( H \) of the <a href="#qp-subproblem">QP subproblem</a> is chosen by <code>options%hessian_mode</code>:</p>
 
-<p>With the exact Hessian, the QP subproblems use \( H + \delta I \). The shift \( \delta \) starts at 0. Whenever a QP subproblem finds negative curvature (it was nonconvex), fails, or doesn't give a descent direction, \( \delta \) is increased tenfold (starting from <code>shift_min</code> times the Hessian's largest element) and the QP is re-solved; it also increases after a failed step or a run of very short ones. After each good step it is divided by 3, down to 0. This is a simple form of the <em>inertia correction</em> used by IPOPT and Uno, without a factorization.</p>
+<ul>
+  <li><code>sqpopt_hessian_bfgs</code> (the default): a limited-memory BFGS approximation, kept positive definite by Powell's damping, so every QP is convex.</li>
+  <li><code>sqpopt_hessian_sr1</code>: a limited-memory symmetric rank-1 approximation. It can be indefinite, so use it with <a href="#inertia-control">inertia control</a>.</li>
+  <li><code>sqpopt_hessian_exact</code>: your sparse Hessian of the Lagrangian (see <a href="#exact-hessian">Exact Hessian</a>). It can be indefinite too, and is then shifted (below).</li>
+</ul>
+
+<p>The two approximations keep the last <code>options%lbfgs_memory</code> pairs of steps and gradient changes, and are never stored as a dense \( n \times n \) matrix (only the dense QP solvers form one, for each QP). The Hessian is set up again from <code>hessian_mode</code> and <code>lbfgs_memory</code> at the start of every <code>solve()</code>. Its other settings (<code>damping</code>, <code>shift_min</code>, <code>shift_max</code>: see the table at the end of this section) are made on a <code>sqpopt_hessian_type</code> that you construct and pass to <code>initialize</code>.</p>
+
+<p><strong>The shift.</strong> With the exact Hessian, the QP subproblems use \( H + \delta I \). The shift \( \delta \) starts at 0. Whenever a QP subproblem finds negative curvature (it was nonconvex), fails, or doesn't give a descent direction, \( \delta \) is increased tenfold (starting from <code>shift_min</code> times the Hessian's largest element) and the QP is re-solved; it also increases after a failed step or a run of very short ones. After each good step it is divided by 3, down to 0. This is a simple form of the <em>inertia correction</em> used by IPOPT and Uno, without a factorization.</p>
 
 <p><strong>Multipliers after a large shift.</strong> The exact Hessian is evaluated with the multipliers, and those come from the QP, where they satisfy \( g + (H + \delta I)p = J^T\lambda \). When the shift's term \( \delta p \) is larger than the gradient (\( \delta\lVert p\rVert_\infty \ge \max(1, \lVert g\rVert_\infty) \)), the multipliers mostly balance the shift, and can be orders of magnitude too large. The next Hessian would then be more indefinite and need a larger shift still. So after such a step, the multipliers are replaced by their least-squares estimate at the new point, \( \min_\lambda \lVert g - J^T\lambda \rVert \) over the active constraints and the variables not at a bound, which doesn't depend on the shift. (On a hanging-chain problem, without this, the multipliers grew to \( 10^{13} \) and the solver stopped as stalled far from the solution.) This applies with and without inertia control.</p>
 
@@ -1082,9 +1094,9 @@ call problem%set_max_step([0.1_wp, 0.1_wp, sqpopt_infinity, 5.0_wp])   ! (no lim
 
 <p>The shift starts from 0 again at every iteration, so it disappears as soon as it isn't needed, and the Newton steps near a solution are not damped. A QP that fails or doesn't give a descent direction still raises the shift, as does a failed step or a run of very short ones (those increases are carried over, and decay as above). The QP subproblems themselves are solved by the same solvers as before.</p>
 
-<p><strong>SR1.</strong> The limited-memory SR1 matrix can be indefinite too, and without inertia control nothing corrects it. It is a multiple of the identity plus a matrix of low rank, so the same test applies: the sparse part of \( K \) is factored, and the low-rank part is accounted for with a small dense matrix (one solve per stored pair). On the Hock&ndash;Schittkowski problems, SR1 then solves 274 problems and fails on 4, instead of 244 and 30, with less than a quarter of the function evaluations (10,454 instead of 44,905), the same with both solvers. The shift isn't carried over between iterations with SR1.</p>
+<p><strong>SR1.</strong> The limited-memory SR1 matrix can be indefinite too, and without inertia control nothing corrects it. It is a multiple of the identity plus a matrix of low rank, so the same test applies: the sparse part of \( K \) is factored, and the low-rank part is accounted for with a small dense matrix (one solve per stored pair). On the Hock&ndash;Schittkowski problems, SR1 then solves 274 problems and fails on 4, instead of 244 and 30, with less than a quarter of the function evaluations (10,454 instead of 44,905), the same with every linear solver. The shift isn't carried over between iterations with SR1.</p>
 
-<p>It is used with <code>sqpopt_hessian_exact</code> and <code>sqpopt_hessian_sr1</code> (the BFGS matrix is positive definite, and needs no correction). The factorizations are those of <code>options%linear_solver</code> (see <a href="#linear-solver">Linear solver</a>). With SR1 both solvers give the same results; with the exact Hessian, MUMPS is the better one, since QDLDL can't tell the inertia of a Hessian with zeros on its diagonal, and then shifts it more than needed. MUMPS runs on one thread unless <code>options%factorization_threads</code> says otherwise (see <a href="#factorization-threads">Threads</a>). <code>results%n_factorizations</code> counts the factorizations. On the Hock&ndash;Schittkowski problems, the exact Hessian with it solves 4 more problems than without it with MUMPS (274 instead of 270), with 16% fewer function evaluations, and 3 more with QDLDL, but with 22% more evaluations (see <a href="performance.html">Performance</a>). With <code>options%direct_qp</code>, the factorizations are also used to solve the QP (see <a href="#direct-qp">Direct method</a>).</p>
+<p>Inertia control is used with <code>sqpopt_hessian_exact</code> and <code>sqpopt_hessian_sr1</code>; the BFGS matrix is positive definite, and needs no correction. Its factorizations are those of <code>options%linear_solver</code> (see <a href="#linear-solver">Linear solver</a>). With SR1, every linear solver gives the same results. With the exact Hessian, MUMPS or, for a small problem, the dense solver is the better choice: QDLDL can't tell the inertia of a Hessian with zeros on its diagonal, and then shifts it more than needed. MUMPS runs on one thread unless <code>options%factorization_threads</code> says otherwise (see <a href="#factorization-threads">Threads</a>). <code>results%n_factorizations</code> counts the factorizations. On the Hock&ndash;Schittkowski problems, the exact Hessian with inertia control solves 4 more problems than without it with MUMPS (274 instead of 270) and 3 more with the dense solver, each with 16% fewer function evaluations, and 3 more with QDLDL, but with 22% more evaluations (see <a href="performance.html">Performance</a>). With <code>options%direct_qp</code>, the factorizations are also used to solve the QP (see <a href="#direct-qp">Direct method</a>).</p>
 
 <div class="table-wrap"><table class="opt-table">
 <thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
@@ -1100,12 +1112,22 @@ call problem%set_max_step([0.1_wp, 0.1_wp, sqpopt_infinity, 5.0_wp])   ! (no lim
 <!-- ============================================================ -->
 <h2 id="qp-solver">QP subproblem solver <code class="h-type">sqpopt_qp_solver_type</code></h2>
 
+<p>Each major iteration solves the <a href="#qp-subproblem">QP subproblem</a> for the step \( p \) and the new multipliers. A QP goes through up to three stages, each tried only if the ones before it didn't solve it:</p>
+
+<ol>
+  <li>the <a href="#unconstrained-step">unconstrained step</a> (with the L-BFGS Hessian; on by default): if \( -H^{-1}g \) satisfies the bounds and the linearized constraints, it is the solution;</li>
+  <li>the <a href="#direct-qp">direct method</a> (opt-in, <code>options%direct_qp</code>): a few factorizations of the KKT matrix, starting from the previous QP's working set;</li>
+  <li>the active-set <a href="#qp-modes">QP solver</a> chosen by <code>options%qp_solver_mode</code>: dense, sparse, or DAQP.</li>
+</ol>
+
+<p>The step is then shortened, if needed, to the step cap (<code>max_step</code>, below). The trust region and the restoration phase solve their QPs with the same component.</p>
+
 <p class="set-on">Set as <code>qp_solver%&lt;name&gt;</code>.</p>
 
 <div class="table-wrap"><table class="opt-table">
 <thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
 <tbody>
-<tr><td><code>mode</code></td><td><code>sqpopt_qp_auto</code></td><td>which QP algorithm to use (overwritten from <code>options%qp_solver_mode</code>); see <a href="#qp-modes">modes</a> below</td></tr>
+<tr><td><code>mode</code></td><td><code>sqpopt_qp_auto</code></td><td>which QP algorithm to use (overwritten from <code>options%qp_solver_mode</code>); see <a href="#qp-modes">QP solvers</a> below</td></tr>
 <tr><td><code>auto_dense_max_n</code></td><td><code>200</code></td><td><code>mode = sqpopt_qp_auto</code> uses <code>sqpopt_qp_dense</code> for problems with at most this many variables, else <code>sqpopt_qp_reduced_hessian</code></td></tr>
 <tr><td><code>max_step</code></td><td><code>2.0</code></td><td>trust-region-style cap on \( \lVert p\rVert_2 \), applied after every QP solve regardless of <code>mode</code>. The cap starts at \( \max(\) <code>max_step</code>\(,\ \lVert x_0\rVert_\infty) \), relative to the size of the variables, and adapts like a trust radius: it doubles after a capped step that the line search accepts in full, and halves back toward <code>max_step</code> after a shortened one, so solutions far from the start are still reached in a few iterations.</td></tr>
 <tr><td><code>unconstrained_step</code></td><td><code>.true.</code></td><td>with the L-BFGS Hessian, first try the <a href="#unconstrained-step">unconstrained step</a> \( -H^{-1}g \): if it satisfies the bounds and the linearized constraints, it is the QP's solution, and no QP solver is run</td></tr>
@@ -1117,13 +1139,10 @@ call problem%set_max_step([0.1_wp, 0.1_wp, sqpopt_infinity, 5.0_wp])   ! (no lim
 </tbody>
 </table></div>
 
-<h3 id="unconstrained-step">The unconstrained step <span class="h-note"><code>qp_solver%unconstrained_step</code></span></h3>
+<h3 id="qp-modes">QP solvers <span class="h-note"><code>options%qp_solver_mode</code></span></h3>
 
-<p>The L-BFGS matrix \( H \) is positive definite, so the QP's objective alone has the minimizer \( p = -H^{-1} g \), which the two-loop recursion gives at the cost of a few vector operations per stored pair. Before a QP solver is run, that step is tried: if \( x + p \) is within the bounds and the linearized constraints, it is the solution of the QP, with zero multipliers. So a problem without constraints is solved as a plain L-BFGS method wherever its bounds aren't active, and an iteration of a constrained problem at which nothing is active costs no QP solve either. When the step isn't feasible, the QP solver runs as before, and the attempt has cost one product.</p>
+<p><code>options%qp_solver_mode</code> chooses the solver for the QPs that the two shortcuts (the <a href="#unconstrained-step">unconstrained step</a> and the <a href="#direct-qp">direct method</a>, below) don't solve. There are three, all active-set methods: the dense solver (<code>sqpopt_qp_dense</code>), the sparse solver (<code>sqpopt_qp_reduced_hessian</code>), and <a href="#daqp">DAQP</a> (<code>sqpopt_qp_daqp</code>, a dual method for convex QPs, with the dense solver as its fallback). The default, <code>sqpopt_qp_auto</code>, picks the dense solver for problems with up to <code>qp_solver%auto_dense_max_n</code> = 200 variables, and the sparse one for larger problems. <a href="choosing_settings.html#qp-solver">Which QP solver</a> compares them on problems of 20 to 1,600 variables.</p>
 
-<p>This matters for large problems. The active-set solvers handle a QP with every variable free too, but the sparse one does it by conjugate gradients on a matrix of the order of the problem. With 1,000 variables, the chained Rosenbrock function (4,946 iterations) takes 7.8 seconds with the step and 78 without it, and the same iterations. <code>results%n_unconstrained_qp</code> counts the QPs solved this way. The step isn't used with the exact Hessian or SR1 (which can be indefinite, and have no such inverse), nor in an elastic re-solve. On the Hock&ndash;Schittkowski problems it changes little: 9,067 <code>fc</code> calls instead of 9,173, with the same problems solved.</p>
-
-<h3 id="qp-modes">QP modes <span class="h-note"><code>options%qp_solver_mode</code></span></h3>
 <div class="table-wrap"><table class="opt-table modes">
 <thead><tr><th>value</th><th>description</th></tr></thead>
 <tbody>
@@ -1144,6 +1163,46 @@ call problem%set_max_step([0.1_wp, 0.1_wp, sqpopt_infinity, 5.0_wp])   ! (no lim
   <li><strong>Tested.</strong> Both are checked against the KKT conditions on thousands of random convex, nonconvex, degenerate, and infeasible QPs (<code>test/test_qp_fuzz.f90</code>).</li>
 </ul>
 
+<h3 id="dense-qp">Dense QP options <span class="h-note"><code>qp_solver%dense_qp%&lt;name&gt;</code></span></h3>
+<p class="set-on">Used when <code>mode == sqpopt_qp_dense</code>, and when <code>mode == sqpopt_qp_daqp</code> for the QPs that <a href="#daqp">DAQP</a> doesn't solve.</p>
+<div class="table-wrap"><table class="opt-table">
+<thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>max_iter</code></td><td><code>100</code></td><td>minimum limit on active-set iterations per QP solve (the actual limit is <code>max(max_iter, 10*(rows+1))</code>)</td></tr>
+<tr><td><code>active_tol</code></td><td><code>1e-8</code></td><td>relative tolerance for a row being at a bound, and for the sign of a multiplier</td></tr>
+<tr><td><code>opt_tol</code></td><td><code>1e-10</code></td><td>relative tolerance on the reduced-gradient stationarity test</td></tr>
+<tr><td><code>feas_tol</code></td><td><code>1e-6</code></td><td>an elastic slack larger than <code>feas_tol*max(1, |initial violation|)</code> at the solution counts as a violated linearized constraint</td></tr>
+<tr><td><code>elastic_weight</code></td><td><code>1e4</code></td><td>initial elastic penalty weight, relative to \( \max(1,\lVert g \rVert_\infty) \)</td></tr>
+<tr><td><code>elastic_weight_max</code></td><td><code>1e10</code></td><td>largest elastic penalty weight tried (same scaling) before the linearization is declared inconsistent</td></tr>
+<tr><td><code>warm_start</code></td><td><code>.true.</code></td><td>start each QP from the previous QP's final working set (within one <code>solve</code>)</td></tr>
+</tbody>
+</table></div>
+
+<h3 id="sparse-qp">Sparse QP options <span class="h-note"><code>qp_solver%sparse_qp%&lt;name&gt;</code></span></h3>
+<p class="set-on">Used when <code>mode == sqpopt_qp_reduced_hessian</code>.</p>
+<div class="table-wrap"><table class="opt-table">
+<thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
+<tbody>
+<tr><td><code>null_space</code></td><td><code>sqpopt_null_space_lu</code></td><td>how the null space of the working set is handled.
+  <ul>
+  <li><code>sqpopt_null_space_lu</code> (SQOPT-style) gives every general row a slack variable, so the working set is just the unknowns fixed at a bound, and splits the free unknowns into a nonsingular basis <code>B</code> and the superbasic rest <code>S</code>. The null space is \( Z = \begin{bmatrix} -B^{-1}S \\ I \end{bmatrix} \), every projection and multiplier is a direct solve with <code>B</code>'s sparse LU factors, and working-set changes update the factors (<code>lu8rpc</code>) instead of refactorizing.</li>
+  <li><code>sqpopt_null_space_lsqr</code> uses orthogonal projections, each an iterative <code>LSQR</code> least-squares solve, with projected CG. It is much slower at scale, and kept for comparison.</li>
+  </ul></td></tr>
+<tr><td><code>max_iter</code></td><td><code>100</code></td><td>minimum limit on active-set iterations per QP solve (the actual limit is <code>max(max_iter, 10*(rows+1))</code>)</td></tr>
+<tr><td><code>max_pcg_iter</code></td><td><code>0</code></td><td>maximum CG iterations per active-set face (<code>&lt;= 0</code> means twice the number of unknowns; CG is also stopped at the dimension of the face)</td></tr>
+<tr><td><code>dense_max_ns</code></td><td><code>50</code></td><td>with <code>null_space = sqpopt_null_space_lu</code>, a face with at most this many superbasics is solved exactly with a dense Cholesky factorization of the reduced Hessian (if positive definite) instead of by diagonally preconditioned CG; <code>0</code> means always CG</td></tr>
+<tr><td><code>active_tol</code></td><td><code>1e-8</code></td><td>relative tolerance for a row being at a bound, and for the sign of a multiplier</td></tr>
+<tr><td><code>opt_tol</code></td><td><code>1e-10</code></td><td>relative tolerance on the projected-gradient stationarity test</td></tr>
+<tr><td><code>pcg_rtol</code></td><td><code>1e-10</code></td><td>projected CG stops once the projected residual has been reduced by this factor</td></tr>
+<tr><td><code>feas_tol</code></td><td><code>1e-6</code></td><td>as for the dense solver</td></tr>
+<tr><td><code>elastic_weight</code></td><td><code>1e4</code></td><td>as for the dense solver</td></tr>
+<tr><td><code>elastic_weight_max</code></td><td><code>1e8</code></td><td>as for the dense solver (lower, since the iterative projections' accuracy is relative to the weight)</td></tr>
+<tr><td><code>warm_start</code></td><td><code>.true.</code></td><td>as for the dense solver</td></tr>
+<tr><td><code>lsqr_atol</code>, <code>lsqr_btol</code>, <code>lsqr_conlim</code></td><td><code>0.0</code></td><td><code>LSQR</code> relative error tolerances in <code>A</code> and <code>b</code>, and the upper limit on <code>cond(Abar)</code>, for the minimum-norm starting step and (with <code>null_space = sqpopt_null_space_lsqr</code>) every projection. <code>0</code> lets <code>LSQR</code> use its own machine-precision-based default, which is tighter than usually necessary.</td></tr>
+<tr><td><code>lsqr_itnlim</code></td><td><code>0</code></td><td><code>LSQR</code> maximum iterations per solve (<code>&lt;= 0</code> means <code>2*(rows+columns)+10</code>)</td></tr>
+</tbody>
+</table></div>
+
 <h3 id="daqp">DAQP <span class="h-note"><code>options%qp_solver_mode = sqpopt_qp_daqp</code></span></h3>
 
 <p><a href="https://github.com/darnstrom/daqp">DAQP</a> (D. Arnstr&ouml;m, A. Bemporad, D. Axehill, <em>A dual active-set solver for embedded quadratic programming using recursive LDL<sup>T</sup> updates</em>, IEEE Transactions on Automatic Control 67(8), 2022) is a dual active-set method for dense convex QPs, used here through its Fortran port, <a href="https://github.com/jacobwilliams/daqp-fortran">daqp-fortran</a>, which FPM fetches. Like the dense QP solver, it forms the dense Hessian and Jacobian; the variable bounds are its &ldquo;simple bounds&rdquo;, which it handles without forming their rows. It factors \( H \) once per QP (Cholesky), and then <em>updates</em> the \( LDL^T \) factors of the working set as constraints enter and leave it, where the dense solver refactors everything at every iteration; and being a dual method, it needs no feasible starting point. Each QP starts from the previous one's final working set (<code>warm_start</code>).</p>
@@ -1162,6 +1221,12 @@ call problem%set_max_step([0.1_wp, 0.1_wp, sqpopt_infinity, 5.0_wp])   ! (no lim
 <tr><td><code>warm_start</code></td><td><code>.true.</code></td><td>start each QP from the previous QP's final working set (within one <code>solve</code>)</td></tr>
 </tbody>
 </table></div>
+
+<h3 id="unconstrained-step">The unconstrained step <span class="h-note"><code>qp_solver%unconstrained_step</code></span></h3>
+
+<p>Two shortcuts can solve a QP before the QP solver is run: this one, and the <a href="#direct-qp">direct method</a> below. The L-BFGS matrix \( H \) is positive definite, so the QP's objective alone has the minimizer \( p = -H^{-1} g \), which the two-loop recursion gives at the cost of a few vector operations per stored pair. Before a QP solver is run, that step is tried: if \( x + p \) is within the bounds and the linearized constraints, it is the solution of the QP, with zero multipliers. So a problem without constraints is solved as a plain L-BFGS method wherever its bounds aren't active, and an iteration of a constrained problem at which nothing is active costs no QP solve either. When the step isn't feasible, the QP solver runs as before, and the attempt has cost one product.</p>
+
+<p>This matters for large problems. The active-set solvers handle a QP with every variable free too, but the sparse one does it by conjugate gradients on a matrix of the order of the problem. With 1,000 variables, the chained Rosenbrock function (4,946 iterations) takes 7.8 seconds with the step and 78 without it, and the same iterations. <code>results%n_unconstrained_qp</code> counts the QPs solved this way. The step isn't used with the exact Hessian or SR1 (which can be indefinite, and have no such inverse), nor in an elastic re-solve. On the Hock&ndash;Schittkowski problems it changes little: 9,067 <code>fc</code> calls instead of 9,173, with the same problems solved.</p>
 
 <h3 id="direct-qp">Direct method <span class="h-note"><code>options%direct_qp</code></span></h3>
 
@@ -1193,9 +1258,27 @@ call problem%set_max_step([0.1_wp, 0.1_wp, sqpopt_infinity, 5.0_wp])   ! (no lim
 
 <p>It is used by the line searches and by the trust region, but not for the feasibility QPs of a restoration phase, nor for an elastic re-solve. <code>results%n_direct_qp</code> and <code>results%n_qp_solves</code> tell how many QPs it solved, and <code>results%time_factorization</code> what the factorizations cost. At <code>print_level = 3</code>, each QP's line says whether it was solved directly, and if not, why the direct method gave up.</p>
 
+<!-- ============================================================ -->
+<h2 id="sparse-factorizations">Sparse factorizations</h2>
+
+<p>Three options, meant for large problems, replace iterative or matrix-free work by factorizations of sparse symmetric matrices: the <a href="#inertia-control">inertia control</a> of the Hessian, the <a href="#direct-qp">direct QP method</a>, and <a href="#direct-least-squares">direct least squares</a> (below) for the restoration steps and second-order corrections. They share a linear solver, and its threads.</p>
+
+<h3 id="direct-least-squares">Direct least squares <span class="h-note"><code>options%direct_least_squares</code></span></h3>
+
+<p>The Gauss-Newton <a href="#restoration">restoration step</a> and the second-order correction both need the minimum-norm solution of \( J_S\,d = r \) for some rows of the Jacobian. They use the iterative solver <code>LSQR</code>, and take no step if it stops at its iteration limit. With <code>options%direct_least_squares = .true.</code>, the solution comes from one sparse factorization of \( \begin{bmatrix} I &amp; J_S^T \\ J_S &amp; -\epsilon I \end{bmatrix} \) instead (with a small \( \epsilon \), so that dependent rows are no problem), with any Hessian mode.</p>
+
+<p>It pays when the problem is large and the rows are coupled, because <code>LSQR</code> then needs a number of iterations that grows with the problem:</p>
+
+<ul>
+  <li><strong>Second-order corrections:</strong> on a chain of coupled circle constraints (<code>circles</code> in the <a href="performance.html#large-problems">large-problem benchmark</a>), a solve with 3 corrections took 88.7 s with <code>LSQR</code> and 0.16 s with direct least squares at 100,000 variables (0.59 s and 0.011 s at 10,000; with MUMPS as the linear solver, 1.1 s and 0.08 s).</li>
+  <li><strong>Restoration steps:</strong> on a chain of hyperbola constraints with 10,000 variables (<code>hyperbolas</code> there), the 9 Gauss-Newton restoration steps took 2.3 s with <code>LSQR</code> and 0.02 s directly (though that problem's total time is dominated by the QPs that find the linearization inconsistent).</li>
+</ul>
+
+<p>On small problems it changes little, and not always for the better: on the Hock&ndash;Schittkowski problems the default options solve 278 problems with it and fail on one (TP106, where a more accurate correction leads to a slow crawl), against 281 and none without it. So it is off by default: turn it on for large problems that take corrections or restoration steps (<code>results%n_soc</code>, <code>results%n_restoration_steps</code>) and spend their time outside the QP and the user functions.</p>
+
 <h3 id="linear-solver">Linear solver <span class="h-note"><code>options%linear_solver</code></span></h3>
 
-<p>The <a href="#inertia-control">inertia control</a>, the <a href="#direct-qp">direct method</a>, and <a href="#direct-least-squares">direct least squares</a> factor symmetric matrices with one of four solvers:</p>
+<p>The three options factor their matrices with one of four solvers:</p>
 
 <ul>
   <li><strong>QDLDL</strong> (<code>sqpopt_linear_solver_qdldl</code>, the default): a Fortran port of the \( LDL^T \) solver of the OSQP QP solver (<a href="https://github.com/jacobwilliams/qdldl-fortran">qdldl-fortran</a>), which FPM fetches, so it is always available, in any precision. It orders the matrix for sparsity (approximate minimum degree, with dense rows last and each constraint's row after its variables), and factors it <em>without pivoting</em>, on one thread, with very little overhead.</li>
@@ -1256,59 +1339,6 @@ call problem%set_max_step([0.1_wp, 0.1_wp, sqpopt_infinity, 5.0_wp])   ! (no lim
 </table></div>
 
 <p class="small">The grid rows time the sparse solver alone (the analysis, two factorizations, and a solve). So: leave it at 1 for small problems and for problems with a banded or otherwise very sparse structure (discretized time, chains), and try 4 or so when the constraints or the Hessian couple the variables in two or three dimensions and the factorization time (<code>results%time_factorization</code>) dominates.</p>
-
-<h3 id="direct-least-squares">Direct least squares <span class="h-note"><code>options%direct_least_squares</code></span></h3>
-
-<p>The Gauss-Newton <a href="#restoration">restoration step</a> and the second-order correction both need the minimum-norm solution of \( J_S\,d = r \) for some rows of the Jacobian. They use the iterative solver <code>LSQR</code>, and take no step if it stops at its iteration limit. With <code>options%direct_least_squares = .true.</code>, the solution comes from one sparse factorization of \( \begin{bmatrix} I &amp; J_S^T \\ J_S &amp; -\epsilon I \end{bmatrix} \) instead (with a small \( \epsilon \), so that dependent rows are no problem), with any Hessian mode.</p>
-
-<p>It pays when the problem is large and the rows are coupled, because <code>LSQR</code> then needs a number of iterations that grows with the problem:</p>
-
-<ul>
-  <li><strong>Second-order corrections:</strong> on a chain of coupled circle constraints (<code>circles</code> in the <a href="performance.html#large-problems">large-problem benchmark</a>), a solve with 3 corrections took 88.7 s with <code>LSQR</code> and 0.16 s with direct least squares at 100,000 variables (0.59 s and 0.011 s at 10,000; with MUMPS as the linear solver, 1.1 s and 0.08 s).</li>
-  <li><strong>Restoration steps:</strong> on a chain of hyperbola constraints with 10,000 variables (<code>hyperbolas</code> there), the 9 Gauss-Newton restoration steps took 2.3 s with <code>LSQR</code> and 0.02 s directly (though that problem's total time is dominated by the QPs that find the linearization inconsistent).</li>
-</ul>
-
-<p>On small problems it changes little, and not always for the better: on the Hock&ndash;Schittkowski problems the default options solve 278 problems with it and fail on one (TP106, where a more accurate correction leads to a slow crawl), against 281 and none without it. So it is off by default: turn it on for large problems that take corrections or restoration steps (<code>results%n_soc</code>, <code>results%n_restoration_steps</code>) and spend their time outside the QP and the user functions.</p>
-
-<h3 id="dense-qp">Dense QP options <span class="h-note"><code>qp_solver%dense_qp%&lt;name&gt;</code></span></h3>
-<p class="set-on">Used when <code>mode == sqpopt_qp_dense</code>, and when <code>mode == sqpopt_qp_daqp</code> for the QPs that <a href="#daqp">DAQP</a> doesn't solve.</p>
-<div class="table-wrap"><table class="opt-table">
-<thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
-<tbody>
-<tr><td><code>max_iter</code></td><td><code>100</code></td><td>minimum limit on active-set iterations per QP solve (the actual limit is <code>max(max_iter, 10*(rows+1))</code>)</td></tr>
-<tr><td><code>active_tol</code></td><td><code>1e-8</code></td><td>relative tolerance for a row being at a bound, and for the sign of a multiplier</td></tr>
-<tr><td><code>opt_tol</code></td><td><code>1e-10</code></td><td>relative tolerance on the reduced-gradient stationarity test</td></tr>
-<tr><td><code>feas_tol</code></td><td><code>1e-6</code></td><td>an elastic slack larger than <code>feas_tol*max(1, |initial violation|)</code> at the solution counts as a violated linearized constraint</td></tr>
-<tr><td><code>elastic_weight</code></td><td><code>1e4</code></td><td>initial elastic penalty weight, relative to \( \max(1,\lVert g \rVert_\infty) \)</td></tr>
-<tr><td><code>elastic_weight_max</code></td><td><code>1e10</code></td><td>largest elastic penalty weight tried (same scaling) before the linearization is declared inconsistent</td></tr>
-<tr><td><code>warm_start</code></td><td><code>.true.</code></td><td>start each QP from the previous QP's final working set (within one <code>solve</code>)</td></tr>
-</tbody>
-</table></div>
-
-<h3 id="sparse-qp">Sparse QP options <span class="h-note"><code>qp_solver%sparse_qp%&lt;name&gt;</code></span></h3>
-<p class="set-on">Used when <code>mode == sqpopt_qp_reduced_hessian</code>.</p>
-<div class="table-wrap"><table class="opt-table">
-<thead><tr><th>option</th><th>default</th><th>description</th></tr></thead>
-<tbody>
-<tr><td><code>null_space</code></td><td><code>sqpopt_null_space_lu</code></td><td>how the null space of the working set is handled.
-  <ul>
-  <li><code>sqpopt_null_space_lu</code> (SQOPT-style) gives every general row a slack variable, so the working set is just the unknowns fixed at a bound, and splits the free unknowns into a nonsingular basis <code>B</code> and the superbasic rest <code>S</code>. The null space is \( Z = \begin{bmatrix} -B^{-1}S \\ I \end{bmatrix} \), every projection and multiplier is a direct solve with <code>B</code>'s sparse LU factors, and working-set changes update the factors (<code>lu8rpc</code>) instead of refactorizing.</li>
-  <li><code>sqpopt_null_space_lsqr</code> uses orthogonal projections, each an iterative <code>LSQR</code> least-squares solve, with projected CG. It is much slower at scale, and kept for comparison.</li>
-  </ul></td></tr>
-<tr><td><code>max_iter</code></td><td><code>100</code></td><td>minimum limit on active-set iterations per QP solve (the actual limit is <code>max(max_iter, 10*(rows+1))</code>)</td></tr>
-<tr><td><code>max_pcg_iter</code></td><td><code>0</code></td><td>maximum CG iterations per active-set face (<code>&lt;= 0</code> means twice the number of unknowns; CG is also stopped at the dimension of the face)</td></tr>
-<tr><td><code>dense_max_ns</code></td><td><code>50</code></td><td>with <code>null_space = sqpopt_null_space_lu</code>, a face with at most this many superbasics is solved exactly with a dense Cholesky factorization of the reduced Hessian (if positive definite) instead of by diagonally preconditioned CG; <code>0</code> means always CG</td></tr>
-<tr><td><code>active_tol</code></td><td><code>1e-8</code></td><td>relative tolerance for a row being at a bound, and for the sign of a multiplier</td></tr>
-<tr><td><code>opt_tol</code></td><td><code>1e-10</code></td><td>relative tolerance on the projected-gradient stationarity test</td></tr>
-<tr><td><code>pcg_rtol</code></td><td><code>1e-10</code></td><td>projected CG stops once the projected residual has been reduced by this factor</td></tr>
-<tr><td><code>feas_tol</code></td><td><code>1e-6</code></td><td>as for the dense solver</td></tr>
-<tr><td><code>elastic_weight</code></td><td><code>1e4</code></td><td>as for the dense solver</td></tr>
-<tr><td><code>elastic_weight_max</code></td><td><code>1e8</code></td><td>as for the dense solver (lower, since the iterative projections' accuracy is relative to the weight)</td></tr>
-<tr><td><code>warm_start</code></td><td><code>.true.</code></td><td>as for the dense solver</td></tr>
-<tr><td><code>lsqr_atol</code>, <code>lsqr_btol</code>, <code>lsqr_conlim</code></td><td><code>0.0</code></td><td><code>LSQR</code> relative error tolerances in <code>A</code> and <code>b</code>, and the upper limit on <code>cond(Abar)</code>, for the minimum-norm starting step and (with <code>null_space = sqpopt_null_space_lsqr</code>) every projection. <code>0</code> lets <code>LSQR</code> use its own machine-precision-based default, which is tighter than usually necessary.</td></tr>
-<tr><td><code>lsqr_itnlim</code></td><td><code>0</code></td><td><code>LSQR</code> maximum iterations per solve (<code>&lt;= 0</code> means <code>2*(rows+columns)+10</code>)</td></tr>
-</tbody>
-</table></div>
 
 <!-- ============================================================ -->
 <h2 id="linesearch">Line search &amp; merit function <code class="h-type">sqpopt_linesearch_type</code></h2>
