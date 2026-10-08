@@ -196,9 +196,15 @@ FUNNEL_UPDATES = (
     Choice(1, 'max(βτ, κθₖ + (1−κ)θ) if the violation decreased, else βτ'),
     Choice(2, 'κτ + (1−κ)θ'),
 )
+EIGEN_SOLVERS = (
+    Choice(0, 'automatic (LAPACK if the library has it, else QL)', 'sqpopt_eigen_auto'),
+    Choice(3, 'tridiagonal reduction and implicit QL (always available)', 'sqpopt_eigen_ql'),
+    Choice(1, 'cyclic Jacobi (always available; slower)', 'sqpopt_eigen_jacobi'),
+    Choice(2, 'LAPACK DSYEV (a build with LAPACK)', 'sqpopt_eigen_lapack'),
+)
 
 ALL_CHOICES = (HESSIAN_MODES, QP_MODES, LINESEARCH_MODES, MERIT_MODES, PENALTY_UPDATES,
-               RESTORATION_MODES, NULL_SPACE_METHODS, DERIVATIVE_ACCURACIES, LINEAR_SOLVERS)
+               RESTORATION_MODES, NULL_SPACE_METHODS, DERIVATIVE_ACCURACIES, LINEAR_SOLVERS, EIGEN_SOLVERS)
 
 
 def _o(path: str, kind: str, default: Any, doc: str, **kw) -> Option:
@@ -276,6 +282,11 @@ def _quasi_newton_used(values: dict) -> str | None:
         return 'not used with hessian_mode = sqpopt_hessian_exact'
     return None
 
+
+def _sr1_used(values: dict) -> str | None:
+    if get_value(values, ('options', 'hessian_mode')) != 2:
+        return 'only used with hessian_mode = sqpopt_hessian_sr1'
+    return None
 
 def _exact_used(values: dict) -> str | None:
     if get_value(values, ('options', 'hessian_mode')) != 3:
@@ -473,6 +484,20 @@ TOPICS: tuple[Topic, ...] = (
                "positive definite while still using the new curvature information. If off, such updates are "
                "skipped instead."),
         ), relevance=_quasi_newton_used),
+        Section('SR1', (
+            _o('hessian%convexify', 'bool', False,
+               'Before each QP, shift the limited-memory SR1 matrix, if it is not positive definite, by its '
+               'smallest eigenvalue, so that that eigenvalue becomes shift_min times max(1, 1/γ) and every QP is '
+               'convex. The eigenvalues come from the matrix\'s compact representation (a spectral '
+               'decomposition of two small matrices of the order of lbfgs_memory), at no cost of order n². The '
+               'shift is undone after the step. On the HS problems it solved more than plain SR1, and with '
+               'qp_solver_mode = DAQP almost no QP falls back to the dense QP solver; inertia_control is still '
+               'the more reliable correction.'),
+            _o('hessian%eigen_solver', 'int', 0,
+               'The eigensolver of the spectral decompositions (convexify, and the SR1 unconstrained step). '
+               'The results of the three differ only by rounding; Jacobi is about four times slower.',
+               choices=EIGEN_SOLVERS),
+        ), relevance=_sr1_used),
         Section('Inertia control', (
             _o('options%inertia_control', 'bool', False,
                'With the exact or the SR1 Hessian, which can be indefinite: find the shift δ of H + δI from the '
@@ -546,7 +571,9 @@ TOPICS: tuple[Topic, ...] = (
                       'starts at max(max_step, ‖x₀‖∞), doubles after a capped step that the line search accepts '
                       'in full, and halves back toward max_step after a shortened one.'),
             _o('qp_solver%unconstrained_step', 'bool', True,
-               'With the L-BFGS Hessian, first try the unconstrained step −H⁻¹g, which costs one two-loop recursion. '
+               'With the L-BFGS Hessian, first try the unconstrained step −H⁻¹g, which costs one two-loop recursion; '
+               'with the SR1 Hessian, if it is positive definite, the minimizer of the QP\'s objective within the '
+               'step cap (max_step), from its spectral decomposition. '
                'If it satisfies the bounds and the linearized constraints it is the QP\'s solution, and no QP solver '
                'is run. That is every QP of a problem without constraints whose bounds are not active, which is then '
                'solved many times faster.'),

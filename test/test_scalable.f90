@@ -46,8 +46,13 @@ program test_scalable
     !! * `--n=N1,N2,...`: the numbers of variables (multiples of 4, for
     !!   `powell_singular`)
     !! * `--function=NAME`: only that function
-    !! * `--hessian=bfgs|exact|direct`: only that configuration (`direct` is
-    !!   the exact Hessian with inertia control and the direct QP method)
+    !! * `--hessian=bfgs|exact|direct|sr1`: only that configuration (`direct`
+    !!   is the exact Hessian with inertia control and the direct QP method;
+    !!   `sr1` is the limited-memory SR1 Hessian, which is not part of the
+    !!   default run)
+    !! * `--no-unconstrained-step`: `qp_solver%unconstrained_step = .false.`
+    !!   (every QP to the QP solver)
+    !! * `--convexify`: `hessian%convexify = .true.` (with `sr1`)
     !! * `--linear-solver=qdldl|mumps`: `options%linear_solver`, the sparse
     !!   solver of `direct` (QDLDL by default; `mumps` needs a build with MUMPS)
     !! * `--max-iter=K`: `options%max_iter` (default 10000)
@@ -56,7 +61,8 @@ program test_scalable
     use sqpopt_module,           only: sqpopt_type
     use sqpopt_problem_module,   only: sqpopt_problem_type
     use sqpopt_options_module,   only: sqpopt_options_type
-    use sqpopt_hessian_module,   only: sqpopt_hessian_exact
+    use sqpopt_hessian_module,   only: sqpopt_hessian_exact, sqpopt_hessian_sr1, sqpopt_hessian_type
+    use sqpopt_qp_solver_module, only: sqpopt_qp_solver_type
     use sqpopt_types_module,     only: sqpopt_results_type, sqpopt_success, sqpopt_acceptable, sqpopt_stalled
     use sqpopt_kinds,            only: wp => sqpopt_module_wp
     use sqpopt_symmetric_solver_module, only: sqpopt_linear_solver_qdldl, sqpopt_linear_solver_mumps
@@ -64,8 +70,9 @@ program test_scalable
 
     implicit none
 
-    integer, parameter :: cfg_bfgs = 1, cfg_exact = 2, cfg_direct = 3 !! the configurations
-    character(len=*), parameter :: cfg_name(3) = [character(len=6) :: 'L-BFGS', 'exact', 'direct']
+    integer, parameter :: cfg_bfgs = 1, cfg_exact = 2, cfg_direct = 3, cfg_sr1 = 4 !! the configurations (`cfg_sr1`
+                                                                                    !! only with `--hessian=sr1`)
+    character(len=*), parameter :: cfg_name(4) = [character(len=6) :: 'L-BFGS', 'exact', 'direct', 'L-SR1']
 
     real(wp), parameter :: f_tol   = 1.0e-5_wp !! tolerance on the minimum, relative to `max(1, |f_min|)`
     real(wp), parameter :: gap_tol = 1.0e-8_wp !! reduction of `f - f_min` from the starting point for a `loose` result
@@ -86,6 +93,8 @@ program test_scalable
     character(len=:), allocatable :: only_function
     integer :: only_cfg, max_iter, print_level
     integer :: linear_solver !! `--linear-solver` (`options%linear_solver`)
+    logical :: unconstrained_step !! `qp_solver%unconstrained_step` (`--no-unconstrained-step` sets it false)
+    logical :: convexify          !! `hessian%convexify` (`--convexify`)
     logical :: default_run
     integer :: id, k, cfg, n_global, n_loose, n_local, n_failed, n_unexpected
     type(scalable_function_type) :: fun
@@ -112,9 +121,10 @@ program test_scalable
         if (only_function /= '' .and. only_function /= scalable_function_name(id)) cycle
         do k = 1, size(sizes)
             call scalable_function_setup(id, sizes(k), fun)
-            do cfg = cfg_bfgs, cfg_direct
+            do cfg = cfg_bfgs, cfg_sr1
                 if (only_cfg /= 0 .and. cfg /= only_cfg) cycle
-                if (cfg /= cfg_bfgs .and. .not. fun%has_hessian) cycle
+                if (only_cfg == 0 .and. cfg == cfg_sr1) cycle
+                if (cfg /= cfg_bfgs .and. cfg /= cfg_sr1 .and. .not. fun%has_hessian) cycle
                 call solve(fun, cfg)
             end do
         end do
@@ -142,6 +152,8 @@ program test_scalable
     max_iter    = 10000
     print_level = 0
     linear_solver = sqpopt_linear_solver_qdldl
+    unconstrained_step = .true.
+    convexify   = .false.
     default_run = command_argument_count() == 0
     do i = 1, command_argument_count()
         call get_command_argument(i, arg)
@@ -164,6 +176,12 @@ program test_scalable
             only_cfg = cfg_exact
         else if (arg == '--hessian=direct') then
             only_cfg = cfg_direct
+        else if (arg == '--hessian=sr1') then
+            only_cfg = cfg_sr1
+        else if (arg == '--no-unconstrained-step') then
+            unconstrained_step = .false.
+        else if (arg == '--convexify') then
+            convexify = .true.
         else if (arg == '--linear-solver=qdldl') then
             linear_solver = sqpopt_linear_solver_qdldl
         else if (arg == '--linear-solver=mumps') then
@@ -236,6 +254,8 @@ program test_scalable
     type(sqpopt_type)         :: solver
     type(sqpopt_problem_type) :: problem
     type(sqpopt_options_type) :: options
+    type(sqpopt_qp_solver_type) :: qp_solver
+    type(sqpopt_hessian_type) :: hessian
     type(sqpopt_results_type) :: r
     real(wp), dimension(:), allocatable :: x, g
     real(wp), dimension(0) :: lambda
@@ -250,8 +270,9 @@ program test_scalable
     call problem%set_problem_size(n=n, m=0)
     call problem%set_bounds(x_lb=fun%x_lb, x_ub=fun%x_ub, c_lb=[real(wp) ::], c_ub=[real(wp) ::])
     call problem%set_jacobian_sparsity(nnz=0, irow=no_rows, icol=no_rows)
-    if (cfg == cfg_bfgs) then
+    if (cfg == cfg_bfgs .or. cfg == cfg_sr1) then
         call problem%set_functions(fc=fc, gjac=gjac, data=fun)
+        if (cfg == cfg_sr1) options%hessian_mode = sqpopt_hessian_sr1
     else
         call problem%set_functions(fc=fc, gjac=gjac, hess=hess, data=fun)
         call problem%set_hessian_sparsity(size(fun%hess_irow), fun%hess_irow, fun%hess_icol)
@@ -269,7 +290,9 @@ program test_scalable
     call fun%g(fun%x0, g)
     g0 = maxval(abs(g))
 
-    call solver%initialize(problem=problem, options=options)
+    qp_solver%unconstrained_step = unconstrained_step
+    hessian%convexify = convexify
+    call solver%initialize(problem=problem, options=options, qp_solver=qp_solver, hessian=hessian)
     call solver%solve(fun%x0, istat)
     call solver%get_solution(x, lambda)
     call solver%get_results(r)

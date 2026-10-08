@@ -9,7 +9,8 @@ program test_input_validation
     use sqpopt_module,         only: sqpopt_type
     use sqpopt_problem_module, only: sqpopt_problem_type
     use sqpopt_options_module, only: sqpopt_options_type
-    use sqpopt_hessian_module, only: sqpopt_hessian_exact
+    use sqpopt_hessian_module, only: sqpopt_hessian_exact, sqpopt_hessian_type
+    use sqpopt_eigen_module,   only: sqpopt_eigen_lapack, sqpopt_eigen_has_lapack
     use sqpopt_symmetric_solver_module, only: sqpopt_has_mumps, sqpopt_linear_solver_mumps, sqpopt_has_lapack, &
                                               sqpopt_linear_solver_lapack, sqpopt_linear_solver_dense, &
                                               sqpopt_linear_solver_max_order
@@ -175,6 +176,18 @@ program test_input_validation
                             qp_solver=qp)
     end block
 
+    ! invalid Hessian settings:
+    block
+        type(sqpopt_hessian_type) :: hs
+        hs%eigen_solver = 99
+        call expect_invalid('hessian%eigen_solver = 99', problem, sqpopt_options_type(), [0.0_wp, 0.0_wp], hessian=hs)
+        if (.not. sqpopt_eigen_has_lapack) then
+            hs%eigen_solver = sqpopt_eigen_lapack
+            call expect_invalid('hessian%eigen_solver = lapack without LAPACK', problem, sqpopt_options_type(), &
+                                [0.0_wp, 0.0_wp], hessian=hs)
+        end if
+    end block
+
     ! wrong-size initial multipliers:
     block
         type(sqpopt_type) :: solver
@@ -208,7 +221,7 @@ program test_input_validation
 
     contains
 
-    subroutine expect_invalid(label, problem, options, x0, linesearch, trust_region, qp_solver)
+    subroutine expect_invalid(label, problem, options, x0, linesearch, trust_region, qp_solver, hessian)
     !! check that `solve` rejects the inputs with `sqpopt_invalid_input`
     character(len=*),          intent(in)                :: label        !! the case, for the output
     type(sqpopt_problem_type), intent(in)                :: problem      !! problem definition
@@ -217,10 +230,11 @@ program test_input_validation
     type(sqpopt_linesearch_type),   intent(in), optional :: linesearch   !! line search settings (default if absent)
     type(sqpopt_trust_region_type), intent(in), optional :: trust_region !! trust-region settings (default if absent)
     type(sqpopt_qp_solver_type),    intent(in), optional :: qp_solver    !! QP solver settings (default if absent)
+    type(sqpopt_hessian_type),      intent(in), optional :: hessian      !! Hessian settings (default if absent)
     type(sqpopt_type) :: solver
     integer :: istat
     call solver%initialize(problem=problem, options=options, linesearch=linesearch, trust_region=trust_region, &
-                           qp_solver=qp_solver)
+                           qp_solver=qp_solver, hessian=hessian)
     call solver%solve(x0, istat)
     print '(A,A,I0,2A)', label, ': istat=', istat, '  ', solver%status_message()
     if (istat /= sqpopt_invalid_input) error stop 'test_input_validation FAILED: '//label

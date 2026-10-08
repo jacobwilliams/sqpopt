@@ -15,8 +15,11 @@ program test_unconstrained_step
     !! * no bounds, and a constraint that is never active: every QP must be
     !!   solved by the unconstrained step, and the solution, \( x = 2 \), must
     !!   be the one found with the step turned off, by the QP solver;
-    !! * the same, with the limited-memory SR1 Hessian, which has no cheap
-    !!   inverse and may be indefinite: the step must not be used;
+    !! * the same, with the limited-memory SR1 Hessian, whose step is the
+    !!   minimizer within the step cap, from its spectral decomposition (see
+    !!   [[sqpopt_spectral_module]]): the problem is a convex quadratic, so the
+    !!   matrix stays positive definite, and every QP must again be solved by
+    !!   the step;
     !! * upper bounds of 1 on the odd variables, which are active at the
     !!   solution: the step can't solve the QPs near the solution, and the
     !!   solution must again be the one found without it;
@@ -89,7 +92,10 @@ program test_unconstrained_step
         if (lambda_on(1) /= 0.0_wp) error stop 'test_unconstrained_step FAILED: free: a nonzero multiplier'
     case ('sr1')
         x_star = 2.0_wp
-        if (r_on%n_unconstrained_qp /= 0) error stop 'test_unconstrained_step FAILED: sr1: the step was used'
+        if (r_on%n_unconstrained_qp /= r_on%n_qp_solves .or. r_on%n_qp_solves == 0) then
+            error stop 'test_unconstrained_step FAILED: sr1: not every QP was solved by the step'
+        end if
+        if (r_on%n_qp_iterations /= 0) error stop 'test_unconstrained_step FAILED: sr1: a QP solver was run'
     case ('bounds')
         ! (the solution of the bound-constrained problem isn't known in closed form: compare with
         ! the run without the step, above, and check the bounds)

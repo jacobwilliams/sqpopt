@@ -55,6 +55,11 @@ program test_hs_suite
     !!   or `--hessian=sr1`, see [[sqpopt_inertia_module]])
     !! * `--direct` (`options%direct_qp = .true.`, with any Hessian) and
     !!   `--direct-ls` (`options%direct_least_squares = .true.`)
+    !! * `--convexify` (`hessian%convexify = .true.`: with `--hessian=sr1`,
+    !!   shift the SR1 matrix to be positive definite before each QP, see
+    !!   [[sqpopt_spectral_module]]), `--eigen=ql|jacobi|lapack`
+    !!   (`hessian%eigen_solver`; `lapack` needs a build with LAPACK), and
+    !!   `--no-unconstrained-step` (`qp_solver%unconstrained_step = .false.`)
     !! * `--linear-solver=qdldl|mumps|dense|lapack` (`options%linear_solver`, the sparse
     !!   solver of the three options above: QDLDL by default; `mumps` needs a
     !!   build with MUMPS)
@@ -106,7 +111,8 @@ program test_hs_suite
     use sqpopt_module,         only: sqpopt_type
     use sqpopt_problem_module, only: sqpopt_problem_type, sqpopt_derivatives_fast
     use sqpopt_options_module, only: sqpopt_options_type
-    use sqpopt_hessian_module, only: sqpopt_hessian_bfgs, sqpopt_hessian_sr1, sqpopt_hessian_exact
+    use sqpopt_hessian_module, only: sqpopt_hessian_bfgs, sqpopt_hessian_sr1, sqpopt_hessian_exact, sqpopt_hessian_type
+    use sqpopt_eigen_module,   only: sqpopt_eigen_auto, sqpopt_eigen_jacobi, sqpopt_eigen_lapack, sqpopt_eigen_ql
     use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type, sqpopt_qp_auto, sqpopt_qp_dense, &
                                         sqpopt_qp_reduced_hessian, sqpopt_qp_daqp
     use sqpopt_qp_reduced_hessian_module, only: sqpopt_null_space_lu, sqpopt_null_space_lsqr
@@ -185,6 +191,9 @@ program test_hs_suite
     logical :: cfg_inertia      = .false. !! `--inertia`
     logical :: cfg_direct       = .false. !! `--direct`
     logical :: cfg_direct_ls    = .false. !! `--direct-ls`
+    logical :: cfg_convexify    = .false. !! `--convexify`
+    integer :: cfg_eigen        = sqpopt_eigen_auto !! `--eigen=`
+    logical :: cfg_unconstrained = .true. !! `--no-unconstrained-step` sets it false
     integer :: cfg_linear_solver = sqpopt_linear_solver_qdldl !! `--linear-solver=`
     integer :: cfg_restoration  = sqpopt_restoration_phase !! `--restoration=`
     integer :: cfg_hessian      = sqpopt_hessian_bfgs      !! `--hessian=`
@@ -308,6 +317,11 @@ program test_hs_suite
         case ('--inertia');             cfg_inertia = .true.
         case ('--direct');              cfg_direct = .true.
         case ('--direct-ls');           cfg_direct_ls = .true.
+        case ('--convexify');           cfg_convexify = .true.
+        case ('--eigen=ql');            cfg_eigen = sqpopt_eigen_ql
+        case ('--eigen=jacobi');        cfg_eigen = sqpopt_eigen_jacobi
+        case ('--eigen=lapack');        cfg_eigen = sqpopt_eigen_lapack
+        case ('--no-unconstrained-step'); cfg_unconstrained = .false.
         case ('--linear-solver=mumps'); cfg_linear_solver = sqpopt_linear_solver_mumps
         case ('--linear-solver=qdldl'); cfg_linear_solver = sqpopt_linear_solver_qdldl
         case ('--linear-solver=dense'); cfg_linear_solver = sqpopt_linear_solver_dense
@@ -370,6 +384,7 @@ program test_hs_suite
     type(sqpopt_linesearch_type) :: linesearch
     type(sqpopt_qp_solver_type) :: qp_solver
     type(sqpopt_trust_region_type) :: trust_region
+    type(sqpopt_hessian_type) :: hessian
     type(sqpopt_results_type) :: r
     integer, dimension(:), allocatable :: irow, icol, hrow, hcol
     integer  :: i, j, nnz, istat
@@ -432,13 +447,16 @@ program test_hs_suite
     options%direct_least_squares = cfg_direct_ls
     options%linear_solver   = cfg_linear_solver
     qp_solver%sparse_qp%null_space = cfg_null_space
+    qp_solver%unconstrained_step   = cfg_unconstrained
+    hessian%convexify    = cfg_convexify
+    hessian%eigen_solver = cfg_eigen
     linesearch%interpolate     = cfg_interpolate
     linesearch%nonmonotone_len = cfg_nonmonotone
 
     trust_region%enabled       = cfg_trust_region
 
     call solver%initialize(problem=problem, options=options, linesearch=linesearch, qp_solver=qp_solver, &
-                           trust_region=trust_region)
+                           trust_region=trust_region, hessian=hessian)
     call solver%solve(real(p%x0, wp), istat)
     call solver%get_results(r)
     sum_qp_solves      = sum_qp_solves + r%n_qp_solves

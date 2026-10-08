@@ -49,6 +49,7 @@
     use sqpopt_least_squares_module, only: sqpopt_least_squares_type, multiplier_estimate
     use sqpopt_qp_direct_module,    only: direct_outcome_text
     use sqpopt_qp_daqp_module,      only: daqp_status_text
+    use sqpopt_spectral_module,     only: sqpopt_spectrum_type, sqpopt_spectrum_ok
     use sqpopt_diagnostics_module,  only: sqpopt_diagnostics_type
 
     implicit none
@@ -158,6 +159,8 @@
                           !! `options%acceptable_obj_change_tol`)
     real(wp) :: shift_floor !! with inertia control: the Hessian's shift at the start of the iteration (the part
                             !! of it that is carried over from failed steps)
+    logical :: convexified  !! whether the SR1 matrix was shifted to be positive definite in this iteration
+                            !! (`hessian%convexify`; the shift is undone after the step)
     logical :: keep_shift   !! with inertia control: whether the step failed, so the shift it was computed with
                             !! is carried over (increased) to the next iteration
 
@@ -403,6 +406,7 @@
     restore  = .false.
     shift_floor = hessian%shift
     keep_shift  = .false.
+    convexified = .false.
 
     if (restoration%active) then
 
@@ -415,6 +419,8 @@
         call restoration_phase_iteration()
 
     else if (trust_region%enabled) then
+
+        if (options%hessian_mode == sqpopt_hessian_sr1 .and. hessian%convexify) call convexify_sr1()
 
         ! with inertia control, first shift the exact Hessian as the working
         ! set that the QP starts from needs (the trust region's QPs are not
@@ -449,6 +455,8 @@
         end if
 
     else
+
+        if (options%hessian_mode == sqpopt_hessian_sr1 .and. hessian%convexify) call convexify_sr1()
 
         ! with inertia control, first shift the Hessian as the working set
         ! that the QP will most likely end with needs (the one it starts
@@ -737,6 +745,10 @@
     if (inertia%enabled) then
         if (hessian%shift > 0.0_wp) inertia%shift_last = hessian%shift
         if (.not. keep_shift) hessian%shift = shift_floor
+    else if (convexified) then
+        ! (the SR1 matrix's convexifying shift is found again at the next
+        ! iteration, for its new pair: and the update must not see it)
+        hessian%shift = shift_floor
     end if
 
     ! report the first failure, if any (a QP that stopped at its iteration
@@ -751,6 +763,26 @@
     end if
 
     contains
+
+        subroutine convexify_sr1()
+        !! with the limited-memory SR1 matrix and `hessian%convexify`: shift it,
+        !! if it isn't positive definite, so that its smallest eigenvalue is
+        !! `hessian%shift_min` times its size (see [[sqpopt_spectral_module]]),
+        !! and every QP of this iteration is convex
+        type(sqpopt_spectrum_type) :: spectrum
+        integer  :: sp_istat
+        real(wp) :: lmin, target
+        call spectrum%compute(hessian, sp_istat)
+        if (sp_istat /= sqpopt_spectrum_ok) return
+        lmin   = spectrum%lambda_min()
+        target = hessian%shift_min*hessian%magnitude()
+        if (lmin >= target) return
+        hessian%shift = hessian%shift + (target - lmin)
+        convexified = .true.
+        call kkt%new_matrices()
+        call lg%put(sqpopt_log_detail, 'SR1 Hessian convexified: smallest eigenvalue '//fmt_e(lmin)// &
+                    ', shift '//fmt_e(hessian%shift))
+        end subroutine convexify_sr1
 
         subroutine estimate_multipliers()
         !! replace the constraint multipliers by their least-squares estimate at

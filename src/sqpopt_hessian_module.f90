@@ -62,6 +62,7 @@
 
     use sqpopt_kinds, only: wp => sqpopt_module_wp
     use sqpopt_dense_linalg_module, only: lu_factor => dense_lu_factor, lu_solve => dense_lu_solve
+    use sqpopt_eigen_module, only: sqpopt_eigen_auto
 
     implicit none
 
@@ -85,6 +86,13 @@
         logical :: use_sr1     = .false. !! if true, use the limited-memory SR1 update instead of BFGS
         logical :: damping     = .true.  !! if true, use Powell's damped BFGS update (see [[hessian_update_bfgs]]),
                                          !! else skip any update that fails the curvature condition
+        logical :: convexify   = .false. !! with the limited-memory SR1 matrix: before each QP, shift it so that it
+                                         !! is positive definite, by its smallest eigenvalue (see
+                                         !! [[sqpopt_spectral_module]] and [[sqpopt_iterate_module]])
+        integer :: eigen_solver = sqpopt_eigen_auto !! the eigensolver of the spectral decompositions (see
+                                         !! [[sqpopt_eigen_module]]): `sqpopt_eigen_auto` (LAPACK if the library
+                                         !! has it, else QL), `sqpopt_eigen_ql`, `sqpopt_eigen_jacobi`, or
+                                         !! `sqpopt_eigen_lapack` (only with LAPACK)
 
         integer :: first       = 1  !! column of `s`/`y` holding the oldest pair (the buffer is circular:
                                     !! the `i`-th oldest pair is in column [[pair_col]]`(i)`)
@@ -95,6 +103,9 @@
                                                        !! `dimension(max_history,max_history)`
         real(wp), dimension(:,:), allocatable :: sy    !! `sy(a,b)` \( = s_a^Ty_b \) for the pairs in columns `a`, `b`
                                                        !! `dimension(max_history,max_history)`
+        real(wp), dimension(:,:), allocatable :: yy    !! `yy(a,b)` \( = y_a^Ty_b \) for the pairs in columns `a`, `b`
+                                                       !! `dimension(max_history,max_history)` (for
+                                                       !! [[hessian_low_rank_gram]])
         real(wp) :: gamma  = 1.0_wp !! scaling of the initial Hessian \( H_0 = \gamma I \)
         real(wp) :: gamma0 = 1.0_wp !! `gamma` before any update (and after a [[hessian_reset]])
 
@@ -139,6 +150,9 @@
         procedure, public :: low_rank_column         => hessian_low_rank_column
         procedure, public :: low_rank_multiply_transpose => hessian_low_rank_multiply_transpose
         procedure, public :: low_rank_middle         => hessian_low_rank_middle
+        procedure, public :: low_rank_gram           => hessian_low_rank_gram
+        procedure, public :: low_rank_scale          => hessian_low_rank_scale
+        procedure, public :: low_rank_middle_inverse => hessian_low_rank_middle_inverse
 
     end type sqpopt_hessian_type
 
@@ -177,8 +191,10 @@
     if (allocated(me%rho))   deallocate(me%rho)
     if (allocated(me%ss))    deallocate(me%ss)
     if (allocated(me%sy))    deallocate(me%sy)
+    if (allocated(me%yy))    deallocate(me%yy)
     allocate(me%s(n,max_history), me%y(n,max_history))
-    allocate(me%rho(max_history), me%ss(max_history,max_history), me%sy(max_history,max_history))
+    allocate(me%rho(max_history), me%ss(max_history,max_history), me%sy(max_history,max_history), &
+             me%yy(max_history,max_history))
     me%diag_valid  = .false.
 
     end subroutine hessian_initialize
@@ -290,7 +306,7 @@
 !  push a new `(s,y)` pair into the circular history buffer, discarding
 !  the oldest pair if `max_history` pairs are already stored (by
 !  overwriting its column and advancing `first`, so no data is moved), and
-!  update the inner products `ss` and `sy` with the new pair (`O(nk)`).
+!  update the inner products `ss`, `sy`, and `yy` with the new pair (`O(nk)`).
 
     subroutine hessian_push_pair(me, s, y)
 
@@ -314,6 +330,8 @@
         me%ss(j,c) = me%ss(c,j)
         me%sy(c,j) = dot_product(s, me%y(:,j))
         me%sy(j,c) = dot_product(me%s(:,j), y)
+        me%yy(c,j) = dot_product(y, me%y(:,j))
+        me%yy(j,c) = me%yy(c,j)
     end do
     me%mid_valid = .false.
 
@@ -769,6 +787,99 @@
     sigma = merge(1.0_wp, -1.0_wp, me%use_sr1)
 
     end subroutine hessian_low_rank_middle
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the Gram matrix \( U^TU \) of the low-rank factor of the compact
+!  representation (see the module documentation), from the stored inner
+!  products, in `O(r^2)` (no product with a vector of size `n`):
+!
+!  * SR1, \( U = Y - \theta S \):
+!    \( U^TU = Y^TY - \theta (Y^TS + S^TY) + \theta^2 S^TS \);
+!  * BFGS, \( U = [\theta S \; Y] \):
+!    \( U^TU = \begin{bmatrix} \theta^2 S^TS & \theta S^TY \\ \theta Y^TS & Y^TY \end{bmatrix} \).
+
+    pure subroutine hessian_low_rank_gram(me, g)
+
+    class(sqpopt_hessian_type), intent(in)  :: me
+    real(wp), dimension(:,:),   intent(out) :: g !! the matrix \( U^TU \) `dimension(r,r)`
+
+    integer  :: k, p, q, cp, cq
+    real(wp) :: theta
+
+    k = me%n_history
+    theta = 1.0_wp/me%gamma
+    do p = 1, k
+        cp = pair_col(me, p)
+        do q = 1, k
+            cq = pair_col(me, q)
+            if (me%use_sr1) then
+                g(p,q) = me%yy(cp,cq) - theta*(me%sy(cq,cp) + me%sy(cp,cq)) + theta**2*me%ss(cp,cq)
+            else
+                g(p,q)     = theta**2*me%ss(cp,cq)
+                g(p,k+q)   = theta*me%sy(cp,cq)
+                g(k+q,p)   = g(p,k+q)
+                g(k+p,k+q) = me%yy(cp,cq)
+            end if
+        end do
+    end do
+
+    end subroutine hessian_low_rank_gram
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the size of the vectors that the low-rank factor's columns are formed
+!  from: \( \max_i (y_i^Ty_i + \theta^2 s_i^Ts_i) \) over the stored pairs.
+!  A column of `U` (or a combination of them) whose squared norm is
+!  negligible next to this is only rounding error (e.g. \( y - \theta s \)
+!  when \( y = \theta s \)), which the spectral decomposition drops (see
+!  [[sqpopt_spectral_module]]).
+
+    pure real(wp) function hessian_low_rank_scale(me) result(scale)
+
+    class(sqpopt_hessian_type), intent(in) :: me
+
+    integer  :: i, c
+    real(wp) :: theta
+
+    theta = 1.0_wp/me%gamma
+    scale = 0.0_wp
+    do i = 1, me%n_history
+        c = pair_col(me, i)
+        scale = max(scale, me%yy(c,c) + theta**2*me%ss(c,c))
+    end do
+
+    end function hessian_low_rank_scale
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the matrix \( \sigma M^{-1} \) of the compact representation
+!  \( B = (\theta + \delta) I + U (\sigma M^{-1}) U^T \) (see the module
+!  documentation), from the cached LU factors of \( M \). Its size is
+!  [[hessian_low_rank_size]] (`0` where the products fall back on
+!  \( \theta I \): see there).
+
+    subroutine hessian_low_rank_middle_inverse(me, c)
+
+    class(sqpopt_hessian_type), intent(inout) :: me
+    real(wp), dimension(:,:),   intent(out)   :: c !! the matrix \( \sigma M^{-1} \) `dimension(r,r)`
+
+    integer  :: r, j
+    real(wp) :: sigma
+
+    r = hessian_low_rank_size(me)
+    if (r == 0) return
+    sigma = merge(1.0_wp, -1.0_wp, me%use_sr1)
+    c(1:r,1:r) = 0.0_wp
+    do j = 1, r
+        c(j,j) = sigma
+        call lu_solve(me%mid_lu, me%mid_piv, c(1:r,j))
+    end do
+
+    end subroutine hessian_low_rank_middle_inverse
 !*******************************************************************************
 
 !*******************************************************************************

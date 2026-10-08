@@ -35,6 +35,8 @@
     use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type, sqpopt_qp_auto, sqpopt_qp_dense, &
                                          sqpopt_qp_reduced_hessian, sqpopt_qp_daqp
     use sqpopt_qp_reduced_hessian_module, only: sqpopt_null_space_lu, sqpopt_null_space_lsqr
+    use sqpopt_eigen_module, only: sqpopt_eigen_auto, sqpopt_eigen_jacobi, sqpopt_eigen_lapack, sqpopt_eigen_ql, &
+                                   sqpopt_eigen_has_lapack
     use sqpopt_linesearch_module, only: sqpopt_linesearch_type, sqpopt_linesearch_armijo, sqpopt_linesearch_funnel, &
                                          sqpopt_linesearch_filter, sqpopt_linesearch_watchdog, &
                                          sqpopt_merit_l1, sqpopt_merit_augmented_lagrangian, &
@@ -589,6 +591,7 @@
             end if
         case (sqpopt_hessian_sr1)
             hess = 'L-SR1 Hessian ('//fmt_i(me%hessian%max_history)//' pairs'
+            if (me%hessian%convexify) hess = hess//', convexified'
             if (inertia%enabled) hess = hess//', inertia control'
             if (me%qp_solver%direct) hess = hess//', direct QP'
             hess = hess//')'
@@ -1176,6 +1179,17 @@
         return
     end if
     end associate
+
+    ! ---- Hessian ----
+    if (all(me%hessian%eigen_solver /= [sqpopt_eigen_auto, sqpopt_eigen_jacobi, sqpopt_eigen_lapack, &
+                                             sqpopt_eigen_ql])) then
+        msg = 'hessian%eigen_solver is not a valid sqpopt_eigen_* value'
+        return
+    end if
+    if (me%hessian%eigen_solver == sqpopt_eigen_lapack .and. .not. sqpopt_eigen_has_lapack) then
+        msg = 'hessian%eigen_solver = sqpopt_eigen_lapack needs a library built with LAPACK (HAS_LAPACK)'
+        return
+    end if
 
     end associate
 

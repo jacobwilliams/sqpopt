@@ -32,6 +32,14 @@
 !  which is positive definite, the minimizer of the QP's objective alone is
 !  \( p = -H^{-1} g \), which the two-loop recursion gives in `O(nk)`
 !  operations for `k` stored pairs (see [[hessian_inverse_vector_product]]).
+!  With the limited-memory SR1 Hessian, if it is positive definite (with
+!  its shift: see `hessian%convexify`), the step is the minimizer of the
+!  QP's objective within the step cap \( \lVert p \rVert_2 \le \)
+!  `max_step*step_scale` (below), an L2 trust-region subproblem solved in
+!  closed form from the matrix's spectral decomposition (see
+!  [[sqpopt_spectral_module]]), in about `4nk` operations; a step on the
+!  cap's boundary counts as capped. (An indefinite SR1 matrix is left to
+!  the QP solver and the shifts: the step was worse there.)
 !  If that step satisfies the bounds and the linearized constraints, it is
 !  the solution of the QP, with zero multipliers, and no QP solver is run.
 !  That is every QP of a problem without constraints whose bounds aren't
@@ -68,6 +76,7 @@
     use sqpopt_qp_dense_module, only: sqpopt_dense_qp_type
     use sqpopt_qp_reduced_hessian_module, only: sqpopt_reduced_hessian_qp_type
     use sqpopt_qp_daqp_module,   only: sqpopt_daqp_qp_type
+    use sqpopt_spectral_module,  only: sqpopt_spectrum_type, sqpopt_spectrum_ok
     use sqpopt_kkt_module,       only: sqpopt_kkt_type
     use sqpopt_inertia_module,   only: sqpopt_inertia_type
     use sqpopt_qp_direct_module, only: direct_qp_step, sqpopt_direct_solved
@@ -111,10 +120,11 @@
         logical :: out_of_memory = .false. !! whether a QP solve of this `solve` returned `sqpopt_out_of_memory`
                                            !! (output; it stays set, so the solver stops whichever step asked
                                            !! for that QP; reset on each `solve`)
-        logical :: unconstrained_step = .true. !! whether to try the unconstrained step first, with the
-                                           !! limited-memory BFGS Hessian: if \( -H^{-1} g \) satisfies the bounds
-                                           !! and the linearized constraints, it is the QP's solution, and no QP
-                                           !! solver is run (see the module docs)
+        logical :: unconstrained_step = .true. !! whether to try the unconstrained step first, with a
+                                           !! limited-memory Hessian (BFGS: \( -H^{-1} g \); SR1, if positive
+                                           !! definite: the minimizer within the step cap): if it satisfies the
+                                           !! bounds and the linearized constraints, it is the QP's solution, and
+                                           !! no QP solver is run (see the module docs)
         logical :: unconstrained_used = .false. !! whether the last QP was solved by the unconstrained step (output)
         integer :: n_unconstrained = 0     !! number of QPs of this `solve` solved by the unconstrained step (output)
         logical :: direct = .false.        !! whether to try the direct method first (overwritten from
@@ -215,6 +225,7 @@
                                                                   !! [[sqpopt_inertia_module]])
 
     logical :: forced
+    logical :: on_boundary !! whether the unconstrained step is on the boundary of the step cap (SR1)
     integer(int64) :: t0, t1, rate
     real(wp) :: t_kkt !! the time `kkt` spent in its solver during this call
 
@@ -228,6 +239,7 @@
     me%direct_outcome = -1
     me%direct_changes = 0
     t_kkt = 0.0_wp
+    on_boundary = .false.
 
     if (me%unconstrained_step .and. .not. forced) call solve_unconstrained()
     if (.not. me%unconstrained_used) then
@@ -238,8 +250,11 @@
     if (istat == sqpopt_out_of_memory) me%out_of_memory = .true.
 
     ! trust-region-style safeguard on the step length:
+    ! (a step on the boundary of the cap counts as capped, so that the cap
+    ! grows when the line search accepts it: see [[sqpopt_iterate_module]])
     me%capped = norm2(p) > me%max_step*me%step_scale
     if (me%capped) p = p*(me%max_step*me%step_scale/norm2(p))
+    me%capped = me%capped .or. (on_boundary .and. me%unconstrained_used)
 
     ! the solvers only satisfy the bounds to within their own
     ! tolerances, so make sure `x+p` (and hence every `x+alpha*p`,
@@ -253,18 +268,38 @@
     contains
 
         subroutine solve_unconstrained()
-        !! try the unconstrained step \( -H^{-1} g \) of the limited-memory
-        !! BFGS Hessian (see the module documentation). Sets
-        !! `me%unconstrained_used` if it is feasible, and so solves the QP.
+        !! try the unconstrained step of a limited-memory Hessian (see the
+        !! module documentation): \( -H^{-1} g \) with BFGS, and with SR1,
+        !! which may be indefinite, the minimizer of the QP's objective within
+        !! the step cap. Sets `me%unconstrained_used` if it is feasible, and so
+        !! solves the QP.
         real(wp), dimension(:), allocatable :: jp, neg_g
         integer :: n, m
-        ! (only for a positive definite matrix with a cheap inverse)
-        if (hessian%exact .or. hessian%use_sr1 .or. hessian%shift /= 0.0_wp) return
+        if (hessian%exact) return
         n = size(g)
         m = size(c)
         allocate(jp(m), neg_g(n))
-        neg_g = -g
-        call hessian%inverse_vector_product(neg_g, p)
+        if (hessian%use_sr1) then
+            ! (from the spectral decomposition, see [[sqpopt_spectral_module]]:
+            ! only for a positive definite matrix, whose QP is convex; an
+            ! indefinite one is left to the QP solver and the shifts)
+            block
+                type(sqpopt_spectrum_type) :: spectrum
+                integer :: sp_istat
+                real(wp) :: mu
+                call spectrum%compute(hessian, sp_istat, vectors=.true.)
+                if (sp_istat /= sqpopt_spectrum_ok) return
+                if (.not. spectrum%lambda_min() > 0.0_wp) return
+                call spectrum%trust_region_step(hessian, g, me%max_step*me%step_scale, p, sp_istat, mu)
+                if (sp_istat /= sqpopt_spectrum_ok) return
+                on_boundary = mu > 0.0_wp
+            end block
+        else
+            ! (only for a positive definite matrix with a cheap inverse)
+            if (hessian%shift /= 0.0_wp) return
+            neg_g = -g
+            call hessian%inverse_vector_product(neg_g, p)
+        end if
         if (.not. sqpopt_all_finite(p)) return
         if (.not. dot_product(g, p) <= 0.0_wp) return
         if (any(x + p < x_lb) .or. any(x + p > x_ub)) return

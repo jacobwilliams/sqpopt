@@ -7,7 +7,7 @@ program benchmark_large
     !!
     !!    fpm run --example benchmark_large --profile release -- [--scale=S] [--problem=NAME] [--config=NAME]
     !!        [--no-bfgs] [--no-active-set] [--least-squares] [--no-least-squares] [--memory=K] [--threads=T] [--print=L]
-    !!        [--linear-solver=qdldl|mumps]
+    !!        [--linear-solver=qdldl|mumps] [--sr1]
     !!
     !! With MUMPS (see the README):
     !!
@@ -16,7 +16,9 @@ program benchmark_large
     !! `--scale=S` multiplies the problem sizes below by `S` (default 1).
     !! `--problem=NAME` runs only that problem (`control`, `rosenbrock`, `wells`,
     !! `circles`, or `hyperbolas`), and `--config=NAME` only that configuration
-    !! (`bfgs`, `exact`, `bfgs-direct`, `inertia`, or `direct`: see below).
+    !! (`bfgs`, `exact`, `bfgs-direct`, `inertia`, `direct`, or one of the
+    !! SR1 ones: see below). `--sr1` runs the SR1 configurations instead of
+    !! the others.
     !! `--no-bfgs` leaves out the L-BFGS runs, and `--no-active-set` every run
     !! without `direct_qp` (at large sizes those take most of the time).
     !! `direct_least_squares` is on in the runs with `direct_qp`:
@@ -82,7 +84,12 @@ program benchmark_large
     !! exact Hessian (`exact`), with L-BFGS and the
     !! direct QP method (`bfgs-direct`), with the exact Hessian and inertia
     !! control (`inertia`), and with those and the direct QP method (`direct`;
-    !! the direct runs also use direct least-squares solves). The columns are
+    !! the direct runs also use direct least-squares solves). With `--sr1`, it
+    !! is solved with the limited-memory SR1 Hessian instead: plain (`sr1`),
+    !! shifted by its smallest eigenvalue before each QP (`hessian%convexify`,
+    !! `sr1-convexify`), with inertia control (`sr1-inertia`), and the last two
+    !! with the direct QP method (`sr1-convexify-direct`,
+    !! `sr1-inertia-direct`). The columns are
     !! the status, major iterations, calls of `fc`, the objective, the total
     !! time and the parts of it in the QP solver and in the factorizations,
     !! the number of QPs solved directly out of all QPs, the number of
@@ -92,7 +99,7 @@ program benchmark_large
     use sqpopt_module,         only: sqpopt_type
     use sqpopt_problem_module, only: sqpopt_problem_type
     use sqpopt_options_module, only: sqpopt_options_type
-    use sqpopt_hessian_module, only: sqpopt_hessian_exact
+    use sqpopt_hessian_module, only: sqpopt_hessian_exact, sqpopt_hessian_sr1, sqpopt_hessian_bfgs, sqpopt_hessian_type
     use sqpopt_symmetric_solver_module, only: sqpopt_linear_solver_mumps, sqpopt_linear_solver_qdldl
     use sqpopt_types_module,   only: sqpopt_results_type
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
@@ -103,6 +110,7 @@ program benchmark_large
     real(wp) :: h        !! `control`: step size
     real(wp) :: scale    !! `--scale`
     logical  :: with_bfgs, with_active_set
+    logical  :: with_sr1 !! `--sr1`: the SR1 configurations instead of the others
     integer  :: least_squares !! `direct_least_squares`: `1` in every run, `-1` in none, `0` in the direct ones
     character(len=:), allocatable :: only_config !! `--config` (empty: all of them)
     integer  :: print_level !! `--print`
@@ -116,6 +124,7 @@ program benchmark_large
     scale = 1.0_wp
     with_bfgs = .true.
     with_active_set = .true.
+    with_sr1 = .false.
     least_squares = 0
     only_config = ''
     print_level = 0
@@ -137,13 +146,16 @@ program benchmark_large
             with_bfgs = .false.
         else if (arg == '--no-active-set') then
             with_active_set = .false.
+        else if (arg == '--sr1') then
+            with_sr1 = .true.
         else if (arg == '--no-least-squares') then
             least_squares = -1
         else if (arg == '--least-squares') then
             least_squares = 1
         else if (arg(1:9) == '--config=') then
             only_config = trim(arg(10:))
-            if (all(only_config /= [character(len=11) :: 'bfgs', 'exact', 'bfgs-direct', 'inertia', 'direct'])) then
+            if (all(only_config /= [character(len=20) :: 'bfgs', 'exact', 'bfgs-direct', 'inertia', 'direct', 'sr1', &
+                                    'sr1-convexify', 'sr1-inertia', 'sr1-convexify-direct', 'sr1-inertia-direct'])) then
                 error stop 'benchmark_large: bad --config value'
             end if
         else if (arg(1:9) == '--memory=') then
@@ -165,7 +177,7 @@ program benchmark_large
     end do
 
     write(*,'(A)') ''
-    write(*,'(A11,A8,A8,2X,A22,A6,A6,A6,A16,3A9,A10,3A6)') 'problem', 'n', 'm', 'configuration          ', 'istat', 'iter', &
+    write(*,'(A11,A8,A8,2X,A24,A6,A6,A6,A16,3A9,A10,3A6)') 'problem', 'n', 'm', 'configuration          ', 'istat', 'iter', &
         'fc', 'f', 'time', 'QP', 'factor', 'direct', 'fact', 'soc', 'rest'
 
     if (only == '' .or. only == 'control')    call run_all('control')
@@ -180,11 +192,27 @@ program benchmark_large
     subroutine run_all(name)
     !! solve one problem with every configuration
     character(len=*), intent(in) :: name !! the problem
-    if (with_bfgs .and. with_active_set .and. wanted('bfgs')) call run(name, 'L-BFGS', .false., .false., .false.)
-    if (with_active_set .and. wanted('exact')) call run(name, 'exact Hessian', .true., .false., .false.)
-    if (with_bfgs .and. wanted('bfgs-direct')) call run(name, 'L-BFGS, direct', .false., .false., .true.)
-    if (with_active_set .and. wanted('inertia')) call run(name, 'exact, inertia', .true., .true., .false.)
-    if (wanted('direct')) call run(name, 'exact, inertia, direct', .true., .true., .true.)
+    if (with_sr1) then
+        if (with_active_set .and. wanted('sr1')) call run(name, 'L-SR1', sqpopt_hessian_sr1, .false., .false.)
+        if (with_active_set .and. wanted('sr1-convexify')) then
+            call run(name, 'L-SR1, convexify', sqpopt_hessian_sr1, .false., .false., convexify=.true.)
+        end if
+        if (with_active_set .and. wanted('sr1-inertia')) then
+            call run(name, 'L-SR1, inertia', sqpopt_hessian_sr1, .true., .false.)
+        end if
+        if (wanted('sr1-convexify-direct')) then
+            call run(name, 'L-SR1, convexify, direct', sqpopt_hessian_sr1, .false., .true., convexify=.true.)
+        end if
+        if (wanted('sr1-inertia-direct')) call run(name, 'L-SR1, inertia, direct', sqpopt_hessian_sr1, .true., .true.)
+    else
+        if (with_bfgs .and. with_active_set .and. wanted('bfgs')) then
+            call run(name, 'L-BFGS', sqpopt_hessian_bfgs, .false., .false.)
+        end if
+        if (with_active_set .and. wanted('exact')) call run(name, 'exact Hessian', sqpopt_hessian_exact, .false., .false.)
+        if (with_bfgs .and. wanted('bfgs-direct')) call run(name, 'L-BFGS, direct', sqpopt_hessian_bfgs, .false., .true.)
+        if (with_active_set .and. wanted('inertia')) call run(name, 'exact, inertia', sqpopt_hessian_exact, .true., .false.)
+        if (wanted('direct')) call run(name, 'exact, inertia, direct', sqpopt_hessian_exact, .true., .true.)
+    end if
     write(*,'(A)') ''
     end subroutine run_all
 
@@ -194,17 +222,19 @@ program benchmark_large
     wanted = only_config == '' .or. only_config == config
     end function wanted
 
-    subroutine run(name, config, exact, inertia, direct)
+    subroutine run(name, config, hessian_mode, inertia, direct, convexify)
     !! solve one problem with one configuration, and print a line of results
-    character(len=*), intent(in) :: name    !! the problem
-    character(len=*), intent(in) :: config  !! the configuration, for the output
-    logical,          intent(in) :: exact   !! use the exact Hessian
-    logical,          intent(in) :: inertia !! `options%inertia_control`
-    logical,          intent(in) :: direct  !! `options%direct_qp` and `options%direct_least_squares`
+    character(len=*), intent(in) :: name         !! the problem
+    character(len=*), intent(in) :: config       !! the configuration, for the output
+    integer,          intent(in) :: hessian_mode !! `options%hessian_mode`
+    logical,          intent(in) :: inertia      !! `options%inertia_control`
+    logical,          intent(in) :: direct       !! `options%direct_qp` and `options%direct_least_squares`
+    logical, optional, intent(in) :: convexify   !! `hessian%convexify` (default `.false.`)
 
     type(sqpopt_type)         :: solver
     type(sqpopt_problem_type) :: problem
     type(sqpopt_options_type) :: options
+    type(sqpopt_hessian_type) :: hessian
     type(sqpopt_results_type) :: r
     real(wp), dimension(:), allocatable :: x0
     character(len=10) :: share
@@ -222,18 +252,19 @@ program benchmark_large
     options%print_level  = print_level
     options%lbfgs_memory = memory
     options%factorization_threads = threads
-    if (exact) options%hessian_mode = sqpopt_hessian_exact
+    options%hessian_mode = hessian_mode
+    if (present(convexify)) hessian%convexify = convexify
     options%inertia_control      = inertia
     options%direct_qp            = direct
     options%direct_least_squares = least_squares == 1 .or. (direct .and. least_squares == 0)
     options%linear_solver        = linear_solver
 
-    call solver%initialize(problem=problem, options=options)
+    call solver%initialize(problem=problem, options=options, hessian=hessian)
     call solver%solve(x0, istat)
     call solver%get_results(r)
 
     write(share, '(I0,A,I0)') r%n_direct_qp, '/', r%n_qp_solves
-    write(*,'(A11,I8,I8,2X,A22,I6,I6,I6,ES16.8,3F9.3,A10,3I6)') name, problem%n, problem%m, config, r%istat, r%iterations, &
+    write(*,'(A11,I8,I8,2X,A24,I6,I6,I6,ES16.8,3F9.3,A10,3I6)') name, problem%n, problem%m, config, r%istat, r%iterations, &
         r%n_eval_fc, r%f, r%time, r%time_qp, r%time_factorization, adjustr(share), r%n_factorizations, r%n_soc, &
         r%n_restoration_steps
 

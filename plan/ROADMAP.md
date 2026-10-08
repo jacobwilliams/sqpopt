@@ -1767,7 +1767,9 @@ which is now double precision only.
   al., and Gould & Robinson (an EQP phase after a convex QP). A new Hessian
   mode, so the largest of these three.
 - **F25: SPRAL SSIDS as a second sparse solver, besides MUMPS** *(to
-  investigate; noted 2026-10-03)*. [SPRAL](https://github.com/ralna/spral)'s
+  investigate; noted 2026-10-03; a plan for a pure-Fortran fpm package of
+  it, which would need no build or external library: see
+  [SSIDS_PLAN.md](SSIDS_PLAN.md), 2026-10-05)*. [SPRAL](https://github.com/ralna/spral)'s
   SSIDS (STFC, BSD licence) is a modern Fortran sparse symmetric indefinite
   \( LDL^T \) solver that reports the inertia, uses threads (and optionally a
   GPU), and is one of IPOPT's `linear_solver` choices. It covers everything
@@ -2140,6 +2142,218 @@ which is now double precision only.
   safeguard for a subproblem solver; then repeat the comparison above.
   TP230's cycle would remain (an iteration that only rounding errors
   break), and needs its own look.
+- **F32: OSQP (an ADMM solver for sparse convex QPs) for large convex QPs**
+  *(idea, examined 2026-10-05; not started)*. [OSQP](https://github.com/osqp/osqp)
+  (Stellato, Banjac, Goulart, Bemporad, Boyd; Apache-2.0; v1.0.0) solves
+  `min 0.5 x'Px + q'x` subject to `l <= Ax <= u`, with `P` sparse and positive
+  *semi*definite, by ADMM: each iteration is one solve with a quasi-definite
+  KKT matrix `[P + sigma*I, A'; A, -diag(1/rho)]`, factored by QDLDL (with AMD),
+  which qdldl-fortran already ports. It warm-starts (`x`, `y`), updates `P`,
+  `A`, `q`, `l`, `u` with the same pattern without a new analysis, detects
+  primal and dual infeasibility (certificates), reports a nonconvex `P` (from
+  the inertia of its factorization), and can *polish* its solution: guess
+  the active set from the ADMM iterate, solve that face's KKT system once,
+  with 3 steps of iterative refinement, the same idea as sqpopt's direct
+  method.
+  - **Size of a port.** About 8,000 lines of C for the parts needed
+    (`src/`: `osqp_api` 1,634, `auxil` 1,223, `polish` 515, `util` 488,
+    `scaling` 208; `algebra/builtin` and `algebra/_common`: vectors, CSC
+    matrices, the KKT matrix, the QDLDL interface, about 3,500), much of it a
+    vector/matrix layer that becomes Fortran array syntax. QDLDL and AMD are
+    already ported; the CUDA and MKL back ends, code generation, derivatives,
+    and profiling would be dropped. Smaller than DAQP's port, and far smaller
+    than SSIDS's ([SSIDS_PLAN.md](SSIDS_PLAN.md)).
+  - **Where it can't be used.** (1) The default L-BFGS Hessian: OSQP needs
+    `P` as an explicit sparse matrix, and the compact L-BFGS matrix is
+    `sigma*I` plus a dense low-rank term with an indefinite middle matrix, so
+    it is dense (`n^2` entries), and lifting it into extra variables gives a
+    nonconvex `P`. For small dense QPs, DAQP (F30) is the better convex
+    solver anyway. (2) Indefinite exact or SR1 Hessians: convex only.
+    (3) Accuracy: ADMM's defaults are `eps_abs = eps_rel = 1e-3`, polishing
+    off; SQP steps and multipliers near a solution need about `1e-8`, which
+    means polishing, which only succeeds when its active-set guess is right.
+  - **Where it could help.** Large sparse *convex* QPs whose active set
+    changes a lot between iterations (far from a solution): an active-set
+    method makes one change per iteration, the direct method gives up after
+    `direct_max_changes`, and ADMM's cost doesn't depend on how many
+    constraints change. Two concrete uses: (a) a crash for the direct
+    method: a few ADMM iterations (one factorization, then cheap solves) to
+    guess the working set it starts from, instead of the previous QP's;
+    (b) a Gauss-Newton Hessian for least squares (`sqpopt_nlls_type`, the
+    Schittkowski form `min 0.5 z'z` subject to `r(x) - z = 0`: `P = diag(0,
+    I)`, explicit, sparse, and positive semidefinite, which OSQP accepts and
+    DAQP doesn't), if sqpopt gains such a Hessian mode. With the exact
+    Hessian it would also need the Hessian made convex first (F31's
+    convexification idea, or inertia control's shift extended to the full
+    space).
+  - **Measure first, without porting:** capture the QPs of
+    `benchmark_large` (exact Hessian, inertia control, and the direct method)
+    and solve them with OSQP's Python package (`pip install osqp`), with
+    and without polishing, warm-started from the previous QP: compare its
+    time and accuracy, and the working set its polish finds, with the direct
+    method's. Port only if it is clearly faster on the QPs where the direct
+    method gives up, or as a crash for it.
+- **F33: the eigenvalues of the limited-memory matrices, from their compact
+  representation** *(done 2026-10-07, from `references/algorithm1030.pdf`;
+  noted 2026-10-06: see "Status" at the end of this entry)*. The paper (Brust, Burdakov, Erway, Marcia,
+  *Algorithm 1030: SC-SR1: MATLAB software for limited-memory SR1
+  trust-region methods*, ACM TOMS 48(4), 2022) solves the *unconstrained*
+  trust-region subproblem with an L-SR1 matrix. Most of it doesn't apply to
+  sqpopt's QPs, which have bounds and linearized constraints, and sqpopt
+  already has its other ingredients: the compact representation
+  `B = theta*I + Psi*M^{-1}*Psi'` with `Psi = Y - theta*S`, the circular buffer
+  of pairs (its `mIdx` is sqpopt's E5), the incrementally updated `S'S` and
+  `S'Y` (E2), and the same SR1 skip rule. What it adds is the **partial
+  spectral decomposition** (its section 2.3, after Burdakov et al. 2017): a
+  thin QR of `Psi` (or the Cholesky factor of `Psi'Psi`, from the stored
+  inner products, with a pivoted `LDL'` if `Psi` is rank deficient), then the
+  eigendecomposition of the small `k x k` matrix `R*M^{-1}*R'`, gives *all* the
+  eigenvalues of `B` (those `k`, and `theta` with multiplicity `n - k`) and
+  its `k` eigenvectors, in `O(k^2 n + k^3)`. Two uses:
+  1. **Convexify L-SR1 exactly, before the QP.** `lambda_min(B)` is known, so
+     the shift `delta = max(0, eps - lambda_min)` makes `B + delta*I` positive
+     definite at once: the standard full-space regularization of F31 (5), but
+     exact and at the cost of a few vector operations, without trial Cholesky
+     factorizations of a dense matrix. Every SR1 QP is then convex: DAQP
+     solves them (with SR1 about half its QPs now fall back), and the
+     active-set solvers never meet negative curvature. Compare with inertia
+     control (SR1: 274/27/4, 10,454 `fc`, 4.2 s with QDLDL) and with the
+     current reactive shift (244/31/30, 44,905): a full-space shift may be
+     larger than needed (F31's caveat), so measure.
+  2. **An unconstrained step for SR1.** The unconstrained step (the QP
+     solver's shortcut, `qp_solver%unconstrained_step`) is only tried with
+     L-BFGS, because an indefinite `B` has no minimizer. With the spectral
+     decomposition, the minimizer of the QP's objective within the step cap
+     `||p||_2 <= max_step*step_scale` is an L2 trust-region subproblem solved in
+     closed form (the paper's references: Brust et al. 2017's OBS method; or
+     its shape-changing norms), including the "hard case", at about `4kn`
+     operations. If that step satisfies the bounds and the linearized
+     constraints, it is the QP's solution. That would make SR1 practical on
+     large problems with few active constraints (`test_scalable`), where the
+     paper's L-SR1 trust-region method needed fewer function evaluations than
+     L-BFGS-B on 62 CUTEst problems.
+  - Also for L-BFGS: `lambda_min` and `lambda_max` give the condition number
+    of `B`, which would flag the nearly singular Hessians that DAQP rejected
+    (F31, check 3) before calling it.
+  - **What it needs:** a symmetric eigensolver for `k x k` matrices (`k` up to
+    100) without LAPACK: Jacobi's method is enough at that size (or `DSYEV`
+    under `HAS_LAPACK`). Implement from the paper's formulas: the MATLAB code
+    is under the ACM software licence (check), so don't port it.
+  *Status (2026-10-07): done.*
+  - **New modules.** `src/sqpopt_eigen_module.F90`: symmetric eigensolver
+    with three methods, `hessian%eigen_solver`: `sqpopt_eigen_ql`
+    (Householder tridiagonalization and implicit QL, EISPACK
+    `tred2`/`tql2`'s algorithm; any real kind), `sqpopt_eigen_jacobi`
+    (cyclic Jacobi), `sqpopt_eigen_lapack` (`DSYEV`, only with
+    `HAS_LAPACK`); `sqpopt_eigen_auto` (the default) is LAPACK if built
+    with it, else QL. `src/sqpopt_spectral_module.f90`:
+    `sqpopt_spectrum_type` (`compute`, `lambda_min`, `lambda_max`,
+    `eigenvector`, `trust_region_step`): the eigenvalues from the Gram
+    matrix `U'U` (from stored inner products) and `R C R'`, with the
+    eigenvectors kept implicitly as `P = U*coef` (products `O(nr)`; no
+    `n x n` or `n x k` array), and the L2 trust-region step (Moré-Sorensen
+    in the eigenbasis, Newton on the secular equation with bisection, the
+    hard case). Gram eigenvalues below `1e-12` times the stored vectors'
+    size are dropped (rounding: e.g. `y - theta*s` with one variable).
+  - **Hessian module:** `yy` (`Y'Y`, kept incrementally), `low_rank_gram`,
+    `low_rank_middle_inverse`, `low_rank_scale`; options `convexify`
+    (default `.false.`) and `eigen_solver`; validated in
+    `validate_options` (which first rejected `sqpopt_eigen_ql`: fixed);
+    `print_header` says "convexified".
+  - **Use 1, `hessian%convexify` (opt-in, SR1 only):** before the QP, if
+    `lambda_min < shift_min*size`, the shift is raised to make it so, and
+    undone after the step (`sqpopt_iterate`'s `convexify_sr1`; detail log
+    line).
+  - **Use 2, the SR1 unconstrained step** (on with
+    `qp_solver%unconstrained_step`, the default): for SR1, if `B` (with
+    its shift) is positive definite, the minimizer of the QP's objective
+    within the step cap `max_step*step_scale`, taken if it satisfies the
+    bounds and linearized constraints. Not for an indefinite `B` (that was
+    worse with inertia control). **A step on the cap's boundary counts as
+    capped** (`qp_solver%capped`, from the step's multiplier `mu > 0`), so
+    that `step_scale` doubles after it is accepted in full, as after a
+    rescaled QP step: before, its norm was the cap to within rounding, so
+    the cap almost never grew. That fix took SR1 with inertia control from
+    272/31/2 to 276/28/1.
+  - **Measured (HS suite, release, QDLDL; solved/local/failed, `fc`,
+    time; "before" is without the step, `--no-unconstrained-step`, which
+    is the code before F33):**
+
+    | configuration | before | after |
+    |---|---|---|
+    | default (L-BFGS) | 281/24/0, 9,121 | unchanged |
+    | `--hessian=sr1` | 244/31/30, 44,905 | 266/26/13, 28,349, 0.6 s |
+    | `--hessian=sr1 --inertia` (a CLAUDE.md baseline) | 274/27/4, 10,454, 4.7 s | 276/28/1, 10,984, 2.8 s |
+    | the same with MUMPS / dense / LAPACK | 274/27/4 each | 276/27/2 / 276/28/1 / 275/26/4 |
+    | `--hessian=sr1 --convexify` | | 266/31/8, 15,967, 1.8 s |
+    | `--hessian=sr1 --qp=daqp` | 244/31/30, 42,346 (31,520 fallbacks) | 265/26/14, 26,238 (7,194 of 20,591) |
+    | `--hessian=sr1 --convexify --qp=daqp` | | 271/28/6, 17,186, 1.6 s (288 of 18,186 fallbacks) |
+    | `--hessian=sr1 --trust-region` | 265/27/13, 24,731, 57 s | 266/26/13, 26,655, 72 s |
+    | `--hessian=sr1 --trust-region --inertia` | 259/37/9, 15,440, 9.8 s | 261/35/9, 15,150, 7.0 s (MUMPS 258/37/10) |
+    | `--hessian=sr1 --convexify --trust-region` | | 255/41/9, 15,478, 12 s |
+
+    Variants measured and rejected: the step for any `B` (indefinite too);
+    only the interior Newton step (reproduces the baseline: confirms the
+    shortcut is exact); the Newton step then capped (263/26/16 and
+    271/29/5). Eigensolvers, convexified SR1: QL 1.71 s, LAPACK 1.74 s,
+    Jacobi 7.0 s (results differ by rounding only).
+  - **Per problem**, against no step. `--hessian=sr1 --inertia`: none
+    newly failed; better TP38, TP293, TP298, TP299, TP302; solved to local
+    TP379 (stalls at f = 0.31). `--hessian=sr1`: 27 better; TP299 (the
+    100-variable Rosenbrock function) from local to `max_iter` (f = 4e-3,
+    against 1e-2), TP267 and TP309 from solved to local. Accepted.
+  - **Large problems** (`test_scalable --hessian=sr1 --n=1000`): with the
+    step 8 global, 3 loose, 4 local, 2 failed; without it 10, 3, 3, 1. The
+    difference is not what it looked like: `rosenbrock` needs 10,139
+    iterations with the step and 9,974 without (the limit is 10,000:
+    `--max-iter=40000` converges), `dixon_price` ends at another of its
+    stationary points (path-dependent), `zakharov` takes 88 iterations
+    instead of 469, `trid` fails either way. So the step stays on by
+    default for SR1. `test_sparse_options`' `ball` with L-SR1: 0.008 s
+    instead of 0.062 s (64 QP iterations instead of 791).
+  - **`convexify` on large constrained problems** (`benchmark_large
+    --sr1`, new configurations; scale 1, n = 5,000 to 10,000, QDLDL; time
+    s / `fc`). Active-set QP: plain SR1 426/132, 3.9/94, 461/129,
+    0.98/9 (`control`, `rosenbrock`, `wells`, `circles`); `convexify`
+    667/289 (acceptable), 1.6/73, 2.5/31, 0.98/9; inertia control 3.6/31,
+    1.7/75, 4.6/40, 0.99/9; L-BFGS 26/62, 1.2/79, 1.9/29, 0.97/9. Direct
+    QP: `convexify` 0.86/95 (acceptable, f = 0.33143 against 0.33027),
+    0.095/59, 0.15/41, 0.025/9; inertia control 1.0/58, 0.13/52, 0.28/49,
+    0.022/9; L-BFGS 1.4/62, 0.068/58, 0.14/28, 0.023/9. **Conclusion:**
+    `convexify` stays opt-in and is not recommended as SR1's correction:
+    faster than inertia control on `wells` (1.8x), but over 100x slower
+    on `control` (many degrees of freedom; probably the full-space shift
+    damping directions that need none: not investigated). Its use is
+    making SR1's QPs convex for DAQP. Uncorrected SR1 is unusable on large
+    problems, and L-BFGS with the direct QP is as fast as any SR1
+    configuration. (Idea, not done: shift only by what the null space of
+    the working set needs, i.e. inertia control's job; or use
+    `convexify` as inertia control's first trial shift.)
+  - **Tests:** `test_spectrum` (the eigensolvers, the decomposition against
+    the dense matrix, the trust-region step's optimality conditions);
+    `test_sr1_convexify` (new: the detail line and the method line, the
+    log doesn't change results, a second `solve` is identical, every
+    eigensolver gives the same solution; 20 and 300 variables);
+    `test_unconstrained_step`'s `sr1` case now requires the step for every
+    QP; `test_input_validation` (an invalid `eigen_solver`; LAPACK without
+    it). `fpm test`, `test-mumps`, `test-lapack`, `test-python` pass;
+    `fortitude check` clean (C071 ignored for the `DSYEV` interface, as for
+    `DSYTRF`); `tools/stack_check.sh`: no automatic arrays, no new
+    temporaries. The HS harness has `--convexify`,
+    `--eigen=ql|jacobi|lapack`, `--no-unconstrained-step`; `test_scalable`
+    has `--hessian=sr1`, `--convexify`, `--no-unconstrained-step`.
+  - **Docs:** the guide (a new "The spectrum of the limited-memory
+    matrices" section, `convexify`/`eigen_solver` rows, the SR1
+    unconstrained step, the SR1 numbers in inertia control, DAQP, and the
+    linear solver table), the Choosing settings and Performance pages (the
+    L-SR1 rows; the HS table regenerated, only its L-SR1 rows changed),
+    README's module table, CLAUDE.md (baselines, `src/`); the large-problem
+    SR1 table of the Performance page and the recommendation against
+    `convexify` (guide, Choosing settings); the Python
+    schema (`hessian%convexify`, `hessian%eigen_solver`, `EIGEN_SOLVERS`).
+  - **Not done** (ideas): the condition number of the L-BFGS matrix from
+    `lambda_min`/`lambda_max`, to flag nearly singular Hessians before
+    DAQP (F31, check 3).
 
 ## 6. Testing and infrastructure
 

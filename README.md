@@ -251,6 +251,8 @@ architecture ([PLAN.md](plan/PLAN.md)), the backlog
 | `sqpopt_options_module` | the solver options |
 | `sqpopt_types_module` | status codes, the sparse matrix and results types, and small utilities |
 | `sqpopt_hessian_module` | the limited-memory BFGS/SR1 approximations, and the exact Hessian |
+| `sqpopt_spectral_module` | the eigenvalues and eigenvectors of the limited-memory matrices, from their compact representation (to convexify SR1, and its unconstrained step) |
+| `sqpopt_eigen_module` | the symmetric eigensolvers of those small matrices (QL, Jacobi, and LAPACK's `DSYEV` in a build with `HAS_LAPACK`) |
 | `sqpopt_symmetric_solver_module` | the sparse symmetric indefinite solver: chooses a backend (`options%linear_solver`), and refines the solves |
 | `sqpopt_sparse_ldl_module` | the abstract interface of a sparse LDLᵀ backend |
 | `sqpopt_qdldl_ldl_module` | the QDLDL backend (the default; no pivoting) |
