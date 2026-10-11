@@ -1455,9 +1455,10 @@
       V2=U(I)-X(2)
       IF (V2.LE.0) GOTO 9
       V22=-V2**X(3)/X(1)
-      IF(V22.GT. -150.D0) GOTO42
+      IF(V22.GT. -150.D0) GOTO 42
+
       B(I)=0.D0
-      GOTO43
+      GOTO 43
 42    B(I)=DEXP(V22)
 43    CONTINUE
       A(I)=B(I)-0.01D0*DBLE(I)
@@ -9698,7 +9699,7 @@
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
-      GOTO(1,2,3,4,4),MODE
+      GOTO (1,2,3,4,4),MODE
 1     N=2
       NILI=0
       NINL=0
@@ -9746,7 +9747,7 @@
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       DOUBLEPRECISION F,DF
       INTEGER I
-      GOTO(1,2,3,4,4),MODE
+      GOTO (1,2,3,4,4),MODE
 1     N=2
       NILI=0
       NINL=0
@@ -9877,7 +9878,7 @@
     &0.927589D+0,0.535493D+0/
 !      DATA B/5.66598D+0,2.77141D+0,2.77141D+01,2.12413D+0/
       INTEGER I
-      GOTO(1,2,3,4,4),MODE
+      GOTO (1,2,3,4,4),MODE
 1     N=2
       NILI=0
       NINL=0
@@ -9940,7 +9941,7 @@
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       DOUBLEPRECISION F,DF
       INTEGER I
-      GOTO(1,2,3,4,4),MODE
+      GOTO (1,2,3,4,4),MODE
 1     N=2
       NILI=0
       NINL=0
@@ -9998,7 +9999,7 @@
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
-      GOTO(1,2,3,4,4),MODE
+      GOTO (1,2,3,4,4),MODE
 1     N=2
       NILI=0
       NINL=0
@@ -10045,7 +10046,7 @@
       INTEGER I
       DOUBLEPRECISION C
       DATA C/1.D+0/
-      GOTO(1,2,3,4,4),MODE
+      GOTO (1,2,3,4,4),MODE
 1     N=2
       NILI=0
       NINL=0
@@ -10092,7 +10093,7 @@
       DOUBLEPRECISION C
       DATA C/100.D+0/
       INTEGER I
-      GOTO(1,2,3,4,4),MODE
+      GOTO (1,2,3,4,4),MODE
 1     N=2
       NILI=0
       NINL=0
@@ -10138,7 +10139,7 @@
       DOUBLEPRECISION C
       DATA C/10000.D+0/
       INTEGER I
-      GOTO(1,2,3,4,4),MODE
+      GOTO (1,2,3,4,4),MODE
 1     N=2
       NILI=0
       NINL=0
@@ -10184,7 +10185,7 @@
       DOUBLEPRECISION C
       DATA C/1000000.D+0/
       INTEGER I
-      GOTO(1,2,3,4,4),MODE
+      GOTO (1,2,3,4,4),MODE
 1     N=2
       NILI=0
       NINL=0
@@ -10228,7 +10229,7 @@
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
-      GOTO(1,2,3,4,4),MODE
+      GOTO (1,2,3,4,4),MODE
 1     N=2
       NILI=0
       NINL=0
@@ -10272,7 +10273,7 @@
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
-      GOTO(1,2,3,4,4),MODE
+      GOTO (1,2,3,4,4),MODE
 1     N=2
       NILI=0
       NINL=0
@@ -10323,7 +10324,7 @@
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
-      GOTO(1,2,3,4,4),MODE
+      GOTO (1,2,3,4,4),MODE
 1     N=2
       NILI=0
       NINL=0
@@ -10370,7 +10371,7 @@
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
-      GOTO(1,2,3,4,4),MODE
+      GOTO (1,2,3,4,4),MODE
 1     N=2
       NILI=0
       NINL=0
@@ -10416,7 +10417,7 @@
     &/L13/ XL(NMAX)&
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=2
       NILI=0
       NINL=1
@@ -10467,7 +10468,7 @@
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=2
       NILI=0
       NINL=0
@@ -10519,7 +10520,7 @@
     &/L13/ XL(NMAX)&
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=2
       NILI=1
       NINL=0
@@ -10573,7 +10574,7 @@
     &/L13/ XL(NMAX)&
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=2
       NILI=0
       NINL=1
@@ -10624,7 +10625,7 @@
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=4
       NILI=0
       NINL=0
@@ -10686,7 +10687,7 @@
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=2
       NILI=0
       NINL=1
@@ -10738,7 +10739,7 @@
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=2
       NILI=0
       NINL=1
@@ -10789,7 +10790,7 @@
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=2
       NILI=0
       NINL=1
@@ -10840,7 +10841,7 @@
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=2
       NILI=0
       NINL=2
@@ -10896,7 +10897,7 @@
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=2
       NILI=4
       NINL=0
@@ -10955,7 +10956,7 @@
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=2
       NILI=0
       NINL=5
@@ -11019,7 +11020,7 @@
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=2
       NILI=0
       NINL=2
@@ -11074,7 +11075,7 @@
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=2
       NILI=0
       NINL=2
@@ -11125,7 +11126,7 @@
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=2
       NILI=1
       NINL=1
@@ -11178,7 +11179,7 @@
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
-      GOTO(1,2,3,4,4),MODE
+      GOTO (1,2,3,4,4),MODE
 1     N=2
       NILI=0
       NINL=0
@@ -11224,7 +11225,7 @@
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=2
       NILI=0
       NINL=2
@@ -11276,7 +11277,7 @@
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=2
       NILI=2
       NINL=0
@@ -11329,7 +11330,7 @@
       INTEGER I
       DOUBLEPRECISION HV
       HV=DSQRT(3.D+0)
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=2
       NILI=3
       NINL=0
@@ -11384,7 +11385,7 @@
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=2
       NILI=0
       NINL=1
@@ -11434,7 +11435,7 @@
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=2
       NILI=0
       NINL=1
@@ -11485,7 +11486,7 @@
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=3
       NILI=0
       NINL=0
@@ -14479,7 +14480,7 @@
     &20,60,0,75,15,20,30,25,20,5,0,10,75,100,20,25,&
     &30,0,10,45,40,30,35,75,0,70,5,15,35,20,25,0,30,&
     &10,5,15,65,50,10,0,10,40,65,0,5,15,20,55,30/
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=15
       NILI=0
       NINL=10
@@ -14557,7 +14558,7 @@
     &20,60,0,75,15,20,30,25,20,5,0,10,75,100,20,25,&
     &30,0,10,45,40,30,35,75,0,70,5,15,35,20,25,0,30,&
     &10,5,15,65,50,10,0,10,40,65,0,5,15,20,55,30/
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=15
       NILI=0
       NINL=10
@@ -14624,7 +14625,7 @@
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       DOUBLEPRECISION F,DF
       INTEGER I,J
-      GOTO(1,3,3,4,4),MODE
+      GOTO (1,3,3,4,4),MODE
 1     N=20
       NILI=0
       NINL=0
@@ -14691,7 +14692,7 @@
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
-      GOTO(1,2,3,4,4),MODE
+      GOTO (1,2,3,4,4),MODE
 1     N=20
       NILI=0
       NINL=0
@@ -14760,7 +14761,7 @@
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       DOUBLEPRECISION F,DF
       INTEGER I,J
-      GOTO(1,3,3,4,4),MODE
+      GOTO (1,3,3,4,4),MODE
 1     N=20
       NILI=0
       NINL=0
@@ -14838,7 +14839,7 @@
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
-      GOTO(1,2,2,4,4),MODE
+      GOTO (1,2,2,4,4),MODE
 1     N=30
       NILI=0
       NINL=0
@@ -14903,7 +14904,7 @@
       GOTO 10
 9003  CONTINUE
       N=50
-10    GOTO(1,3,3,4,4),MODE
+10    GOTO (1,3,3,4,4),MODE
 1     NILI=0
       NINL=0
       NELI=0
@@ -14997,7 +14998,7 @@
 9005  CONTINUE
       N=100
 20    K=N-1
-      GOTO(1,3,3,4,4),MODE
+      GOTO (1,3,3,4,4),MODE
 1     NILI=0
       NINL=0
       NELI=0
@@ -15106,7 +15107,7 @@
 9002  CONTINUE
       N=100
       FEX=-.1D+3
-10    GOTO(1,2,3,4,4),MODE
+10    GOTO (1,2,3,4,4),MODE
 1     NILI=0
       NINL=0
       NELI=0
@@ -15177,7 +15178,7 @@
       GOTO 10
 9002  CONTINUE
       N=100
-10    GOTO(1,2,3,4,4),MODE
+10    GOTO (1,2,3,4,4),MODE
 1     NILI=0
       NINL=0
       NELI=0
@@ -15246,7 +15247,7 @@
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
       DOUBLEPRECISION A,B
-      GOTO(1,2,3,4,4),MODE
+      GOTO (1,2,3,4,4),MODE
 1     N=2
       NILI=0
       NINL=0
@@ -15718,7 +15719,7 @@
     &/L13/ XL(NMAX)&
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=2
       NILI=1
       NINL=2
@@ -16124,7 +16125,7 @@
     &/L13/ XL(NMAX)&
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=2
       NILI=1
       NINL=1
@@ -16358,7 +16359,7 @@
       DATA Z/2*.8D+1,4*.1D+2,4*.12D+2,3*.14D+2,3*.16D+2,2*.18D+2,&
     &3*.2D+2,3*.22D+2,3*.24D+2,3*.26D+2,2*.28D+2,3*.3D+2,&
     &2*.32D+2,.34D+2,2*.36D+2,2*.38D+2,.4D+2,.42D+2/
-      GOTO(1,2,2,4,5),MODE
+      GOTO (1,2,2,4,5),MODE
 1     N=2
       NILI=0
       NINL=1
@@ -16427,7 +16428,7 @@
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
       DOUBLEPRECISION A,B
-      GOTO(1,2,3,4,4),MODE
+      GOTO (1,2,3,4,4),MODE
 1     N=2
       NILI=0
       NINL=0
@@ -16604,7 +16605,7 @@
     &/L16/ DF(200,200)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       DOUBLEPRECISION F,DF,A,B,C,X1
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=2
       NILI=1
       NINL=0
@@ -16668,7 +16669,7 @@
       DOUBLEPRECISION A,B,C,PI,TR,XXX,YYY,PIM,PBIG,PANGLE
       INTEGER I
       DATA PI/.31415926535D+1/
-      GOTO(1,2,3,4,3),MODE
+      GOTO (1,2,3,4,3),MODE
 1     N=2
       NILI=0
       NINL=2
@@ -16738,7 +16739,7 @@
       DATA A/.4D+1,.575D+1,.75D+1,.24D+2,.32D+2,.48D+2,.72D+2,.96D+2/
       DATA Y/.721D+2,.656D+2,.559D+2,.171D+2,.98D+1,.45D+1,.13D+1,.6D+0/
       INTEGER I,LSUM
-      GOTO(1,2,2,4,4),MODE
+      GOTO (1,2,2,4,4),MODE
 1     N=3
       NILI=0
       NINL=0
@@ -16812,7 +16813,7 @@
       DATA(Y(I),I=1,15)/0.14D+0,0.18D+0,0.22D+0,0.25D+0,0.29D+0,&
     &0.32D+0,0.35D+0,0.39D+0,0.37D+0,0.58D+0,0.73D+0,&
     &0.96D+0,0.134D+1,0.21D+1,0.439D+1/
-      GOTO(1,2,2,4,4),MODE
+      GOTO (1,2,2,4,4),MODE
 1     N=3
       NILI=0
       NINL=0
@@ -16881,7 +16882,7 @@
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=3
       NILI=0
       NINL=0
@@ -17029,7 +17030,7 @@
       RETURN
 4     IF (INDEX1(1)) G(1)=X(1)*X(2)-.1D+1
       RETURN
-5     IF (.NOT.INDEX2(1)) GOTO7
+5     IF (.NOT.INDEX2(1)) GOTO 7
       GG(1,1)=X(2)
       GG(1,2)=X(1)
 7     RETURN
@@ -17055,7 +17056,7 @@
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=3
       NILI=0
       NINL=0
@@ -17228,7 +17229,7 @@
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=3
       NILI=0
       NINL=1
@@ -17372,10 +17373,10 @@
 4     IF (INDEX1(1)) G(1)=.675D+3-X(1)**2*X(2)
       IF (INDEX1(2)) G(2)=.419D+0-X(1)**2*X(3)**2*.1D-6
       RETURN
-5     IF (.NOT.INDEX2(1)) GOTO7
+5     IF (.NOT.INDEX2(1)) GOTO 7
       GG(1,1)=-.2D+1*X(1)*X(2)
       GG(1,2)=-X(1)**2
-7     IF (.NOT.INDEX2(2)) GOTO8
+7     IF (.NOT.INDEX2(2)) GOTO 8
       GG(2,1)=-.2D-6*X(1)*X(3)**2
       GG(2,3)=-.2D-6*X(1)**2*X(3)
 8     RETURN
@@ -17401,7 +17402,7 @@
     &/L14/ XU(NMAX)&
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=3
       NILI=0
       NINL=0
@@ -17544,10 +17545,10 @@
 4     IF (INDEX1(1)) G(1)=.675D+3-X(1)**2*X(2)
       IF (INDEX1(2)) G(2)=.419D+0-X(1)**2*X(3)**2*.1D-6
       RETURN
-5     IF (.NOT.INDEX2(1)) GOTO7
+5     IF (.NOT.INDEX2(1)) GOTO 7
       GG(1,1)=-.2D+1*X(1)*X(2)
       GG(1,2)=-X(1)**2
-7     IF (.NOT.INDEX2(2)) GOTO8
+7     IF (.NOT.INDEX2(2)) GOTO 8
       GG(2,1)=-.2D-6*X(1)*X(3)**2
       GG(2,3)=-.2D-6*X(1)**2*X(3)
 8     RETURN
@@ -17576,7 +17577,7 @@
       DOUBLEPRECISION H(8),A(3)
       DATA(A(I),I=1,3)/0.820437D+4,0.900872D+4,0.933046D+4/
       INTEGER I
-      GOTO(1,2,2,4,5),MODE
+      GOTO (1,2,2,4,5),MODE
 1     N=3
       NILI=0
       NINL=0
@@ -18269,7 +18270,7 @@
       H4=0.2D+1*R(4)
       H5=H1*X(4)
       H6=H2*(0.1D+1-H0)
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=4
       NILI=0
       NINL=0
@@ -18336,7 +18337,7 @@
       DOUBLEPRECISION L,LOAD,TD,SIGD,FH,T1,M,R,J,T2,COSA,WP,&
     &T,SIG,E,EI,GH,GJ,EITC,EIDC,REITC,REIDC,PC,DEL,PHI(5)
       INTEGER I
-      GOTO(1,2,3,4,3),MODE
+      GOTO (1,2,3,4,3),MODE
 1     N=4
       NILI=1
       NINL=4
@@ -18458,7 +18459,7 @@
     &0.336D+2/
       DATA P0,Q0,R0,S0/0.9D+2,0.0D+0,0.0D+0,0.0D+0/
       INTEGER I,K
-      GOTO(1,2,3,3,3),MODE
+      GOTO (1,2,3,3,3),MODE
 1     N=4
       NILI=0
       NINL=0
@@ -18519,7 +18520,7 @@
       SI=R1*SP+S1*CP+QI-P1*SP-Q1*CP
       TEST1=(R1-R0)**2+(S1-S0)**2
       IF(TEST1.LT.0.1D-9) TEST1=0.1D-9
-      IF(DABS((TEST1-(RI-R0)**2-(SI-S0)**2)/TEST1).LT.0.1D-2)GOTO53
+      IF(DABS((TEST1-(RI-R0)**2-(SI-S0)**2)/TEST1).LT.0.1D-2)GOTO 53
       IF(AJ.EQ.0.2D+1) GOTO 51
       TEST=-TEST
       AJ=0.2D+1
@@ -18568,7 +18569,7 @@
     &0.522D+0,0.506D+0,0.490D+0,0.478D+0,0.467D+0,&
     &0.457D+0,0.448D+0,0.438D+0,0.431D+0,0.424D+0,&
     &0.420D+0,0.414D+0,0.411D+0,0.406D+0/
-      GOTO(1,2,2,4,4),MODE
+      GOTO (1,2,2,4,4),MODE
 1     N=5
       NILI=0
       NINL=0
@@ -19384,7 +19385,7 @@
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       DOUBLE PRECISION XMU1,XMU2
       INTEGER I
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=6
       NILI=2
       NINL=2
@@ -19597,7 +19598,7 @@
     &-.007595D+0,.00061D+0,-.5D-3,.819672D+0,.819672D+0,.245D+5,&
     &-.25D+3,.10204082D-1,.12244898D-4,.625D-4,.625D-4,-.7625D-4,&
     &1.22D+0,1.D+0,-1.D+0/
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=7
       NILI=0
       NINL=14
@@ -20280,7 +20281,7 @@
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       INTEGER I,K
       DOUBLE PRECISION Z,PI
-      GOTO(1,2,3,4,5)MODE
+      GOTO (1,2,3,4,5)MODE
 1     N=10
       NILI=0
       NINL=35
@@ -20415,7 +20416,7 @@
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       DOUBLE PRECISION F,DF
       INTEGER I,J,LSUM
-      GOTO(1,2,2,4,5),MODE
+      GOTO (1,2,2,4,5),MODE
 1     N=10
       NILI=0
       NINL=0
@@ -20515,7 +20516,7 @@
     &/L20/ LEX,NEX,FEX,XEX(NMAX)
       DOUBLEPRECISION F,DF
       INTEGER I
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=10
       NILI=0
       NINL=14
@@ -20887,7 +20888,7 @@
       DATA A/-0.6089D+1,-0.17164D+2,-0.34054D+2,-0.5914D+1,&
     &-0.24721D+2,-0.14986D+2,-0.24100D+2,-0.10708D+2,&
     &-0.26662D+2,-0.22179D+2/
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=10
       NILI=0
       NINL=0
@@ -21011,7 +21012,7 @@
     &0.668D+0,0.645D+0,0.632D+0,0.591D+0,0.559D+0,0.597D+0,&
     &0.625D+0,0.739D+0,0.710D+0,0.729D+0,0.720D+0,0.636D+0,&
     &0.581D+0,0.428D+0,0.292D+0,0.162D+0,0.098D+0,0.054D+0/
-      GOTO(1,2,2,4,4),MODE
+      GOTO (1,2,2,4,4),MODE
 1     N=11
       NILI=0
       NINL=0
@@ -21252,7 +21253,7 @@
     &0.2335D+2,0.3584D+2,0.81D+0,0.179D+1,0.734D+1,0.0D+0/
       DATA V/0.35D+0,0.37D+0,0.1D+0,0.62D+0,0.0D+0,0.103D+1,&
     &0.169D+1,0.1821D+2,0.1D-1,0.8D-1,0.31D+0,0.159D+1,0.2245D+2/
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=13
       NILI=3
       NINL=0
@@ -21361,7 +21362,7 @@
       DATA Z3/0.001D+0,0.0009D+0,0.0001D+0,0.0005D+0,0.D+0,0.0021D+0,&
     &0.0825D+0,0.2073D+0,0.D+0,0.0004D+0,0.0005D+0,0.0107D+0,&
     &1.0206D+0/
-      GOTO(1,2,3,4,5),MODE
+      GOTO (1,2,3,4,5),MODE
 1     N=13
       NILI=0
       NINL=3
