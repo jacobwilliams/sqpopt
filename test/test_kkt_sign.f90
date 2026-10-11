@@ -27,6 +27,7 @@ program test_kkt_sign
     type(sqpopt_type)         :: solver
     type(sqpopt_problem_type) :: problem
     type(sqpopt_options_type) :: options
+    type(sqpopt_options_type) :: default_options !! default values (default-initialized)
     real(wp) :: xsol(2), lam(2)
     integer  :: istat, i
 
@@ -41,7 +42,7 @@ program test_kkt_sign
     call problem%set_functions(fc=fc_obj_cons, gjac=gjac_grad_jacv)
 
     do i = 1, size(modes)
-        options = sqpopt_options_type()
+        options = default_options
         options%qp_solver_mode = modes(i)
         call solver%initialize(problem=problem, options=options)
         call solver%solve([0.0_wp, 0.0_wp], istat)

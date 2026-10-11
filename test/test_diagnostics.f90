@@ -30,6 +30,7 @@ program test_diagnostics
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
 
     implicit none
+    type(sqpopt_options_type) :: default_options !! default values (default-initialized)
 
     ! the problems (see `fc`):
     integer, parameter :: p_disk      = 1 !! the Rosenbrock function on the unit disk
@@ -133,7 +134,7 @@ program test_diagnostics
     integer, dimension(2), parameter :: problems = [p_disk, p_structure]
     do p = 1, size(problems)
         which = problems(p)
-        options = sqpopt_options_type()
+        options = default_options
         options%scaling = scaling
         call solve(0, 0, options, r0, istat)
         if (r0%diagnosis%level /= 0 .or. allocated(r0%diagnosis%report)) then
@@ -243,7 +244,7 @@ program test_diagnostics
     if (r%diagnosis%objective_derivative_suspect) error stop 'test_diagnostics FAILED: the objective gradient is right'
     ! (the other problems have the right derivatives)
     which = p_disk
-    options = sqpopt_options_type()
+    options = default_options
     call solve(2, 0, options, r, istat)
     if (size(r%diagnosis%derivative_suspects) /= 0 .or. r%diagnosis%objective_derivative_suspect) then
         error stop 'test_diagnostics FAILED: right derivatives were suspected'

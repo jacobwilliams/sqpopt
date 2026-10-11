@@ -248,11 +248,7 @@
         icol(nnz_r+l+1:) = cjac_icol(1:min(nnz_c, size(cjac_icol)))
     end if
 
-    if (present(options)) then
-        opts = options
-    else
-        opts = sqpopt_options_type()
-    end if
+    if (present(options)) opts = options ! else the defaults (`opts` is default-initialized)
     me%ctol = opts%ctol
 
     call problem%set_problem_size(n=max(n, 0) + l, m=l + m)

@@ -22,6 +22,7 @@ program test_infinite_bounds
     use sqpopt_kinds,             only: wp => sqpopt_module_wp
 
     implicit none
+    type(sqpopt_options_type) :: default_options !! default values (default-initialized)
 
     integer,  parameter :: modes(4) = [sqpopt_qp_auto, sqpopt_qp_dense, sqpopt_qp_reduced_hessian, sqpopt_qp_daqp]
     real(wp), parameter :: inf = huge(1.0_wp)
@@ -48,7 +49,7 @@ program test_infinite_bounds
 
     do ls = 1, 2
         do i = 1, size(modes)
-            options = sqpopt_options_type()
+            options = default_options
             options%qp_solver_mode  = modes(i)
             options%linesearch_mode = merge(sqpopt_linesearch_armijo, sqpopt_linesearch_filter, ls == 1)
             call solver%initialize(problem=problem, options=options)

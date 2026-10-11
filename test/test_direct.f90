@@ -380,13 +380,14 @@ program test_direct
     type(sqpopt_type)         :: solver
     type(sqpopt_problem_type) :: problem
     type(sqpopt_options_type) :: options
+    type(sqpopt_options_type) :: default_options !! default values (default-initialized)
     type(sqpopt_results_type) :: r
     real(wp), dimension(:), allocatable :: x0, x_star
     integer :: istat, k
 
     call setup('maratos', problem, x0, x_star)
     do k = 1, 2
-        options = sqpopt_options_type()
+        options = default_options
         options%direct_qp            = k == 1
         options%direct_least_squares = k == 2
         options%linear_solver        = sqpopt_linear_solver_mumps

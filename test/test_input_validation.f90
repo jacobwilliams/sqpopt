@@ -22,6 +22,9 @@ program test_input_validation
     use, intrinsic :: ieee_arithmetic, only: ieee_value, ieee_quiet_nan, ieee_positive_inf
 
     implicit none
+    type(sqpopt_options_type)   :: default_options   !! default values (default-initialized)
+    type(sqpopt_problem_type)   :: default_problem   !! default values (default-initialized)
+    type(sqpopt_qp_solver_type) :: default_qp_solver !! default values (default-initialized)
 
     type(sqpopt_problem_type) :: problem
     type(sqpopt_options_type) :: options
@@ -32,35 +35,35 @@ program test_input_validation
     write(*,*) '----------------------------'
 
     ! problem size never set:
-    problem = sqpopt_problem_type()
-    call expect_invalid('problem size not set', problem, sqpopt_options_type(), [0.0_wp, 0.0_wp])
+    problem = default_problem
+    call expect_invalid('problem size not set', problem, default_options, [0.0_wp, 0.0_wp])
 
     ! functions never set:
-    problem = sqpopt_problem_type()
+    problem = default_problem
     call problem%set_problem_size(n=2, m=1)
     call problem%set_bounds([-1.0_wp,-1.0_wp], [1.0_wp,1.0_wp], [1.0_wp], [1.0_wp])
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,1], icol=[1,2])
-    call expect_invalid('functions not set', problem, sqpopt_options_type(), [0.0_wp, 0.0_wp])
+    call expect_invalid('functions not set', problem, default_options, [0.0_wp, 0.0_wp])
 
     ! lower bound above upper bound:
     call valid_problem(problem)
     call problem%set_bounds([-1.0_wp, 2.0_wp], [1.0_wp,1.0_wp], [1.0_wp], [1.0_wp])
-    call expect_invalid('x_lb > x_ub', problem, sqpopt_options_type(), [0.0_wp, 0.0_wp])
+    call expect_invalid('x_lb > x_ub', problem, default_options, [0.0_wp, 0.0_wp])
 
     ! Jacobian index out of range:
     call valid_problem(problem)
     call problem%set_jacobian_sparsity(nnz=2, irow=[1,2], icol=[1,2])
-    call expect_invalid('Jacobian row index > m', problem, sqpopt_options_type(), [0.0_wp, 0.0_wp])
+    call expect_invalid('Jacobian row index > m', problem, default_options, [0.0_wp, 0.0_wp])
 
     ! wrong-size starting point:
     call valid_problem(problem)
-    call expect_invalid('size(x0) /= n', problem, sqpopt_options_type(), [0.0_wp, 0.0_wp, 0.0_wp])
+    call expect_invalid('size(x0) /= n', problem, default_options, [0.0_wp, 0.0_wp, 0.0_wp])
 
     ! non-finite starting point (projecting a NaN onto the bounds would silently
     ! turn it into a bound) and multipliers:
     call valid_problem(problem)
-    call expect_invalid('NaN in x0', problem, sqpopt_options_type(), [ieee_value(1.0_wp, ieee_quiet_nan), 0.0_wp])
-    call expect_invalid('Inf in x0', problem, sqpopt_options_type(), [0.0_wp, ieee_value(1.0_wp, ieee_positive_inf)])
+    call expect_invalid('NaN in x0', problem, default_options, [ieee_value(1.0_wp, ieee_quiet_nan), 0.0_wp])
+    call expect_invalid('Inf in x0', problem, default_options, [0.0_wp, ieee_value(1.0_wp, ieee_positive_inf)])
     block
         type(sqpopt_type) :: solver
         integer :: istat
@@ -72,56 +75,56 @@ program test_input_validation
 
     ! invalid options:
     call valid_problem(problem)
-    options = sqpopt_options_type()
+    options = default_options
     options%lbfgs_memory = -1
     call expect_invalid('lbfgs_memory = -1', problem, options, [0.0_wp, 0.0_wp])
-    options = sqpopt_options_type()
+    options = default_options
     options%qp_solver_mode = 99
     call expect_invalid('qp_solver_mode = 99', problem, options, [0.0_wp, 0.0_wp])
-    options = sqpopt_options_type()
+    options = default_options
     options%ktol = 0.0_wp
     call expect_invalid('ktol = 0', problem, options, [0.0_wp, 0.0_wp])
-    options = sqpopt_options_type()
+    options = default_options
     options%scaling_min_value = 2.0_wp
     call expect_invalid('scaling_min_value = 2', problem, options, [0.0_wp, 0.0_wp])
-    options = sqpopt_options_type()
+    options = default_options
     options%scaling_min_value = -1.0_wp
     call expect_invalid('scaling_min_value = -1', problem, options, [0.0_wp, 0.0_wp])
-    options = sqpopt_options_type()
+    options = default_options
     options%acceptable_obj_change_tol = -1.0_wp
     call expect_invalid('acceptable_obj_change_tol = -1', problem, options, [0.0_wp, 0.0_wp])
-    options = sqpopt_options_type()
+    options = default_options
     options%diagnostic_level = 4
     call expect_invalid('diagnostic_level = 4', problem, options, [0.0_wp, 0.0_wp])
-    options = sqpopt_options_type()
+    options = default_options
     options%diagnostic_level = 2
     options%diagnostics_unit = 987   ! (not open)
     call expect_invalid('diagnostics_unit not open', problem, options, [0.0_wp, 0.0_wp])
-    options = sqpopt_options_type()
+    options = default_options
     options%acceptable_iter = -1
     call expect_invalid('acceptable_iter = -1', problem, options, [0.0_wp, 0.0_wp])
-    options = sqpopt_options_type()
+    options = default_options
     options%print_level = 1
     options%output_unit = 98765   ! (not an open unit)
     call expect_invalid('output_unit not open', problem, options, [0.0_wp, 0.0_wp])
-    options = sqpopt_options_type()
+    options = default_options
     options%factorization_threads = -1
     call expect_invalid('factorization_threads = -1', problem, options, [0.0_wp, 0.0_wp])
-    options = sqpopt_options_type()
+    options = default_options
     options%hessian_mode = sqpopt_hessian_exact   ! (the problem has no hess function)
     call expect_invalid('exact Hessian without hess', problem, options, [0.0_wp, 0.0_wp])
     if (.not. sqpopt_has_mumps) then
         ! (MUMPS needs a library built with it: see `test_inertia` and `test_direct`)
-        options = sqpopt_options_type()
+        options = default_options
         options%linear_solver = sqpopt_linear_solver_mumps
         call expect_invalid('linear_solver = MUMPS without MUMPS', problem, options, [0.0_wp, 0.0_wp])
     end if
     if (.not. sqpopt_has_lapack) then
-        options = sqpopt_options_type()
+        options = default_options
         options%linear_solver = sqpopt_linear_solver_lapack
         call expect_invalid('linear_solver = LAPACK without LAPACK', problem, options, [0.0_wp, 0.0_wp])
     end if
-    options = sqpopt_options_type()
+    options = default_options
     options%linear_solver = 99
     call expect_invalid('linear_solver', problem, options, [0.0_wp, 0.0_wp])
     block
@@ -134,7 +137,7 @@ program test_input_validation
         call p3%set_problem_size(n=n3, m=0)
         call p3%set_bounds(x3 - 2.0_wp, x3 + 2.0_wp, [real(wp) ::], [real(wp) ::])
         call p3%set_functions(fc=fc_obj_cons, gjac=gjac_grad_jacv)
-        options = sqpopt_options_type()
+        options = default_options
         options%linear_solver = sqpopt_linear_solver_dense
         options%direct_qp = .true.
         call expect_invalid('linear_solver = dense, n+m above its limit', p3, options, x3)
@@ -143,7 +146,7 @@ program test_input_validation
         type(sqpopt_problem_type) :: p2
         call valid_problem(p2)
         call p2%set_hessian_sparsity(nnz=1, irow=[3], icol=[1])
-        call expect_invalid('Hessian row index > n', p2, sqpopt_options_type(), [0.0_wp, 0.0_wp])
+        call expect_invalid('Hessian row index > n', p2, default_options, [0.0_wp, 0.0_wp])
     end block
 
     ! invalid component settings:
@@ -152,27 +155,27 @@ program test_input_validation
         type(sqpopt_trust_region_type) :: tr
         type(sqpopt_qp_solver_type)    :: qp
         ls%sigma = 1.5_wp
-        call expect_invalid('linesearch%sigma = 1.5', problem, sqpopt_options_type(), [0.0_wp, 0.0_wp], linesearch=ls)
+        call expect_invalid('linesearch%sigma = 1.5', problem, default_options, [0.0_wp, 0.0_wp], linesearch=ls)
         tr%enabled = .true.
         tr%eta1 = 0.9_wp
         tr%eta2 = 0.5_wp
-        call expect_invalid('trust_region eta1 > eta2', problem, sqpopt_options_type(), [0.0_wp, 0.0_wp], trust_region=tr)
+        call expect_invalid('trust_region eta1 > eta2', problem, default_options, [0.0_wp, 0.0_wp], trust_region=tr)
         qp%max_step = 0.0_wp
-        call expect_invalid('qp_solver%max_step = 0', problem, sqpopt_options_type(), [0.0_wp, 0.0_wp], qp_solver=qp)
-        qp = sqpopt_qp_solver_type()
+        call expect_invalid('qp_solver%max_step = 0', problem, default_options, [0.0_wp, 0.0_wp], qp_solver=qp)
+        qp = default_qp_solver
         qp%direct_tol = 0.0_wp
-        call expect_invalid('qp_solver%direct_tol = 0', problem, sqpopt_options_type(), [0.0_wp, 0.0_wp], qp_solver=qp)
-        qp = sqpopt_qp_solver_type()
+        call expect_invalid('qp_solver%direct_tol = 0', problem, default_options, [0.0_wp, 0.0_wp], qp_solver=qp)
+        qp = default_qp_solver
         qp%direct_max_changes = -1
-        call expect_invalid('qp_solver%direct_max_changes = -1', problem, sqpopt_options_type(), [0.0_wp, 0.0_wp], &
+        call expect_invalid('qp_solver%direct_max_changes = -1', problem, default_options, [0.0_wp, 0.0_wp], &
                             qp_solver=qp)
-        qp = sqpopt_qp_solver_type()
+        qp = default_qp_solver
         qp%daqp_qp%primal_tol = 0.0_wp
-        call expect_invalid('qp_solver%daqp_qp%primal_tol = 0', problem, sqpopt_options_type(), [0.0_wp, 0.0_wp], &
+        call expect_invalid('qp_solver%daqp_qp%primal_tol = 0', problem, default_options, [0.0_wp, 0.0_wp], &
                             qp_solver=qp)
-        qp = sqpopt_qp_solver_type()
+        qp = default_qp_solver
         qp%daqp_qp%max_iter = 0
-        call expect_invalid('qp_solver%daqp_qp%max_iter = 0', problem, sqpopt_options_type(), [0.0_wp, 0.0_wp], &
+        call expect_invalid('qp_solver%daqp_qp%max_iter = 0', problem, default_options, [0.0_wp, 0.0_wp], &
                             qp_solver=qp)
     end block
 
@@ -180,10 +183,10 @@ program test_input_validation
     block
         type(sqpopt_hessian_type) :: hs
         hs%eigen_solver = 99
-        call expect_invalid('hessian%eigen_solver = 99', problem, sqpopt_options_type(), [0.0_wp, 0.0_wp], hessian=hs)
+        call expect_invalid('hessian%eigen_solver = 99', problem, default_options, [0.0_wp, 0.0_wp], hessian=hs)
         if (.not. sqpopt_eigen_has_lapack) then
             hs%eigen_solver = sqpopt_eigen_lapack
-            call expect_invalid('hessian%eigen_solver = lapack without LAPACK', problem, sqpopt_options_type(), &
+            call expect_invalid('hessian%eigen_solver = lapack without LAPACK', problem, default_options, &
                                 [0.0_wp, 0.0_wp], hessian=hs)
         end if
     end block

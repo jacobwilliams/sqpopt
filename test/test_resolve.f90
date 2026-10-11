@@ -29,6 +29,8 @@ program test_resolve
     type(sqpopt_problem_type)      :: problem
     type(sqpopt_options_type)      :: options
     type(sqpopt_trust_region_type) :: trust_region
+    type(sqpopt_options_type)      :: default_options      !! default values (default-initialized)
+    type(sqpopt_trust_region_type) :: default_trust_region !! default values (default-initialized)
     real(wp) :: x1(2), x2(2), lam(1)
     integer  :: istat1, istat2, nf1, nf2, i, tr
     integer  :: n_f  !! number of objective evaluations
@@ -44,9 +46,9 @@ program test_resolve
 
     do tr = 0, 1
         do i = 1, size(ls_modes)
-            options = sqpopt_options_type()
+            options = default_options
             options%linesearch_mode = ls_modes(i)
-            trust_region = sqpopt_trust_region_type()
+            trust_region = default_trust_region
             trust_region%enabled = tr == 1
             call solver%initialize(problem=problem, options=options, trust_region=trust_region)
 

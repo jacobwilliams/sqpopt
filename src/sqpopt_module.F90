@@ -125,23 +125,33 @@
                                                                      !! to request the solver stop early
                                                                      !! (see [[sqpopt_types_module]])
 
-    ! use inputs if present, else use defaults:
-    if (present(problem))    then; me%problem0 = problem; else; me%problem0 = sqpopt_problem_type(); end if
-    if (present(options))    then; me%options = options; else; me%options = sqpopt_options_type(); end if
-    if (present(hessian))    then; me%hessian = hessian; else; me%hessian = sqpopt_hessian_type(); end if
-    if (present(qp_solver))  then; me%qp_solver0 = qp_solver; else; me%qp_solver0 = sqpopt_qp_solver_type(); end if
-    if (present(linesearch)) then; me%linesearch0 = linesearch; else; me%linesearch0 = sqpopt_linesearch_type(); end if
+    type(sqpopt_problem_type)      :: default_problem      !! (default-initialized)
+    type(sqpopt_options_type)      :: default_options      !! (default-initialized)
+    type(sqpopt_hessian_type)      :: default_hessian      !! (default-initialized)
+    type(sqpopt_qp_solver_type)    :: default_qp_solver    !! (default-initialized)
+    type(sqpopt_linesearch_type)   :: default_linesearch   !! (default-initialized)
+    type(sqpopt_trust_region_type) :: default_trust_region !! (default-initialized)
+    type(sqpopt_results_type)      :: default_results      !! (default-initialized)
+
+    ! use inputs if present, else use defaults. The defaults come from default-initialized
+    ! locals, not from empty structure constructors (`sqpopt_options_type()`), which the
+    ! standard doesn't allow for a type with a component that has no default initialization:
+    if (present(problem))    then; me%problem0 = problem; else; me%problem0 = default_problem; end if
+    if (present(options))    then; me%options = options; else; me%options = default_options; end if
+    if (present(hessian))    then; me%hessian = hessian; else; me%hessian = default_hessian; end if
+    if (present(qp_solver))  then; me%qp_solver0 = qp_solver; else; me%qp_solver0 = default_qp_solver; end if
+    if (present(linesearch)) then; me%linesearch0 = linesearch; else; me%linesearch0 = default_linesearch; end if
     if (present(trust_region)) then
         me%trust_region0 = trust_region
     else
-        me%trust_region0 = sqpopt_trust_region_type()
+        me%trust_region0 = default_trust_region
     end if
     me%report => null()
     if (present(report)) me%report => report
 
     if (allocated(me%x))      deallocate(me%x)
     if (allocated(me%lambda)) deallocate(me%lambda)
-    me%results = sqpopt_results_type()
+    me%results = default_results
     me%results%message = ''
 
     end subroutine sqpopt_initialize
@@ -176,6 +186,7 @@
     integer(int64) :: t_start, t_now, t_rate
     character(len=:), allocatable :: msg
     type(sqpopt_restoration_type) :: fresh_restoration !! (default-initialized)
+    type(sqpopt_results_type)     :: fresh_results     !! (default-initialized)
     ! the optional sparse factorizations (see `options%linear_solver`). They live for one solve, and are freed by
     ! `finish`:
     type(sqpopt_kkt_type)     :: kkt     !! the KKT matrix of the QP's working set (see `options%inertia_control`
@@ -201,7 +212,7 @@
     if (allocated(me%lambda)) deallocate(me%lambda)
     allocate(me%lambda(max(me%problem%m,0)))
     me%lambda = 0.0_wp
-    me%results = sqpopt_results_type()
+    me%results = fresh_results
 
     ! check the inputs before doing anything else:
     call me%problem%validate(istat, msg)

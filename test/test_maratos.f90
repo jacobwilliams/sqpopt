@@ -23,6 +23,8 @@ program test_maratos
     use sqpopt_kinds,               only: wp => sqpopt_module_wp
 
     implicit none
+    type(sqpopt_options_type)      :: default_options      !! default values (default-initialized)
+    type(sqpopt_trust_region_type) :: default_trust_region !! default values (default-initialized)
 
     integer,  parameter :: ls_modes(3) = [sqpopt_linesearch_armijo, sqpopt_linesearch_watchdog, sqpopt_linesearch_filter]
     integer,  parameter :: max_evals = 100  !! evaluation budget for each run
@@ -50,10 +52,10 @@ program test_maratos
         do merit = 1, 2
             do i = 1, size(ls_modes)
                 if (merit == 2 .and. ls_modes(i) == sqpopt_linesearch_filter) cycle ! the filter has no merit function
-                options = sqpopt_options_type()
+                options = default_options
                 options%linesearch_mode = ls_modes(i)
                 if (merit == 2) options%merit_mode = sqpopt_merit_augmented_lagrangian
-                trust_region = sqpopt_trust_region_type()
+                trust_region = default_trust_region
                 trust_region%enabled = tr == 1
                 call solver%initialize(problem=problem, options=options, trust_region=trust_region)
                 n_f = 0

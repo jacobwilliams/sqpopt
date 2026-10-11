@@ -48,6 +48,10 @@ program test_nonfinite
     type(sqpopt_trust_region_type) :: trust_region
     type(sqpopt_linesearch_type)   :: linesearch
     type(sqpopt_qp_solver_type)    :: qp_solver
+    type(sqpopt_options_type)      :: default_options      !! default values (default-initialized)
+    type(sqpopt_trust_region_type) :: default_trust_region !! default values (default-initialized)
+    type(sqpopt_linesearch_type)   :: default_linesearch   !! default values (default-initialized)
+    type(sqpopt_qp_solver_type)    :: default_qp_solver    !! default values (default-initialized)
     real(wp) :: xsol(2), lam(1)
     integer  :: istat, i, tr
     integer  :: n_nan  !! number of objective evaluations that returned NaN
@@ -63,14 +67,14 @@ program test_nonfinite
 
     do tr = 0, 1
         do i = 1, size(ls_modes)
-            options = sqpopt_options_type()
+            options = default_options
             options%linesearch_mode = ls_modes(i)
-            trust_region = sqpopt_trust_region_type()
+            trust_region = default_trust_region
             trust_region%enabled = tr == 1
             trust_region%radius0 = 10.0_wp  !! so the first trust-region step also reaches the NaN region
-            linesearch = sqpopt_linesearch_type()
+            linesearch = default_linesearch
             linesearch%major_step_limit = huge(1.0_wp)
-            qp_solver = sqpopt_qp_solver_type()
+            qp_solver = default_qp_solver
             qp_solver%max_step = huge(1.0_wp)
             call solver%initialize(problem=problem, options=options, trust_region=trust_region, &
                                    linesearch=linesearch, qp_solver=qp_solver)

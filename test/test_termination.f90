@@ -33,6 +33,7 @@ program test_termination
     type(sqpopt_type)         :: solver
     type(sqpopt_problem_type) :: problem, unbounded
     type(sqpopt_options_type) :: options
+    type(sqpopt_options_type) :: default_options !! default values (default-initialized)
     type(sqpopt_results_type) :: r
     integer :: istat, u, ios
     character(len=200) :: line
@@ -48,7 +49,7 @@ program test_termination
     call problem%set_functions(fc=fc_obj_cons, gjac=gjac_grad_jacv)
 
     ! ---- max_evals ----
-    options = sqpopt_options_type()
+    options = default_options
     options%max_evals = 5
     call solver%initialize(problem=problem, options=options)
     call solver%solve([-1.2_wp, 1.0_wp], istat)
@@ -57,7 +58,7 @@ program test_termination
     if (istat /= sqpopt_max_evals_reached .or. r%n_eval_fc < 5) error stop 'test_termination FAILED: max_evals'
 
     ! ---- max_time ----
-    options = sqpopt_options_type()
+    options = default_options
     options%max_time = 1.0e-9_wp
     call solver%initialize(problem=problem, options=options)
     call solver%solve([-1.2_wp, 1.0_wp], istat)
@@ -71,7 +72,7 @@ program test_termination
                               c_lb=[real(wp)::], c_ub=[real(wp)::])
     call unbounded%set_jacobian_sparsity(nnz=0, irow=[integer::], icol=[integer::])
     call unbounded%set_functions(fc=fc_obj_lin_cons0, gjac=gjac_grad_lin_jac0)
-    options = sqpopt_options_type()
+    options = default_options
     options%obj_lower_limit = -10.0_wp
     call solver%initialize(problem=unbounded, options=options)
     call solver%solve([0.0_wp, 0.0_wp], istat)
@@ -81,7 +82,7 @@ program test_termination
 
     ! ---- acceptable level, with the log written to a scratch file ----
     open(newunit=u, status='scratch', action='readwrite', form='formatted')
-    options = sqpopt_options_type()
+    options = default_options
     options%ktol = 1.0e-300_wp            ! (effectively unreachable)
     options%acceptable_ktol = 1.0e-3_wp
     options%acceptable_iter = 1
@@ -111,7 +112,7 @@ program test_termination
         character(len=*), dimension(6), parameter :: parts = [character(len=24) :: '   method:', '  iter ', &
             '        . ', '   events ', '   variables:', '   constraints:']
         integer :: k
-        options = sqpopt_options_type()
+        options = default_options
         call solver%initialize(problem=problem, options=options)
         call solver%solve([-1.2_wp, 1.0_wp], istat)
         call solver%get_results(r0)

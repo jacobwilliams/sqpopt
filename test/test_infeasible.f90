@@ -29,6 +29,8 @@ program test_infeasible
     use sqpopt_kinds,            only: wp => sqpopt_module_wp
 
     implicit none
+    type(sqpopt_options_type)      :: default_options      !! default values (default-initialized)
+    type(sqpopt_trust_region_type) :: default_trust_region !! default values (default-initialized)
 
     integer, parameter :: modes(4) = [sqpopt_qp_auto, sqpopt_qp_dense, sqpopt_qp_reduced_hessian, sqpopt_qp_daqp]
 
@@ -53,14 +55,14 @@ program test_infeasible
 
     do ls = 1, size(labels)
     do i = 1, size(modes)
-        options = sqpopt_options_type()
+        options = default_options
         options%qp_solver_mode = modes(i)
         select case (ls)
         case (1);    options%linesearch_mode = sqpopt_linesearch_armijo
         case (3);    options%linesearch_mode = sqpopt_linesearch_funnel
         case default; options%linesearch_mode = sqpopt_linesearch_filter
         end select
-        trust_region = sqpopt_trust_region_type()
+        trust_region = default_trust_region
         trust_region%enabled = ls >= 4
         call solver%initialize(problem=problem, options=options, trust_region=trust_region)
         call solver%solve([0.5_wp, 0.0_wp], istat)
