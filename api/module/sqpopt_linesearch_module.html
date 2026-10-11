@@ -1,0 +1,4670 @@
+<!-- -*- mode: jinja2 -*- -->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- sqpopt theme: set before the page is drawn; the guide's choice (the same
+         localStorage key, on the same site), or else the system's -->
+    <script>
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('sqpopt-theme'); } catch (e) {}
+        if (t !== 'dark' && t !== 'light') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-bs-theme', t);
+      })();
+    </script>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta name="description" content="Modern Fortran SQP OPTimizer">
+    <meta name="author" content="Jacob Williams" >
+    <link rel="icon" href="../favicon.png">
+
+    <title>sqpopt_linesearch_module &ndash; sqpopt</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <!-- Font Awesome -->
+    <link href="../css/fontawesome.min.css" rel="stylesheet">
+    <link href="../css/brands.min.css" rel="stylesheet">
+    <link href="../css/regular.min.css" rel="stylesheet">
+    <link href="../css/solid.min.css" rel="stylesheet">
+    <link href="../css/v4-font-face.min.css" rel="stylesheet">
+    <link href="../css/v4-shims.min.css" rel="stylesheet">
+    <!-- MathJax -->
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        TeX: { equationNumbers: { autoNumber: "AMS" } }
+      });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@2.7.9/MathJax.js?config=TeX-AMS-MML_HTMLorMML" async
+            integrity="sha256-DViIOMYdwlM/axqoGDPeUyf0urLoHMN4QACBKyB58Uw=" crossorigin="anonymous"></script>
+    <!-- Other scripts and stylesheets -->
+    <link href="../css/local.css" rel="stylesheet">
+    <link href="../css/pygments.css" rel="stylesheet">
+      <link href="../css/user.css" rel="stylesheet">
+    <script src="../js/svg-pan-zoom.min.js"></script>
+  </head>
+
+  <body>
+
+    <!-- Fixed navbar -->
+    <div class="container-fluid mb-sm-4 mb-xl-2">
+      <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+          <a class="navbar-brand" href="../index.html">sqpopt </a>
+          <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbar"
+                  aria-expanded="false" aria-controls="navbar" aria-label="Toggle navigation">
+                  <span class="navbar-toggler-icon">
+          </button>
+
+          <div id="navbar" class="navbar-collapse collapse">
+            <ul class="navbar-nav">
+                  <li class="nav-item">
+                    <a class="nav-link" href="../lists/files.html">Source Files</a>
+                  </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/modules.html">Modules</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/procedures.html">Procedures</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/absint.html">Abstract Interfaces</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/types.html">Derived Types</a>
+                </li>
+            </ul>
+              <div class="d-flex align-items-end flex-grow-1">
+                <form action="../search.html" role="search" class="ms-auto">
+                  <input type="text" class="form-control" aria-label="Search" placeholder="Search" name="q" id="tipue_search_input" autocomplete="off" required>
+                </form>
+              </div>
+            <!-- sqpopt theme: the light/dark button -->
+            <button type="button" class="btn nav-link theme-toggle ms-lg-3" aria-label="Toggle dark mode" title="Toggle dark mode">
+              <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg>
+              <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div><!--/.nav-collapse -->
+        </div>
+      </nav>
+    </div>
+
+    <div class="container">
+  <div class="row">
+    <h1>sqpopt_linesearch_module
+      <small>Module</small>
+      
+    </h1>
+      <div class="container p-2 mb-4 bg-light border rounded-3">
+    <div class="row align-items-center justify-content-between" id="info-bar">
+      <div class="col">
+        <ul class="list-inline" style="margin-bottom:0px;display:inline">
+            <li class="list-inline-item" id="meta-author"><i class="fa fa-pencil"></i> Jacob Williams</li>
+            <li class="list-inline-item" id="meta-license"><i class="fa fa-legal"></i> MIT</li>
+
+            <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
+              <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
+                 title=" 6.3% of total for modules and submodules.">696 statements</a>
+            </li>
+
+            <li class="list-inline-item" id="source-file">
+              <i class="fa fa-code"></i>
+              <a href="../src/sqpopt_linesearch_module.f90"> Source File</a>
+            </li>
+        </ul>
+      </div>
+      <div class="col">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb justify-content-end mb-0">
+                <li class="breadcrumb-item"><a href='../sourcefile/sqpopt_linesearch_module.f90.html'>sqpopt_linesearch_module.f90</a></li>
+            <li class="breadcrumb-item active" aria-current="page">sqpopt_linesearch_module</li>
+          </ol>
+        </nav>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Enable Bootstrap tooltips
+    (function () {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+      const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+    })();
+  </script>
+
+  </div>
+
+  <div class="row">
+    <div class="col-md-3">
+        <div id="sidebar">
+      <h3>Contents</h3>
+  
+      <div class="card mb-4">
+      <a data-bs-toggle="collapse" href="#vars-0"
+         aria-expanded="false" aria-controls="vars-0">
+         <h4 class="card-header bg-primary text-white">Variables</h4>
+      </a>
+      <div id="vars-0" class="collapse">
+        <div class="list-group list-group-flush">
+            <a class="list-group-item" href="../module/sqpopt_linesearch_module.html#variable-sqpopt_linesearch_armijo">sqpopt_linesearch_armijo</a>
+            <a class="list-group-item" href="../module/sqpopt_linesearch_module.html#variable-sqpopt_linesearch_exact">sqpopt_linesearch_exact</a>
+            <a class="list-group-item" href="../module/sqpopt_linesearch_module.html#variable-sqpopt_linesearch_watchdog">sqpopt_linesearch_watchdog</a>
+            <a class="list-group-item" href="../module/sqpopt_linesearch_module.html#variable-sqpopt_linesearch_filter">sqpopt_linesearch_filter</a>
+            <a class="list-group-item" href="../module/sqpopt_linesearch_module.html#variable-sqpopt_linesearch_funnel">sqpopt_linesearch_funnel</a>
+        </div>
+      </div>
+    </div>
+
+  
+  
+  
+  
+  
+  
+  
+      <div class="card mb-4">
+      <a data-bs-toggle="collapse" href="#absints-0"
+         aria-expanded="false" aria-controls="absints-0">
+         <h4 class="card-header bg-primary text-white">Abstract Interfaces</h4>
+      </a>
+      <div id="absints-0" class="collapse">
+        <div class="list-group list-group-flush">
+            <a class="list-group-item" href="../module/sqpopt_linesearch_module.html#interface-sqpopt_ls_objective_func">sqpopt_ls_objective_func</a>
+            <a class="list-group-item" href="../module/sqpopt_linesearch_module.html#interface-sqpopt_ls_constraint_func">sqpopt_ls_constraint_func</a>
+            <a class="list-group-item" href="../module/sqpopt_linesearch_module.html#interface-sqpopt_soc_func">sqpopt_soc_func</a>
+        </div>
+      </div>
+    </div>
+
+      <div class="card mb-4">
+      <a data-bs-toggle="collapse" href="#types-0"
+         aria-expanded="false" aria-controls="types-0">
+         <h4 class="card-header bg-primary text-white">Derived Types</h4>
+      </a>
+      <div id="types-0" class="collapse">
+        <div class="list-group list-group-flush">
+            <a class="list-group-item" href="../module/sqpopt_linesearch_module.html#type-sqpopt_linesearch_type">sqpopt_linesearch_type</a>
+        </div>
+      </div>
+    </div>
+
+      <div class="card mb-4">
+      <a data-bs-toggle="collapse" href="#funcs-0"
+         aria-expanded="false" aria-controls="funcs-0">
+         <h4 class="card-header bg-primary text-white">Functions</h4>
+      </a>
+      <div id="funcs-0" class="collapse">
+        <div class="list-group list-group-flush">
+            <a class="list-group-item" href="../module/sqpopt_linesearch_module.html#proc-initial_step_length">initial_step_length</a>
+            <a class="list-group-item" href="../module/sqpopt_linesearch_module.html#proc-next_step_length">next_step_length</a>
+            <a class="list-group-item" href="../module/sqpopt_linesearch_module.html#proc-point_acceptable">point_acceptable</a>
+        </div>
+      </div>
+    </div>
+
+      <div class="card mb-4">
+      <a data-bs-toggle="collapse" href="#subs-0"
+         aria-expanded="false" aria-controls="subs-0">
+         <h4 class="card-header bg-primary text-white">Subroutines</h4>
+      </a>
+      <div id="subs-0" class="collapse">
+        <div class="list-group list-group-flush">
+            <a class="list-group-item" href="../module/sqpopt_linesearch_module.html#proc-line_search">line_search</a>
+            <a class="list-group-item" href="../module/sqpopt_linesearch_module.html#proc-eval_fc">eval_fc</a>
+            <a class="list-group-item" href="../module/sqpopt_linesearch_module.html#proc-eval_trial">eval_trial</a>
+            <a class="list-group-item" href="../module/sqpopt_linesearch_module.html#proc-backtrack_search">backtrack_search</a>
+            <a class="list-group-item" href="../module/sqpopt_linesearch_module.html#proc-armijo_line_search">armijo_line_search</a>
+            <a class="list-group-item" href="../module/sqpopt_linesearch_module.html#proc-exact_line_search">exact_line_search</a>
+            <a class="list-group-item" href="../module/sqpopt_linesearch_module.html#proc-watchdog_line_search">watchdog_line_search</a>
+            <a class="list-group-item" href="../module/sqpopt_linesearch_module.html#proc-filter_line_search">filter_line_search</a>
+            <a class="list-group-item" href="../module/sqpopt_linesearch_module.html#proc-nonmonotone_push">nonmonotone_push</a>
+            <a class="list-group-item" href="../module/sqpopt_linesearch_module.html#proc-funnel_line_search">funnel_line_search</a>
+            <a class="list-group-item" href="../module/sqpopt_linesearch_module.html#proc-log_merit_trial">log_merit_trial</a>
+            <a class="list-group-item" href="../module/sqpopt_linesearch_module.html#proc-log_theta_trial">log_theta_trial</a>
+        </div>
+      </div>
+    </div>
+
+  
+  
+  
+  
+  
+  
+  
+
+
+  </div>
+
+    </div>
+
+    <div class="col-md-9" id='text'>
+      <p>The line searches used to globalize the SQP iterations (ensures
+progress towards both optimality and feasibility). The acceptance tests
+they use are in their own modules, held here as components: the merit
+function and its penalty parameter (<code>merit</code>, see
+<a href="../module/sqpopt_merit_module.html">sqpopt_merit_module</a>), the filter (<code>filter</code>, see
+<a href="../module/sqpopt_filter_module.html">sqpopt_filter_module</a>), and the funnel (<code>funnel</code>, see
+<a href="../module/sqpopt_funnel_module.html">sqpopt_funnel_module</a>). The trust region (see
+<a href="../module/sqpopt_trust_region_module.html">sqpopt_trust_region_module</a>) uses the same components, so the two
+globalizations share the filter or funnel.</p>
+<p>Five line search strategies are available (<code>sqpopt_linesearch_type%mode</code>):</p>
+<ul>
+<li><code>sqpopt_linesearch_armijo</code> -- a standard backtracking line search
+  with an Armijo-type sufficient-decrease test on the merit function (as
+  used by default in <code>slsqp</code>).</li>
+<li><code>sqpopt_linesearch_exact</code> -- (approximately) minimizes the merit
+  function along the search direction using the derivative-free <code>fmin</code>
+  routine (from the <code>fmin</code> dependency), rather than a hand-written
+  exact-search implementation.</li>
+<li><code>sqpopt_linesearch_watchdog</code> -- Powell's watchdog technique
+  (Chamberlain, Lemarechal, Pedersen &amp; Powell, <em>Math. Prog. Study 16</em>
+  (1982)): tracks the best point found so
+  far and, for a short window after a genuine improvement, <em>relaxes</em> the
+  sufficient-decrease test to allow the merit function to temporarily
+  get worse (accepting the full quasi-Newton step outright) rather than
+  stalling near a curved/simultaneously-active constraint boundary (the
+  Maratos effect). If the relaxed window is used up without a new best
+  point, it backtracks all the way to the best point found so far and
+  disables relaxed acceptance for <code>watchdog_cooldown_len</code> iterations.
+  This targets the same failure mode as the second-order correction and
+  the augmented Lagrangian merit function, via a different mechanism.</li>
+<li><code>sqpopt_linesearch_filter</code> (<strong>default</strong>) -- a <strong>filter</strong> line search (Fletcher &amp;
+  Leyffer, <em>"Nonlinear programming without a penalty function"</em>, Math.
+  Program. 91 (2002)), with the globally convergent line-search rules of
+  Wächter &amp; Biegler (<em>"Line search filter methods for nonlinear
+  programming: motivation and global convergence"</em>, SIAM J. Optim. 16
+  (2005), and the IPOPT paper, Math. Program. 106 (2006)): no merit
+  function or penalty parameter; a trial point is judged by the pair
+  <script type="math/tex"> (\theta, \varphi) </script> of <script type="math/tex"> \ell_1 </script> constraint violation and
+  objective value, and must not be dominated by the filter (see
+  <a href="../module/sqpopt_filter_module.html">sqpopt_filter_module</a>). See <a href="../proc/filter_line_search.html">filter_line_search</a>.
+  It is the default: on the Hock-Schittkowski test set (see
+  <code>test/test_hs_suite.f90</code>) it solves the most problems, with the
+  fewest function evaluations, of all the line search / merit function /
+  penalty combinations (and it has no penalty parameter to tune).</li>
+<li><code>sqpopt_linesearch_funnel</code> -- the <strong>funnel</strong> method (Kiessling, Leyffer
+  &amp; Vanaret, <em>"A unified funnel restoration SQP algorithm"</em>, Math.
+  Program. (2025); as implemented in the Uno solver): like the filter, no
+  merit function or penalty parameter, but the filter's list of points is
+  replaced by a single number, the funnel width, a bound on the
+  <script type="math/tex"> \ell_1 </script> constraint violation that shrinks as the iterations
+  progress. A trial point must be inside the funnel; the same switching
+  condition then decides whether it must reduce the objective (an
+  Armijo test, "f-type") or sufficiently reduce the violation relative
+  to the funnel ("h-type", which shrinks the funnel). See
+  <a href="../proc/funnel_line_search.html">funnel_line_search</a>.</li>
+</ul>
+<p>Two options from NLPQLP (Schittkowski) apply to the backtracking
+searches: <code>interpolate</code> (on by default) chooses each backtracking step
+length by safeguarded quadratic interpolation (see
+<a href="../proc/next_step_length.html">next_step_length</a>) rather than a fixed factor; and <code>nonmonotone_len</code>
+(off by default) retries a failed search non-monotonically, against the
+worst of the recent iterates (not used by the funnel search). On the Hock-Schittkowski test set the
+interpolation solves one more problem with the filter search, with
+fewer function evaluations (and a third fewer with the <script type="math/tex"> \ell_1 </script>
+merit function); the non-monotone retry doesn't help the filter search,
+but does help the merit-function ones (e.g. with the augmented
+Lagrangian and interpolation, 273 solved instead of 270).</p>
+<p>All three of the merit-function-based modes start each search from an
+initial trial step length
+<script type="math/tex"> \alpha_0 \le 1 </script> (see <a href="../proc/initial_step_length.html">initial_step_length</a>) rather than always
+<code>1</code>, capped by <code>major_step_limit</code> (SNOPT's "Major step limit" option)
+so that no variable can change by more than a factor of
+<code>major_step_limit</code> relative to its current magnitude in a single major
+iteration -- a QP step that is technically feasible can still be
+unreasonably large (e.g. from a poorly-scaled problem or an early,
+inaccurate Hessian approximation), and this guards against the
+resulting merit-function evaluations diverging or becoming undefined.</p>
+<p>At <code>options%print_level &gt;= 3</code>, every trial point (step length, merit
+value or violation and objective, and whether and why it was accepted)
+is written to the detailed log (<code>log</code>, see <a href="../module/sqpopt_log_module.html">sqpopt_log_module</a>), and
+<code>used_soc</code>, <code>used_nonmonotone</code>, and <code>used_relaxed</code> report what the last
+search used, for the iteration log's flags.</p>
+<br>          <div class="card mb-4">
+      <h3 class="card-header card-title bg-light">Uses</h3>
+      <div class="card-body">
+        <ul class="list-group list-group-flush">
+            <li class="list-group-item">
+              <ul class="list-inline">
+                  <li class="list-inline-item"><a href='sqpopt_log_module.html'>sqpopt_log_module</a></li>
+                  <li class="list-inline-item"><a href='sqpopt_kinds.html'>sqpopt_kinds</a></li>
+                  <li class="list-inline-item"><a href='sqpopt_merit_module.html'>sqpopt_merit_module</a></li>
+                  <li class="list-inline-item"><a href='sqpopt_types_module.html'>sqpopt_types_module</a></li>
+                  <li class="list-inline-item"><a href='sqpopt_filter_module.html'>sqpopt_filter_module</a></li>
+                  <li class="list-inline-item"><a href='https://github.com/jacobwilliams/fmin'>fmin_module</a></li>
+                  <li class="list-inline-item"><a href='sqpopt_funnel_module.html'>sqpopt_funnel_module</a></li>
+              </ul>
+            </li>
+            <li class="list-group-item">
+              <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: module~~sqpopt_linesearch_module~~UsesGraph Pages: 1 -->
+<svg id="modulesqpopt_linesearch_moduleUsesGraph" width="641pt" height="213pt"
+ viewBox="0.00 0.00 641.00 213.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="module~~sqpopt_linesearch_module~~UsesGraph" class="graph" transform="scale(0.700072 0.700072) rotate(0) translate(4 300.27)">
+<title>module~~sqpopt_linesearch_module~~UsesGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-300.27 911.62,-300.27 911.62,4 -4,4"/>
+<!-- module~sqpopt_linesearch_module -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_node1" class="node">
+<title>module~sqpopt_linesearch_module</title>
+<polygon fill="none" stroke="black" points="907.62,-196.27 754.35,-196.27 754.35,-172 907.62,-172 907.62,-196.27"/>
+<text xml:space="preserve" text-anchor="middle" x="830.98" y="-180.53" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_linesearch_module</text>
+</g>
+<!-- fmin_module -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_node2" class="node">
+<title>fmin_module</title>
+<g id="a_module~~sqpopt_linesearch_module~~UsesGraph_node2"><a xlink:href="https://github.com/jacobwilliams/fmin" xlink:title="fmin_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="695.47,-296.27 614.2,-296.27 614.2,-272 695.47,-272 695.47,-296.27"/>
+<text xml:space="preserve" text-anchor="middle" x="654.84" y="-280.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">fmin_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_linesearch_module&#45;&gt;fmin_module -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_edge1" class="edge">
+<title>module~sqpopt_linesearch_module&#45;&gt;fmin_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M813.21,-196.73C791.9,-212.38 753.64,-239.32 718.35,-258.13 712.5,-261.25 706.2,-264.26 699.92,-267.05"/>
+<polygon fill="#000000" stroke="#000000" points="698.68,-263.77 690.87,-270.93 701.44,-270.21 698.68,-263.77"/>
+</g>
+<!-- module~sqpopt_filter_module -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_node3" class="node">
+<title>module~sqpopt_filter_module</title>
+<g id="a_module~~sqpopt_linesearch_module~~UsesGraph_node3"><a xlink:href="../module/sqpopt_filter_module.html" xlink:title="sqpopt_filter_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="550.83,-216.27 427.56,-216.27 427.56,-192 550.83,-192 550.83,-216.27"/>
+<text xml:space="preserve" text-anchor="middle" x="489.19" y="-200.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_filter_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_linesearch_module&#45;&gt;module~sqpopt_filter_module -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_edge2" class="edge">
+<title>module~sqpopt_linesearch_module&#45;&gt;module~sqpopt_filter_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M653.84,-244.13C631.97,-246.39 579.33,-232.19 539.62,-220.1"/>
+<polygon fill="#000000" stroke="#000000" points="540.83,-216.81 530.24,-217.2 538.77,-223.5 540.83,-216.81"/>
+</g>
+<!-- module~sqpopt_funnel_module -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_node4" class="node">
+<title>module~sqpopt_funnel_module</title>
+<g id="a_module~~sqpopt_linesearch_module~~UsesGraph_node4"><a xlink:href="../module/sqpopt_funnel_module.html" xlink:title="sqpopt_funnel_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="555.33,-174.27 423.06,-174.27 423.06,-150 555.33,-150 555.33,-174.27"/>
+<text xml:space="preserve" text-anchor="middle" x="489.19" y="-158.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_funnel_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_linesearch_module&#45;&gt;module~sqpopt_funnel_module -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_edge3" class="edge">
+<title>module~sqpopt_linesearch_module&#45;&gt;module~sqpopt_funnel_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M805.15,-196.77C772.1,-212.62 711.35,-238.42 655.84,-244.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M653.84,-244.13C602.61,-249.41 602.07,-204.75 555.33,-183.13 551.99,-181.59 548.5,-180.11 544.95,-178.7"/>
+<polygon fill="#000000" stroke="#000000" points="546.21,-175.44 535.62,-175.24 543.77,-182 546.21,-175.44"/>
+</g>
+<!-- module~sqpopt_kinds -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_node5" class="node">
+<title>module~sqpopt_kinds</title>
+<g id="a_module~~sqpopt_linesearch_module~~UsesGraph_node5"><a xlink:href="../module/sqpopt_kinds.html" xlink:title="sqpopt_kinds">
+<polygon fill="#337ab7" stroke="#337ab7" points="216.91,-215.27 136.39,-215.27 136.39,-191 216.91,-191 216.91,-215.27"/>
+<text xml:space="preserve" text-anchor="middle" x="176.65" y="-199.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_kinds</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_linesearch_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_edge4" class="edge">
+<title>module~sqpopt_linesearch_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M653.84,-244.13C551.47,-254.67 524.81,-240.61 423.06,-225.13 378.71,-218.39 369.33,-200.44 324.55,-203.13"/>
+</g>
+<!-- module~sqpopt_log_module -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_node6" class="node">
+<title>module~sqpopt_log_module</title>
+<g id="a_module~~sqpopt_linesearch_module~~UsesGraph_node6"><a xlink:href="../module/sqpopt_log_module.html" xlink:title="sqpopt_log_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="546.7,-296.27 431.68,-296.27 431.68,-272 546.7,-272 546.7,-296.27"/>
+<text xml:space="preserve" text-anchor="middle" x="489.19" y="-280.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_log_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_linesearch_module&#45;&gt;module~sqpopt_log_module -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_edge5" class="edge">
+<title>module~sqpopt_linesearch_module&#45;&gt;module~sqpopt_log_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M653.84,-244.13C614.8,-248.15 571.73,-258.95 539.58,-268.31"/>
+<polygon fill="#000000" stroke="#000000" points="538.72,-264.91 530.14,-271.12 540.72,-271.62 538.72,-264.91"/>
+</g>
+<!-- module~sqpopt_merit_module -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_node7" class="node">
+<title>module~sqpopt_merit_module</title>
+<g id="a_module~~sqpopt_linesearch_module~~UsesGraph_node7"><a xlink:href="../module/sqpopt_merit_module.html" xlink:title="sqpopt_merit_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="718.35,-136.27 591.33,-136.27 591.33,-112 718.35,-112 718.35,-136.27"/>
+<text xml:space="preserve" text-anchor="middle" x="654.84" y="-120.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_merit_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_linesearch_module&#45;&gt;module~sqpopt_merit_module -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_edge6" class="edge">
+<title>module~sqpopt_linesearch_module&#45;&gt;module~sqpopt_merit_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M793.48,-171.56C767.12,-162.48 731.31,-150.14 702.82,-140.32"/>
+<polygon fill="#000000" stroke="#000000" points="704.32,-137.14 693.73,-137.19 702.04,-143.76 704.32,-137.14"/>
+</g>
+<!-- module~sqpopt_types_module -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_node8" class="node">
+<title>module~sqpopt_types_module</title>
+<g id="a_module~~sqpopt_linesearch_module~~UsesGraph_node8"><a xlink:href="../module/sqpopt_types_module.html" xlink:title="sqpopt_types_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="387.06,-174.27 260.04,-174.27 260.04,-150 387.06,-150 387.06,-174.27"/>
+<text xml:space="preserve" text-anchor="middle" x="323.55" y="-158.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_types_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_linesearch_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_edge7" class="edge">
+<title>module~sqpopt_linesearch_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M818.41,-171.75C799.59,-152.63 760.26,-116.74 718.35,-103.13 693.06,-94.93 432.38,-105.6 423.06,-108.13 419.41,-109.13 383.99,-128.76 356.66,-144.07"/>
+<polygon fill="#000000" stroke="#000000" points="354.99,-140.99 347.98,-148.93 358.41,-147.09 354.99,-140.99"/>
+</g>
+<!-- module~sqpopt_filter_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_edge8" class="edge">
+<title>module~sqpopt_filter_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M427.14,-201.85C396.35,-201.18 358.44,-201.1 324.55,-203.13"/>
+</g>
+<!-- module~sqpopt_filter_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_edge9" class="edge">
+<title>module~sqpopt_filter_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M439.1,-191.53C421.94,-187.13 402.49,-182.14 384.56,-177.54"/>
+<polygon fill="#000000" stroke="#000000" points="385.64,-174.2 375.08,-175.1 383.9,-180.98 385.64,-174.2"/>
+</g>
+<!-- module~sqpopt_funnel_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_edge10" class="edge">
+<title>module~sqpopt_funnel_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M445.53,-174.73C405.29,-186.26 347.79,-201.74 324.55,-203.13"/>
+</g>
+<!-- module~sqpopt_funnel_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_edge11" class="edge">
+<title>module~sqpopt_funnel_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M422.58,-162.13C414.81,-162.13 406.84,-162.13 398.96,-162.13"/>
+<polygon fill="#000000" stroke="#000000" points="399.04,-158.64 389.04,-162.14 399.04,-165.64 399.04,-158.64"/>
+</g>
+<!-- iso_fortran_env -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_node10" class="node">
+<title>iso_fortran_env</title>
+<g id="a_module~~sqpopt_linesearch_module~~UsesGraph_node10"><a xlink:href="http://fortranwiki.org/fortran/show/iso_fortran_env" xlink:title="iso_fortran_env">
+<polygon fill="#337ab7" stroke="#337ab7" points="93.27,-235.27 0,-235.27 0,-211 93.27,-211 93.27,-235.27"/>
+<text xml:space="preserve" text-anchor="middle" x="46.63" y="-219.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">iso_fortran_env</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_kinds&#45;&gt;iso_fortran_env -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_edge12" class="edge">
+<title>module~sqpopt_kinds&#45;&gt;iso_fortran_env</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M136.2,-209.3C126.27,-210.85 115.42,-212.55 104.81,-214.2"/>
+<polygon fill="#000000" stroke="#000000" points="104.3,-210.74 94.96,-215.74 105.38,-217.66 104.3,-210.74"/>
+</g>
+<!-- module~sqpopt_log_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_edge14" class="edge">
+<title>module~sqpopt_log_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M443.7,-271.54C410.96,-262.63 365.26,-250.92 324.55,-243.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M322.55,-243.13C290.56,-237.02 255.32,-227.36 227.61,-219.06"/>
+<polygon fill="#000000" stroke="#000000" points="228.64,-215.72 218.06,-216.16 226.61,-222.42 228.64,-215.72"/>
+</g>
+<!-- module~sqpopt_log_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_edge15" class="edge">
+<title>module~sqpopt_log_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M474.04,-271.67C460.72,-259.86 440.3,-241.54 423.06,-225.13 406.67,-209.53 405.78,-201.85 387.06,-189.13 381.93,-185.65 376.27,-182.46 370.52,-179.58"/>
+<polygon fill="#000000" stroke="#000000" points="372.08,-176.45 361.53,-175.41 369.12,-182.8 372.08,-176.45"/>
+</g>
+<!-- module~sqpopt_log_module&#45;&gt;iso_fortran_env -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_edge13" class="edge">
+<title>module~sqpopt_log_module&#45;&gt;iso_fortran_env</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M322.55,-243.13C282.34,-235.44 173.07,-229.1 105.02,-225.74"/>
+<polygon fill="#000000" stroke="#000000" points="105.31,-222.25 95.16,-225.26 104.97,-229.24 105.31,-222.25"/>
+</g>
+<!-- module~sqpopt_merit_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_edge16" class="edge">
+<title>module~sqpopt_merit_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M488.19,-122.13C458.47,-127.21 448.4,-124.79 423.06,-141.13 402.4,-154.46 407.54,-169.54 387.06,-183.13 362.76,-199.26 353.67,-201.38 324.55,-203.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M322.55,-203.13C291.46,-205.01 256.55,-205.07 228.79,-204.63"/>
+<polygon fill="#000000" stroke="#000000" points="228.94,-201.13 218.87,-204.45 228.81,-208.13 228.94,-201.13"/>
+</g>
+<!-- module~sqpopt_merit_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_edge18" class="edge">
+<title>module~sqpopt_merit_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M590.87,-118.08C560.28,-116.48 523.1,-116.52 490.19,-122.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M488.19,-122.13C451.57,-128.39 411.01,-138.28 379.42,-146.67"/>
+<polygon fill="#000000" stroke="#000000" points="378.86,-143.19 370.11,-149.17 380.67,-149.95 378.86,-143.19"/>
+</g>
+<!-- module~sqpopt_linalg_module -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_node11" class="node">
+<title>module~sqpopt_linalg_module</title>
+<g id="a_module~~sqpopt_linesearch_module~~UsesGraph_node11"><a xlink:href="../module/sqpopt_linalg_module.html" xlink:title="sqpopt_linalg_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="553.08,-56.27 425.31,-56.27 425.31,-32 553.08,-32 553.08,-56.27"/>
+<text xml:space="preserve" text-anchor="middle" x="489.19" y="-40.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_linalg_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_merit_module&#45;&gt;module~sqpopt_linalg_module -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_edge17" class="edge">
+<title>module~sqpopt_merit_module&#45;&gt;module~sqpopt_linalg_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M628.27,-111.63C600.85,-98.23 557.09,-76.84 526.2,-61.74"/>
+<polygon fill="#000000" stroke="#000000" points="527.74,-58.59 517.21,-57.34 524.66,-64.88 527.74,-58.59"/>
+</g>
+<!-- module~sqpopt_types_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_edge20" class="edge">
+<title>module~sqpopt_types_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M278.29,-174.66C262.47,-179.14 244.52,-184.22 228.2,-188.83"/>
+<polygon fill="#000000" stroke="#000000" points="227.34,-185.44 218.67,-191.53 229.25,-192.17 227.34,-185.44"/>
+</g>
+<!-- ieee_arithmetic -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_node9" class="node">
+<title>ieee_arithmetic</title>
+<g id="a_module~~sqpopt_linesearch_module~~UsesGraph_node9"><a xlink:href="http://fortranwiki.org/fortran/show/ieee_arithmetic" xlink:title="ieee_arithmetic">
+<polygon fill="#337ab7" stroke="#337ab7" points="224.04,-173.27 129.27,-173.27 129.27,-149 224.04,-149 224.04,-173.27"/>
+<text xml:space="preserve" text-anchor="middle" x="176.65" y="-157.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">ieee_arithmetic</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_types_module&#45;&gt;ieee_arithmetic -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_edge19" class="edge">
+<title>module~sqpopt_types_module&#45;&gt;ieee_arithmetic</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M259.84,-161.7C251.82,-161.65 243.64,-161.59 235.71,-161.54"/>
+<polygon fill="#000000" stroke="#000000" points="235.83,-158.04 225.81,-161.47 235.78,-165.04 235.83,-158.04"/>
+</g>
+<!-- module~sqpopt_linalg_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_edge23" class="edge">
+<title>module~sqpopt_linalg_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M455.98,-56.77C445.46,-60.95 433.74,-65.68 423.06,-70.13 350.13,-100.57 323.87,-94.54 260.04,-141.13 240.45,-155.43 243.52,-167.7 224.04,-182.13 222.71,-183.12 221.32,-184.08 219.9,-185"/>
+<polygon fill="#000000" stroke="#000000" points="218.35,-181.85 211.41,-189.86 221.83,-187.93 218.35,-181.85"/>
+</g>
+<!-- module~sqpopt_linalg_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_edge24" class="edge">
+<title>module~sqpopt_linalg_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M446.79,-56.77C438.48,-60.35 430.14,-64.77 423.06,-70.13 402.09,-86.03 405.94,-98.81 387.06,-117.13 377.29,-126.62 365.4,-135.68 354.63,-143.15"/>
+<polygon fill="#000000" stroke="#000000" points="352.74,-140.2 346.39,-148.69 356.64,-146.01 352.74,-140.2"/>
+</g>
+<!-- lusol -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_node12" class="node">
+<title>lusol</title>
+<g id="a_module~~sqpopt_linesearch_module~~UsesGraph_node12"><a xlink:href="https://github.com/jacobwilliams/lusol" xlink:title="lusol">
+<polygon fill="#337ab7" stroke="#337ab7" points="350.55,-24.27 296.55,-24.27 296.55,0 350.55,0 350.55,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="323.55" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">lusol</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_linalg_module&#45;&gt;lusol -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_edge21" class="edge">
+<title>module~sqpopt_linalg_module&#45;&gt;lusol</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M424.93,-31.76C403.72,-27.62 380.77,-23.13 362.17,-19.49"/>
+<polygon fill="#000000" stroke="#000000" points="362.89,-16.07 352.41,-17.58 361.55,-22.94 362.89,-16.07"/>
+</g>
+<!-- lusol_precision -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_node13" class="node">
+<title>lusol_precision</title>
+<g id="a_module~~sqpopt_linesearch_module~~UsesGraph_node13"><a xlink:href="https://github.com/jacobwilliams/lusol" xlink:title="lusol_precision">
+<polygon fill="#337ab7" stroke="#337ab7" points="368.31,-66.27 278.79,-66.27 278.79,-42 368.31,-42 368.31,-66.27"/>
+<text xml:space="preserve" text-anchor="middle" x="323.55" y="-50.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">lusol_precision</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_linalg_module&#45;&gt;lusol_precision -->
+<g id="module~~sqpopt_linesearch_module~~UsesGraph_edge22" class="edge">
+<title>module~sqpopt_linalg_module&#45;&gt;lusol_precision</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M424.93,-48C410.02,-48.91 394.25,-49.88 379.74,-50.76"/>
+<polygon fill="#000000" stroke="#000000" points="379.68,-47.26 369.92,-51.36 380.11,-54.25 379.68,-47.26"/>
+</g>
+</g>
+</svg>
+</div>                <script>
+                  var panmodulesqpopt_linesearch_moduleUsesGraph = svgPanZoom('#modulesqpopt_linesearch_moduleUsesGraph',
+                    {zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true,}
+                  );
+                </script>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#UsesGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="UsesGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="511pt" height="32pt"
+ viewBox="0.00 0.00 511.00 32.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 506.88,-28.27 506.88,4 -4,4"/>
+<!-- Module -->
+<g id="node1" class="node">
+<title>Module</title>
+<polygon fill="#337ab7" stroke="#337ab7" points="54,-24.27 0,-24.27 0,0 54,0 54,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="27" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Module</text>
+</g>
+<!-- Submodule -->
+<g id="node2" class="node">
+<title>Submodule</title>
+<polygon fill="#5bc0de" stroke="#5bc0de" points="144.13,-24.27 71.87,-24.27 71.87,0 144.13,0 144.13,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="108" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Submodule</text>
+</g>
+<!-- Subroutine -->
+<g id="node3" class="node">
+<title>Subroutine</title>
+<polygon fill="#d9534f" stroke="#d9534f" points="231.63,-24.27 162.37,-24.27 162.37,0 231.63,0 231.63,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="197" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Subroutine</text>
+</g>
+<!-- Function -->
+<g id="node4" class="node">
+<title>Function</title>
+<polygon fill="#d94e8f" stroke="#d94e8f" points="306.26,-24.27 249.74,-24.27 249.74,0 306.26,0 306.26,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="278" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Function</text>
+</g>
+<!-- Program -->
+<g id="node5" class="node">
+<title>Program</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="381.26,-24.27 324.74,-24.27 324.74,0 381.26,0 381.26,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="353" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Program</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node6" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="502.88,-24.27 399.12,-24.27 399.12,0 502.88,0 502.88,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="451" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a submodule to the (sub)module which it is
+descended from. Dashed arrows point from a module or program unit to 
+modules which it uses.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+            </li>
+        </ul>
+      </div>
+    </div>
+
+          <div class="card">
+      <h3 class="card-header card-title bg-light">Used by</h3>
+      <div class="card-body">
+        <ul class="list-group list-group-flush">
+            <li class="list-group-item">
+              <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: module~~sqpopt_linesearch_module~~UsedByGraph Pages: 1 -->
+<svg id="modulesqpopt_linesearch_moduleUsedByGraph" width="641pt" height="142pt"
+ viewBox="0.00 0.00 641.00 142.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="module~~sqpopt_linesearch_module~~UsedByGraph" class="graph" transform="scale(0.545003 0.545003) rotate(0) translate(4 256.37)">
+<title>module~~sqpopt_linesearch_module~~UsedByGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-256.37 1172.14,-256.37 1172.14,4 -4,4"/>
+<!-- module~sqpopt_linesearch_module -->
+<g id="module~~sqpopt_linesearch_module~~UsedByGraph_node1" class="node">
+<title>module~sqpopt_linesearch_module</title>
+<polygon fill="none" stroke="black" points="153.27,-92.71 0,-92.71 0,-68.44 153.27,-68.44 153.27,-92.71"/>
+<text xml:space="preserve" text-anchor="middle" x="76.64" y="-76.97" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_linesearch_module</text>
+</g>
+<!-- module~sqpopt_iterate_module -->
+<g id="module~~sqpopt_linesearch_module~~UsedByGraph_node2" class="node">
+<title>module~sqpopt_iterate_module</title>
+<g id="a_module~~sqpopt_linesearch_module~~UsedByGraph_node2"><a xlink:href="../module/sqpopt_iterate_module.html" xlink:title="sqpopt_iterate_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="886.35,-92.71 752.58,-92.71 752.58,-68.44 886.35,-68.44 886.35,-92.71"/>
+<text xml:space="preserve" text-anchor="middle" x="819.47" y="-76.97" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_iterate_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_iterate_module&#45;&gt;module~sqpopt_linesearch_module -->
+<g id="module~~sqpopt_linesearch_module~~UsedByGraph_edge1" class="edge">
+<title>module~sqpopt_iterate_module&#45;&gt;module~sqpopt_linesearch_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M752.29,-77.29C717.78,-76.41 674.93,-76.61 636.82,-80.57"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M634.82,-80.57C553.69,-89.01 532.74,-85.01 451.3,-80.57"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M449.3,-80.57C367.08,-76.09 350.65,-36.55 268.41,-40.57"/>
+</g>
+<!-- module~sqpopt_options_module -->
+<g id="module~~sqpopt_linesearch_module~~UsedByGraph_node5" class="node">
+<title>module~sqpopt_options_module</title>
+<g id="a_module~~sqpopt_linesearch_module~~UsedByGraph_node5"><a xlink:href="../module/sqpopt_options_module.html" xlink:title="sqpopt_options_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="519.06,-170.71 381.54,-170.71 381.54,-146.44 519.06,-146.44 519.06,-170.71"/>
+<text xml:space="preserve" text-anchor="middle" x="450.3" y="-154.97" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_options_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_iterate_module&#45;&gt;module~sqpopt_options_module -->
+<g id="module~~sqpopt_linesearch_module~~UsedByGraph_edge10" class="edge">
+<title>module~sqpopt_iterate_module&#45;&gt;module~sqpopt_options_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M634.82,-80.57C576.21,-86.66 514.42,-119.13 479.58,-140.21"/>
+<polygon fill="#000000" stroke="#000000" points="478.03,-137.05 471.36,-145.29 481.71,-143.01 478.03,-137.05"/>
+</g>
+<!-- module~sqpopt_restoration_module -->
+<g id="module~~sqpopt_linesearch_module~~UsedByGraph_node6" class="node">
+<title>module~sqpopt_restoration_module</title>
+<g id="a_module~~sqpopt_linesearch_module~~UsedByGraph_node6"><a xlink:href="../module/sqpopt_restoration_module.html" xlink:title="sqpopt_restoration_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="345.54,-92.71 189.27,-92.71 189.27,-68.44 345.54,-68.44 345.54,-92.71"/>
+<text xml:space="preserve" text-anchor="middle" x="267.41" y="-76.97" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_restoration_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_iterate_module&#45;&gt;module~sqpopt_restoration_module -->
+<g id="module~~sqpopt_linesearch_module~~UsedByGraph_edge13" class="edge">
+<title>module~sqpopt_iterate_module&#45;&gt;module~sqpopt_restoration_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M449.3,-80.57C419.4,-78.94 386.68,-78.53 357.39,-78.65"/>
+<polygon fill="#000000" stroke="#000000" points="357.41,-75.15 347.43,-78.71 357.46,-82.15 357.41,-75.15"/>
+</g>
+<!-- module~sqpopt_trust_region_module -->
+<g id="module~~sqpopt_linesearch_module~~UsedByGraph_node7" class="node">
+<title>module~sqpopt_trust_region_module</title>
+<g id="a_module~~sqpopt_linesearch_module~~UsedByGraph_node7"><a xlink:href="../module/sqpopt_trust_region_module.html" xlink:title="sqpopt_trust_region_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="716.58,-52.71 555.06,-52.71 555.06,-28.44 716.58,-28.44 716.58,-52.71"/>
+<text xml:space="preserve" text-anchor="middle" x="635.82" y="-36.97" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_trust_region_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_iterate_module&#45;&gt;module~sqpopt_trust_region_module -->
+<g id="module~~sqpopt_linesearch_module~~UsedByGraph_edge16" class="edge">
+<title>module~sqpopt_iterate_module&#45;&gt;module~sqpopt_trust_region_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M761.49,-68.02C743.57,-64.08 723.6,-59.68 704.98,-55.58"/>
+<polygon fill="#000000" stroke="#000000" points="705.9,-52.2 695.38,-53.47 704.4,-59.04 705.9,-52.2"/>
+</g>
+<!-- module~sqpopt_diagnostics_module -->
+<g id="module~~sqpopt_linesearch_module~~UsedByGraph_node8" class="node">
+<title>module~sqpopt_diagnostics_module</title>
+<g id="a_module~~sqpopt_linesearch_module~~UsedByGraph_node8"><a xlink:href="../module/sqpopt_diagnostics_module.html" xlink:title="sqpopt_diagnostics_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="715.08,-170.71 556.56,-170.71 556.56,-146.44 715.08,-146.44 715.08,-170.71"/>
+<text xml:space="preserve" text-anchor="middle" x="635.82" y="-154.97" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_diagnostics_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_iterate_module&#45;&gt;module~sqpopt_diagnostics_module -->
+<g id="module~~sqpopt_linesearch_module~~UsedByGraph_edge19" class="edge">
+<title>module~sqpopt_iterate_module&#45;&gt;module~sqpopt_diagnostics_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M789.28,-93.1C758.78,-106.2 710.73,-126.83 676.74,-141.43"/>
+<polygon fill="#000000" stroke="#000000" points="675.43,-138.18 667.62,-145.34 678.19,-144.61 675.43,-138.18"/>
+</g>
+<!-- module~sqpopt_module -->
+<g id="module~~sqpopt_linesearch_module~~UsedByGraph_node3" class="node">
+<title>module~sqpopt_module</title>
+<g id="a_module~~sqpopt_linesearch_module~~UsedByGraph_node3"><a xlink:href="../module/sqpopt_module.html" xlink:title="sqpopt_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="1015.62,-92.71 922.35,-92.71 922.35,-68.44 1015.62,-68.44 1015.62,-92.71"/>
+<text xml:space="preserve" text-anchor="middle" x="968.99" y="-76.97" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_linesearch_module -->
+<g id="module~~sqpopt_linesearch_module~~UsedByGraph_edge2" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_linesearch_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M954.21,-67.98C938.91,-54.9 912.87,-35.15 886.35,-26.57 746.22,18.75 701.6,-4.89 555.06,-19.57 508.24,-24.26 498.28,-38.05 451.3,-40.57"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M449.3,-40.57C368.97,-43.84 348.71,-36.64 268.41,-40.57"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M266.41,-40.57C219.2,-42.88 166.7,-54.79 129.07,-65.02"/>
+<polygon fill="#000000" stroke="#000000" points="128.54,-61.54 119.84,-67.59 130.41,-68.28 128.54,-61.54"/>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_iterate_module -->
+<g id="module~~sqpopt_linesearch_module~~UsedByGraph_edge7" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_iterate_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M922.12,-80.57C914.38,-80.57 906.17,-80.57 897.89,-80.57"/>
+<polygon fill="#000000" stroke="#000000" points="898.12,-77.07 888.12,-80.57 898.12,-84.07 898.12,-77.07"/>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_options_module -->
+<g id="module~~sqpopt_linesearch_module~~UsedByGraph_edge11" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_options_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M818.47,-158.57C704.4,-186.53 671.92,-191.28 555.06,-179.57 541.77,-178.24 527.67,-175.97 514.28,-173.41"/>
+<polygon fill="#000000" stroke="#000000" points="515.22,-170.03 504.73,-171.5 513.85,-176.89 515.22,-170.03"/>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_restoration_module -->
+<g id="module~~sqpopt_linesearch_module~~UsedByGraph_edge14" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_restoration_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M951.44,-93.09C925.32,-111.94 872.13,-146.7 820.47,-158.57"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M818.47,-158.57C773.41,-168.93 762.19,-145.16 716.58,-137.57 699.07,-134.66 482.2,-107.36 356.68,-91.62"/>
+<polygon fill="#000000" stroke="#000000" points="357.44,-88.19 347.08,-90.42 356.57,-95.14 357.44,-88.19"/>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_trust_region_module -->
+<g id="module~~sqpopt_linesearch_module~~UsedByGraph_edge17" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_trust_region_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M936.1,-67.98C906.63,-57.3 861.37,-43.3 820.47,-40.57"/>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_diagnostics_module -->
+<g id="module~~sqpopt_linesearch_module~~UsedByGraph_edge20" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_diagnostics_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M818.47,-158.57C789,-165.8 756.02,-167.59 726.34,-167.02"/>
+<polygon fill="#000000" stroke="#000000" points="726.75,-163.53 716.65,-166.73 726.55,-170.52 726.75,-163.53"/>
+</g>
+<!-- module~sqpopt_nlls_module -->
+<g id="module~~sqpopt_linesearch_module~~UsedByGraph_node4" class="node">
+<title>module~sqpopt_nlls_module</title>
+<g id="a_module~~sqpopt_linesearch_module~~UsedByGraph_node4"><a xlink:href="../module/sqpopt_nlls_module.html" xlink:title="sqpopt_nlls_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="1168.14,-92.71 1051.62,-92.71 1051.62,-68.44 1168.14,-68.44 1168.14,-92.71"/>
+<text xml:space="preserve" text-anchor="middle" x="1109.88" y="-76.97" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_nlls_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_nlls_module&#45;&gt;module~sqpopt_linesearch_module -->
+<g id="module~~sqpopt_linesearch_module~~UsedByGraph_edge3" class="edge">
+<title>module~sqpopt_nlls_module&#45;&gt;module~sqpopt_linesearch_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M634.82,-236.57C472.12,-229.46 426.68,-274.92 268.41,-236.57"/>
+</g>
+<!-- module~sqpopt_nlls_module&#45;&gt;module~sqpopt_module -->
+<g id="module~~sqpopt_linesearch_module~~UsedByGraph_edge8" class="edge">
+<title>module~sqpopt_nlls_module&#45;&gt;module~sqpopt_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1051.18,-80.57C1043.27,-80.57 1035.15,-80.57 1027.24,-80.57"/>
+<polygon fill="#000000" stroke="#000000" points="1027.38,-77.07 1017.38,-80.57 1027.38,-84.07 1027.38,-77.07"/>
+</g>
+<!-- module~sqpopt_nlls_module&#45;&gt;module~sqpopt_options_module -->
+<g id="module~~sqpopt_linesearch_module~~UsedByGraph_edge12" class="edge">
+<title>module~sqpopt_nlls_module&#45;&gt;module~sqpopt_options_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1090.2,-93.05C1027.94,-133.26 820.97,-255.72 636.82,-236.57"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M634.82,-236.57C575.01,-233.96 512.26,-199.28 477.84,-177.05"/>
+<polygon fill="#000000" stroke="#000000" points="480.03,-174.31 469.76,-171.71 476.17,-180.15 480.03,-174.31"/>
+</g>
+<!-- module~sqpopt_nlls_module&#45;&gt;module~sqpopt_trust_region_module -->
+<g id="module~~sqpopt_linesearch_module~~UsedByGraph_edge18" class="edge">
+<title>module~sqpopt_nlls_module&#45;&gt;module~sqpopt_trust_region_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1058.28,-67.97C1044.51,-64.88 1029.55,-61.81 1015.62,-59.57 929.58,-45.75 907.42,-46.36 820.47,-40.57"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M818.47,-40.57C789.21,-38 757.19,-37.3 728.31,-37.45"/>
+<polygon fill="#000000" stroke="#000000" points="728.46,-33.94 718.49,-37.53 728.52,-40.94 728.46,-33.94"/>
+</g>
+<!-- module~sqpopt_options_module&#45;&gt;module~sqpopt_linesearch_module -->
+<g id="module~~sqpopt_linesearch_module~~UsedByGraph_edge4" class="edge">
+<title>module~sqpopt_options_module&#45;&gt;module~sqpopt_linesearch_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M436.23,-170.83C407.17,-196.57 334.55,-252.6 268.41,-236.57"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M266.41,-236.57C187.51,-217.46 121.29,-140.07 92.73,-101.98"/>
+<polygon fill="#000000" stroke="#000000" points="95.62,-99.99 86.89,-93.99 89.97,-104.13 95.62,-99.99"/>
+</g>
+<!-- module~sqpopt_options_module&#45;&gt;module~sqpopt_restoration_module -->
+<g id="module~~sqpopt_linesearch_module~~UsedByGraph_edge15" class="edge">
+<title>module~sqpopt_options_module&#45;&gt;module~sqpopt_restoration_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M415.35,-146.04C404.49,-141.9 392.46,-137.17 381.54,-132.57 355.52,-121.61 326.59,-108.3 304.51,-97.89"/>
+<polygon fill="#000000" stroke="#000000" points="306.16,-94.8 295.62,-93.68 303.16,-101.12 306.16,-94.8"/>
+</g>
+<!-- module~sqpopt_restoration_module&#45;&gt;module~sqpopt_linesearch_module -->
+<g id="module~~sqpopt_linesearch_module~~UsedByGraph_edge5" class="edge">
+<title>module~sqpopt_restoration_module&#45;&gt;module~sqpopt_linesearch_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M188.81,-80.57C181.02,-80.57 173.07,-80.57 165.19,-80.57"/>
+<polygon fill="#000000" stroke="#000000" points="165.23,-77.07 155.23,-80.57 165.23,-84.07 165.23,-77.07"/>
+</g>
+<!-- module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_linesearch_module -->
+<g id="module~~sqpopt_linesearch_module~~UsedByGraph_edge6" class="edge">
+<title>module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_linesearch_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M554.82,-38.71C522.64,-38.44 485.18,-38.75 451.3,-40.57"/>
+</g>
+<!-- module~sqpopt_diagnostics_module&#45;&gt;module~sqpopt_options_module -->
+<g id="module~~sqpopt_linesearch_module~~UsedByGraph_edge9" class="edge">
+<title>module~sqpopt_diagnostics_module&#45;&gt;module~sqpopt_options_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M556.19,-158.57C547.76,-158.57 539.19,-158.57 530.75,-158.57"/>
+<polygon fill="#000000" stroke="#000000" points="530.87,-155.07 520.87,-158.57 530.87,-162.07 530.87,-155.07"/>
+</g>
+</g>
+</svg>
+</div>                <script>
+                  var panmodulesqpopt_linesearch_moduleUsedByGraph = svgPanZoom('#modulesqpopt_linesearch_moduleUsedByGraph',
+                    {zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true,}
+                  );
+                </script>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#UsedByGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="UsedByGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="511pt" height="32pt"
+ viewBox="0.00 0.00 511.00 32.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 506.88,-28.27 506.88,4 -4,4"/>
+<!-- Module -->
+<g id="node1" class="node">
+<title>Module</title>
+<polygon fill="#337ab7" stroke="#337ab7" points="54,-24.27 0,-24.27 0,0 54,0 54,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="27" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Module</text>
+</g>
+<!-- Submodule -->
+<g id="node2" class="node">
+<title>Submodule</title>
+<polygon fill="#5bc0de" stroke="#5bc0de" points="144.13,-24.27 71.87,-24.27 71.87,0 144.13,0 144.13,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="108" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Submodule</text>
+</g>
+<!-- Subroutine -->
+<g id="node3" class="node">
+<title>Subroutine</title>
+<polygon fill="#d9534f" stroke="#d9534f" points="231.63,-24.27 162.37,-24.27 162.37,0 231.63,0 231.63,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="197" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Subroutine</text>
+</g>
+<!-- Function -->
+<g id="node4" class="node">
+<title>Function</title>
+<polygon fill="#d94e8f" stroke="#d94e8f" points="306.26,-24.27 249.74,-24.27 249.74,0 306.26,0 306.26,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="278" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Function</text>
+</g>
+<!-- Program -->
+<g id="node5" class="node">
+<title>Program</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="381.26,-24.27 324.74,-24.27 324.74,0 381.26,0 381.26,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="353" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Program</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node6" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="502.88,-24.27 399.12,-24.27 399.12,0 502.88,0 502.88,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="451" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a submodule to the (sub)module which it is
+descended from. Dashed arrows point from a module or program unit to 
+modules which it uses.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+            </li>
+        </ul>
+      </div>
+    </div>
+
+      <br>
+
+
+        <section>
+          <h2>Variables</h2>
+            <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Visibility</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+<th></th><th scope="col">Initial</th>        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-sqpopt_linesearch_armijo"></span>
+              integer,
+            </td>
+              <td>public,</td>
+            <td>
+parameter               
+            </td>
+            <td>::</td>
+            <td><strong>sqpopt_linesearch_armijo</strong></td>
+<td> =</td>
+                <td>1</td>
+            <td>
+                <p>backtracking Armijo-type line search on a merit function</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-sqpopt_linesearch_exact"></span>
+              integer,
+            </td>
+              <td>public,</td>
+            <td>
+parameter               
+            </td>
+            <td>::</td>
+            <td><strong>sqpopt_linesearch_exact</strong></td>
+<td> =</td>
+                <td>2</td>
+            <td>
+                <p>(approximate) exact 1-D minimization of the merit function, via <code>fmin</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-sqpopt_linesearch_watchdog"></span>
+              integer,
+            </td>
+              <td>public,</td>
+            <td>
+parameter               
+            </td>
+            <td>::</td>
+            <td><strong>sqpopt_linesearch_watchdog</strong></td>
+<td> =</td>
+                <td>3</td>
+            <td>
+                <p>Powell's watchdog technique (relaxed acceptance + backtracking, see module docs)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-sqpopt_linesearch_filter"></span>
+              integer,
+            </td>
+              <td>public,</td>
+            <td>
+parameter               
+            </td>
+            <td>::</td>
+            <td><strong>sqpopt_linesearch_filter</strong></td>
+<td> =</td>
+                <td>4</td>
+            <td>
+                <p>(default) Fletcher &amp; Leyffer's filter method (no merit
+function/penalty parameter, see module docs)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-sqpopt_linesearch_funnel"></span>
+              integer,
+            </td>
+              <td>public,</td>
+            <td>
+parameter               
+            </td>
+            <td>::</td>
+            <td><strong>sqpopt_linesearch_funnel</strong></td>
+<td> =</td>
+                <td>5</td>
+            <td>
+                <p>the funnel method of Kiessling, Leyffer &amp; Vanaret (no
+merit function/penalty parameter, see module docs)</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+        </section>
+        <br>
+
+
+
+        <section>
+          <h2>Abstract Interfaces</h2>
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="interface-sqpopt_ls_objective_func"></span><h3>abstract interface
+        
+    </h3></div>
+    <ul class="list-group">
+      <li class="list-group-item">
+            <h3>
+    private  subroutine sqpopt_ls_objective_func(x, f)  
+
+    </h3>
+  <p>evaluates the (scaled) objective at <code>x</code> (NaN if it can't be evaluated)</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x~47"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x</strong></td>
+            <td>
+                <p>point <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-f~17"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>f</strong></td>
+            <td>
+                <p>objective at <code>x</code></p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+      </li>
+    </ul>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="interface-sqpopt_ls_constraint_func"></span><h3>abstract interface
+        
+    </h3></div>
+    <ul class="list-group">
+      <li class="list-group-item">
+            <h3>
+    private  subroutine sqpopt_ls_constraint_func(x, c)  
+
+    </h3>
+  <p>evaluates the (scaled) constraints at <code>x</code> (NaN if they can't be evaluated)</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x~48"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x</strong></td>
+            <td>
+                <p>point <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c~36"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c</strong></td>
+            <td>
+                <p>constraints at <code>x</code> <code>dimension(m)</code></p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+      </li>
+    </ul>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="interface-sqpopt_soc_func"></span><h3>abstract interface
+        
+    </h3></div>
+    <ul class="list-group">
+      <li class="list-group-item">
+            <h3>
+    public  subroutine sqpopt_soc_func(p, c_trial, p_soc, ok)  
+
+    </h3>
+  <p>computes the second-order-corrected version <code>p_soc</code> of a
+rejected trial step <code>p</code>, given the constraint values
+<code>c_trial</code> at <code>x+p</code> (see <a href="../module/sqpopt_soc_module.html">sqpopt_soc_module</a>); <code>ok</code> is false
+if no usable correction is available</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-p~21"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>p</strong></td>
+            <td>
+                <p>the rejected trial step <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_trial~7"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_trial</strong></td>
+            <td>
+                <p>constraint values at <code>x+p</code> <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-p_soc~4"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>p_soc</strong></td>
+            <td>
+                <p>the corrected step <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-ok~40"></span>
+              logical,
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>ok</strong></td>
+            <td>
+                <p>true if <code>p_soc</code> is usable</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+      </li>
+    </ul>
+  </div>
+
+        </section>
+        <br>
+
+        <section>
+          <h2>Derived Types</h2>
+              <div class="card">
+    <div class="card-header codesum">
+      <span class="anchor" id="type-sqpopt_linesearch_type"></span>
+      <h3>
+        type, public&nbsp;::&nbsp;
+        <a href='../type/sqpopt_linesearch_type.html'>sqpopt_linesearch_type</a>
+        
+      </h3>
+    </div>
+    <div class="card-body">
+      <p>options and state for the merit function and line search.</p>
+
+        <h4>Components</h4>
+          <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Visibility</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+<th></th><th scope="col">Initial</th>        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-mode~2"></span>
+              integer,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>mode</strong></td>
+<td> =</td>
+                <td>sqpopt_linesearch_filter</td>
+            <td>
+<p>line search strategy to use (set from <code>options%linesearch_mode</code>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-tol~11"></span>
+              real(kind=wp),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>tol</strong></td>
+<td> =</td>
+                <td>1.0e-4_wp</td>
+            <td>
+<p>desired tolerance on the minimizer (<code>sqpopt_linesearch_exact</code> mode)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-sigma~5"></span>
+              real(kind=wp),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>sigma</strong></td>
+<td> =</td>
+                <td>0.1_wp</td>
+            <td>
+<p>Armijo sufficient-decrease parameter, <script type="math/tex"> 0 < \sigma < 1 </script> (<code>sqpopt_linesearch_armijo</code> mode)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-backtrack~2"></span>
+              real(kind=wp),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>backtrack</strong></td>
+<td> =</td>
+                <td>0.5_wp</td>
+            <td>
+<p>step-length reduction factor at each backtracking step (<code>sqpopt_linesearch_armijo</code> mode)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-alpha_min~3"></span>
+              real(kind=wp),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>alpha_min</strong></td>
+<td> =</td>
+                <td>1.0e-10_wp</td>
+            <td>
+<p>minimum step length (<code>armijo</code>/<code>watchdog</code>/<code>filter</code> modes): the search
+fails (no step is taken, <code>istat=sqpopt_line_search_failed</code>) if no
+acceptable step is found before <code>alpha</code> would drop below this</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-max_ls_iter"></span>
+              integer,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>max_ls_iter</strong></td>
+<td> =</td>
+                <td>40</td>
+            <td>
+<p>maximum number of trial step lengths per search (<code>armijo</code>/<code>watchdog</code>/<code>filter</code> modes)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-interpolate"></span>
+              logical,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>interpolate</strong></td>
+<td> =</td>
+                <td>.true.</td>
+            <td>
+<p>choose each backtracking step length by safeguarded quadratic
+interpolation (as in NLPQLP) instead of the fixed factor <code>backtrack</code>
+(see <a href="../proc/next_step_length.html">next_step_length</a>; <code>armijo</code>/<code>watchdog</code>/<code>filter</code> modes)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-nonmonotone_len"></span>
+              integer,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>nonmonotone_len</strong></td>
+<td> =</td>
+                <td>0</td>
+            <td>
+<p>if <code>&gt;0</code>, when a search fails it is retried non-monotonically
+(as in NLPQLP): against the worst merit value (<code>filter</code> mode: the
+worst violation and objective) of the last <code>nonmonotone_len</code>
+iterates instead of the current one (<code>armijo</code>/<code>filter</code> modes)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-major_step_limit"></span>
+              real(kind=wp),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>major_step_limit</strong></td>
+<td> =</td>
+                <td>2.0_wp</td>
+            <td>
+<p>caps the <em>initial</em> trial step length (before any backtracking) so that
+no variable changes by more than this fraction of <script type="math/tex"> \max(1,|x_j|) </script>
+(SNOPT's "Major step limit" option): the search starts from
+<script type="math/tex"> \alpha_0 = \min\!\left(1, \dfrac{\texttt{major\_step\_limit}}
+{\max_j |p_j|/\max(1,|x_j|)}\right) </script> instead of always <script type="math/tex"> \alpha_0=1 </script>.
+Guards against divergence from a QP step that is technically feasible
+but unreasonably large relative to the current point; set to <code>huge(1.0_wp)</code>
+to disable</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-watchdog_relaxed_len"></span>
+              integer,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>watchdog_relaxed_len</strong></td>
+<td> =</td>
+                <td>2</td>
+            <td>
+<p>number of relaxed steps tolerated before requiring a new best point (<code>sqpopt_linesearch_watchdog</code> mode)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-watchdog_cooldown_len"></span>
+              integer,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>watchdog_cooldown_len</strong></td>
+<td> =</td>
+                <td>10</td>
+            <td>
+<p>number of iterations relaxed acceptance is disabled for after a backtrack (<code>sqpopt_linesearch_watchdog</code> mode)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-merit~2"></span>
+              type(<a href='../type/sqpopt_merit_type.html'>sqpopt_merit_type</a>),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>merit</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+<p>the merit function and its penalty parameter (<code>armijo</code>, <code>exact</code>,
+and <code>watchdog</code> modes, and the trust region's merit-ratio test)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-filter"></span>
+              type(<a href='../type/sqpopt_filter_type.html'>sqpopt_filter_type</a>),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>filter</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+<p>the filter (<code>filter</code> mode, and the trust region with the filter)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-funnel"></span>
+              type(<a href='../type/sqpopt_funnel_type.html'>sqpopt_funnel_type</a>),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>funnel</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+<p>the funnel (<code>funnel</code> mode, and the trust region with the funnel)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-nm_count"></span>
+              integer,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>nm_count</strong></td>
+<td> =</td>
+                <td>0</td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-nm_phi"></span>
+              real(kind=wp),
+            </td>
+              <td>public,</td>
+            <td>
+              dimension(:), allocatable
+            </td>
+            <td>::</td>
+            <td><strong>nm_phi</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-nm_theta"></span>
+              real(kind=wp),
+            </td>
+              <td>public,</td>
+            <td>
+              dimension(:), allocatable
+            </td>
+            <td>::</td>
+            <td><strong>nm_theta</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-nm_f"></span>
+              real(kind=wp),
+            </td>
+              <td>public,</td>
+            <td>
+              dimension(:), allocatable
+            </td>
+            <td>::</td>
+            <td><strong>nm_f</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-watchdog_ready"></span>
+              logical,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>watchdog_ready</strong></td>
+<td> =</td>
+                <td>.false.</td>
+            <td>
+<p>whether the best-point tracking below has been initialized</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-watchdog_relaxed_remaining"></span>
+              integer,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>watchdog_relaxed_remaining</strong></td>
+<td> =</td>
+                <td>0</td>
+            <td>
+<p>iterations left in the current relaxed window</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-watchdog_cooldown_remaining"></span>
+              integer,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>watchdog_cooldown_remaining</strong></td>
+<td> =</td>
+                <td>0</td>
+            <td>
+<p>iterations left before relaxed acceptance may reactivate</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-watchdog_w_opt"></span>
+              real(kind=wp),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>watchdog_w_opt</strong></td>
+<td> =</td>
+                <td>0.0_wp</td>
+            <td>
+<p>best merit value found so far</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-watchdog_x_opt"></span>
+              real(kind=wp),
+            </td>
+              <td>public,</td>
+            <td>
+              dimension(:), allocatable
+            </td>
+            <td>::</td>
+            <td><strong>watchdog_x_opt</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+<p>best point found so far <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-log~2"></span>
+              type(<a href='../type/sqpopt_log_type.html'>sqpopt_log_type</a>),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>log</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-used_soc~2"></span>
+              logical,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>used_soc</strong></td>
+<td> =</td>
+                <td>.false.</td>
+            <td>
+<p>the accepted step was a second-order-corrected one</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-used_nonmonotone"></span>
+              logical,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>used_nonmonotone</strong></td>
+<td> =</td>
+                <td>.false.</td>
+            <td>
+<p>the accepted step came from the non-monotone retry</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-used_relaxed"></span>
+              logical,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>used_relaxed</strong></td>
+<td> =</td>
+                <td>.false.</td>
+            <td>
+<p>the step was a watchdog relaxed step</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+
+
+        <h4>Type-Bound Procedures</h4>
+        <table class="table table-striped varlist">
+          <tbody>
+              <tr>
+                <td>  procedure, public ::
+  <strong><a href='../type/sqpopt_linesearch_type.html#boundprocedure-search'>search</a></strong> => <a href='/home/runner/work/sqpopt/sqpopt/web/api/proc/line_search.html'>line_search</a></td>
+                  <td></td>
+              </tr>
+              <tr>
+                <td>  procedure, public ::
+  <strong><a href='../type/sqpopt_linesearch_type.html#boundprocedure-globalization_acceptable'>globalization_acceptable</a></strong> => <a href='/home/runner/work/sqpopt/sqpopt/web/api/proc/point_acceptable.html'>point_acceptable</a></td>
+                  <td></td>
+              </tr>
+          </tbody>
+        </table>
+    </div>
+  </div>
+
+        </section>
+        <br>
+
+        <section>
+          <h2>Functions</h2>
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-initial_step_length"></span> <h3>private  function <a href='../proc/initial_step_length.html'>initial_step_length</a>(x, p, step_limit) result(alpha0)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>the initial trial step length used by every line search mode before any
+backtracking (SNOPT's "Major step limit" option):
+<script type="math/tex; mode=display"> \alpha_0 = \min\!\left(1, \frac{\texttt{step\_limit}}
+{\max_j |p_j|/\max(1,|x_j|)}\right) </script>
+i.e. <code>p</code> is scaled down (never up) so that no variable changes by more
+than a factor of <code>step_limit</code> relative to <script type="math/tex"> \max(1,|x_j|) </script>. Returns
+<code>1</code> unchanged if <code>p</code> is zero.</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x~50"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x</strong></td>
+            <td>
+<p>current point and search direction, <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-p~23"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>p</strong></td>
+            <td>
+<p>current point and search direction, <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-step_limit"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>step_limit</strong></td>
+            <td>
+<p><code>sqpopt_linesearch_type%major_step_limit</code></p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+    <h4>
+    Return Value
+    <small>real(kind=wp)</small>
+    </h4>
+    <p>initial trial step length</p>
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-next_step_length"></span> <h3>private pure function <a href='../proc/next_step_length.html'>next_step_length</a>(me, alpha, phi0, dphi0, phi_a) result(alpha_new)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>the next trial step length after <code>alpha</code> was rejected: <code>backtrack*alpha</code>,
+or, if <code>interpolate</code>, the minimizer of the quadratic interpolating
+<script type="math/tex"> \phi(0) </script>, <script type="math/tex"> \phi'(0) </script>, and <script type="math/tex"> \phi(\alpha) </script> (as in NLPQLP),
+<script type="math/tex; mode=display"> \bar\alpha = \frac{-\tfrac12\alpha^2\phi'(0)}{\phi(\alpha)-\phi(0)-\alpha\phi'(0)} </script>
+safeguarded to <script type="math/tex"> [0.1\alpha, 0.5\alpha] </script> (and <code>backtrack*alpha</code> if the
+quadratic has no minimizer, e.g. <script type="math/tex"> \phi'(0) \ge 0 </script>).</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~141"></span>
+              class(<a href='../type/sqpopt_linesearch_type.html'>sqpopt_linesearch_type</a>),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-alpha~23"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>alpha</strong></td>
+            <td>
+<p>the rejected step length</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-phi0~7"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>phi0</strong></td>
+            <td>
+<p>
+<script type="math/tex"> \phi(0) </script>
+</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-dphi0~4"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>dphi0</strong></td>
+            <td>
+<p>
+<script type="math/tex"> \phi'(0) </script>
+</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-phi_a"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>phi_a</strong></td>
+            <td>
+<p>
+<script type="math/tex"> \phi(\alpha) </script>
+</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+    <h4>
+    Return Value
+    <small>real(kind=wp)</small>
+    </h4>
+    
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-point_acceptable"></span> <h3>private  function <a href='../proc/point_acceptable.html'>point_acceptable</a>(me, theta, phi) result(ok)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>whether a point with violation <code>theta</code> and objective <code>phi</code> is acceptable
+to the filter (<code>sqpopt_linesearch_filter</code> mode) or to the funnel
+(<code>sqpopt_linesearch_funnel</code> mode); always true in the other modes. Used
+to decide when a feasibility restoration phase can end (see
+<a href="../module/sqpopt_restoration_module.html">sqpopt_restoration_module</a>).</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~146"></span>
+              class(<a href='../type/sqpopt_linesearch_type.html'>sqpopt_linesearch_type</a>),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-theta~20"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>theta</strong></td>
+            <td>
+<p>constraint violation</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-phi~8"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>phi</strong></td>
+            <td>
+<p>objective</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+    <h4>
+    Return Value
+    <small>logical</small>
+    </h4>
+    
+
+    </div>
+  </div>
+
+        </section>
+        <br>
+
+        <section>
+          <h2>Subroutines</h2>
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-line_search"></span> <h3>private  subroutine <a href='../proc/line_search.html'>line_search</a>(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, alpha, x_new, istat, soc)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>perform a line search along the direction <code>p</code> to find an accepted step
+length <code>alpha</code>, dispatching to the strategy selected by <code>me%mode</code>.</p><a href="../proc/line_search.html" class="pull-right"><emph>Read more&hellip;</emph></a>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~134"></span>
+              class(<a href='../type/sqpopt_linesearch_type.html'>sqpopt_linesearch_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-eval_f"></span>
+              procedure(<a href='../interface/sqpopt_ls_objective_func.html'>sqpopt_ls_objective_func</a>)
+            </td>
+<td></td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>eval_f</strong></td>
+            <td>
+<p>evaluates <script type="math/tex"> f(x) </script>
+</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-eval_c"></span>
+              procedure(<a href='../interface/sqpopt_ls_constraint_func.html'>sqpopt_ls_constraint_func</a>)
+            </td>
+<td></td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>eval_c</strong></td>
+            <td>
+<p>evaluates <script type="math/tex"> c(x) </script>
+</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x~49"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x</strong></td>
+            <td>
+<p>current point <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-p~22"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>p</strong></td>
+            <td>
+<p>search direction <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-f~18"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>f</strong></td>
+            <td>
+<p>objective function value at <code>x</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-g~20"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>g</strong></td>
+            <td>
+<p>objective gradient at <code>x</code> <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c~37"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c</strong></td>
+            <td>
+<p>constraint values at <code>x</code> <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-jac~22"></span>
+              type(<a href='../type/sqpopt_sparse_matrix.html'>sqpopt_sparse_matrix</a>),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>jac</strong></td>
+            <td>
+<p>constraint Jacobian at <code>x</code>, <code>dimension(m,n)</code>
+(only used by <code>sqpopt_merit_augmented_lagrangian</code>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-lambda~18"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>lambda</strong></td>
+            <td>
+<p>Lagrange multiplier estimate <code>dimension(m)</code>
+(only used by <code>sqpopt_merit_augmented_lagrangian</code>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_lb~13"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_lb</strong></td>
+            <td>
+<p>constraint lower bounds <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_ub~13"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_ub</strong></td>
+            <td>
+<p>constraint upper bounds <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-alpha~15"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>alpha</strong></td>
+            <td>
+<p>accepted step length (<code>0</code> if no step was taken)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x_new~6"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x_new</strong></td>
+            <td>
+<p>the accepted new point <code>dimension(n)</code> (normally
+<code>x + alpha*p</code>; see above for the exceptions)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-istat~32"></span>
+              integer,
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>istat</strong></td>
+            <td>
+<p>status code (see <a href="../module/sqpopt_types_module.html">sqpopt_types_module</a>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-soc~3"></span>
+              procedure(<a href='../interface/sqpopt_soc_func.html'>sqpopt_soc_func</a>),
+            </td>
+<td></td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>soc</strong></td>
+            <td>
+<p>computes a second-order-corrected step</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-eval_fc"></span> <h3>private  subroutine <a href='../proc/eval_fc.html'>eval_fc</a>(eval_f, eval_c, x_trial, f_trial, c_trial, ok)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>evaluate <code>f</code> and <code>c</code> at a trial point; <code>ok</code> is false if any value is
+not finite (NaN or Inf), in which case the point must be rejected.</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-eval_f~2"></span>
+              procedure(<a href='../interface/sqpopt_ls_objective_func.html'>sqpopt_ls_objective_func</a>)
+            </td>
+<td></td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>eval_f</strong></td>
+            <td>
+<p>evaluates the objective</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-eval_c~2"></span>
+              procedure(<a href='../interface/sqpopt_ls_constraint_func.html'>sqpopt_ls_constraint_func</a>)
+            </td>
+<td></td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>eval_c</strong></td>
+            <td>
+<p>evaluates the constraints</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x_trial~5"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x_trial</strong></td>
+            <td>
+<p>trial point <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-f_trial~2"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>f_trial</strong></td>
+            <td>
+<p>objective function value at <code>x_trial</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_trial~8"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_trial</strong></td>
+            <td>
+<p>constraint values at <code>x_trial</code> <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-ok~41"></span>
+              logical,
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>ok</strong></td>
+            <td>
+<p>true if <code>f_trial</code> and <code>c_trial</code> are all finite</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-eval_trial"></span> <h3>private  subroutine <a href='../proc/eval_trial.html'>eval_trial</a>(me, eval_f, eval_c, x_trial, c_lb, c_ub, lambda, c_trial, phi_trial, ok, alpha)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>evaluate <code>f</code>, <code>c</code>, and the merit function at a trial point; <code>ok</code> is
+false (and <code>phi_trial=huge</code>) if any value is not finite.</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~135"></span>
+              class(<a href='../type/sqpopt_linesearch_type.html'>sqpopt_linesearch_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-eval_f~3"></span>
+              procedure(<a href='../interface/sqpopt_ls_objective_func.html'>sqpopt_ls_objective_func</a>)
+            </td>
+<td></td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>eval_f</strong></td>
+            <td>
+<p>evaluates the objective</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-eval_c~3"></span>
+              procedure(<a href='../interface/sqpopt_ls_constraint_func.html'>sqpopt_ls_constraint_func</a>)
+            </td>
+<td></td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>eval_c</strong></td>
+            <td>
+<p>evaluates the constraints</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x_trial~6"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x_trial</strong></td>
+            <td>
+<p>trial point <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_lb~14"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_lb</strong></td>
+            <td>
+<p>constraint lower bounds <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_ub~14"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_ub</strong></td>
+            <td>
+<p>constraint upper bounds <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-lambda~19"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>lambda</strong></td>
+            <td>
+<p>Lagrange multiplier estimate <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_trial~9"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_trial</strong></td>
+            <td>
+<p>constraint values at <code>x_trial</code> <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-phi_trial~2"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>phi_trial</strong></td>
+            <td>
+<p>merit function value at <code>x_trial</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-ok~42"></span>
+              logical,
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>ok</strong></td>
+            <td>
+<p>true if everything is finite</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-alpha~16"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>alpha</strong></td>
+            <td>
+<p>step length (for the joint step, see <a href="../proc/eval_merit_function.html">eval_merit_function</a>)</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-backtrack_search"></span> <h3>private  subroutine <a href='../proc/backtrack_search.html'>backtrack_search</a>(me, eval_f, eval_c, x, p, alpha0, phi0, dphi0, c, c_lb, c_ub, lambda, alpha, x_new, phi_new, accepted, soc, phi_ref)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>the backtracking Armijo search shared by <a href="../proc/armijo_line_search.html">armijo_line_search</a> and
+<a href="../proc/watchdog_line_search.html">watchdog_line_search</a>: starting from <code>alpha0</code>, <code>alpha</code> is reduced by
+<code>backtrack</code> until
+<script type="math/tex; mode=display"> \phi(x+\alpha p) \le \phi(x) + \sigma \alpha \min(D(\phi;p),0) </script>
+(the <code>min</code> keeps a non-descent <code>p</code> from loosening the test), for at most
+<code>max_ls_iter</code> trials and not below <code>alpha_min</code>. The comparison allows a
+roundoff-level slack (see <a href="../proc/merit_slack.html">merit_slack</a>), so that near a solution,
+where the change in the merit function is at the level of rounding
+error, a good step isn't rejected (which would otherwise backtrack
+<code>alpha</code> to a uselessly tiny value). If the first trial is
+rejected without reducing the constraint violation and <code>soc</code> is
+present, the second-order-corrected step is also tried at that point.</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~136"></span>
+              class(<a href='../type/sqpopt_linesearch_type.html'>sqpopt_linesearch_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-eval_f~4"></span>
+              procedure(<a href='../interface/sqpopt_ls_objective_func.html'>sqpopt_ls_objective_func</a>)
+            </td>
+<td></td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>eval_f</strong></td>
+            <td>
+<p>evaluates the objective</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-eval_c~4"></span>
+              procedure(<a href='../interface/sqpopt_ls_constraint_func.html'>sqpopt_ls_constraint_func</a>)
+            </td>
+<td></td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>eval_c</strong></td>
+            <td>
+<p>evaluates the constraints</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x~51"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x</strong></td>
+            <td>
+<p>current point <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-p~24"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>p</strong></td>
+            <td>
+<p>search direction <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-alpha0~2"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>alpha0</strong></td>
+            <td>
+<p>initial trial step length</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-phi0~3"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>phi0</strong></td>
+            <td>
+<p>merit function value at <code>x</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-dphi0"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>dphi0</strong></td>
+            <td>
+<p>directional derivative of the merit function along <code>p</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c~38"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c</strong></td>
+            <td>
+<p>constraint values at <code>x</code> <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_lb~15"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_lb</strong></td>
+            <td>
+<p>constraint lower bounds <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_ub~15"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_ub</strong></td>
+            <td>
+<p>constraint upper bounds <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-lambda~20"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>lambda</strong></td>
+            <td>
+<p>Lagrange multiplier estimate <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-alpha~17"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>alpha</strong></td>
+            <td>
+<p>accepted step length (meaningful only if <code>accepted</code>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x_new~7"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x_new</strong></td>
+            <td>
+<p>accepted point <code>dimension(n)</code> (meaningful only if <code>accepted</code>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-phi_new~2"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>phi_new</strong></td>
+            <td>
+<p>merit function value at <code>x_new</code> (meaningful only if <code>accepted</code>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-accepted"></span>
+              logical,
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>accepted</strong></td>
+            <td>
+<p>true if a step satisfying the Armijo test was found</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-soc~4"></span>
+              procedure(<a href='../interface/sqpopt_soc_func.html'>sqpopt_soc_func</a>),
+            </td>
+<td></td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>soc</strong></td>
+            <td>
+<p>computes a second-order-corrected step</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-phi_ref"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>phi_ref</strong></td>
+            <td>
+<p>reference value for the sufficient-decrease test, instead of
+<code>phi0</code> (the non-monotone retry, see <code>nonmonotone_len</code>)</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-armijo_line_search"></span> <h3>private  subroutine <a href='../proc/armijo_line_search.html'>armijo_line_search</a>(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, alpha, x_new, istat, soc)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>backtracking line search with an Armijo-type sufficient-decrease test
+on the merit function (see <a href="../proc/backtrack_search.html">backtrack_search</a>), starting from
+<script type="math/tex"> \alpha_0 </script> (see <a href="../proc/initial_step_length.html">initial_step_length</a>, normally <code>1</code> unless capped
+by <code>major_step_limit</code>). If no acceptable step is found, no step is taken
+(<code>x_new=x</code>, <code>istat=sqpopt_line_search_failed</code>).</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~137"></span>
+              class(<a href='../type/sqpopt_linesearch_type.html'>sqpopt_linesearch_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-eval_f~5"></span>
+              procedure(<a href='../interface/sqpopt_ls_objective_func.html'>sqpopt_ls_objective_func</a>)
+            </td>
+<td></td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>eval_f</strong></td>
+            <td>
+<p>evaluates the objective</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-eval_c~5"></span>
+              procedure(<a href='../interface/sqpopt_ls_constraint_func.html'>sqpopt_ls_constraint_func</a>)
+            </td>
+<td></td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>eval_c</strong></td>
+            <td>
+<p>evaluates the constraints</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x~52"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x</strong></td>
+            <td>
+<p>current point <code>x</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-p~25"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>p</strong></td>
+            <td>
+<p>search direction <code>p</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-f~19"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>f</strong></td>
+            <td>
+<p>objective function value at <code>x</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-g~21"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>g</strong></td>
+            <td>
+<p>gradient of the objective at <code>x</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c~39"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c</strong></td>
+            <td>
+<p>constraint values at <code>x</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-jac~23"></span>
+              type(<a href='../type/sqpopt_sparse_matrix.html'>sqpopt_sparse_matrix</a>),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>jac</strong></td>
+            <td>
+<p>constraint Jacobian at <code>x</code> (<code>dimension(m,n)</code>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-lambda~21"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>lambda</strong></td>
+            <td>
+<p>Lagrange multipliers at <code>x</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_lb~16"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_lb</strong></td>
+            <td>
+<p>lower bounds on the constraints</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_ub~16"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_ub</strong></td>
+            <td>
+<p>upper bounds on the constraints</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-alpha~18"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>alpha</strong></td>
+            <td>
+<p>step length along <code>p</code> (<code>0</code> if no step was taken)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x_new~8"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x_new</strong></td>
+            <td>
+<p>new point <code>x + alpha*p</code> (or the corrected step)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-istat~33"></span>
+              integer,
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>istat</strong></td>
+            <td>
+<p>status of the line search (success or failure)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-soc~5"></span>
+              procedure(<a href='../interface/sqpopt_soc_func.html'>sqpopt_soc_func</a>),
+            </td>
+<td></td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>soc</strong></td>
+            <td>
+<p>computes a second-order-corrected step</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-exact_line_search"></span> <h3>private  subroutine <a href='../proc/exact_line_search.html'>exact_line_search</a>(me, eval_f, eval_c, x, p, f, c, lambda, c_lb, c_ub, alpha, x_new, istat, soc)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>(approximately) minimize the merit function along <code>p</code> using the
+derivative-free 1-D minimizer <code>fmin</code>. The step is only accepted if it
+does not increase the merit function by more than roundoff (see
+<a href="../proc/merit_slack.html">merit_slack</a>; otherwise no step is taken and
+<code>istat=sqpopt_line_search_failed</code>); non-finite trial values are treated
+as <code>huge</code> by the 1-D minimization. If the minimizer falls short of the
+(initial) full step, and the full step did not reduce the constraint
+violation (the signature of the Maratos effect, which slows the exact
+search to linear convergence), the second-order-corrected full step is
+also tried (if <code>soc</code> is present), and taken if its merit is lower.</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~138"></span>
+              class(<a href='../type/sqpopt_linesearch_type.html'>sqpopt_linesearch_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-eval_f~6"></span>
+              procedure(<a href='../interface/sqpopt_ls_objective_func.html'>sqpopt_ls_objective_func</a>)
+            </td>
+<td></td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>eval_f</strong></td>
+            <td>
+<p>evaluates <script type="math/tex"> f(x) </script>
+</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-eval_c~6"></span>
+              procedure(<a href='../interface/sqpopt_ls_constraint_func.html'>sqpopt_ls_constraint_func</a>)
+            </td>
+<td></td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>eval_c</strong></td>
+            <td>
+<p>evaluates <script type="math/tex"> c(x) </script>
+</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x~53"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x</strong></td>
+            <td>
+<p>current point <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-p~26"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>p</strong></td>
+            <td>
+<p>search direction <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-f~20"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>f</strong></td>
+            <td>
+<p>objective function value at <code>x</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c~40"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c</strong></td>
+            <td>
+<p>constraint values at <code>x</code> <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-lambda~22"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>lambda</strong></td>
+            <td>
+<p>Lagrange multiplier estimate <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_lb~17"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_lb</strong></td>
+            <td>
+<p>constraint lower bounds <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_ub~17"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_ub</strong></td>
+            <td>
+<p>constraint upper bounds <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-alpha~19"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>alpha</strong></td>
+            <td>
+<p>accepted step length (<code>0</code> if no step was taken)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x_new~9"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x_new</strong></td>
+            <td>
+<p>the accepted new point <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-istat~34"></span>
+              integer,
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>istat</strong></td>
+            <td>
+<p>status code (see <a href="../module/sqpopt_types_module.html">sqpopt_types_module</a>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-soc~6"></span>
+              procedure(<a href='../interface/sqpopt_soc_func.html'>sqpopt_soc_func</a>),
+            </td>
+<td></td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>soc</strong></td>
+            <td>
+<p>computes a second-order-corrected step</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-watchdog_line_search"></span> <h3>private  subroutine <a href='../proc/watchdog_line_search.html'>watchdog_line_search</a>(me, eval_f, eval_c, x, p, f, g, c, jac, lambda, c_lb, c_ub, alpha, x_new, istat, soc)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>Powell's watchdog technique (Chamberlain, Lemarechal, Pedersen &amp; Powell,
+<em>Math. Prog. Study 16</em> (1982)): a variant of
+<a href="../proc/armijo_line_search.html">armijo_line_search</a> that, once a genuine improvement has been made,
+allows a bounded number of subsequent <em>relaxed</em> steps -- accepting the
+full step <code>x+p</code> outright even if it does not satisfy the sufficient-
+decrease test (but never a step to a non-finite point) -- rather than
+stalling near a curved or simultaneously-active constraint boundary (the
+Maratos effect). If none of those relaxed steps beats the best point
+found so far, the search backtracks all the way to that best point and
+disables relaxed acceptance for <code>watchdog_cooldown_len</code> further calls.
+If the standard search fails with no relaxed window available, no step
+is taken.</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~139"></span>
+              class(<a href='../type/sqpopt_linesearch_type.html'>sqpopt_linesearch_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-eval_f~7"></span>
+              procedure(<a href='../interface/sqpopt_ls_objective_func.html'>sqpopt_ls_objective_func</a>)
+            </td>
+<td></td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>eval_f</strong></td>
+            <td>
+<p>evaluates the objective</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-eval_c~7"></span>
+              procedure(<a href='../interface/sqpopt_ls_constraint_func.html'>sqpopt_ls_constraint_func</a>)
+            </td>
+<td></td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>eval_c</strong></td>
+            <td>
+<p>evaluates the constraints</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x~54"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x</strong></td>
+            <td>
+<p>current point in the search space</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-p~27"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>p</strong></td>
+            <td>
+<p>search direction</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-f~21"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>f</strong></td>
+            <td>
+<p>objective function value at <code>x</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-g~22"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>g</strong></td>
+            <td>
+<p>gradient of the objective function at <code>x</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c~41"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c</strong></td>
+            <td>
+<p>constraint function values at <code>x</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-jac~24"></span>
+              type(<a href='../type/sqpopt_sparse_matrix.html'>sqpopt_sparse_matrix</a>),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>jac</strong></td>
+            <td>
+<p>Jacobian of the constraints at <code>x</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-lambda~23"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>lambda</strong></td>
+            <td>
+<p>Lagrange multipliers at <code>x</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_lb~18"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_lb</strong></td>
+            <td>
+<p>lower bounds on the constraints</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_ub~18"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_ub</strong></td>
+            <td>
+<p>upper bounds on the constraints</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-alpha~21"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>alpha</strong></td>
+            <td>
+<p>step length found by the line search</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x_new~10"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x_new</strong></td>
+            <td>
+<p>new point after the line search</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-istat~35"></span>
+              integer,
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>istat</strong></td>
+            <td>
+<p>status of the line search (0 if successful)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-soc~7"></span>
+              procedure(<a href='../interface/sqpopt_soc_func.html'>sqpopt_soc_func</a>),
+            </td>
+<td></td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>soc</strong></td>
+            <td>
+<p>computes a second-order-corrected step</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-filter_line_search"></span> <h3>private  subroutine <a href='../proc/filter_line_search.html'>filter_line_search</a>(me, eval_f, eval_c, x, p, f, g, c, c_lb, c_ub, alpha, x_new, istat, soc)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>the filter line search (see the module-level documentation), with the
+rules of Wächter &amp; Biegler (2005, 2006). With
+<script type="math/tex"> \theta </script> the <script type="math/tex"> \ell_1 </script> constraint violation and <script type="math/tex"> \varphi=f </script>,
+a trial point <script type="math/tex"> x+\alpha p </script> is accepted if it is acceptable to the
+filter (see <a href="../proc/filter_step_acceptable.html">filter_step_acceptable</a>) and either</p><a href="../proc/filter_line_search.html" class="pull-right"><emph>Read more&hellip;</emph></a>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~140"></span>
+              class(<a href='../type/sqpopt_linesearch_type.html'>sqpopt_linesearch_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-eval_f~8"></span>
+              procedure(<a href='../interface/sqpopt_ls_objective_func.html'>sqpopt_ls_objective_func</a>)
+            </td>
+<td></td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>eval_f</strong></td>
+            <td>
+<p>evaluates the objective</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-eval_c~8"></span>
+              procedure(<a href='../interface/sqpopt_ls_constraint_func.html'>sqpopt_ls_constraint_func</a>)
+            </td>
+<td></td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>eval_c</strong></td>
+            <td>
+<p>evaluates the constraints</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x~55"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x</strong></td>
+            <td>
+<p>current point <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-p~28"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>p</strong></td>
+            <td>
+<p>search direction <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-f~22"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>f</strong></td>
+            <td>
+<p>objective function value at <code>x</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-g~23"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>g</strong></td>
+            <td>
+<p>objective gradient at <code>x</code> <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c~42"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c</strong></td>
+            <td>
+<p>constraint values at <code>x</code> <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_lb~19"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_lb</strong></td>
+            <td>
+<p>constraint lower bounds <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_ub~19"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_ub</strong></td>
+            <td>
+<p>constraint upper bounds <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-alpha~22"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>alpha</strong></td>
+            <td>
+<p>accepted step length (<code>0</code> if no step was taken)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x_new~11"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x_new</strong></td>
+            <td>
+<p>the accepted new point <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-istat~36"></span>
+              integer,
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>istat</strong></td>
+            <td>
+<p>status code (see <a href="../module/sqpopt_types_module.html">sqpopt_types_module</a>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-soc~8"></span>
+              procedure(<a href='../interface/sqpopt_soc_func.html'>sqpopt_soc_func</a>),
+            </td>
+<td></td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>soc</strong></td>
+            <td>
+<p>computes a second-order-corrected step</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-nonmonotone_push"></span> <h3>private  subroutine <a href='../proc/nonmonotone_push.html'>nonmonotone_push</a>(me, phi, theta, f)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>add the current iterate's merit value (<code>armijo</code> mode), or violation and
+objective value (<code>filter</code> mode), to the queue used by the non-monotone
+retry (keeping the most recent <code>nonmonotone_len</code>).</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~142"></span>
+              class(<a href='../type/sqpopt_linesearch_type.html'>sqpopt_linesearch_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-phi~6"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>phi</strong></td>
+            <td>
+<p>merit value at the iterate (<code>armijo</code> mode)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-theta~18"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>theta</strong></td>
+            <td>
+<p>constraint violation at the iterate (<code>filter</code> mode)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-f~23"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>f</strong></td>
+            <td>
+<p>objective at the iterate (<code>filter</code> mode)</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-funnel_line_search"></span> <h3>private  subroutine <a href='../proc/funnel_line_search.html'>funnel_line_search</a>(me, eval_f, eval_c, x, p, f, g, c, c_lb, c_ub, alpha, x_new, istat, soc)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>the funnel line search (see the module-level documentation), with the
+rules of Kiessling, Leyffer &amp; Vanaret, as implemented in the Uno solver.
+With <script type="math/tex"> \theta </script> the <script type="math/tex"> \ell_1 </script> constraint violation, <script type="math/tex"> \varphi=f </script>,
+and <script type="math/tex"> \tau </script> the funnel width, a trial point <script type="math/tex"> x+\alpha p </script> is
+accepted if it is inside the funnel, <script type="math/tex"> \theta_t \le \tau </script>, and either</p><a href="../proc/funnel_line_search.html" class="pull-right"><emph>Read more&hellip;</emph></a>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~143"></span>
+              class(<a href='../type/sqpopt_linesearch_type.html'>sqpopt_linesearch_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-eval_f~9"></span>
+              procedure(<a href='../interface/sqpopt_ls_objective_func.html'>sqpopt_ls_objective_func</a>)
+            </td>
+<td></td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>eval_f</strong></td>
+            <td>
+<p>evaluates the objective</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-eval_c~9"></span>
+              procedure(<a href='../interface/sqpopt_ls_constraint_func.html'>sqpopt_ls_constraint_func</a>)
+            </td>
+<td></td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>eval_c</strong></td>
+            <td>
+<p>evaluates the constraints</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x~56"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x</strong></td>
+            <td>
+<p>current point <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-p~29"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>p</strong></td>
+            <td>
+<p>search direction <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-f~24"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>f</strong></td>
+            <td>
+<p>objective function value at <code>x</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-g~24"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>g</strong></td>
+            <td>
+<p>objective gradient at <code>x</code> <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c~43"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c</strong></td>
+            <td>
+<p>constraint values at <code>x</code> <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_lb~20"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_lb</strong></td>
+            <td>
+<p>constraint lower bounds <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_ub~20"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_ub</strong></td>
+            <td>
+<p>constraint upper bounds <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-alpha~24"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>alpha</strong></td>
+            <td>
+<p>accepted step length (<code>0</code> if no step was taken)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x_new~12"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x_new</strong></td>
+            <td>
+<p>the accepted new point <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-istat~37"></span>
+              integer,
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>istat</strong></td>
+            <td>
+<p>status code (see <a href="../module/sqpopt_types_module.html">sqpopt_types_module</a>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-soc~9"></span>
+              procedure(<a href='../interface/sqpopt_soc_func.html'>sqpopt_soc_func</a>),
+            </td>
+<td></td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>soc</strong></td>
+            <td>
+<p>computes a second-order-corrected step</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-log_merit_trial"></span> <h3>private  subroutine <a href='../proc/log_merit_trial.html'>log_merit_trial</a>(me, alpha, phi, target, ok, is_soc)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>the detailed log's line for a trial point of a merit-function search:
+its step length, merit value, and the value it had to reach.</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~144"></span>
+              class(<a href='../type/sqpopt_linesearch_type.html'>sqpopt_linesearch_type</a>),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-alpha~25"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>alpha</strong></td>
+            <td>
+<p>step length</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-phi~7"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>phi</strong></td>
+            <td>
+<p>merit value at the trial point</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-target~3"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>target</strong></td>
+            <td>
+<p>the value the merit had to reach to be accepted</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-ok~49"></span>
+              logical,
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>ok</strong></td>
+            <td>
+<p>whether the functions were finite there</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-is_soc"></span>
+              logical,
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>is_soc</strong></td>
+            <td>
+<p>whether it was the second-order-corrected step</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-log_theta_trial"></span> <h3>private  subroutine <a href='../proc/log_theta_trial.html'>log_theta_trial</a>(me, alpha, theta, f, ok, accepted, f_type, is_soc)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>the detailed log's line for a trial point of a filter or funnel search:
+its step length, violation, objective, and whether (and as which type of
+step) it was accepted.</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~145"></span>
+              class(<a href='../type/sqpopt_linesearch_type.html'>sqpopt_linesearch_type</a>),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-alpha~26"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>alpha</strong></td>
+            <td>
+<p>step length</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-theta~19"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>theta</strong></td>
+            <td>
+<p>constraint violation at the trial point</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-f~25"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>f</strong></td>
+            <td>
+<p>objective at the trial point</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-ok~50"></span>
+              logical,
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>ok</strong></td>
+            <td>
+<p>whether the functions were finite there</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-accepted~3"></span>
+              logical,
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>accepted</strong></td>
+            <td>
+<p>whether the trial point was accepted</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-f_type~6"></span>
+              logical,
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>f_type</strong></td>
+            <td>
+<p>whether the switching condition held (an f-type step)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-is_soc~2"></span>
+              logical,
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>is_soc</strong></td>
+            <td>
+<p>whether it was the second-order-corrected step</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+        </section>
+        <br>
+
+
+
+    </div>
+  </div>
+
+      <hr>
+    </div> <!-- /container -->
+    <footer>
+      <div class="container">
+        <div class="row justify-content-between">
+          <div class="col">
+            <p>
+              sqpopt
+ was developed by Jacob Williams<br>              &copy; 2026 
+</p>
+          </div>
+          <div class="col">
+            <p class="text-end">
+              Documentation generated by
+              <a href="https://github.com/Fortran-FOSS-Programmers/ford">FORD</a>
+            </p>
+          </div>
+        </div>
+        <br>
+      </div> <!-- /container -->
+    </footer>
+    <!-- sqpopt theme: the button switches the theme, and remembers it for the guide too -->
+    <script>
+      document.querySelector('.theme-toggle').addEventListener('click', function () {
+        var root = document.documentElement;
+        var next = root.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-bs-theme', next);
+        try { localStorage.setItem('sqpopt-theme', next); } catch (e) {}
+      });
+    </script>
+  </body>
+</html>

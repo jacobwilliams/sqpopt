@@ -1,0 +1,1558 @@
+<!-- -*- mode: jinja2 -*- -->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- sqpopt theme: set before the page is drawn; the guide's choice (the same
+         localStorage key, on the same site), or else the system's -->
+    <script>
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('sqpopt-theme'); } catch (e) {}
+        if (t !== 'dark' && t !== 'light') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-bs-theme', t);
+      })();
+    </script>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta name="description" content="Modern Fortran SQP OPTimizer">
+    <meta name="author" content="Jacob Williams" >
+    <link rel="icon" href="../favicon.png">
+
+    <title>direct_qp_step &ndash; sqpopt</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <!-- Font Awesome -->
+    <link href="../css/fontawesome.min.css" rel="stylesheet">
+    <link href="../css/brands.min.css" rel="stylesheet">
+    <link href="../css/regular.min.css" rel="stylesheet">
+    <link href="../css/solid.min.css" rel="stylesheet">
+    <link href="../css/v4-font-face.min.css" rel="stylesheet">
+    <link href="../css/v4-shims.min.css" rel="stylesheet">
+    <!-- MathJax -->
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        TeX: { equationNumbers: { autoNumber: "AMS" } }
+      });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@2.7.9/MathJax.js?config=TeX-AMS-MML_HTMLorMML" async
+            integrity="sha256-DViIOMYdwlM/axqoGDPeUyf0urLoHMN4QACBKyB58Uw=" crossorigin="anonymous"></script>
+    <!-- Other scripts and stylesheets -->
+    <link href="../css/local.css" rel="stylesheet">
+    <link href="../css/pygments.css" rel="stylesheet">
+      <link href="../css/user.css" rel="stylesheet">
+    <script src="../js/svg-pan-zoom.min.js"></script>
+  </head>
+
+  <body>
+
+    <!-- Fixed navbar -->
+    <div class="container-fluid mb-sm-4 mb-xl-2">
+      <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+          <a class="navbar-brand" href="../index.html">sqpopt </a>
+          <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbar"
+                  aria-expanded="false" aria-controls="navbar" aria-label="Toggle navigation">
+                  <span class="navbar-toggler-icon">
+          </button>
+
+          <div id="navbar" class="navbar-collapse collapse">
+            <ul class="navbar-nav">
+                  <li class="nav-item">
+                    <a class="nav-link" href="../lists/files.html">Source Files</a>
+                  </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/modules.html">Modules</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/procedures.html">Procedures</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/absint.html">Abstract Interfaces</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/types.html">Derived Types</a>
+                </li>
+            </ul>
+              <div class="d-flex align-items-end flex-grow-1">
+                <form action="../search.html" role="search" class="ms-auto">
+                  <input type="text" class="form-control" aria-label="Search" placeholder="Search" name="q" id="tipue_search_input" autocomplete="off" required>
+                </form>
+              </div>
+            <!-- sqpopt theme: the light/dark button -->
+            <button type="button" class="btn nav-link theme-toggle ms-lg-3" aria-label="Toggle dark mode" title="Toggle dark mode">
+              <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg>
+              <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div><!--/.nav-collapse -->
+        </div>
+      </nav>
+    </div>
+
+    <div class="container">
+  <div class="row">
+    <h1>direct_qp_step
+      <small>Subroutine</small>
+      
+    </h1>
+      <div class="container p-2 mb-4 bg-light border rounded-3">
+    <div class="row align-items-center justify-content-between" id="info-bar">
+      <div class="col">
+        <ul class="list-inline" style="margin-bottom:0px;display:inline">
+
+            <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
+              <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
+                 title=" 1.6% of total for procedures.">160 statements</a>
+            </li>
+
+            <li class="list-inline-item" id="source-file">
+              <i class="fa fa-code"></i>
+              <a href="../src/sqpopt_qp_direct_module.f90"> Source File</a>
+            </li>
+        </ul>
+      </div>
+      <div class="col">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb justify-content-end mb-0">
+                <li class="breadcrumb-item"><a href='../sourcefile/sqpopt_qp_direct_module.f90.html'>sqpopt_qp_direct_module.f90</a></li>
+                <li class="breadcrumb-item"><a href='../module/sqpopt_qp_direct_module.html'>sqpopt_qp_direct_module</a></li>
+            <li class="breadcrumb-item active" aria-current="page">direct_qp_step</li>
+          </ol>
+        </nav>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Enable Bootstrap tooltips
+    (function () {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+      const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+    })();
+  </script>
+
+  </div>
+  
+  <div class="row">
+    <div class="col-md-3 hidden-xs hidden-sm visible-md visible-lg">
+      <div id="sidebar">
+      <h3>Contents</h3>
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+    <div class="card card-primary">
+      <div class="card-header text-left"><h3 class="card-title">Source Code</h3></div>
+      <div class="list-group">
+        <a class="list-group-item" href="../proc/direct_qp_step.html#src">direct_qp_step</a>
+      </div>
+    </div>
+
+
+  </div>
+
+    </div>
+    
+    <div class="col-md-9" id='text'>
+    <h2>public  subroutine direct_qp_step(kkt, hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, max_changes, tol, status, p, lambda, n_changes, outcome, inertia)  
+</h2>
+    
+
+    <p>try to solve the QP subproblem directly (see the module documentation),
+starting from the working set <code>status</code>. If it succeeds
+(<code>outcome = sqpopt_direct_solved</code>), <code>p</code> and <code>lambda</code> are the QP's
+solution and <code>status</code> its working set. Otherwise they are not to be
+used, <code>status</code> is unchanged, and <code>outcome</code> says why it gave up (see the
+<code>sqpopt_direct_*</code> constants).</p>
+
+
+    <h3>Arguments</h3>
+        <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-kkt~9"></span>
+              type(<a href='../type/sqpopt_kkt_type.html'>sqpopt_kkt_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>kkt</strong></td>
+            <td>
+                <p>the KKT matrix (see <a href="../module/sqpopt_kkt_module.html">sqpopt_kkt_module</a>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-hessian~17"></span>
+              type(<a href='../type/sqpopt_hessian_type.html'>sqpopt_hessian_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>hessian</strong></td>
+            <td>
+                <p>the Hessian (exact, with its shift, or quasi-Newton)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-jac~25"></span>
+              type(<a href='../type/sqpopt_sparse_matrix.html'>sqpopt_sparse_matrix</a>),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>jac</strong></td>
+            <td>
+                <p>sparse constraint Jacobian, <code>dimension(m,n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x~57"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x</strong></td>
+            <td>
+                <p>current point <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-g~25"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>g</strong></td>
+            <td>
+                <p>objective gradient <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c~44"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c</strong></td>
+            <td>
+                <p>current constraint values <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x_lb~12"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x_lb</strong></td>
+            <td>
+                <p>variable lower bounds <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x_ub~12"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x_ub</strong></td>
+            <td>
+                <p>variable upper bounds <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_lb~21"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_lb</strong></td>
+            <td>
+                <p>constraint lower bounds <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_ub~21"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_ub</strong></td>
+            <td>
+                <p>constraint upper bounds <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-max_changes"></span>
+              integer,
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>max_changes</strong></td>
+            <td>
+                <p>maximum number of changes of the working set</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-tol~12"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>tol</strong></td>
+            <td>
+                <p>relative tolerance for a violated row or bound, and for
+the sign of a multiplier</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-status~28"></span>
+              integer,
+            </td>
+<td>intent(inout),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>status</strong></td>
+            <td>
+                <p>the working set: the side (<code>-1</code> lower, <code>+1</code> upper, <code>0</code>
+not in it) of each general row, then of each variable
+bound <code>dimension(m+n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-p~30"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>p</strong></td>
+            <td>
+                <p>the step <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-lambda~24"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>lambda</strong></td>
+            <td>
+                <p>the constraint multipliers <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-n_changes"></span>
+              integer,
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>n_changes</strong></td>
+            <td>
+                <p>number of changes of the working set that were made</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-outcome"></span>
+              integer,
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>outcome</strong></td>
+            <td>
+                <p>how it ended (a <code>sqpopt_direct_*</code> constant)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-inertia~5"></span>
+              type(<a href='../type/sqpopt_inertia_type.html'>sqpopt_inertia_type</a>),
+            </td>
+<td>intent(inout),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>inertia</strong></td>
+            <td>
+                <p>the inertia control, to raise the Hessian's shift
+at a nonconvex face (used if <code>inertia%enabled</code>)</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+    <br>
+    <div class="card">
+      <div class="card-header">
+  <h3 class="card-title">Calls</h3>
+      </div>
+      <div class="card-body">
+  <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: proc~~direct_qp_step~~CallsGraph Pages: 1 -->
+<svg id="procdirect_qp_stepCallsGraph" width="641pt" height="205pt"
+ viewBox="0.00 0.00 641.00 205.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="proc~~direct_qp_step~~CallsGraph" class="graph" transform="scale(0.323347 0.323347) rotate(0) translate(4 630.27)">
+<title>proc~~direct_qp_step~~CallsGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-630.27 1978.39,-630.27 1978.39,4 -4,4"/>
+<!-- proc~direct_qp_step -->
+<g id="proc~~direct_qp_step~~CallsGraph_node1" class="node">
+<title>proc~direct_qp_step</title>
+<polygon fill="none" stroke="black" points="88.02,-226.27 0,-226.27 0,-202 88.02,-202 88.02,-226.27"/>
+<text xml:space="preserve" text-anchor="middle" x="44.01" y="-210.53" font-family="Helvetica,sans-Serif" font-size="10.50">direct_qp_step</text>
+</g>
+<!-- proc~hessian_size -->
+<g id="proc~~direct_qp_step~~CallsGraph_node2" class="node">
+<title>proc~hessian_size</title>
+<g id="a_proc~~direct_qp_step~~CallsGraph_node2"><a xlink:href="../proc/hessian_size.html" xlink:title="sqpopt_hessian_type%hessian_size">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="817.45,-517.27 619.93,-517.27 619.93,-493 817.45,-493 817.45,-517.27"/>
+<text xml:space="preserve" text-anchor="middle" x="718.69" y="-501.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_size</text>
+</a>
+</g>
+</g>
+<!-- proc~direct_qp_step&#45;&gt;proc~hessian_size -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge1" class="edge">
+<title>proc~direct_qp_step&#45;&gt;proc~hessian_size</title>
+<path fill="none" stroke="#000000" d="M45.24,-226.67C46.68,-265.53 56.64,-384.9 124.02,-444.13 273.85,-575.85 534.12,-543.94 653.96,-520.03"/>
+<polygon fill="#000000" stroke="#000000" points="654.53,-523.49 663.62,-518.05 653.13,-516.63 654.53,-523.49"/>
+</g>
+<!-- proc~hessian_vector_product -->
+<g id="proc~~direct_qp_step~~CallsGraph_node3" class="node">
+<title>proc~hessian_vector_product</title>
+<g id="a_proc~~direct_qp_step~~CallsGraph_node3"><a xlink:href="../proc/hessian_vector_product.html" xlink:title="sqpopt_hessian_type%hessian_vector_product">
+<polygon fill="#d9534f" stroke="#d9534f" points="847.08,-192.27 590.31,-192.27 590.31,-168 847.08,-168 847.08,-192.27"/>
+<text xml:space="preserve" text-anchor="middle" x="718.69" y="-176.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_vector_product</text>
+</a>
+</g>
+</g>
+<!-- proc~direct_qp_step&#45;&gt;proc~hessian_vector_product -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge2" class="edge">
+<title>proc~direct_qp_step&#45;&gt;proc~hessian_vector_product</title>
+<path fill="none" stroke="#000000" d="M88.37,-211.94C185.6,-207.03 424.55,-194.95 578.45,-187.17"/>
+<polygon fill="#000000" stroke="#000000" points="578.51,-190.67 588.32,-186.67 578.16,-183.68 578.51,-190.67"/>
+</g>
+<!-- proc~inertia_correct -->
+<g id="proc~~direct_qp_step~~CallsGraph_node4" class="node">
+<title>proc~inertia_correct</title>
+<g id="a_proc~~direct_qp_step~~CallsGraph_node4"><a xlink:href="../proc/inertia_correct.html" xlink:title="sqpopt_inertia_type%inertia_correct">
+<polygon fill="#d9534f" stroke="#d9534f" points="326.79,-435.27 124.02,-435.27 124.02,-411 326.79,-411 326.79,-435.27"/>
+<text xml:space="preserve" text-anchor="middle" x="225.4" y="-419.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_inertia_type%inertia_correct</text>
+</a>
+</g>
+</g>
+<!-- proc~direct_qp_step&#45;&gt;proc~inertia_correct -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge3" class="edge">
+<title>proc~direct_qp_step&#45;&gt;proc~inertia_correct</title>
+<path fill="none" stroke="#000000" d="M50.39,-226.54C61.54,-251.36 89.12,-308.09 124.02,-347.13 144.39,-369.93 172.47,-390.5 193.74,-404.47"/>
+<polygon fill="#000000" stroke="#000000" points="191.71,-407.32 202.01,-409.78 195.49,-401.43 191.71,-407.32"/>
+</g>
+<!-- proc~kkt_factor -->
+<g id="proc~~direct_qp_step~~CallsGraph_node5" class="node">
+<title>proc~kkt_factor</title>
+<g id="a_proc~~direct_qp_step~~CallsGraph_node5"><a xlink:href="../proc/kkt_factor.html" xlink:title="sqpopt_kkt_type%kkt_factor">
+<polygon fill="#d9534f" stroke="#d9534f" points="538.18,-415.27 378.91,-415.27 378.91,-391 538.18,-391 538.18,-415.27"/>
+<text xml:space="preserve" text-anchor="middle" x="458.55" y="-399.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_kkt_type%kkt_factor</text>
+</a>
+</g>
+</g>
+<!-- proc~direct_qp_step&#45;&gt;proc~kkt_factor -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge4" class="edge">
+<title>proc~direct_qp_step&#45;&gt;proc~kkt_factor</title>
+<path fill="none" stroke="#000000" d="M66.17,-226.66C81.91,-235.8 104.03,-248.26 124.02,-258.13 226.75,-308.92 351.47,-360.58 415.35,-386.34"/>
+<polygon fill="#000000" stroke="#000000" points="413.82,-389.5 424.41,-389.99 416.44,-383.01 413.82,-389.5"/>
+</g>
+<!-- proc~kkt_solve -->
+<g id="proc~~direct_qp_step~~CallsGraph_node6" class="node">
+<title>proc~kkt_solve</title>
+<g id="a_proc~~direct_qp_step~~CallsGraph_node6"><a xlink:href="../proc/kkt_solve.html" xlink:title="sqpopt_kkt_type%kkt_solve">
+<polygon fill="#d9534f" stroke="#d9534f" points="796.45,-262.27 640.93,-262.27 640.93,-238 796.45,-238 796.45,-262.27"/>
+<text xml:space="preserve" text-anchor="middle" x="718.69" y="-246.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_kkt_type%kkt_solve</text>
+</a>
+</g>
+</g>
+<!-- proc~direct_qp_step&#45;&gt;proc~kkt_solve -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge5" class="edge">
+<title>proc~direct_qp_step&#45;&gt;proc~kkt_solve</title>
+<path fill="none" stroke="#000000" d="M88.47,-216.97C100.03,-217.7 112.49,-218.47 124.02,-219.13 303.51,-229.5 513.62,-240.11 629.56,-245.84"/>
+<polygon fill="#000000" stroke="#000000" points="629.16,-249.32 639.32,-246.32 629.5,-242.33 629.16,-249.32"/>
+</g>
+<!-- proc~sparse_matvec -->
+<g id="proc~~direct_qp_step~~CallsGraph_node7" class="node">
+<title>proc~sparse_matvec</title>
+<g id="a_proc~~direct_qp_step~~CallsGraph_node7"><a xlink:href="../proc/sparse_matvec.html" xlink:title="sparse_matvec">
+<polygon fill="#d9534f" stroke="#d9534f" points="271.29,-66.27 179.52,-66.27 179.52,-42 271.29,-42 271.29,-66.27"/>
+<text xml:space="preserve" text-anchor="middle" x="225.4" y="-50.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sparse_matvec</text>
+</a>
+</g>
+</g>
+<!-- proc~direct_qp_step&#45;&gt;proc~sparse_matvec -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge6" class="edge">
+<title>proc~direct_qp_step&#45;&gt;proc~sparse_matvec</title>
+<path fill="none" stroke="#000000" d="M48.76,-201.57C57.4,-174.88 81.31,-112.31 124.02,-80.13 136.75,-70.55 152.67,-64.48 168.07,-60.65"/>
+<polygon fill="#000000" stroke="#000000" points="168.63,-64.11 177.65,-58.55 167.13,-57.27 168.63,-64.11"/>
+</g>
+<!-- proc~sparse_matvec_transpose -->
+<g id="proc~~direct_qp_step~~CallsGraph_node8" class="node">
+<title>proc~sparse_matvec_transpose</title>
+<g id="a_proc~~direct_qp_step~~CallsGraph_node8"><a xlink:href="../proc/sparse_matvec_transpose.html" xlink:title="sparse_matvec_transpose">
+<polygon fill="#d9534f" stroke="#d9534f" points="300.16,-24.27 150.64,-24.27 150.64,0 300.16,0 300.16,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="225.4" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sparse_matvec_transpose</text>
+</a>
+</g>
+</g>
+<!-- proc~direct_qp_step&#45;&gt;proc~sparse_matvec_transpose -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge7" class="edge">
+<title>proc~direct_qp_step&#45;&gt;proc~sparse_matvec_transpose</title>
+<path fill="none" stroke="#000000" d="M46.53,-201.7C51.28,-168.62 68.95,-77.91 124.02,-33.13 128.81,-29.24 134.15,-26.01 139.79,-23.35"/>
+<polygon fill="#000000" stroke="#000000" points="140.87,-26.69 148.83,-19.7 138.25,-20.19 140.87,-26.69"/>
+</g>
+<!-- proc~sqpopt_all_finite -->
+<g id="proc~~direct_qp_step~~CallsGraph_node9" class="node">
+<title>proc~sqpopt_all_finite</title>
+<g id="a_proc~~direct_qp_step~~CallsGraph_node9"><a xlink:href="../proc/sqpopt_all_finite.html" xlink:title="sqpopt_all_finite">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="1461.49,-184.27 1363.72,-184.27 1363.72,-160 1461.49,-160 1461.49,-184.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1412.61" y="-168.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_all_finite</text>
+</a>
+</g>
+</g>
+<!-- proc~direct_qp_step&#45;&gt;proc~sqpopt_all_finite -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge8" class="edge">
+<title>proc~direct_qp_step&#45;&gt;proc~sqpopt_all_finite</title>
+<path fill="none" stroke="#000000" d="M69.86,-201.52C132.93,-170.71 305.01,-94.13 457.55,-94.13 457.55,-94.13 457.55,-94.13 719.69,-94.13 955.37,-94.14 1233.38,-139.37 1352.56,-160.95"/>
+<polygon fill="#000000" stroke="#000000" points="1351.63,-164.34 1362.1,-162.69 1352.89,-157.45 1351.63,-164.34"/>
+</g>
+<!-- proc~dense_lu_solve -->
+<g id="proc~~direct_qp_step~~CallsGraph_node10" class="node">
+<title>proc~dense_lu_solve</title>
+<g id="a_proc~~direct_qp_step~~CallsGraph_node10"><a xlink:href="../proc/dense_lu_solve.html" xlink:title="dense_lu_solve">
+<polygon fill="#d9534f" stroke="#d9534f" points="1094.1,-222.27 1002.33,-222.27 1002.33,-198 1094.1,-198 1094.1,-222.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1048.21" y="-206.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">dense_lu_solve</text>
+</a>
+</g>
+</g>
+<!-- proc~hessian_vector_product&#45;&gt;proc~dense_lu_solve -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge9" class="edge">
+<title>proc~hessian_vector_product&#45;&gt;proc~dense_lu_solve</title>
+<path fill="none" stroke="#000000" d="M847.26,-191.82C896.96,-196.37 951.34,-201.35 990.82,-204.97"/>
+<polygon fill="#000000" stroke="#000000" points="990.28,-208.43 1000.55,-205.86 990.92,-201.46 990.28,-208.43"/>
+</g>
+<!-- proc~factor_middle_matrix -->
+<g id="proc~~direct_qp_step~~CallsGraph_node11" class="node">
+<title>proc~factor_middle_matrix</title>
+<g id="a_proc~~direct_qp_step~~CallsGraph_node11"><a xlink:href="../proc/factor_middle_matrix.html" xlink:title="factor_middle_matrix">
+<polygon fill="#d9534f" stroke="#d9534f" points="1474.99,-424.27 1350.22,-424.27 1350.22,-400 1474.99,-400 1474.99,-424.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1412.61" y="-408.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">factor_middle_matrix</text>
+</a>
+</g>
+</g>
+<!-- proc~hessian_vector_product&#45;&gt;proc~factor_middle_matrix -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge10" class="edge">
+<title>proc~hessian_vector_product&#45;&gt;proc~factor_middle_matrix</title>
+<path fill="none" stroke="#000000" d="M829.28,-167.52C956.26,-155.36 1155.5,-144.67 1213.35,-189.13 1259.52,-224.63 1213.87,-268.95 1249.35,-315.13 1278.83,-353.51 1328.18,-379.86 1364.73,-395.3"/>
+<polygon fill="#000000" stroke="#000000" points="1363.17,-398.44 1373.75,-398.99 1365.81,-391.96 1363.17,-398.44"/>
+</g>
+<!-- proc~pair_col -->
+<g id="proc~~direct_qp_step~~CallsGraph_node17" class="node">
+<title>proc~pair_col</title>
+<g id="a_proc~~direct_qp_step~~CallsGraph_node17"><a xlink:href="../proc/pair_col.html" xlink:title="pair_col">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="1974.39,-346.27 1920.39,-346.27 1920.39,-322 1974.39,-322 1974.39,-346.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1947.39" y="-330.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">pair_col</text>
+</a>
+</g>
+</g>
+<!-- proc~hessian_vector_product&#45;&gt;proc~pair_col -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge11" class="edge">
+<title>proc~hessian_vector_product&#45;&gt;proc~pair_col</title>
+<path fill="none" stroke="#000000" d="M781.47,-167.56C811.92,-161.96 849.28,-156 883.08,-153.13 1189.89,-127.11 1269.38,-121.61 1575.87,-151.13 1714.92,-164.53 1773.02,-126.82 1884.39,-211.13 1917.09,-235.89 1933.8,-282.68 1941.27,-310.87"/>
+<polygon fill="#000000" stroke="#000000" points="1937.79,-311.35 1943.57,-320.22 1944.58,-309.68 1937.79,-311.35"/>
+</g>
+<!-- proc~inertia_correct&#45;&gt;proc~hessian_size -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge12" class="edge">
+<title>proc~inertia_correct&#45;&gt;proc~hessian_size</title>
+<path fill="none" stroke="#000000" d="M259.82,-435.7C287.14,-445.47 326.96,-458.59 362.79,-466.13 444.26,-483.28 537.94,-493.17 608.59,-498.7"/>
+<polygon fill="#000000" stroke="#000000" points="607.98,-502.16 618.21,-499.43 608.51,-495.18 607.98,-502.16"/>
+</g>
+<!-- proc~inertia_correct&#45;&gt;proc~kkt_factor -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge14" class="edge">
+<title>proc~inertia_correct&#45;&gt;proc~kkt_factor</title>
+<path fill="none" stroke="#000000" d="M327.12,-414.42C340.48,-413.26 354.11,-412.09 367.28,-410.95"/>
+<polygon fill="#000000" stroke="#000000" points="367.55,-414.44 377.21,-410.09 366.94,-407.46 367.55,-414.44"/>
+</g>
+<!-- proc~inertia_raise -->
+<g id="proc~~direct_qp_step~~CallsGraph_node15" class="node">
+<title>proc~inertia_raise</title>
+<g id="a_proc~~direct_qp_step~~CallsGraph_node15"><a xlink:href="../proc/inertia_raise.html" xlink:title="sqpopt_inertia_type%inertia_raise">
+<polygon fill="#d9534f" stroke="#d9534f" points="554.31,-457.27 362.79,-457.27 362.79,-433 554.31,-433 554.31,-457.27"/>
+<text xml:space="preserve" text-anchor="middle" x="458.55" y="-441.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_inertia_type%inertia_raise</text>
+</a>
+</g>
+</g>
+<!-- proc~inertia_correct&#45;&gt;proc~inertia_raise -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge13" class="edge">
+<title>proc~inertia_correct&#45;&gt;proc~inertia_raise</title>
+<path fill="none" stroke="#000000" d="M327.12,-432.72C335.14,-433.48 343.25,-434.26 351.31,-435.02"/>
+<polygon fill="#000000" stroke="#000000" points="350.85,-438.5 361.14,-435.96 351.52,-431.53 350.85,-438.5"/>
+</g>
+<!-- proc~factor_values -->
+<g id="proc~~direct_qp_step~~CallsGraph_node12" class="node">
+<title>proc~factor_values</title>
+<g id="a_proc~~direct_qp_step~~CallsGraph_node12"><a xlink:href="../proc/factor_values.html" xlink:title="factor_values">
+<polygon fill="#d9534f" stroke="#d9534f" points="760.08,-475.27 677.31,-475.27 677.31,-451 760.08,-451 760.08,-475.27"/>
+<text xml:space="preserve" text-anchor="middle" x="718.69" y="-459.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">factor_values</text>
+</a>
+</g>
+</g>
+<!-- proc~kkt_factor&#45;&gt;proc~factor_values -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge15" class="edge">
+<title>proc~kkt_factor&#45;&gt;proc~factor_values</title>
+<path fill="none" stroke="#000000" d="M517.49,-415.72C529.66,-418.43 542.42,-421.33 554.31,-424.13 570.36,-427.92 574.28,-429.24 590.31,-433.13 615.17,-439.17 642.8,-445.7 665.95,-451.12"/>
+<polygon fill="#000000" stroke="#000000" points="664.92,-454.47 675.46,-453.34 666.51,-447.66 664.92,-454.47"/>
+</g>
+<!-- proc~low_rank_update -->
+<g id="proc~~direct_qp_step~~CallsGraph_node16" class="node">
+<title>proc~low_rank_update</title>
+<g id="a_proc~~direct_qp_step~~CallsGraph_node16"><a xlink:href="../proc/low_rank_update.html" xlink:title="low_rank_update">
+<polygon fill="#d9534f" stroke="#d9534f" points="769.45,-424.27 667.93,-424.27 667.93,-400 769.45,-400 769.45,-424.27"/>
+<text xml:space="preserve" text-anchor="middle" x="718.69" y="-408.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">low_rank_update</text>
+</a>
+</g>
+</g>
+<!-- proc~kkt_factor&#45;&gt;proc~low_rank_update -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge16" class="edge">
+<title>proc~kkt_factor&#45;&gt;proc~low_rank_update</title>
+<path fill="none" stroke="#000000" d="M538.4,-405.88C576.4,-407.21 621.28,-408.77 656.63,-410.01"/>
+<polygon fill="#000000" stroke="#000000" points="656.12,-413.49 666.24,-410.34 656.37,-406.49 656.12,-413.49"/>
+</g>
+<!-- proc~kkt_solve&#45;&gt;proc~dense_lu_solve -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge17" class="edge">
+<title>proc~kkt_solve&#45;&gt;proc~dense_lu_solve</title>
+<path fill="none" stroke="#000000" d="M796.9,-240.71C856.45,-233.43 937.44,-223.54 990.96,-217.01"/>
+<polygon fill="#000000" stroke="#000000" points="991.28,-220.49 1000.78,-215.81 990.43,-213.54 991.28,-220.49"/>
+</g>
+<!-- proc~hessian_low_rank_multiply -->
+<g id="proc~~direct_qp_step~~CallsGraph_node13" class="node">
+<title>proc~hessian_low_rank_multiply</title>
+<g id="a_proc~~direct_qp_step~~CallsGraph_node13"><a xlink:href="../proc/hessian_low_rank_multiply.html" xlink:title="sqpopt_hessian_type%hessian_low_rank_multiply">
+<polygon fill="#d9534f" stroke="#d9534f" points="1884.39,-244.27 1611.87,-244.27 1611.87,-220 1884.39,-220 1884.39,-244.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1748.13" y="-228.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_low_rank_multiply</text>
+</a>
+</g>
+</g>
+<!-- proc~kkt_solve&#45;&gt;proc~hessian_low_rank_multiply -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge18" class="edge">
+<title>proc~kkt_solve&#45;&gt;proc~hessian_low_rank_multiply</title>
+<path fill="none" stroke="#000000" d="M796.86,-246.5C899.96,-241.84 1088.35,-234.02 1249.35,-231.13 1394.45,-228.53 1430.75,-230.71 1575.87,-231.13 1583.84,-231.16 1592.02,-231.19 1600.28,-231.22"/>
+<polygon fill="#000000" stroke="#000000" points="1600.05,-234.72 1610.07,-231.26 1600.08,-227.72 1600.05,-234.72"/>
+</g>
+<!-- proc~hessian_low_rank_multiply_transpose -->
+<g id="proc~~direct_qp_step~~CallsGraph_node14" class="node">
+<title>proc~hessian_low_rank_multiply_transpose</title>
+<g id="a_proc~~direct_qp_step~~CallsGraph_node14"><a xlink:href="../proc/hessian_low_rank_multiply_transpose.html" xlink:title="sqpopt_hessian_type%hessian_low_rank_multiply_transpose">
+<polygon fill="#d9534f" stroke="#d9534f" points="1213.35,-344.27 883.08,-344.27 883.08,-320 1213.35,-320 1213.35,-344.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1048.21" y="-328.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_low_rank_multiply_transpose</text>
+</a>
+</g>
+</g>
+<!-- proc~kkt_solve&#45;&gt;proc~hessian_low_rank_multiply_transpose -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge19" class="edge">
+<title>proc~kkt_solve&#45;&gt;proc~hessian_low_rank_multiply_transpose</title>
+<path fill="none" stroke="#000000" d="M747.41,-262.73C779.42,-276.74 833.99,-299 883.08,-311.13 892.81,-313.54 902.93,-315.68 913.17,-317.58"/>
+<polygon fill="#000000" stroke="#000000" points="912.35,-320.99 922.81,-319.29 913.57,-314.1 912.35,-320.99"/>
+</g>
+<!-- proc~symmetric_solver_solve -->
+<g id="proc~~direct_qp_step~~CallsGraph_node18" class="node">
+<title>proc~symmetric_solver_solve</title>
+<g id="a_proc~~direct_qp_step~~CallsGraph_node18"><a xlink:href="../proc/symmetric_solver_solve.html" xlink:title="sqpopt_symmetric_solver_type%symmetric_solver_solve">
+<polygon fill="#d9534f" stroke="#d9534f" points="1203.97,-302.27 892.45,-302.27 892.45,-278 1203.97,-278 1203.97,-302.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1048.21" y="-286.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_symmetric_solver_type%symmetric_solver_solve</text>
+</a>
+</g>
+</g>
+<!-- proc~kkt_solve&#45;&gt;proc~symmetric_solver_solve -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge20" class="edge">
+<title>proc~kkt_solve&#45;&gt;proc~symmetric_solver_solve</title>
+<path fill="none" stroke="#000000" d="M796.9,-259.56C837.35,-264.5 887.68,-270.65 932.58,-276.14"/>
+<polygon fill="#000000" stroke="#000000" points="932.02,-279.59 942.37,-277.33 932.87,-272.64 932.02,-279.59"/>
+</g>
+<!-- proc~dense_lu_factor -->
+<g id="proc~~direct_qp_step~~CallsGraph_node20" class="node">
+<title>proc~dense_lu_factor</title>
+<g id="a_proc~~direct_qp_step~~CallsGraph_node20"><a xlink:href="../proc/dense_lu_factor.html" xlink:title="dense_lu_factor">
+<polygon fill="#d9534f" stroke="#d9534f" points="1795.89,-488.27 1700.37,-488.27 1700.37,-464 1795.89,-464 1795.89,-488.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1748.13" y="-472.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">dense_lu_factor</text>
+</a>
+</g>
+</g>
+<!-- proc~factor_middle_matrix&#45;&gt;proc~dense_lu_factor -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge21" class="edge">
+<title>proc~factor_middle_matrix&#45;&gt;proc~dense_lu_factor</title>
+<path fill="none" stroke="#000000" d="M1475.13,-418.38C1505.58,-421.9 1542.8,-426.87 1575.87,-433.13 1615.11,-440.57 1658.76,-451.58 1692.17,-460.59"/>
+<polygon fill="#000000" stroke="#000000" points="1691.06,-463.91 1701.63,-463.16 1692.9,-457.16 1691.06,-463.91"/>
+</g>
+<!-- proc~middle_matrix -->
+<g id="proc~~direct_qp_step~~CallsGraph_node26" class="node">
+<title>proc~middle_matrix</title>
+<g id="a_proc~~direct_qp_step~~CallsGraph_node26"><a xlink:href="../proc/middle_matrix.html" xlink:title="middle_matrix">
+<polygon fill="#d9534f" stroke="#d9534f" points="1792.14,-428.27 1704.12,-428.27 1704.12,-404 1792.14,-404 1792.14,-428.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1748.13" y="-412.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">middle_matrix</text>
+</a>
+</g>
+</g>
+<!-- proc~factor_middle_matrix&#45;&gt;proc~middle_matrix -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge22" class="edge">
+<title>proc~factor_middle_matrix&#45;&gt;proc~middle_matrix</title>
+<path fill="none" stroke="#000000" d="M1475.17,-412.87C1537.46,-413.62 1632.85,-414.76 1692.52,-415.48"/>
+<polygon fill="#000000" stroke="#000000" points="1692.41,-418.98 1702.45,-415.6 1692.49,-411.98 1692.41,-418.98"/>
+</g>
+<!-- proc~kkt_negatives -->
+<g id="proc~~direct_qp_step~~CallsGraph_node25" class="node">
+<title>proc~kkt_negatives</title>
+<g id="a_proc~~direct_qp_step~~CallsGraph_node25"><a xlink:href="../proc/kkt_negatives.html" xlink:title="kkt_negatives">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="1090.35,-584.27 1006.08,-584.27 1006.08,-560 1090.35,-560 1090.35,-584.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1048.21" y="-568.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">kkt_negatives</text>
+</a>
+</g>
+</g>
+<!-- proc~factor_values&#45;&gt;proc~kkt_negatives -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge23" class="edge">
+<title>proc~factor_values&#45;&gt;proc~kkt_negatives</title>
+<path fill="none" stroke="#000000" d="M760.49,-460.95C787.37,-461.52 822.1,-466.28 847.08,-484.13 874.58,-503.79 855.23,-531.98 883.08,-551.13 915.4,-573.37 959.95,-577.86 994.48,-577.21"/>
+<polygon fill="#000000" stroke="#000000" points="994.39,-580.71 1004.26,-576.86 994.14,-573.72 994.39,-580.71"/>
+</g>
+<!-- proc~symmetric_solver_factor -->
+<g id="proc~~direct_qp_step~~CallsGraph_node27" class="node">
+<title>proc~symmetric_solver_factor</title>
+<g id="a_proc~~direct_qp_step~~CallsGraph_node27"><a xlink:href="../proc/symmetric_solver_factor.html" xlink:title="sqpopt_symmetric_solver_type%symmetric_solver_factor">
+<polygon fill="#d9534f" stroke="#d9534f" points="1205.85,-626.27 890.58,-626.27 890.58,-602 1205.85,-602 1205.85,-626.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1048.21" y="-610.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_symmetric_solver_type%symmetric_solver_factor</text>
+</a>
+</g>
+</g>
+<!-- proc~factor_values&#45;&gt;proc~symmetric_solver_factor -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge24" class="edge">
+<title>proc~factor_values&#45;&gt;proc~symmetric_solver_factor</title>
+<path fill="none" stroke="#000000" d="M760.36,-459.59C787.88,-459.43 823.4,-463.88 847.08,-484.13 885.85,-517.3 843.72,-560.68 883.08,-593.13 883.9,-593.81 884.74,-594.48 885.58,-595.13"/>
+<polygon fill="#000000" stroke="#000000" points="883.52,-597.95 893.76,-600.67 887.45,-592.16 883.52,-597.95"/>
+</g>
+<!-- proc~hessian_low_rank_multiply&#45;&gt;proc~pair_col -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge25" class="edge">
+<title>proc~hessian_low_rank_multiply&#45;&gt;proc~pair_col</title>
+<path fill="none" stroke="#000000" d="M1813.03,-244.74C1836.52,-251.07 1862.66,-260.23 1884.39,-273.13 1901.9,-283.53 1918.17,-299.91 1929.65,-313.07"/>
+<polygon fill="#000000" stroke="#000000" points="1926.69,-315 1935.81,-320.4 1932.05,-310.5 1926.69,-315"/>
+</g>
+<!-- proc~hessian_low_rank_multiply_transpose&#45;&gt;proc~pair_col -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge26" class="edge">
+<title>proc~hessian_low_rank_multiply_transpose&#45;&gt;proc~pair_col</title>
+<path fill="none" stroke="#000000" d="M1213.77,-332.5C1428.75,-332.98 1791.57,-333.79 1908.71,-334.05"/>
+<polygon fill="#000000" stroke="#000000" points="1908.68,-337.55 1918.69,-334.07 1908.7,-330.55 1908.68,-337.55"/>
+</g>
+<!-- proc~inertia_raise&#45;&gt;proc~hessian_size -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge27" class="edge">
+<title>proc~inertia_raise&#45;&gt;proc~hessian_size</title>
+<path fill="none" stroke="#000000" d="M508.46,-457.77C523.26,-461.8 539.51,-466.44 554.31,-471.13 570.53,-476.28 573.85,-479.84 590.31,-484.13 598.95,-486.39 607.98,-488.44 617.07,-490.32"/>
+<polygon fill="#000000" stroke="#000000" points="616.2,-493.71 626.69,-492.21 617.55,-486.84 616.2,-493.71"/>
+</g>
+<!-- proc~low_rank_update&#45;&gt;proc~hessian_low_rank_multiply_transpose -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge32" class="edge">
+<title>proc~low_rank_update&#45;&gt;proc~hessian_low_rank_multiply_transpose</title>
+<path fill="none" stroke="#000000" d="M752.41,-399.58C785.07,-387.46 836.92,-369.34 883.08,-358.13 901.24,-353.73 920.73,-349.88 939.7,-346.6"/>
+<polygon fill="#000000" stroke="#000000" points="940.02,-350.1 949.3,-344.99 938.86,-343.19 940.02,-350.1"/>
+</g>
+<!-- proc~low_rank_update&#45;&gt;proc~symmetric_solver_solve -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge35" class="edge">
+<title>proc~low_rank_update&#45;&gt;proc~symmetric_solver_solve</title>
+<path fill="none" stroke="#000000" d="M734.77,-399.68C762.29,-377.68 823.36,-332.29 883.08,-311.13 888.83,-309.1 894.76,-307.25 900.8,-305.58"/>
+<polygon fill="#000000" stroke="#000000" points="901.49,-309.02 910.3,-303.14 899.75,-302.24 901.49,-309.02"/>
+</g>
+<!-- proc~low_rank_update&#45;&gt;proc~dense_lu_factor -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge28" class="edge">
+<title>proc~low_rank_update&#45;&gt;proc~dense_lu_factor</title>
+<path fill="none" stroke="#000000" d="M769.73,-422.23C793.4,-427.43 821.91,-434.32 847.08,-442.13 863.47,-447.23 866.29,-452.53 883.08,-456.13 1180.25,-519.9 1548.1,-495.28 1688.73,-482.22"/>
+<polygon fill="#000000" stroke="#000000" points="1688.92,-485.72 1698.54,-481.29 1688.26,-478.75 1688.92,-485.72"/>
+</g>
+<!-- proc~dense_symmetric_inertia -->
+<g id="proc~~direct_qp_step~~CallsGraph_node21" class="node">
+<title>proc~dense_symmetric_inertia</title>
+<g id="a_proc~~direct_qp_step~~CallsGraph_node21"><a xlink:href="../proc/dense_symmetric_inertia.html" xlink:title="dense_symmetric_inertia">
+<polygon fill="#d9534f" stroke="#d9534f" points="1120.72,-542.27 975.7,-542.27 975.7,-518 1120.72,-518 1120.72,-542.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1048.21" y="-526.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">dense_symmetric_inertia</text>
+</a>
+</g>
+</g>
+<!-- proc~low_rank_update&#45;&gt;proc~dense_symmetric_inertia -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge29" class="edge">
+<title>proc~low_rank_update&#45;&gt;proc~dense_symmetric_inertia</title>
+<path fill="none" stroke="#000000" d="M769.87,-414.66C795.09,-418.1 824.91,-425.69 847.08,-442.13 872.68,-461.11 856.8,-486.12 883.08,-504.13 906.61,-520.26 936.45,-527.81 964.21,-531"/>
+<polygon fill="#000000" stroke="#000000" points="963.76,-534.47 974.04,-531.94 964.42,-527.51 963.76,-534.47"/>
+</g>
+<!-- proc~hessian_low_rank_column -->
+<g id="proc~~direct_qp_step~~CallsGraph_node22" class="node">
+<title>proc~hessian_low_rank_column</title>
+<g id="a_proc~~direct_qp_step~~CallsGraph_node22"><a xlink:href="../proc/hessian_low_rank_column.html" xlink:title="sqpopt_hessian_type%hessian_low_rank_column">
+<polygon fill="#d9534f" stroke="#d9534f" points="1882.89,-386.27 1613.37,-386.27 1613.37,-362 1882.89,-362 1882.89,-386.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1748.13" y="-370.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_low_rank_column</text>
+</a>
+</g>
+</g>
+<!-- proc~low_rank_update&#45;&gt;proc~hessian_low_rank_column -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge30" class="edge">
+<title>proc~low_rank_update&#45;&gt;proc~hessian_low_rank_column</title>
+<path fill="none" stroke="#000000" d="M769.61,-404.3C801.89,-399.58 844.86,-393.96 883.08,-391.13 1135.15,-372.51 1429.64,-371.04 1601.56,-372.21"/>
+<polygon fill="#000000" stroke="#000000" points="1601.42,-375.7 1611.45,-372.28 1601.48,-368.71 1601.42,-375.7"/>
+</g>
+<!-- proc~hessian_low_rank_middle -->
+<g id="proc~~direct_qp_step~~CallsGraph_node23" class="node">
+<title>proc~hessian_low_rank_middle</title>
+<g id="a_proc~~direct_qp_step~~CallsGraph_node23"><a xlink:href="../proc/hessian_low_rank_middle.html" xlink:title="sqpopt_hessian_type%hessian_low_rank_middle">
+<polygon fill="#d9534f" stroke="#d9534f" points="1545.87,-466.27 1279.35,-466.27 1279.35,-442 1545.87,-442 1545.87,-466.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1412.61" y="-450.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_low_rank_middle</text>
+</a>
+</g>
+</g>
+<!-- proc~low_rank_update&#45;&gt;proc~hessian_low_rank_middle -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge31" class="edge">
+<title>proc~low_rank_update&#45;&gt;proc~hessian_low_rank_middle</title>
+<path fill="none" stroke="#000000" d="M769.63,-419.71C801.92,-424.33 844.89,-429.93 883.08,-433.13 1012.87,-444.03 1161.08,-449.3 1267.45,-451.83"/>
+<polygon fill="#000000" stroke="#000000" points="1267.32,-455.33 1277.4,-452.06 1267.48,-448.33 1267.32,-455.33"/>
+</g>
+<!-- proc~hessian_low_rank_size -->
+<g id="proc~~direct_qp_step~~CallsGraph_node24" class="node">
+<title>proc~hessian_low_rank_size</title>
+<g id="a_proc~~direct_qp_step~~CallsGraph_node24"><a xlink:href="../proc/hessian_low_rank_size.html" xlink:title="sqpopt_hessian_type%hessian_low_rank_size">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="1173.22,-424.27 923.2,-424.27 923.2,-400 1173.22,-400 1173.22,-424.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1048.21" y="-408.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_low_rank_size</text>
+</a>
+</g>
+</g>
+<!-- proc~low_rank_update&#45;&gt;proc~hessian_low_rank_size -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge33" class="edge">
+<title>proc~low_rank_update&#45;&gt;proc~hessian_low_rank_size</title>
+<path fill="none" stroke="#000000" d="M769.79,-412.13C807.61,-412.13 861.39,-412.13 911.54,-412.13"/>
+<polygon fill="#000000" stroke="#000000" points="911.33,-415.64 921.33,-412.14 911.33,-408.64 911.33,-415.64"/>
+</g>
+<!-- proc~low_rank_update&#45;&gt;proc~kkt_negatives -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge34" class="edge">
+<title>proc~low_rank_update&#45;&gt;proc~kkt_negatives</title>
+<path fill="none" stroke="#000000" d="M769.8,-412.66C795.77,-415.47 826.3,-423.11 847.08,-442.13 884.7,-476.59 843.72,-518.68 883.08,-551.13 913.78,-576.45 959.31,-580.52 994.63,-578.92"/>
+<polygon fill="#000000" stroke="#000000" points="994.44,-582.44 1004.2,-578.32 994,-575.45 994.44,-582.44"/>
+</g>
+<!-- proc~symmetric_solver_solve&#45;&gt;proc~sqpopt_all_finite -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge37" class="edge">
+<title>proc~symmetric_solver_solve&#45;&gt;proc~sqpopt_all_finite</title>
+<path fill="none" stroke="#000000" d="M1088,-277.51C1154.26,-255.93 1289.15,-212.01 1362.1,-188.25"/>
+<polygon fill="#000000" stroke="#000000" points="1362.97,-191.65 1371.39,-185.23 1360.8,-185 1362.97,-191.65"/>
+</g>
+<!-- back_solve -->
+<g id="proc~~direct_qp_step~~CallsGraph_node19" class="node">
+<title>back_solve</title>
+<polygon fill="#777777" stroke="#777777" points="1447.62,-264.27 1377.6,-264.27 1377.6,-240 1447.62,-240 1447.62,-264.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1412.61" y="-248.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">back_solve</text>
+</g>
+<!-- proc~symmetric_solver_solve&#45;&gt;back_solve -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge36" class="edge">
+<title>proc~symmetric_solver_solve&#45;&gt;back_solve</title>
+<path fill="none" stroke="#000000" d="M1169.64,-277.51C1236.95,-270.45 1316.91,-262.06 1365.96,-256.92"/>
+<polygon fill="#000000" stroke="#000000" points="1366.05,-260.43 1375.63,-255.91 1365.32,-253.47 1366.05,-260.43"/>
+</g>
+<!-- proc~symmetric_solver_multiply -->
+<g id="proc~~direct_qp_step~~CallsGraph_node28" class="node">
+<title>proc~symmetric_solver_multiply</title>
+<g id="a_proc~~direct_qp_step~~CallsGraph_node28"><a xlink:href="../proc/symmetric_solver_multiply.html" xlink:title="sqpopt_symmetric_solver_type%symmetric_solver_multiply">
+<polygon fill="#d9534f" stroke="#d9534f" points="1575.87,-306.27 1249.35,-306.27 1249.35,-282 1575.87,-282 1575.87,-306.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1412.61" y="-290.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_symmetric_solver_type%symmetric_solver_multiply</text>
+</a>
+</g>
+</g>
+<!-- proc~symmetric_solver_solve&#45;&gt;proc~symmetric_solver_multiply -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge38" class="edge">
+<title>proc~symmetric_solver_solve&#45;&gt;proc~symmetric_solver_multiply</title>
+<path fill="none" stroke="#000000" d="M1204.22,-291.85C1215.32,-291.97 1226.56,-292.09 1237.75,-292.22"/>
+<polygon fill="#000000" stroke="#000000" points="1237.38,-295.71 1247.42,-292.32 1237.46,-288.71 1237.38,-295.71"/>
+</g>
+<!-- proc~hessian_low_rank_column&#45;&gt;proc~pair_col -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge39" class="edge">
+<title>proc~hessian_low_rank_column&#45;&gt;proc~pair_col</title>
+<path fill="none" stroke="#000000" d="M1816.99,-361.53C1838.56,-357.41 1862.5,-352.71 1884.39,-348.13 1892.39,-346.46 1900.96,-344.59 1909.08,-342.76"/>
+<polygon fill="#000000" stroke="#000000" points="1909.73,-346.21 1918.71,-340.58 1908.18,-339.38 1909.73,-346.21"/>
+</g>
+<!-- proc~hessian_low_rank_middle&#45;&gt;proc~middle_matrix -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge40" class="edge">
+<title>proc~hessian_low_rank_middle&#45;&gt;proc~middle_matrix</title>
+<path fill="none" stroke="#000000" d="M1524.2,-441.53C1580.72,-435.1 1646.98,-427.55 1692.49,-422.36"/>
+<polygon fill="#000000" stroke="#000000" points="1692.84,-425.84 1702.38,-421.23 1692.05,-418.89 1692.84,-425.84"/>
+</g>
+<!-- proc~hessian_low_rank_size&#45;&gt;proc~factor_middle_matrix -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge41" class="edge">
+<title>proc~hessian_low_rank_size&#45;&gt;proc~factor_middle_matrix</title>
+<path fill="none" stroke="#000000" d="M1173.68,-412.13C1228.74,-412.13 1291.58,-412.13 1338.84,-412.13"/>
+<polygon fill="#000000" stroke="#000000" points="1338.69,-415.64 1348.69,-412.14 1338.69,-408.64 1338.69,-415.64"/>
+</g>
+<!-- proc~middle_matrix&#45;&gt;proc~pair_col -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge42" class="edge">
+<title>proc~middle_matrix&#45;&gt;proc~pair_col</title>
+<path fill="none" stroke="#000000" d="M1792.62,-416.11C1820.21,-414.52 1855.94,-409.43 1884.39,-395.13 1902.81,-385.88 1919.21,-369.15 1930.51,-355.55"/>
+<polygon fill="#000000" stroke="#000000" points="1933.07,-357.96 1936.54,-347.95 1927.59,-353.61 1933.07,-357.96"/>
+</g>
+<!-- refactor -->
+<g id="proc~~direct_qp_step~~CallsGraph_node30" class="node">
+<title>refactor</title>
+<polygon fill="#777777" stroke="#777777" points="1439.61,-626.27 1385.61,-626.27 1385.61,-602 1439.61,-602 1439.61,-626.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1412.61" y="-610.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">refactor</text>
+</g>
+<!-- proc~symmetric_solver_factor&#45;&gt;refactor -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge43" class="edge">
+<title>proc~symmetric_solver_factor&#45;&gt;refactor</title>
+<path fill="none" stroke="#000000" d="M1206.32,-614.13C1268.3,-614.13 1334.11,-614.13 1374.04,-614.13"/>
+<polygon fill="#000000" stroke="#000000" points="1373.81,-617.64 1383.81,-614.14 1373.81,-610.64 1373.81,-617.64"/>
+</g>
+<!-- multiply -->
+<g id="proc~~direct_qp_step~~CallsGraph_node29" class="node">
+<title>multiply</title>
+<polygon fill="#777777" stroke="#777777" points="1775.26,-306.27 1720.99,-306.27 1720.99,-282 1775.26,-282 1775.26,-306.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1748.13" y="-290.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">multiply</text>
+</g>
+<!-- proc~symmetric_solver_multiply&#45;&gt;multiply -->
+<g id="proc~~direct_qp_step~~CallsGraph_edge44" class="edge">
+<title>proc~symmetric_solver_multiply&#45;&gt;multiply</title>
+<path fill="none" stroke="#000000" d="M1575.97,-294.13C1625.84,-294.13 1676.24,-294.13 1709.3,-294.13"/>
+<polygon fill="#000000" stroke="#000000" points="1709.15,-297.64 1719.15,-294.14 1709.15,-290.64 1709.15,-297.64"/>
+</g>
+</g>
+</svg>
+</div>                <script>
+                  var panprocdirect_qp_stepCallsGraph = svgPanZoom('#procdirect_qp_stepCallsGraph',
+                    {zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true,}
+                  );
+                </script>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#CallsGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="CallsGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="641pt" height="28pt"
+ viewBox="0.00 0.00 641.00 28.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(0.873868 0.873868) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 729.52,-28.27 729.52,4 -4,4"/>
+<!-- Subroutine -->
+<g id="node1" class="node">
+<title>Subroutine</title>
+<polygon fill="#d9534f" stroke="#d9534f" points="69.27,-24.27 0,-24.27 0,0 69.27,0 69.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="34.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Subroutine</text>
+</g>
+<!-- Function -->
+<g id="node2" class="node">
+<title>Function</title>
+<polygon fill="#d94e8f" stroke="#d94e8f" points="143.89,-24.27 87.38,-24.27 87.38,0 143.89,0 143.89,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="115.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Function</text>
+</g>
+<!-- Interface -->
+<g id="node3" class="node">
+<title>Interface</title>
+<polygon fill="#a7506f" stroke="#a7506f" points="221.39,-24.27 161.88,-24.27 161.88,0 221.39,0 221.39,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="191.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Interface</text>
+</g>
+<!-- Type Bound Procedure -->
+<g id="node4" class="node">
+<title>Type Bound Procedure</title>
+<polygon fill="#a7506f" stroke="#a7506f" points="368.27,-24.27 239,-24.27 239,0 368.27,0 368.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="303.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Type Bound Procedure</text>
+</g>
+<!-- Unknown Procedure Type -->
+<g id="node5" class="node">
+<title>Unknown Procedure Type</title>
+<polygon fill="#777777" stroke="#777777" points="529.39,-24.27 385.88,-24.27 385.88,0 529.39,0 529.39,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="457.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Unknown Procedure Type</text>
+</g>
+<!-- Program -->
+<g id="node6" class="node">
+<title>Program</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="603.89,-24.27 547.38,-24.27 547.38,0 603.89,0 603.89,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="575.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Program</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node7" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="725.52,-24.27 621.75,-24.27 621.75,0 725.52,0 725.52,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="673.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a procedure to one which it calls. Dashed 
+arrows point from an interface to procedures which implement that interface.
+This could include the module procedures in a generic interface or the
+implementation in a submodule of an interface in a parent module.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+  <h3 class="card-title">Called by</h3>
+      </div>
+      <div class="card-body">
+  <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: proc~~direct_qp_step~~CalledByGraph Pages: 1 -->
+<svg id="procdirect_qp_stepCalledByGraph" width="641pt" height="48pt"
+ viewBox="0.00 0.00 641.00 48.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="proc~~direct_qp_step~~CalledByGraph" class="graph" transform="scale(0.530906 0.530906) rotate(0) translate(4 86.99)">
+<title>proc~~direct_qp_step~~CalledByGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-86.99 1203.37,-86.99 1203.37,4 -4,4"/>
+<!-- proc~direct_qp_step -->
+<g id="proc~~direct_qp_step~~CalledByGraph_node1" class="node">
+<title>proc~direct_qp_step</title>
+<polygon fill="none" stroke="black" points="1199.37,-66.27 1111.35,-66.27 1111.35,-42 1199.37,-42 1199.37,-66.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1155.36" y="-50.53" font-family="Helvetica,sans-Serif" font-size="10.50">direct_qp_step</text>
+</g>
+<!-- proc~solve_qp_subproblem -->
+<g id="proc~~direct_qp_step~~CalledByGraph_node2" class="node">
+<title>proc~solve_qp_subproblem</title>
+<g id="a_proc~~direct_qp_step~~CalledByGraph_node2"><a xlink:href="../proc/solve_qp_subproblem.html" xlink:title="sqpopt_qp_solver_type%solve_qp_subproblem">
+<polygon fill="#d9534f" stroke="#d9534f" points="1075.35,-66.27 818.58,-66.27 818.58,-42 1075.35,-42 1075.35,-66.27"/>
+<text xml:space="preserve" text-anchor="middle" x="946.96" y="-50.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qp_solver_type%solve_qp_subproblem</text>
+</a>
+</g>
+</g>
+<!-- proc~solve_qp_subproblem&#45;&gt;proc~direct_qp_step -->
+<g id="proc~~direct_qp_step~~CalledByGraph_edge1" class="edge">
+<title>proc~solve_qp_subproblem&#45;&gt;proc~direct_qp_step</title>
+<path fill="none" stroke="#000000" d="M1075.74,-54.13C1083.97,-54.13 1091.97,-54.13 1099.53,-54.13"/>
+<polygon fill="#000000" stroke="#000000" points="1099.49,-57.64 1109.49,-54.14 1099.49,-50.64 1099.49,-57.64"/>
+</g>
+<!-- proc~restoration_phase_step -->
+<g id="proc~~direct_qp_step~~CalledByGraph_node3" class="node">
+<title>proc~restoration_phase_step</title>
+<g id="a_proc~~direct_qp_step~~CalledByGraph_node3"><a xlink:href="../proc/restoration_phase_step.html" xlink:title="sqpopt_restoration_type%restoration_phase_step">
+<polygon fill="#d9534f" stroke="#d9534f" points="782.58,-66.27 510.81,-66.27 510.81,-42 782.58,-42 782.58,-66.27"/>
+<text xml:space="preserve" text-anchor="middle" x="646.69" y="-50.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_restoration_type%restoration_phase_step</text>
+</a>
+</g>
+</g>
+<!-- proc~restoration_phase_step&#45;&gt;proc~solve_qp_subproblem -->
+<g id="proc~~direct_qp_step~~CalledByGraph_edge2" class="edge">
+<title>proc~restoration_phase_step&#45;&gt;proc~solve_qp_subproblem</title>
+<path fill="none" stroke="#000000" d="M782.87,-54.13C790.93,-54.13 799.06,-54.13 807.14,-54.13"/>
+<polygon fill="#000000" stroke="#000000" points="807.01,-57.64 817.01,-54.14 807.01,-50.64 807.01,-57.64"/>
+</g>
+<!-- proc~sqpopt_iterate -->
+<g id="proc~~direct_qp_step~~CalledByGraph_node4" class="node">
+<title>proc~sqpopt_iterate</title>
+<g id="a_proc~~direct_qp_step~~CalledByGraph_node4"><a xlink:href="../proc/sqpopt_iterate.html" xlink:title="sqpopt_iterate">
+<polygon fill="#d9534f" stroke="#d9534f" points="474.81,-66.27 386.79,-66.27 386.79,-42 474.81,-42 474.81,-66.27"/>
+<text xml:space="preserve" text-anchor="middle" x="430.8" y="-50.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_iterate</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~solve_qp_subproblem -->
+<g id="proc~~direct_qp_step~~CalledByGraph_edge3" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~solve_qp_subproblem</title>
+<path fill="none" stroke="#000000" d="M471.19,-66.75C483.72,-70.19 497.72,-73.43 510.81,-75.13 627.92,-90.43 764.07,-79.25 852.46,-68.21"/>
+<polygon fill="#000000" stroke="#000000" points="852.83,-71.69 862.3,-66.95 851.94,-64.75 852.83,-71.69"/>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~restoration_phase_step -->
+<g id="proc~~direct_qp_step~~CalledByGraph_edge5" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~restoration_phase_step</title>
+<path fill="none" stroke="#000000" d="M475.08,-54.13C482.55,-54.13 490.67,-54.13 499.18,-54.13"/>
+<polygon fill="#000000" stroke="#000000" points="499.06,-57.64 509.06,-54.14 499.06,-50.64 499.06,-57.64"/>
+</g>
+<!-- proc~trust_region_step -->
+<g id="proc~~direct_qp_step~~CalledByGraph_node5" class="node">
+<title>proc~trust_region_step</title>
+<g id="a_proc~~direct_qp_step~~CalledByGraph_node5"><a xlink:href="../proc/trust_region_step.html" xlink:title="sqpopt_trust_region_type%trust_region_step">
+<polygon fill="#d9534f" stroke="#d9534f" points="769.08,-24.27 524.31,-24.27 524.31,0 769.08,0 769.08,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="646.69" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_trust_region_type%trust_region_step</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~trust_region_step -->
+<g id="proc~~direct_qp_step~~CalledByGraph_edge7" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~trust_region_step</title>
+<path fill="none" stroke="#000000" d="M475.07,-41.75C486.63,-38.69 499.14,-35.59 510.81,-33.13 521.88,-30.81 533.52,-28.62 545.12,-26.6"/>
+<polygon fill="#000000" stroke="#000000" points="545.45,-30.09 554.72,-24.96 544.27,-23.19 545.45,-30.09"/>
+</g>
+<!-- proc~trust_region_step&#45;&gt;proc~solve_qp_subproblem -->
+<g id="proc~~direct_qp_step~~CalledByGraph_edge4" class="edge">
+<title>proc~trust_region_step&#45;&gt;proc~solve_qp_subproblem</title>
+<path fill="none" stroke="#000000" d="M737.19,-24.74C771.17,-29.52 810.11,-35 845.08,-39.93"/>
+<polygon fill="#000000" stroke="#000000" points="844.39,-43.37 854.78,-41.3 845.37,-36.43 844.39,-43.37"/>
+</g>
+<!-- proc~sqpopt_solve -->
+<g id="proc~~direct_qp_step~~CalledByGraph_node6" class="node">
+<title>proc~sqpopt_solve</title>
+<g id="a_proc~~direct_qp_step~~CalledByGraph_node6"><a xlink:href="../proc/sqpopt_solve.html" xlink:title="sqpopt_type%sqpopt_solve">
+<polygon fill="#d9534f" stroke="#d9534f" points="350.79,-66.27 196.02,-66.27 196.02,-42 350.79,-42 350.79,-66.27"/>
+<text xml:space="preserve" text-anchor="middle" x="273.4" y="-50.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_type%sqpopt_solve</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_solve&#45;&gt;proc~sqpopt_iterate -->
+<g id="proc~~direct_qp_step~~CalledByGraph_edge6" class="edge">
+<title>proc~sqpopt_solve&#45;&gt;proc~sqpopt_iterate</title>
+<path fill="none" stroke="#000000" d="M351.19,-54.13C359.21,-54.13 367.25,-54.13 374.96,-54.13"/>
+<polygon fill="#000000" stroke="#000000" points="374.84,-57.64 384.84,-54.14 374.84,-50.64 374.84,-57.64"/>
+</g>
+<!-- proc~nlls_solve -->
+<g id="proc~~direct_qp_step~~CalledByGraph_node7" class="node">
+<title>proc~nlls_solve</title>
+<g id="a_proc~~direct_qp_step~~CalledByGraph_node7"><a xlink:href="../proc/nlls_solve.html" xlink:title="sqpopt_nlls_type%nlls_solve">
+<polygon fill="#d9534f" stroke="#d9534f" points="160.02,-66.27 0,-66.27 0,-42 160.02,-42 160.02,-66.27"/>
+<text xml:space="preserve" text-anchor="middle" x="80.01" y="-50.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_nlls_type%nlls_solve</text>
+</a>
+</g>
+</g>
+<!-- proc~nlls_solve&#45;&gt;proc~sqpopt_solve -->
+<g id="proc~~direct_qp_step~~CalledByGraph_edge8" class="edge">
+<title>proc~nlls_solve&#45;&gt;proc~sqpopt_solve</title>
+<path fill="none" stroke="#000000" d="M160.52,-54.13C168.31,-54.13 176.26,-54.13 184.14,-54.13"/>
+<polygon fill="#000000" stroke="#000000" points="184.09,-57.64 194.09,-54.14 184.09,-50.64 184.09,-57.64"/>
+</g>
+</g>
+</svg>
+</div>                <script>
+                  var panprocdirect_qp_stepCalledByGraph = svgPanZoom('#procdirect_qp_stepCalledByGraph',
+                    {zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true,}
+                  );
+                </script>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#CalledByGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="CalledByGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="641pt" height="28pt"
+ viewBox="0.00 0.00 641.00 28.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(0.873868 0.873868) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 729.52,-28.27 729.52,4 -4,4"/>
+<!-- Subroutine -->
+<g id="node1" class="node">
+<title>Subroutine</title>
+<polygon fill="#d9534f" stroke="#d9534f" points="69.27,-24.27 0,-24.27 0,0 69.27,0 69.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="34.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Subroutine</text>
+</g>
+<!-- Function -->
+<g id="node2" class="node">
+<title>Function</title>
+<polygon fill="#d94e8f" stroke="#d94e8f" points="143.89,-24.27 87.38,-24.27 87.38,0 143.89,0 143.89,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="115.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Function</text>
+</g>
+<!-- Interface -->
+<g id="node3" class="node">
+<title>Interface</title>
+<polygon fill="#a7506f" stroke="#a7506f" points="221.39,-24.27 161.88,-24.27 161.88,0 221.39,0 221.39,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="191.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Interface</text>
+</g>
+<!-- Type Bound Procedure -->
+<g id="node4" class="node">
+<title>Type Bound Procedure</title>
+<polygon fill="#a7506f" stroke="#a7506f" points="368.27,-24.27 239,-24.27 239,0 368.27,0 368.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="303.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Type Bound Procedure</text>
+</g>
+<!-- Unknown Procedure Type -->
+<g id="node5" class="node">
+<title>Unknown Procedure Type</title>
+<polygon fill="#777777" stroke="#777777" points="529.39,-24.27 385.88,-24.27 385.88,0 529.39,0 529.39,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="457.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Unknown Procedure Type</text>
+</g>
+<!-- Program -->
+<g id="node6" class="node">
+<title>Program</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="603.89,-24.27 547.38,-24.27 547.38,0 603.89,0 603.89,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="575.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Program</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node7" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="725.52,-24.27 621.75,-24.27 621.75,0 725.52,0 725.52,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="673.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a procedure to one which it calls. Dashed 
+arrows point from an interface to procedures which implement that interface.
+This could include the module procedures in a generic interface or the
+implementation in a submodule of an interface in a parent module.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <br>
+
+
+    
+    
+
+    
+    
+
+
+
+    
+    <section>
+    <h2><span class="anchor" id="src"></span>Source Code</h2>
+    <div class="hl codehilite"><pre><span></span><span class="w">    </span><span class="k">subroutine </span><span class="n">direct_qp_step</span><span class="p">(</span><span class="n">kkt</span><span class="p">,</span><span class="w"> </span><span class="n">hessian</span><span class="p">,</span><span class="w"> </span><span class="n">jac</span><span class="p">,</span><span class="w"> </span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">g</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">x_lb</span><span class="p">,</span><span class="w"> </span><span class="n">x_ub</span><span class="p">,</span><span class="w"> </span><span class="n">c_lb</span><span class="p">,</span><span class="w"> </span><span class="n">c_ub</span><span class="p">,</span><span class="w"> </span><span class="n">max_changes</span><span class="p">,</span><span class="w"> </span><span class="n">tol</span><span class="p">,</span><span class="w"> </span><span class="p">&amp;</span><span class="w"></span>
+<span class="w">                              </span><span class="n">status</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">lambda</span><span class="p">,</span><span class="w"> </span><span class="n">n_changes</span><span class="p">,</span><span class="w"> </span><span class="n">outcome</span><span class="p">,</span><span class="w"> </span><span class="n">inertia</span><span class="p">)</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_kkt_type</span><span class="p">),</span><span class="w">      </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">kkt</span><span class="w">     </span><span class="c">!! the KKT matrix (see [[sqpopt_kkt_module]])</span>
+<span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_hessian_type</span><span class="p">),</span><span class="w">  </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">hessian</span><span class="w"> </span><span class="c">!! the Hessian (exact, with its shift, or quasi-Newton)</span>
+<span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_sparse_matrix</span><span class="p">),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">jac</span><span class="w">     </span><span class="c">!! sparse constraint Jacobian, `dimension(m,n)`</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">     </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">x</span><span class="w">       </span><span class="c">!! current point `dimension(n)`</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">     </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">g</span><span class="w">       </span><span class="c">!! objective gradient `dimension(n)`</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">     </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">c</span><span class="w">       </span><span class="c">!! current constraint values `dimension(m)`</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">     </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">x_lb</span><span class="w">    </span><span class="c">!! variable lower bounds `dimension(n)`</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">     </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">x_ub</span><span class="w">    </span><span class="c">!! variable upper bounds `dimension(n)`</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">     </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">c_lb</span><span class="w">    </span><span class="c">!! constraint lower bounds `dimension(m)`</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">     </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">c_ub</span><span class="w">    </span><span class="c">!! constraint upper bounds `dimension(m)`</span>
+<span class="w">    </span><span class="kt">integer</span><span class="p">,</span><span class="w">                    </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">max_changes</span><span class="w"> </span><span class="c">!! maximum number of changes of the working set</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">                   </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">tol</span><span class="w">     </span><span class="c">!! relative tolerance for a violated row or bound, and for</span>
+<span class="w">                                                         </span><span class="c">!! the sign of a multiplier</span>
+<span class="w">    </span><span class="kt">integer</span><span class="p">,</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">      </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">status</span><span class="w">  </span><span class="c">!! the working set: the side (`-1` lower, `+1` upper, `0`</span>
+<span class="w">                                                         </span><span class="c">!! not in it) of each general row, then of each variable</span>
+<span class="w">                                                         </span><span class="c">!! bound `dimension(m+n)`</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">     </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w">   </span><span class="kd">::</span><span class="w"> </span><span class="n">p</span><span class="w">       </span><span class="c">!! the step `dimension(n)`</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">     </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w">   </span><span class="kd">::</span><span class="w"> </span><span class="n">lambda</span><span class="w">  </span><span class="c">!! the constraint multipliers `dimension(m)`</span>
+<span class="w">    </span><span class="kt">integer</span><span class="p">,</span><span class="w">                    </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w">   </span><span class="kd">::</span><span class="w"> </span><span class="n">n_changes</span><span class="w"> </span><span class="c">!! number of changes of the working set that were made</span>
+<span class="w">    </span><span class="kt">integer</span><span class="p">,</span><span class="w">                    </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w">   </span><span class="kd">::</span><span class="w"> </span><span class="n">outcome</span><span class="w">   </span><span class="c">!! how it ended (a `sqpopt_direct_*` constant)</span>
+<span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_inertia_type</span><span class="p">),</span><span class="w"> </span><span class="k">optional</span><span class="p">,</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">inertia</span><span class="w"> </span><span class="c">!! the inertia control, to raise the Hessian&#39;s shift</span>
+<span class="w">                                                                  </span><span class="c">!! at a nonconvex face (used if `inertia%enabled`)</span>
+
+<span class="w">    </span><span class="kt">integer</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">m</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">j</span><span class="p">,</span><span class="w"> </span><span class="n">k</span><span class="w"></span>
+<span class="w">    </span><span class="kt">integer</span><span class="p">,</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">allocatable</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">st</span><span class="p">,</span><span class="w"> </span><span class="n">st_new</span><span class="w"></span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">allocatable</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">v</span><span class="w"></span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">allocatable</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">p_fixed</span><span class="p">,</span><span class="w"> </span><span class="n">hp</span><span class="p">,</span><span class="w"> </span><span class="n">z</span><span class="w"></span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">allocatable</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">jp</span><span class="w"></span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">dual_tol</span><span class="p">,</span><span class="w"> </span><span class="n">lin</span><span class="w"></span>
+<span class="w">    </span><span class="kt">logical</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">ok</span><span class="p">,</span><span class="w"> </span><span class="n">convex</span><span class="p">,</span><span class="w"> </span><span class="n">shifted</span><span class="p">,</span><span class="w"> </span><span class="n">consistent</span><span class="w"></span>
+<span class="w">    </span><span class="kt">logical</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">regularized</span><span class="w"> </span><span class="c">!! whether the current face&#39;s KKT matrix is singular, and so regularized</span>
+<span class="w">    </span><span class="kt">logical</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">fine</span><span class="w">        </span><span class="c">!! whether the current face is being solved again with the smaller regularization</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">reg</span><span class="p">,</span><span class="w"> </span><span class="k">target</span><span class="p">,</span><span class="w"> </span><span class="n">jmax</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">allocate</span><span class="p">(</span><span class="n">st</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">status</span><span class="p">)),</span><span class="w"> </span><span class="n">st_new</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">status</span><span class="p">)))</span><span class="w"></span>
+<span class="w">    </span><span class="k">allocate</span><span class="p">(</span><span class="n">v</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)),</span><span class="w"> </span><span class="n">p_fixed</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">x</span><span class="p">)),</span><span class="w"> </span><span class="n">hp</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">x</span><span class="p">)),</span><span class="w"> </span><span class="n">z</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">x</span><span class="p">)),</span><span class="w"> </span><span class="n">jp</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)))</span><span class="w"></span>
+
+<span class="w">    </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">size</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="n">m</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="n">outcome</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="n">sqpopt_direct_failed</span><span class="w"></span>
+<span class="w">    </span><span class="n">n_changes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"></span>
+<span class="w">    </span><span class="n">p</span><span class="w">      </span><span class="o">=</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="w"></span>
+<span class="w">    </span><span class="n">lambda</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="w"></span>
+<span class="w">    </span><span class="n">st</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">status</span><span class="w"></span>
+<span class="w">    </span><span class="n">fine</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"></span>
+<span class="w">    </span><span class="n">regularized</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">do</span>
+
+<span class="k">        if</span><span class="w"> </span><span class="p">(.</span><span class="nb">not</span><span class="p">.</span><span class="w"> </span><span class="n">fine</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<span class="k">            call </span><span class="n">kkt</span><span class="p">%</span><span class="n">factor</span><span class="p">(</span><span class="n">hessian</span><span class="p">,</span><span class="w"> </span><span class="n">jac</span><span class="p">,</span><span class="w"> </span><span class="n">st</span><span class="p">,</span><span class="w"> </span><span class="n">ok</span><span class="p">)</span><span class="w"></span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(.</span><span class="nb">not</span><span class="p">.</span><span class="w"> </span><span class="n">ok</span><span class="p">)</span><span class="w"> </span><span class="k">return</span>
+<span class="k">            if</span><span class="w"> </span><span class="p">(</span><span class="n">kkt</span><span class="p">%</span><span class="n">n_negative</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">then</span><span class="w"></span>
+<span class="w">                </span><span class="c">! a nonconvex face: raise the shift until it is convex, if we may</span>
+<span class="w">                </span><span class="n">convex</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"></span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">present</span><span class="p">(</span><span class="n">inertia</span><span class="p">))</span><span class="w"> </span><span class="k">call </span><span class="n">inertia</span><span class="p">%</span><span class="n">correct</span><span class="p">(</span><span class="n">kkt</span><span class="p">,</span><span class="w"> </span><span class="n">hessian</span><span class="p">,</span><span class="w"> </span><span class="n">jac</span><span class="p">,</span><span class="w"> </span><span class="n">st</span><span class="p">,</span><span class="w"> </span><span class="n">shifted</span><span class="p">,</span><span class="w"> </span><span class="n">convex</span><span class="p">)</span><span class="w"></span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(.</span><span class="nb">not</span><span class="p">.</span><span class="w"> </span><span class="n">convex</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<span class="k">                    </span><span class="n">outcome</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sqpopt_direct_nonconvex</span><span class="w"></span>
+<span class="w">                    </span><span class="k">return</span>
+<span class="k">                end if</span>
+<span class="k">            end if</span>
+<span class="k">            </span><span class="n">regularized</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">kkt</span><span class="p">%</span><span class="n">singular</span><span class="w"></span>
+<span class="w">        </span><span class="k">end if</span>
+<span class="k">        if</span><span class="w"> </span><span class="p">(</span><span class="n">regularized</span><span class="p">)</span><span class="w"> </span><span class="k">then</span><span class="w"></span>
+<span class="w">            </span><span class="c">! dependent rows: regularize them (see the module documentation),</span>
+<span class="w">            </span><span class="c">! relative to the elements of the Jacobian that are in the face&#39;s matrix</span>
+<span class="w">            </span><span class="n">reg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">merge</span><span class="p">(</span><span class="n">reg_factor_fine</span><span class="p">,</span><span class="w"> </span><span class="n">reg_factor</span><span class="p">,</span><span class="w"> </span><span class="n">fine</span><span class="p">)</span><span class="w"></span>
+<span class="w">            </span><span class="n">jmax</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="w"></span>
+<span class="w">            </span><span class="k">do </span><span class="n">k</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">jac</span><span class="p">%</span><span class="n">nnz</span><span class="w"></span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">st</span><span class="p">(</span><span class="n">jac</span><span class="p">%</span><span class="n">irow</span><span class="p">(</span><span class="n">k</span><span class="p">))</span><span class="w"> </span><span class="o">/=</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="n">st</span><span class="p">(</span><span class="n">m</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">jac</span><span class="p">%</span><span class="n">icol</span><span class="p">(</span><span class="n">k</span><span class="p">))</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="n">jmax</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="n">jmax</span><span class="p">,</span><span class="w"> </span><span class="nb">abs</span><span class="p">(</span><span class="n">jac</span><span class="p">%</span><span class="n">val</span><span class="p">(</span><span class="n">k</span><span class="p">)))</span><span class="w"></span>
+<span class="w">            </span><span class="k">end do</span>
+<span class="k">            if</span><span class="w"> </span><span class="p">(</span><span class="n">jmax</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="p">)</span><span class="w"> </span><span class="n">reg</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="n">reg</span><span class="o">*</span><span class="n">jmax</span><span class="o">**</span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="nb">tiny</span><span class="p">(</span><span class="mf">1.0_wp</span><span class="p">))</span><span class="w">   </span><span class="c">! (not zero, if the square underflows)</span>
+<span class="w">            </span><span class="k">call </span><span class="n">kkt</span><span class="p">%</span><span class="n">factor</span><span class="p">(</span><span class="n">hessian</span><span class="p">,</span><span class="w"> </span><span class="n">jac</span><span class="p">,</span><span class="w"> </span><span class="n">st</span><span class="p">,</span><span class="w"> </span><span class="n">ok</span><span class="p">,</span><span class="w"> </span><span class="n">reg</span><span class="o">=</span><span class="n">reg</span><span class="p">)</span><span class="w"></span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(.</span><span class="nb">not</span><span class="p">.</span><span class="w"> </span><span class="n">ok</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"></span>
+<span class="w">            </span><span class="c">! (a face without a unique minimizer is left to the active-set solver)</span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">kkt</span><span class="p">%</span><span class="n">singular</span><span class="w"> </span><span class="p">.</span><span class="nb">or</span><span class="p">.</span><span class="w"> </span><span class="n">kkt</span><span class="p">%</span><span class="n">n_negative</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<span class="k">                </span><span class="n">outcome</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sqpopt_direct_singular</span><span class="w"></span>
+<span class="w">                </span><span class="k">return</span>
+<span class="k">            end if</span>
+<span class="k">        end if</span><span class="w"></span>
+
+<span class="w">        </span><span class="c">! the right-hand side: the variables at a bound of the working set are</span>
+<span class="w">        </span><span class="c">! fixed there, and their part of the step moves to the right-hand side</span>
+<span class="w">        </span><span class="k">do </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"></span>
+<span class="w">            </span><span class="k">select case</span><span class="w"> </span><span class="p">(</span><span class="n">st</span><span class="p">(</span><span class="n">m</span><span class="o">+</span><span class="n">j</span><span class="p">))</span><span class="w"></span>
+<span class="w">            </span><span class="k">case</span><span class="w"> </span><span class="p">(:</span><span class="o">-</span><span class="mi">1</span><span class="p">);</span><span class="w">   </span><span class="n">p_fixed</span><span class="p">(</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">x_lb</span><span class="p">(</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">x</span><span class="p">(</span><span class="n">j</span><span class="p">)</span><span class="w"></span>
+<span class="w">            </span><span class="k">case</span><span class="w"> </span><span class="p">(</span><span class="mi">1</span><span class="p">:);</span><span class="w">    </span><span class="n">p_fixed</span><span class="p">(</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">x_ub</span><span class="p">(</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">x</span><span class="p">(</span><span class="n">j</span><span class="p">)</span><span class="w"></span>
+<span class="w">            </span><span class="k">case </span><span class="n">default</span><span class="p">;</span><span class="w"> </span><span class="n">p_fixed</span><span class="p">(</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="w"></span>
+<span class="w">            </span><span class="k">end select</span>
+<span class="k">        end do</span>
+<span class="k">        call </span><span class="n">hessian</span><span class="p">%</span><span class="n">hv_product</span><span class="p">(</span><span class="n">p_fixed</span><span class="p">,</span><span class="w"> </span><span class="n">hp</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="k">call </span><span class="n">sparse_matvec</span><span class="p">(</span><span class="n">jac</span><span class="p">,</span><span class="w"> </span><span class="n">p_fixed</span><span class="p">,</span><span class="w"> </span><span class="n">jp</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="k">do </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"></span>
+<span class="w">            </span><span class="n">v</span><span class="p">(</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">merge</span><span class="p">(</span><span class="o">-</span><span class="n">g</span><span class="p">(</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">hp</span><span class="p">(</span><span class="n">j</span><span class="p">),</span><span class="w"> </span><span class="n">p_fixed</span><span class="p">(</span><span class="n">j</span><span class="p">),</span><span class="w"> </span><span class="n">st</span><span class="p">(</span><span class="n">m</span><span class="o">+</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="k">end do</span>
+<span class="k">        do </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">m</span><span class="w"></span>
+<span class="w">            </span><span class="k">select case</span><span class="w"> </span><span class="p">(</span><span class="n">st</span><span class="p">(</span><span class="n">i</span><span class="p">))</span><span class="w"></span>
+<span class="w">            </span><span class="k">case</span><span class="w"> </span><span class="p">(:</span><span class="o">-</span><span class="mi">1</span><span class="p">);</span><span class="w">   </span><span class="n">v</span><span class="p">(</span><span class="n">n</span><span class="o">+</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">c_lb</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">c</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">jp</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"></span>
+<span class="w">            </span><span class="k">case</span><span class="w"> </span><span class="p">(</span><span class="mi">1</span><span class="p">:);</span><span class="w">    </span><span class="n">v</span><span class="p">(</span><span class="n">n</span><span class="o">+</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">c_ub</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">c</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">jp</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"></span>
+<span class="w">            </span><span class="k">case </span><span class="n">default</span><span class="p">;</span><span class="w"> </span><span class="n">v</span><span class="p">(</span><span class="n">n</span><span class="o">+</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="w"></span>
+<span class="w">            </span><span class="k">end select</span>
+<span class="k">        end do</span>
+
+<span class="k">        call </span><span class="n">kkt</span><span class="p">%</span><span class="n">solve</span><span class="p">(</span><span class="n">v</span><span class="p">,</span><span class="w"> </span><span class="n">ok</span><span class="p">,</span><span class="w"> </span><span class="n">hessian</span><span class="o">=</span><span class="n">hessian</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(.</span><span class="nb">not</span><span class="p">.</span><span class="w"> </span><span class="n">ok</span><span class="p">)</span><span class="w"> </span><span class="k">return</span>
+<span class="k">        </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">v</span><span class="p">(</span><span class="mi">1</span><span class="p">:</span><span class="n">n</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="k">do </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">m</span><span class="w"></span>
+<span class="w">            </span><span class="n">lambda</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">merge</span><span class="p">(</span><span class="o">-</span><span class="n">v</span><span class="p">(</span><span class="n">n</span><span class="o">+</span><span class="n">i</span><span class="p">),</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="p">,</span><span class="w"> </span><span class="n">st</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">/=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="k">end do</span><span class="w"></span>
+
+<span class="w">        </span><span class="c">! the bound multipliers: z = g + H p - J^T lambda</span>
+<span class="w">        </span><span class="k">call </span><span class="n">hessian</span><span class="p">%</span><span class="n">hv_product</span><span class="p">(</span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">hp</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="k">call </span><span class="n">sparse_matvec_transpose</span><span class="p">(</span><span class="n">jac</span><span class="p">,</span><span class="w"> </span><span class="n">lambda</span><span class="p">,</span><span class="w"> </span><span class="n">z</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="n">z</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">g</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">hp</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">z</span><span class="w"></span>
+<span class="w">        </span><span class="k">call </span><span class="n">sparse_matvec</span><span class="p">(</span><span class="n">jac</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">jp</span><span class="p">)</span><span class="w"></span>
+
+<span class="w">        </span><span class="c">! (the step must satisfy the stationarity condition in the free</span>
+<span class="w">        </span><span class="c">! variables: this checks the accuracy of the solve. The residual is</span>
+<span class="w">        </span><span class="c">! relative to the terms that it is the difference of: for a long step,</span>
+<span class="w">        </span><span class="c">! H p is the sum of products much larger than itself, and its roundoff</span>
+<span class="w">        </span><span class="c">! is relative to those)</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">maxval</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">z</span><span class="p">),</span><span class="w"> </span><span class="n">mask</span><span class="o">=</span><span class="n">st</span><span class="p">(</span><span class="n">m</span><span class="o">+</span><span class="mi">1</span><span class="p">:)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">stationarity_tol</span><span class="o">*</span><span class="p">(</span><span class="mf">1.0_wp</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nb">maxval</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">g</span><span class="p">))</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nb">maxval</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">hp</span><span class="p">))</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">&amp;</span><span class="w"></span>
+<span class="w">                </span><span class="p">(</span><span class="n">hessian</span><span class="p">%</span><span class="n">magnitude</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">hessian</span><span class="p">%</span><span class="n">shift</span><span class="p">)</span><span class="o">*</span><span class="nb">maxval</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">p</span><span class="p">))))</span><span class="w"> </span><span class="k">then</span>
+<span class="k">            </span><span class="n">outcome</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sqpopt_direct_inaccurate</span><span class="w"></span>
+<span class="w">            </span><span class="k">return</span>
+<span class="k">        end if</span>
+
+<span class="k">        </span><span class="n">dual_tol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="mf">1.0_wp</span><span class="p">,</span><span class="w"> </span><span class="nb">maxval</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">g</span><span class="p">)))</span><span class="w"></span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">m</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="n">dual_tol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="n">dual_tol</span><span class="p">,</span><span class="w"> </span><span class="nb">maxval</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">lambda</span><span class="p">)))</span><span class="w"></span>
+<span class="w">        </span><span class="n">dual_tol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">tol</span><span class="o">*</span><span class="n">dual_tol</span><span class="w"></span>
+
+<span class="w">        </span><span class="c">! the new working set: add what the step violates, and drop what has a</span>
+<span class="w">        </span><span class="c">! multiplier of the wrong sign (an equality, or a fixed variable, stays)</span>
+<span class="w">        </span><span class="n">st_new</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">st</span><span class="w"></span>
+<span class="w">        </span><span class="n">consistent</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">true</span><span class="p">.</span><span class="w"></span>
+<span class="w">        </span><span class="k">do </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">m</span><span class="w"></span>
+<span class="w">            </span><span class="n">lin</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">c</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">jp</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"></span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">st</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">/=</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">then</span><span class="w"></span>
+<span class="w">                </span><span class="c">! (a regularized face may not satisfy its rows)</span>
+<span class="w">                </span><span class="k">target</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">merge</span><span class="p">(</span><span class="n">c_lb</span><span class="p">(</span><span class="n">i</span><span class="p">),</span><span class="w"> </span><span class="n">c_ub</span><span class="p">(</span><span class="n">i</span><span class="p">),</span><span class="w"> </span><span class="n">st</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"></span>
+<span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">lin</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="k">target</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">tol</span><span class="o">*</span><span class="nb">max</span><span class="p">(</span><span class="mf">1.0_wp</span><span class="p">,</span><span class="w"> </span><span class="nb">abs</span><span class="p">(</span><span class="k">target</span><span class="p">)))</span><span class="w"> </span><span class="n">consistent</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"></span>
+<span class="w">            </span><span class="k">end if</span>
+<span class="k">            if</span><span class="w"> </span><span class="p">(</span><span class="n">st</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<span class="k">                if</span><span class="w"> </span><span class="p">(</span><span class="n">lin</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">c_lb</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">tol</span><span class="o">*</span><span class="nb">max</span><span class="p">(</span><span class="mf">1.0_wp</span><span class="p">,</span><span class="w"> </span><span class="nb">abs</span><span class="p">(</span><span class="n">c_lb</span><span class="p">(</span><span class="n">i</span><span class="p">))))</span><span class="w"> </span><span class="k">then</span>
+<span class="k">                    </span><span class="n">st_new</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="w"></span>
+<span class="w">                </span><span class="k">else if</span><span class="w"> </span><span class="p">(</span><span class="n">lin</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">c_ub</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">tol</span><span class="o">*</span><span class="nb">max</span><span class="p">(</span><span class="mf">1.0_wp</span><span class="p">,</span><span class="w"> </span><span class="nb">abs</span><span class="p">(</span><span class="n">c_ub</span><span class="p">(</span><span class="n">i</span><span class="p">))))</span><span class="w"> </span><span class="k">then</span>
+<span class="k">                    </span><span class="n">st_new</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"></span>
+<span class="w">                </span><span class="k">end if</span>
+<span class="k">            else if</span><span class="w"> </span><span class="p">(</span><span class="n">c_ub</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">c_lb</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<span class="k">                if</span><span class="w"> </span><span class="p">((</span><span class="n">st</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="n">lambda</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="o">-</span><span class="n">dual_tol</span><span class="p">)</span><span class="w"> </span><span class="p">.</span><span class="nb">or</span><span class="p">.</span><span class="w"> </span><span class="p">(</span><span class="n">st</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="n">lambda</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">dual_tol</span><span class="p">))</span><span class="w"> </span><span class="n">st_new</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"></span>
+<span class="w">            </span><span class="k">end if</span>
+<span class="k">        end do</span>
+<span class="k">        do </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"></span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">st</span><span class="p">(</span><span class="n">m</span><span class="o">+</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<span class="k">                if</span><span class="w"> </span><span class="p">(</span><span class="n">x</span><span class="p">(</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">p</span><span class="p">(</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">x_lb</span><span class="p">(</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">tol</span><span class="o">*</span><span class="nb">max</span><span class="p">(</span><span class="mf">1.0_wp</span><span class="p">,</span><span class="w"> </span><span class="nb">abs</span><span class="p">(</span><span class="n">x_lb</span><span class="p">(</span><span class="n">j</span><span class="p">))))</span><span class="w"> </span><span class="k">then</span>
+<span class="k">                    </span><span class="n">st_new</span><span class="p">(</span><span class="n">m</span><span class="o">+</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="w"></span>
+<span class="w">                </span><span class="k">else if</span><span class="w"> </span><span class="p">(</span><span class="n">x</span><span class="p">(</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">p</span><span class="p">(</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">x_ub</span><span class="p">(</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">tol</span><span class="o">*</span><span class="nb">max</span><span class="p">(</span><span class="mf">1.0_wp</span><span class="p">,</span><span class="w"> </span><span class="nb">abs</span><span class="p">(</span><span class="n">x_ub</span><span class="p">(</span><span class="n">j</span><span class="p">))))</span><span class="w"> </span><span class="k">then</span>
+<span class="k">                    </span><span class="n">st_new</span><span class="p">(</span><span class="n">m</span><span class="o">+</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"></span>
+<span class="w">                </span><span class="k">end if</span>
+<span class="k">            else if</span><span class="w"> </span><span class="p">(</span><span class="n">x_ub</span><span class="p">(</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">x_lb</span><span class="p">(</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<span class="k">                if</span><span class="w"> </span><span class="p">((</span><span class="n">st</span><span class="p">(</span><span class="n">m</span><span class="o">+</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="n">z</span><span class="p">(</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="o">-</span><span class="n">dual_tol</span><span class="p">)</span><span class="w"> </span><span class="p">.</span><span class="nb">or</span><span class="p">.</span><span class="w"> </span><span class="p">(</span><span class="n">st</span><span class="p">(</span><span class="n">m</span><span class="o">+</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="n">z</span><span class="p">(</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">dual_tol</span><span class="p">))</span><span class="w"> </span><span class="n">st_new</span><span class="p">(</span><span class="n">m</span><span class="o">+</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w"></span>
+<span class="w">            </span><span class="k">end if</span>
+<span class="k">        end do</span>
+
+<span class="k">        if</span><span class="w"> </span><span class="p">(</span><span class="k">all</span><span class="p">(</span><span class="n">st_new</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">st</span><span class="p">))</span><span class="w"> </span><span class="k">then</span>
+<span class="k">            if</span><span class="w"> </span><span class="p">(.</span><span class="nb">not</span><span class="p">.</span><span class="w"> </span><span class="n">consistent</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="n">regularized</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="p">.</span><span class="nb">not</span><span class="p">.</span><span class="w"> </span><span class="n">fine</span><span class="p">)</span><span class="w"> </span><span class="k">then</span><span class="w"></span>
+<span class="w">                </span><span class="c">! (only the rows are not satisfied: perhaps because of the regularization)</span>
+<span class="w">                </span><span class="n">fine</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">true</span><span class="p">.</span><span class="w"></span>
+<span class="w">                </span><span class="k">cycle</span>
+<span class="k">            else if</span><span class="w"> </span><span class="p">(.</span><span class="nb">not</span><span class="p">.</span><span class="w"> </span><span class="n">consistent</span><span class="p">)</span><span class="w"> </span><span class="k">then</span><span class="w"></span>
+<span class="w">                </span><span class="c">! (the working set&#39;s rows are inconsistent, and nothing can be dropped)</span>
+<span class="w">                </span><span class="n">outcome</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sqpopt_direct_singular</span><span class="w"></span>
+<span class="w">            </span><span class="k">else if</span><span class="w"> </span><span class="p">(</span><span class="n">sqpopt_all_finite</span><span class="p">(</span><span class="n">p</span><span class="p">)</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="n">sqpopt_all_finite</span><span class="p">(</span><span class="n">lambda</span><span class="p">))</span><span class="w"> </span><span class="k">then</span><span class="w"></span>
+<span class="w">                </span><span class="c">! feasible and optimal: the QP&#39;s solution</span>
+<span class="w">                </span><span class="n">outcome</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sqpopt_direct_solved</span><span class="w"></span>
+<span class="w">                </span><span class="n">status</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="n">st</span><span class="w"></span>
+<span class="w">            </span><span class="k">end if</span>
+<span class="k">            return</span>
+<span class="k">        end if</span>
+<span class="k">        if</span><span class="w"> </span><span class="p">(</span><span class="n">n_changes</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">max_changes</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<span class="k">            </span><span class="n">outcome</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sqpopt_direct_max_changes</span><span class="w"></span>
+<span class="w">            </span><span class="k">return</span>
+<span class="k">        end if</span>
+<span class="k">        </span><span class="n">n_changes</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">n_changes</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="w"></span>
+<span class="w">        </span><span class="n">st</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">st_new</span><span class="w"></span>
+<span class="w">        </span><span class="n">fine</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">end do</span>
+
+<span class="k">    end subroutine </span><span class="n">direct_qp_step</span><span class="w"></span>
+</pre></div>
+
+    </section>
+    <br>
+    
+    </div>
+  </div>
+
+      <hr>
+    </div> <!-- /container -->
+    <footer>
+      <div class="container">
+        <div class="row justify-content-between">
+          <div class="col">
+            <p>
+              sqpopt
+ was developed by Jacob Williams<br>              &copy; 2026 
+</p>
+          </div>
+          <div class="col">
+            <p class="text-end">
+              Documentation generated by
+              <a href="https://github.com/Fortran-FOSS-Programmers/ford">FORD</a>
+            </p>
+          </div>
+        </div>
+        <br>
+      </div> <!-- /container -->
+    </footer>
+    <!-- sqpopt theme: the button switches the theme, and remembers it for the guide too -->
+    <script>
+      document.querySelector('.theme-toggle').addEventListener('click', function () {
+        var root = document.documentElement;
+        var next = root.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-bs-theme', next);
+        try { localStorage.setItem('sqpopt-theme', next); } catch (e) {}
+      });
+    </script>
+  </body>
+</html>

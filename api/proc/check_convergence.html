@@ -1,0 +1,1115 @@
+<!-- -*- mode: jinja2 -*- -->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- sqpopt theme: set before the page is drawn; the guide's choice (the same
+         localStorage key, on the same site), or else the system's -->
+    <script>
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('sqpopt-theme'); } catch (e) {}
+        if (t !== 'dark' && t !== 'light') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-bs-theme', t);
+      })();
+    </script>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta name="description" content="Modern Fortran SQP OPTimizer">
+    <meta name="author" content="Jacob Williams" >
+    <link rel="icon" href="../favicon.png">
+
+    <title>check_convergence &ndash; sqpopt</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <!-- Font Awesome -->
+    <link href="../css/fontawesome.min.css" rel="stylesheet">
+    <link href="../css/brands.min.css" rel="stylesheet">
+    <link href="../css/regular.min.css" rel="stylesheet">
+    <link href="../css/solid.min.css" rel="stylesheet">
+    <link href="../css/v4-font-face.min.css" rel="stylesheet">
+    <link href="../css/v4-shims.min.css" rel="stylesheet">
+    <!-- MathJax -->
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        TeX: { equationNumbers: { autoNumber: "AMS" } }
+      });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@2.7.9/MathJax.js?config=TeX-AMS-MML_HTMLorMML" async
+            integrity="sha256-DViIOMYdwlM/axqoGDPeUyf0urLoHMN4QACBKyB58Uw=" crossorigin="anonymous"></script>
+    <!-- Other scripts and stylesheets -->
+    <link href="../css/local.css" rel="stylesheet">
+    <link href="../css/pygments.css" rel="stylesheet">
+      <link href="../css/user.css" rel="stylesheet">
+    <script src="../js/svg-pan-zoom.min.js"></script>
+  </head>
+
+  <body>
+
+    <!-- Fixed navbar -->
+    <div class="container-fluid mb-sm-4 mb-xl-2">
+      <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+          <a class="navbar-brand" href="../index.html">sqpopt </a>
+          <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbar"
+                  aria-expanded="false" aria-controls="navbar" aria-label="Toggle navigation">
+                  <span class="navbar-toggler-icon">
+          </button>
+
+          <div id="navbar" class="navbar-collapse collapse">
+            <ul class="navbar-nav">
+                  <li class="nav-item">
+                    <a class="nav-link" href="../lists/files.html">Source Files</a>
+                  </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/modules.html">Modules</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/procedures.html">Procedures</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/absint.html">Abstract Interfaces</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/types.html">Derived Types</a>
+                </li>
+            </ul>
+              <div class="d-flex align-items-end flex-grow-1">
+                <form action="../search.html" role="search" class="ms-auto">
+                  <input type="text" class="form-control" aria-label="Search" placeholder="Search" name="q" id="tipue_search_input" autocomplete="off" required>
+                </form>
+              </div>
+            <!-- sqpopt theme: the light/dark button -->
+            <button type="button" class="btn nav-link theme-toggle ms-lg-3" aria-label="Toggle dark mode" title="Toggle dark mode">
+              <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg>
+              <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div><!--/.nav-collapse -->
+        </div>
+      </nav>
+    </div>
+
+    <div class="container">
+  <div class="row">
+    <h1>check_convergence
+      <small>Subroutine</small>
+      
+    </h1>
+      <div class="container p-2 mb-4 bg-light border rounded-3">
+    <div class="row align-items-center justify-content-between" id="info-bar">
+      <div class="col">
+        <ul class="list-inline" style="margin-bottom:0px;display:inline">
+
+            <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
+              <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
+                 title=" 0.9% of total for procedures.">85 statements</a>
+            </li>
+
+            <li class="list-inline-item" id="source-file">
+              <i class="fa fa-code"></i>
+              <a href="../src/sqpopt_convergence_module.f90"> Source File</a>
+            </li>
+        </ul>
+      </div>
+      <div class="col">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb justify-content-end mb-0">
+                <li class="breadcrumb-item"><a href='../sourcefile/sqpopt_convergence_module.f90.html'>sqpopt_convergence_module.f90</a></li>
+                <li class="breadcrumb-item"><a href='../module/sqpopt_convergence_module.html'>sqpopt_convergence_module</a></li>
+            <li class="breadcrumb-item active" aria-current="page">check_convergence</li>
+          </ol>
+        </nav>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Enable Bootstrap tooltips
+    (function () {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+      const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+    })();
+  </script>
+
+  </div>
+  
+  <div class="row">
+    <div class="col-md-3 hidden-xs hidden-sm visible-md visible-lg">
+      <div id="sidebar">
+      <h3>Contents</h3>
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+    <div class="card card-primary">
+      <div class="card-header text-left"><h3 class="card-title">Source Code</h3></div>
+      <div class="list-group">
+        <a class="list-group-item" href="../proc/check_convergence.html#src">check_convergence</a>
+      </div>
+    </div>
+
+
+  </div>
+
+    </div>
+    
+    <div class="col-md-9" id='text'>
+    <h2>public  subroutine check_convergence(x, g, jac, c, x_lb, x_ub, c_lb, c_ub, lambda, ktol, ctol, converged, istat, f, f_prev, x_prev, ftol, xtol, kkt_error, feas_error, viol_prev, dual_inf_tol, f_scale, stat_error)  
+</h2>
+    
+
+    <p>check whether the solver should stop at the current iterate, and why:</p>
+<ul>
+<li><code>istat=sqpopt_success</code>: the KKT conditions hold. That is:</li>
+<li>stationarity of the <em>projected</em> Lagrangian gradient
+    <script type="math/tex"> r = g - J^T \lambda </script> (projected onto the active variable
+    bounds, as in the standard bound-constrained projected-gradient
+    test);</li>
+<li>dual feasibility and complementarity of the constraint multipliers
+    (for the Lagrangian <script type="math/tex"> f - \lambda^T c </script>, <script type="math/tex"> \lambda_i>0 </script> is
+    only allowed at a lower bound <script type="math/tex"> c_i=c_{l,i} </script> and
+    <script type="math/tex"> \lambda_i<0 </script> only at an upper bound <script type="math/tex"> c_i=c_{u,i} </script>, measured
+    as <script type="math/tex"> \lambda_i \min(1, c_i-c_{l,i}) </script> resp.
+    <script type="math/tex"> -\lambda_i \min(1, c_{u,i}-c_i) </script>: the product with the distance
+    to the bound, which is at most <script type="math/tex"> |\lambda_i| </script> (the other bound may
+    be far away, or infinite, and a round-off multiplier of the wrong sign
+    is then not a large violation); equality constraints are free);</li>
+<li>primal feasibility of the constraints and variable bounds;</li>
+<li>with <code>dual_inf_tol</code> and <code>f_scale</code>, stationarity of the <em>unscaled</em>
+    problem (the scaled residual divided by <code>f_scale</code>) to within
+    <code>dual_inf_tol</code>: with automatic scaling, <code>ktol</code> applies to the scaled
+    problem, which can be very loose in the original units.</li>
+</ul>
+<p>The stationarity and complementarity residuals are measured against
+  <code>ktol*s_d</code>, where <script type="math/tex"> s_d = \max(s_{max}, \lVert\lambda\rVert_1/m)/s_{max} </script>
+  with <script type="math/tex"> s_{max}=100 </script> (the scaling used by IPOPT): the tolerance is
+  only loosened when the multipliers are large on average, and then only
+  in proportion, so diverging multipliers (e.g. at a degenerate point)
+  can't mask a non-KKT point.
+* <code>istat=sqpopt_stalled</code>: <code>f</code>, <code>f_prev</code>, <code>x_prev</code>, <code>ftol</code>, and <code>xtol</code> are
+  all supplied, the point is feasible, and the objective and the
+  variables have both stopped changing (by less than <code>ftol</code>/<code>xtol</code>,
+  relatively) since the previous iterate, without the KKT test having
+  been satisfied.
+* <code>istat=sqpopt_infeasible</code>: only tested when <code>x_prev</code> is supplied (so
+  never at the initial point). The constraints are violated, but the
+  point is stationary for the constraint violation
+  <script type="math/tex"> \tfrac12 \lVert r_c \rVert_2^2 </script> (<script type="math/tex"> r_c </script> the signed violation of
+  each constraint's bounds) subject to the variable bounds, i.e. the
+  projected gradient <script type="math/tex"> J^T r_c </script> is below <code>ktol*|r_c|</code>. So no
+  first-order progress toward feasibility is possible from here. If
+  <code>viol_prev</code> (the violation at <code>x_prev</code>) is supplied, the violation
+  must also have stopped decreasing (by less than 1% since <code>x_prev</code>): a
+  point can be stationary for the violation without being a minimum of
+  it (e.g. <code>J=0</code> at a maximum, or where the linearization is
+  degenerate), and the solver can still make progress from there to
+  second order, so it only stops once it has failed to.</p>
+<p><code>converged</code> is true in all three cases (i.e. it means "stop here").</p>
+
+
+    <h3>Arguments</h3>
+        <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x~10"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x</strong></td>
+            <td>
+                <p>current point <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-g~10"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>g</strong></td>
+            <td>
+                <p>objective gradient at <code>x</code> <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-jac~11"></span>
+              type(<a href='../type/sqpopt_sparse_matrix.html'>sqpopt_sparse_matrix</a>),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>jac</strong></td>
+            <td>
+                <p>constraint Jacobian at <code>x</code>, <code>dimension(m,n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c~19"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c</strong></td>
+            <td>
+                <p>constraint values at <code>x</code> <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x_lb~5"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x_lb</strong></td>
+            <td>
+                <p>variable lower bounds <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x_ub~5"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x_ub</strong></td>
+            <td>
+                <p>variable upper bounds <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_lb~5"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_lb</strong></td>
+            <td>
+                <p>constraint lower bounds <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_ub~5"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_ub</strong></td>
+            <td>
+                <p>constraint upper bounds <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-lambda~6"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>lambda</strong></td>
+            <td>
+                <p>Lagrange multipliers <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-ktol"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>ktol</strong></td>
+            <td>
+                <p>KKT optimality tolerance</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-ctol"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>ctol</strong></td>
+            <td>
+                <p>feasibility tolerance</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-converged~2"></span>
+              logical,
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>converged</strong></td>
+            <td>
+                <p>true if the solver should stop at <code>x</code> (see <code>istat</code> for why)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-istat~16"></span>
+              integer,
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>istat</strong></td>
+            <td>
+                <p>the reason: <code>sqpopt_success</code>, <code>sqpopt_stalled</code>, or <code>sqpopt_infeasible</code>
+if <code>converged</code>, else <code>sqpopt_success</code> (see <a href="../module/sqpopt_types_module.html">sqpopt_types_module</a>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-f~6"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>f</strong></td>
+            <td>
+                <p>objective value at <code>x</code> (enables the stalled-progress test with <code>f_prev</code>/<code>ftol</code>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-f_prev~2"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>f_prev</strong></td>
+            <td>
+                <p>objective value at the previous iterate</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x_prev~2"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td>optional,</td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x_prev</strong></td>
+            <td>
+                <p>the previous iterate <code>dimension(n)</code> (enables the
+stalled-progress test with <code>xtol</code>, and the infeasibility test)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-ftol"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>ftol</strong></td>
+            <td>
+                <p>relative objective-change tolerance for the stalled-progress test</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-xtol"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>xtol</strong></td>
+            <td>
+                <p>relative variable-change tolerance for the stalled-progress test</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-kkt_error"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>kkt_error</strong></td>
+            <td>
+                <p>the KKT error: the larger of the stationarity and
+complementarity residuals, divided by their scaling
+(so it is directly comparable to <code>ktol</code>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-feas_error"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>feas_error</strong></td>
+            <td>
+                <p>the largest violation of a constraint or variable bound</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-viol_prev~2"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>viol_prev</strong></td>
+            <td>
+                <p>the largest constraint violation at <code>x_prev</code>
+(enables the no-progress condition of the
+infeasibility test)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-dual_inf_tol"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>dual_inf_tol</strong></td>
+            <td>
+                <p>if present (with <code>f_scale</code>), the KKT test
+also requires the stationarity residual of
+the <em>unscaled</em> problem to be at most this
+(as IPOPT's <code>dual_inf_tol</code>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-f_scale"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>f_scale</strong></td>
+            <td>
+                <p>the objective's scale factor: the unscaled
+stationarity residual is the scaled one
+divided by it</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-stat_error~2"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>stat_error</strong></td>
+            <td>
+                <p>the (projected) stationarity residual of the
+scaled problem, without the multiplier scaling</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+    <br>
+    <div class="card">
+      <div class="card-header">
+  <h3 class="card-title">Calls</h3>
+      </div>
+      <div class="card-body">
+  <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: proc~~check_convergence~~CallsGraph Pages: 1 -->
+<svg id="proccheck_convergenceCallsGraph" width="312pt" height="74pt"
+ viewBox="0.00 0.00 312.00 74.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="proc~~check_convergence~~CallsGraph" class="graph" transform="scale(1 1) rotate(0) translate(4 70.27)">
+<title>proc~~check_convergence~~CallsGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-70.27 307.54,-70.27 307.54,4 -4,4"/>
+<!-- proc~check_convergence -->
+<g id="proc~~check_convergence~~CallsGraph_node1" class="node">
+<title>proc~check_convergence</title>
+<polygon fill="none" stroke="black" points="118.02,-45.27 0,-45.27 0,-21 118.02,-21 118.02,-45.27"/>
+<text xml:space="preserve" text-anchor="middle" x="59.01" y="-29.53" font-family="Helvetica,sans-Serif" font-size="10.50">check_convergence</text>
+</g>
+<!-- proc~projected_inf_norm -->
+<g id="proc~~check_convergence~~CallsGraph_node2" class="node">
+<title>proc~projected_inf_norm</title>
+<g id="a_proc~~check_convergence~~CallsGraph_node2"><a xlink:href="../proc/projected_inf_norm.html" xlink:title="projected_inf_norm">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="285.92,-66.27 171.65,-66.27 171.65,-42 285.92,-42 285.92,-66.27"/>
+<text xml:space="preserve" text-anchor="middle" x="228.78" y="-50.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">projected_inf_norm</text>
+</a>
+</g>
+</g>
+<!-- proc~check_convergence&#45;&gt;proc~projected_inf_norm -->
+<g id="proc~~check_convergence~~CallsGraph_edge1" class="edge">
+<title>proc~check_convergence&#45;&gt;proc~projected_inf_norm</title>
+<path fill="none" stroke="#000000" d="M118.22,-40.42C131.81,-42.12 146.39,-43.95 160.35,-45.69"/>
+<polygon fill="#000000" stroke="#000000" points="159.51,-49.12 169.87,-46.89 160.38,-42.17 159.51,-49.12"/>
+</g>
+<!-- proc~sparse_matvec_transpose -->
+<g id="proc~~check_convergence~~CallsGraph_node3" class="node">
+<title>proc~sparse_matvec_transpose</title>
+<g id="a_proc~~check_convergence~~CallsGraph_node3"><a xlink:href="../proc/sparse_matvec_transpose.html" xlink:title="sparse_matvec_transpose">
+<polygon fill="#d9534f" stroke="#d9534f" points="303.54,-24.27 154.02,-24.27 154.02,0 303.54,0 303.54,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="228.78" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sparse_matvec_transpose</text>
+</a>
+</g>
+</g>
+<!-- proc~check_convergence&#45;&gt;proc~sparse_matvec_transpose -->
+<g id="proc~~check_convergence~~CallsGraph_edge2" class="edge">
+<title>proc~check_convergence&#45;&gt;proc~sparse_matvec_transpose</title>
+<path fill="none" stroke="#000000" d="M118.22,-25.85C126.09,-24.86 134.3,-23.84 142.52,-22.81"/>
+<polygon fill="#000000" stroke="#000000" points="142.73,-26.31 152.22,-21.59 141.86,-19.36 142.73,-26.31"/>
+</g>
+</g>
+</svg>
+</div>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#CallsGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="CallsGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="641pt" height="28pt"
+ viewBox="0.00 0.00 641.00 28.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(0.873868 0.873868) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 729.52,-28.27 729.52,4 -4,4"/>
+<!-- Subroutine -->
+<g id="node1" class="node">
+<title>Subroutine</title>
+<polygon fill="#d9534f" stroke="#d9534f" points="69.27,-24.27 0,-24.27 0,0 69.27,0 69.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="34.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Subroutine</text>
+</g>
+<!-- Function -->
+<g id="node2" class="node">
+<title>Function</title>
+<polygon fill="#d94e8f" stroke="#d94e8f" points="143.89,-24.27 87.38,-24.27 87.38,0 143.89,0 143.89,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="115.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Function</text>
+</g>
+<!-- Interface -->
+<g id="node3" class="node">
+<title>Interface</title>
+<polygon fill="#a7506f" stroke="#a7506f" points="221.39,-24.27 161.88,-24.27 161.88,0 221.39,0 221.39,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="191.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Interface</text>
+</g>
+<!-- Type Bound Procedure -->
+<g id="node4" class="node">
+<title>Type Bound Procedure</title>
+<polygon fill="#a7506f" stroke="#a7506f" points="368.27,-24.27 239,-24.27 239,0 368.27,0 368.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="303.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Type Bound Procedure</text>
+</g>
+<!-- Unknown Procedure Type -->
+<g id="node5" class="node">
+<title>Unknown Procedure Type</title>
+<polygon fill="#777777" stroke="#777777" points="529.39,-24.27 385.88,-24.27 385.88,0 529.39,0 529.39,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="457.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Unknown Procedure Type</text>
+</g>
+<!-- Program -->
+<g id="node6" class="node">
+<title>Program</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="603.89,-24.27 547.38,-24.27 547.38,0 603.89,0 603.89,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="575.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Program</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node7" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="725.52,-24.27 621.75,-24.27 621.75,0 725.52,0 725.52,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="673.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a procedure to one which it calls. Dashed 
+arrows point from an interface to procedures which implement that interface.
+This could include the module procedures in a generic interface or the
+implementation in a submodule of an interface in a parent module.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+  <h3 class="card-title">Called by</h3>
+      </div>
+      <div class="card-body">
+  <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: proc~~check_convergence~~CalledByGraph Pages: 1 -->
+<svg id="proccheck_convergenceCalledByGraph" width="641pt" height="70pt"
+ viewBox="0.00 0.00 641.00 70.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="proc~~check_convergence~~CalledByGraph" class="graph" transform="scale(0.94219 0.94219) rotate(0) translate(4 70.27)">
+<title>proc~~check_convergence~~CalledByGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-70.27 676.33,-70.27 676.33,4 -4,4"/>
+<!-- proc~check_convergence -->
+<g id="proc~~check_convergence~~CalledByGraph_node1" class="node">
+<title>proc~check_convergence</title>
+<polygon fill="none" stroke="black" points="672.33,-45.27 554.31,-45.27 554.31,-21 672.33,-21 672.33,-45.27"/>
+<text xml:space="preserve" text-anchor="middle" x="613.32" y="-29.53" font-family="Helvetica,sans-Serif" font-size="10.50">check_convergence</text>
+</g>
+<!-- proc~sqpopt_evaluate_point -->
+<g id="proc~~check_convergence~~CalledByGraph_node2" class="node">
+<title>proc~sqpopt_evaluate_point</title>
+<g id="a_proc~~check_convergence~~CalledByGraph_node2"><a xlink:href="../proc/sqpopt_evaluate_point.html" xlink:title="sqpopt_evaluate_point">
+<polygon fill="#d9534f" stroke="#d9534f" points="518.31,-66.27 386.79,-66.27 386.79,-42 518.31,-42 518.31,-66.27"/>
+<text xml:space="preserve" text-anchor="middle" x="452.55" y="-50.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_evaluate_point</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_evaluate_point&#45;&gt;proc~check_convergence -->
+<g id="proc~~check_convergence~~CalledByGraph_edge1" class="edge">
+<title>proc~sqpopt_evaluate_point&#45;&gt;proc~check_convergence</title>
+<path fill="none" stroke="#000000" d="M518.59,-45.53C526.56,-44.48 534.73,-43.4 542.77,-42.33"/>
+<polygon fill="#000000" stroke="#000000" points="543.05,-45.83 552.51,-41.05 542.14,-38.89 543.05,-45.83"/>
+</g>
+<!-- proc~sqpopt_iterate -->
+<g id="proc~~check_convergence~~CalledByGraph_node3" class="node">
+<title>proc~sqpopt_iterate</title>
+<g id="a_proc~~check_convergence~~CalledByGraph_node3"><a xlink:href="../proc/sqpopt_iterate.html" xlink:title="sqpopt_iterate">
+<polygon fill="#d9534f" stroke="#d9534f" points="496.56,-24.27 408.54,-24.27 408.54,0 496.56,0 496.56,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="452.55" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_iterate</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~check_convergence -->
+<g id="proc~~check_convergence~~CalledByGraph_edge2" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~check_convergence</title>
+<path fill="none" stroke="#000000" d="M496.93,-17.87C511.12,-19.75 527.25,-21.88 542.86,-23.95"/>
+<polygon fill="#000000" stroke="#000000" points="542.23,-27.39 552.6,-25.24 543.15,-20.46 542.23,-27.39"/>
+</g>
+<!-- proc~sqpopt_solve -->
+<g id="proc~~check_convergence~~CalledByGraph_node4" class="node">
+<title>proc~sqpopt_solve</title>
+<g id="a_proc~~check_convergence~~CalledByGraph_node4"><a xlink:href="../proc/sqpopt_solve.html" xlink:title="sqpopt_type%sqpopt_solve">
+<polygon fill="#d9534f" stroke="#d9534f" points="350.79,-45.27 196.02,-45.27 196.02,-21 350.79,-21 350.79,-45.27"/>
+<text xml:space="preserve" text-anchor="middle" x="273.41" y="-29.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_type%sqpopt_solve</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_solve&#45;&gt;proc~sqpopt_evaluate_point -->
+<g id="proc~~check_convergence~~CalledByGraph_edge3" class="edge">
+<title>proc~sqpopt_solve&#45;&gt;proc~sqpopt_evaluate_point</title>
+<path fill="none" stroke="#000000" d="M351.07,-42.22C359.08,-43.17 367.22,-44.14 375.23,-45.09"/>
+<polygon fill="#000000" stroke="#000000" points="374.58,-48.53 384.92,-46.24 375.4,-41.58 374.58,-48.53"/>
+</g>
+<!-- proc~sqpopt_solve&#45;&gt;proc~sqpopt_iterate -->
+<g id="proc~~check_convergence~~CalledByGraph_edge4" class="edge">
+<title>proc~sqpopt_solve&#45;&gt;proc~sqpopt_iterate</title>
+<path fill="none" stroke="#000000" d="M351.07,-24.05C366.57,-22.21 382.56,-20.31 397.1,-18.59"/>
+<polygon fill="#000000" stroke="#000000" points="397.39,-22.08 406.91,-17.43 396.57,-15.13 397.39,-22.08"/>
+</g>
+<!-- proc~nlls_solve -->
+<g id="proc~~check_convergence~~CalledByGraph_node5" class="node">
+<title>proc~nlls_solve</title>
+<g id="a_proc~~check_convergence~~CalledByGraph_node5"><a xlink:href="../proc/nlls_solve.html" xlink:title="sqpopt_nlls_type%nlls_solve">
+<polygon fill="#d9534f" stroke="#d9534f" points="160.02,-45.27 0,-45.27 0,-21 160.02,-21 160.02,-45.27"/>
+<text xml:space="preserve" text-anchor="middle" x="80.01" y="-29.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_nlls_type%nlls_solve</text>
+</a>
+</g>
+</g>
+<!-- proc~nlls_solve&#45;&gt;proc~sqpopt_solve -->
+<g id="proc~~check_convergence~~CalledByGraph_edge5" class="edge">
+<title>proc~nlls_solve&#45;&gt;proc~sqpopt_solve</title>
+<path fill="none" stroke="#000000" d="M160.52,-33.13C168.31,-33.13 176.26,-33.13 184.14,-33.13"/>
+<polygon fill="#000000" stroke="#000000" points="184.09,-36.64 194.09,-33.14 184.09,-29.64 184.09,-36.64"/>
+</g>
+</g>
+</svg>
+</div>                <script>
+                  var panproccheck_convergenceCalledByGraph = svgPanZoom('#proccheck_convergenceCalledByGraph',
+                    {zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true,}
+                  );
+                </script>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#CalledByGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="CalledByGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="641pt" height="28pt"
+ viewBox="0.00 0.00 641.00 28.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(0.873868 0.873868) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 729.52,-28.27 729.52,4 -4,4"/>
+<!-- Subroutine -->
+<g id="node1" class="node">
+<title>Subroutine</title>
+<polygon fill="#d9534f" stroke="#d9534f" points="69.27,-24.27 0,-24.27 0,0 69.27,0 69.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="34.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Subroutine</text>
+</g>
+<!-- Function -->
+<g id="node2" class="node">
+<title>Function</title>
+<polygon fill="#d94e8f" stroke="#d94e8f" points="143.89,-24.27 87.38,-24.27 87.38,0 143.89,0 143.89,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="115.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Function</text>
+</g>
+<!-- Interface -->
+<g id="node3" class="node">
+<title>Interface</title>
+<polygon fill="#a7506f" stroke="#a7506f" points="221.39,-24.27 161.88,-24.27 161.88,0 221.39,0 221.39,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="191.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Interface</text>
+</g>
+<!-- Type Bound Procedure -->
+<g id="node4" class="node">
+<title>Type Bound Procedure</title>
+<polygon fill="#a7506f" stroke="#a7506f" points="368.27,-24.27 239,-24.27 239,0 368.27,0 368.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="303.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Type Bound Procedure</text>
+</g>
+<!-- Unknown Procedure Type -->
+<g id="node5" class="node">
+<title>Unknown Procedure Type</title>
+<polygon fill="#777777" stroke="#777777" points="529.39,-24.27 385.88,-24.27 385.88,0 529.39,0 529.39,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="457.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Unknown Procedure Type</text>
+</g>
+<!-- Program -->
+<g id="node6" class="node">
+<title>Program</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="603.89,-24.27 547.38,-24.27 547.38,0 603.89,0 603.89,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="575.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Program</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node7" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="725.52,-24.27 621.75,-24.27 621.75,0 725.52,0 725.52,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="673.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a procedure to one which it calls. Dashed 
+arrows point from an interface to procedures which implement that interface.
+This could include the module procedures in a generic interface or the
+implementation in a submodule of an interface in a parent module.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <br>
+
+
+    
+    
+
+    
+    
+
+
+
+    
+    <section>
+    <h2><span class="anchor" id="src"></span>Source Code</h2>
+    <div class="hl codehilite"><pre><span></span><span class="w">    </span><span class="k">subroutine </span><span class="n">check_convergence</span><span class="p">(</span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">g</span><span class="p">,</span><span class="w"> </span><span class="n">jac</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">x_lb</span><span class="p">,</span><span class="w"> </span><span class="n">x_ub</span><span class="p">,</span><span class="w"> </span><span class="n">c_lb</span><span class="p">,</span><span class="w"> </span><span class="n">c_ub</span><span class="p">,</span><span class="w"> </span><span class="n">lambda</span><span class="p">,</span><span class="w"> </span><span class="n">ktol</span><span class="p">,</span><span class="w"> </span><span class="n">ctol</span><span class="p">,</span><span class="w"> </span><span class="n">converged</span><span class="p">,</span><span class="w"> </span><span class="n">istat</span><span class="p">,</span><span class="w"> </span><span class="p">&amp;</span><span class="w"></span>
+<span class="w">                                  </span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="n">f_prev</span><span class="p">,</span><span class="w"> </span><span class="n">x_prev</span><span class="p">,</span><span class="w"> </span><span class="n">ftol</span><span class="p">,</span><span class="w"> </span><span class="n">xtol</span><span class="p">,</span><span class="w"> </span><span class="n">kkt_error</span><span class="p">,</span><span class="w"> </span><span class="n">feas_error</span><span class="p">,</span><span class="w"> </span><span class="n">viol_prev</span><span class="p">,</span><span class="w"> </span><span class="p">&amp;</span><span class="w"></span>
+<span class="w">                                  </span><span class="n">dual_inf_tol</span><span class="p">,</span><span class="w"> </span><span class="n">f_scale</span><span class="p">,</span><span class="w"> </span><span class="n">stat_error</span><span class="p">)</span><span class="w"></span>
+
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">     </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">x</span><span class="w">         </span><span class="c">!! current point `dimension(n)`</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">     </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">g</span><span class="w">         </span><span class="c">!! objective gradient at `x` `dimension(n)`</span>
+<span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_sparse_matrix</span><span class="p">),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">jac</span><span class="w">       </span><span class="c">!! constraint Jacobian at `x`, `dimension(m,n)`</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">     </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">c</span><span class="w">         </span><span class="c">!! constraint values at `x` `dimension(m)`</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">     </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">x_lb</span><span class="w">      </span><span class="c">!! variable lower bounds `dimension(n)`</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">     </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">x_ub</span><span class="w">      </span><span class="c">!! variable upper bounds `dimension(n)`</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">     </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">c_lb</span><span class="w">      </span><span class="c">!! constraint lower bounds `dimension(m)`</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">     </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">c_ub</span><span class="w">      </span><span class="c">!! constraint upper bounds `dimension(m)`</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">     </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">lambda</span><span class="w">    </span><span class="c">!! Lagrange multipliers `dimension(m)`</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">                   </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">ktol</span><span class="w">      </span><span class="c">!! KKT optimality tolerance</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">                   </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">ctol</span><span class="w">      </span><span class="c">!! feasibility tolerance</span>
+<span class="w">    </span><span class="kt">logical</span><span class="p">,</span><span class="w">                     </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">converged</span><span class="w"> </span><span class="c">!! true if the solver should stop at `x` (see `istat` for why)</span>
+<span class="w">    </span><span class="kt">integer</span><span class="p">,</span><span class="w">                     </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">istat</span><span class="w">     </span><span class="c">!! the reason: `sqpopt_success`, `sqpopt_stalled`, or `sqpopt_infeasible`</span>
+<span class="w">                                                          </span><span class="c">!! if `converged`, else `sqpopt_success` (see [[sqpopt_types_module]])</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">                     </span><span class="k">optional</span><span class="p">,</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">f</span><span class="w">      </span><span class="c">!! objective value at `x` (enables the stalled-progress test with `f_prev`/`ftol`)</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">                     </span><span class="k">optional</span><span class="p">,</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">f_prev</span><span class="w"> </span><span class="c">!! objective value at the previous iterate</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">       </span><span class="k">optional</span><span class="p">,</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">x_prev</span><span class="w"> </span><span class="c">!! the previous iterate `dimension(n)` (enables the</span>
+<span class="w">                                                                 </span><span class="c">!! stalled-progress test with `xtol`, and the infeasibility test)</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">                     </span><span class="k">optional</span><span class="p">,</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">ftol</span><span class="w">   </span><span class="c">!! relative objective-change tolerance for the stalled-progress test</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">                     </span><span class="k">optional</span><span class="p">,</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">xtol</span><span class="w">   </span><span class="c">!! relative variable-change tolerance for the stalled-progress test</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">                     </span><span class="k">optional</span><span class="p">,</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">kkt_error</span><span class="w">  </span><span class="c">!! the KKT error: the larger of the stationarity and</span>
+<span class="w">                                                                      </span><span class="c">!! complementarity residuals, divided by their scaling</span>
+<span class="w">                                                                      </span><span class="c">!! (so it is directly comparable to `ktol`)</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">                     </span><span class="k">optional</span><span class="p">,</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">feas_error</span><span class="w"> </span><span class="c">!! the largest violation of a constraint or variable bound</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">                     </span><span class="k">optional</span><span class="p">,</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">viol_prev</span><span class="w">  </span><span class="c">!! the largest constraint violation at `x_prev`</span>
+<span class="w">                                                                      </span><span class="c">!! (enables the no-progress condition of the</span>
+<span class="w">                                                                      </span><span class="c">!! infeasibility test)</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">                     </span><span class="k">optional</span><span class="p">,</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">dual_inf_tol</span><span class="w"> </span><span class="c">!! if present (with `f_scale`), the KKT test</span>
+<span class="w">                                                                        </span><span class="c">!! also requires the stationarity residual of</span>
+<span class="w">                                                                        </span><span class="c">!! the *unscaled* problem to be at most this</span>
+<span class="w">                                                                        </span><span class="c">!! (as IPOPT&#39;s `dual_inf_tol`)</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">                     </span><span class="k">optional</span><span class="p">,</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">stat_error</span><span class="w">   </span><span class="c">!! the (projected) stationarity residual of the</span>
+<span class="w">                                                                        </span><span class="c">!! scaled problem, without the multiplier scaling</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">                     </span><span class="k">optional</span><span class="p">,</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">f_scale</span><span class="w">      </span><span class="c">!! the objective&#39;s scale factor: the unscaled</span>
+<span class="w">                                                                        </span><span class="c">!! stationarity residual is the scaled one</span>
+<span class="w">                                                                        </span><span class="c">!! divided by it</span>
+
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">parameter</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">s_max</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">10</span><span class="mf">0.0_wp</span><span class="w"> </span><span class="c">!! multiplier-scaling threshold (see above)</span>
+
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">allocatable</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">jtlam</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="w"></span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">allocatable</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">rc</span><span class="w"></span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">kkt_res</span><span class="p">,</span><span class="w"> </span><span class="n">dual_res</span><span class="p">,</span><span class="w"> </span><span class="n">c_viol</span><span class="p">,</span><span class="w"> </span><span class="n">x_viol</span><span class="p">,</span><span class="w"> </span><span class="n">rel_f</span><span class="p">,</span><span class="w"> </span><span class="n">rel_x</span><span class="p">,</span><span class="w"> </span><span class="n">lam_scale</span><span class="w"></span>
+<span class="w">    </span><span class="kt">integer</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">i</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">allocate</span><span class="p">(</span><span class="n">jtlam</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">g</span><span class="p">)),</span><span class="w"> </span><span class="n">r</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">g</span><span class="p">)),</span><span class="w"> </span><span class="n">rc</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)))</span><span class="w"></span>
+
+<span class="w">    </span><span class="n">istat</span><span class="w">     </span><span class="o">=</span><span class="w"> </span><span class="n">sqpopt_success</span><span class="w"></span>
+<span class="w">    </span><span class="n">converged</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">call </span><span class="n">sparse_matvec_transpose</span><span class="p">(</span><span class="n">jac</span><span class="p">,</span><span class="w"> </span><span class="n">lambda</span><span class="p">,</span><span class="w"> </span><span class="n">jtlam</span><span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="n">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">g</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">jtlam</span><span class="w"></span>
+
+<span class="w">    </span><span class="c">! projected-gradient stationarity test: a nonzero reduced gradient</span>
+<span class="w">    </span><span class="c">! component is only a violation if it points into the feasible region</span>
+<span class="w">    </span><span class="c">! at an active bound (see e.g. the `pgtol` test used by L-BFGS-B):</span>
+<span class="w">    </span><span class="n">kkt_res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">projected_inf_norm</span><span class="p">(</span><span class="n">r</span><span class="p">,</span><span class="w"> </span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">x_lb</span><span class="p">,</span><span class="w"> </span><span class="n">x_ub</span><span class="p">,</span><span class="w"> </span><span class="n">ctol</span><span class="p">)</span><span class="w"></span>
+
+<span class="w">    </span><span class="c">! dual feasibility &amp; complementarity of the constraint multipliers:</span>
+<span class="w">    </span><span class="n">dual_res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="w"></span>
+<span class="w">    </span><span class="k">do </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">c_ub</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="o">-</span><span class="n">c_lb</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">ctol</span><span class="p">)</span><span class="w"> </span><span class="k">cycle</span><span class="w">  </span><span class="c">! equality constraint: free multiplier</span>
+<span class="w">        </span><span class="c">! (the distance to the bound is capped at 1: a multiplier of the wrong</span>
+<span class="w">        </span><span class="c">! sign for the bound the constraint is at is a violation of `|lambda|`,</span>
+<span class="w">        </span><span class="c">! however far away the other bound is -- it may be infinite)</span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">lambda</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<span class="k">            </span><span class="n">dual_res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="n">dual_res</span><span class="p">,</span><span class="w"> </span><span class="n">lambda</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="o">*</span><span class="nb">min</span><span class="p">(</span><span class="mf">1.0_wp</span><span class="p">,</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="n">c</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="o">-</span><span class="n">c_lb</span><span class="p">(</span><span class="n">i</span><span class="p">),</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="p">)))</span><span class="w"></span>
+<span class="w">        </span><span class="k">else if</span><span class="w"> </span><span class="p">(</span><span class="n">lambda</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<span class="k">            </span><span class="n">dual_res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="n">dual_res</span><span class="p">,</span><span class="w"> </span><span class="o">-</span><span class="n">lambda</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="o">*</span><span class="nb">min</span><span class="p">(</span><span class="mf">1.0_wp</span><span class="p">,</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="n">c_ub</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="o">-</span><span class="n">c</span><span class="p">(</span><span class="n">i</span><span class="p">),</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="p">)))</span><span class="w"></span>
+<span class="w">        </span><span class="k">end if</span>
+<span class="k">    end do</span>
+
+<span class="k">    </span><span class="n">lam_scale</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">1.0_wp</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">lambda</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="n">lam_scale</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="n">s_max</span><span class="p">,</span><span class="w"> </span><span class="nb">sum</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">lambda</span><span class="p">))</span><span class="o">/</span><span class="n">size</span><span class="p">(</span><span class="n">lambda</span><span class="p">))</span><span class="o">/</span><span class="n">s_max</span><span class="w"></span>
+
+<span class="w">    </span><span class="n">c_viol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="n">c_viol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">maxval</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">c_lb</span><span class="o">-</span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="n">c</span><span class="o">-</span><span class="n">c_ub</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="p">))</span><span class="w"></span>
+<span class="w">    </span><span class="n">x_viol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">maxval</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">x_lb</span><span class="o">-</span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="n">x</span><span class="o">-</span><span class="n">x_ub</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="p">))</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">present</span><span class="p">(</span><span class="n">kkt_error</span><span class="p">))</span><span class="w">  </span><span class="n">kkt_error</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="n">kkt_res</span><span class="p">,</span><span class="w"> </span><span class="n">dual_res</span><span class="p">)</span><span class="o">/</span><span class="n">lam_scale</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">present</span><span class="p">(</span><span class="n">stat_error</span><span class="p">))</span><span class="w"> </span><span class="n">stat_error</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">kkt_res</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">present</span><span class="p">(</span><span class="n">feas_error</span><span class="p">))</span><span class="w"> </span><span class="n">feas_error</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="n">c_viol</span><span class="p">,</span><span class="w"> </span><span class="n">x_viol</span><span class="p">)</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">kkt_res</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">ktol</span><span class="o">*</span><span class="n">lam_scale</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="n">dual_res</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">ktol</span><span class="o">*</span><span class="n">lam_scale</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="p">&amp;</span><span class="w"></span>
+<span class="w">        </span><span class="n">c_viol</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">ctol</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="n">x_viol</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">ctol</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="n">unscaled_ok</span><span class="p">())</span><span class="w"> </span><span class="k">then</span>
+<span class="k">        </span><span class="n">converged</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">true</span><span class="p">.</span><span class="w"></span>
+<span class="w">        </span><span class="k">return</span>
+<span class="k">    end if</span>
+
+<span class="k">    if</span><span class="w"> </span><span class="p">(</span><span class="n">c_viol</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">ctol</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="n">x_viol</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">ctol</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="p">&amp;</span><span class="w"></span>
+<span class="w">        </span><span class="nb">present</span><span class="p">(</span><span class="n">f</span><span class="p">)</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="nb">present</span><span class="p">(</span><span class="n">f_prev</span><span class="p">)</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="nb">present</span><span class="p">(</span><span class="n">x_prev</span><span class="p">)</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="nb">present</span><span class="p">(</span><span class="n">ftol</span><span class="p">)</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="nb">present</span><span class="p">(</span><span class="n">xtol</span><span class="p">))</span><span class="w"> </span><span class="k">then</span><span class="w"></span>
+<span class="w">        </span><span class="c">! feasible, but the KKT test hasn&#39;t yet reached `ktol`: stop anyway</span>
+<span class="w">        </span><span class="c">! if the objective and the variables have both stalled (relative to</span>
+<span class="w">        </span><span class="c">! the previous iterate), rather than looping until `max_iter` on</span>
+<span class="w">        </span><span class="c">! marginal, ever-shrinking steps:</span>
+<span class="w">        </span><span class="n">rel_f</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">abs</span><span class="p">(</span><span class="n">f</span><span class="o">-</span><span class="n">f_prev</span><span class="p">)</span><span class="o">/</span><span class="nb">max</span><span class="p">(</span><span class="mf">1.0_wp</span><span class="p">,</span><span class="w"> </span><span class="nb">abs</span><span class="p">(</span><span class="n">f</span><span class="p">))</span><span class="w"></span>
+<span class="w">        </span><span class="n">rel_x</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">norm2</span><span class="p">(</span><span class="n">x</span><span class="o">-</span><span class="n">x_prev</span><span class="p">)</span><span class="o">/</span><span class="nb">max</span><span class="p">(</span><span class="mf">1.0_wp</span><span class="p">,</span><span class="w"> </span><span class="nb">norm2</span><span class="p">(</span><span class="n">x</span><span class="p">))</span><span class="w"></span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">rel_f</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">ftol</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="n">rel_x</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">xtol</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<span class="k">            </span><span class="n">converged</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">true</span><span class="p">.</span><span class="w"></span>
+<span class="w">            </span><span class="n">istat</span><span class="w">     </span><span class="o">=</span><span class="w"> </span><span class="n">sqpopt_stalled</span><span class="w"></span>
+<span class="w">            </span><span class="k">return</span>
+<span class="k">        end if</span>
+<span class="k">    end if</span>
+
+<span class="k">    if</span><span class="w"> </span><span class="p">(</span><span class="n">c_viol</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">ctol</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="nb">present</span><span class="p">(</span><span class="n">x_prev</span><span class="p">))</span><span class="w"> </span><span class="k">then</span>
+<span class="k">        if</span><span class="w"> </span><span class="p">(</span><span class="nb">present</span><span class="p">(</span><span class="n">viol_prev</span><span class="p">))</span><span class="w"> </span><span class="k">then</span>
+<span class="k">            if</span><span class="w"> </span><span class="p">(</span><span class="n">c_viol</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">0.99_wp</span><span class="o">*</span><span class="n">viol_prev</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w">   </span><span class="c">! (still making progress toward feasibility)</span>
+<span class="w">        </span><span class="k">end if</span><span class="w"></span>
+<span class="w">        </span><span class="c">! infeasible: is `x` stationary for the (squared, l2) constraint</span>
+<span class="w">        </span><span class="c">! violation, subject to the variable bounds? Then no first-order</span>
+<span class="w">        </span><span class="c">! progress toward feasibility is possible from here. The gradient</span>
+<span class="w">        </span><span class="c">! `J^T r_c` is measured relative to `|r_c|` (it is proportional to</span>
+<span class="w">        </span><span class="c">! it), so a nearly-feasible point isn&#39;t mistaken for a stationary one:</span>
+<span class="w">        </span><span class="n">rc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">min</span><span class="p">(</span><span class="n">c</span><span class="o">-</span><span class="n">c_lb</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="n">c</span><span class="o">-</span><span class="n">c_ub</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="k">call </span><span class="n">sparse_matvec_transpose</span><span class="p">(</span><span class="n">jac</span><span class="p">,</span><span class="w"> </span><span class="n">rc</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">projected_inf_norm</span><span class="p">(</span><span class="n">r</span><span class="p">,</span><span class="w"> </span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">x_lb</span><span class="p">,</span><span class="w"> </span><span class="n">x_ub</span><span class="p">,</span><span class="w"> </span><span class="n">ctol</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">ktol</span><span class="o">*</span><span class="nb">norm2</span><span class="p">(</span><span class="n">rc</span><span class="p">))</span><span class="w"> </span><span class="k">then</span>
+<span class="k">            </span><span class="n">converged</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">true</span><span class="p">.</span><span class="w"></span>
+<span class="w">            </span><span class="n">istat</span><span class="w">     </span><span class="o">=</span><span class="w"> </span><span class="n">sqpopt_infeasible</span><span class="w"></span>
+<span class="w">        </span><span class="k">end if</span>
+<span class="k">    end if</span>
+
+<span class="k">    contains</span>
+
+<span class="k">        </span><span class="kt">logical </span><span class="k">function </span><span class="n">unscaled_ok</span><span class="p">()</span><span class="w"></span>
+<span class="w">        </span><span class="c">!! the unscaled stationarity test (see `dual_inf_tol`): with the</span>
+<span class="w">        </span><span class="c">!! objective scaled by `f_scale` and each constraint by its own</span>
+<span class="w">        </span><span class="c">!! factor, the multipliers scale by their ratio, so the gradient of</span>
+<span class="w">        </span><span class="c">!! the unscaled Lagrangian is the scaled one divided by `f_scale`</span>
+<span class="w">        </span><span class="n">unscaled_ok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">true</span><span class="p">.</span><span class="w"></span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">present</span><span class="p">(</span><span class="n">dual_inf_tol</span><span class="p">)</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="nb">present</span><span class="p">(</span><span class="n">f_scale</span><span class="p">))</span><span class="w"> </span><span class="k">then</span>
+<span class="k">            </span><span class="n">unscaled_ok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">kkt_res</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">dual_inf_tol</span><span class="o">*</span><span class="n">f_scale</span><span class="w"></span>
+<span class="w">        </span><span class="k">end if</span>
+<span class="k">        end function </span><span class="n">unscaled_ok</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">end subroutine </span><span class="n">check_convergence</span><span class="w"></span>
+</pre></div>
+
+    </section>
+    <br>
+    
+    </div>
+  </div>
+
+      <hr>
+    </div> <!-- /container -->
+    <footer>
+      <div class="container">
+        <div class="row justify-content-between">
+          <div class="col">
+            <p>
+              sqpopt
+ was developed by Jacob Williams<br>              &copy; 2026 
+</p>
+          </div>
+          <div class="col">
+            <p class="text-end">
+              Documentation generated by
+              <a href="https://github.com/Fortran-FOSS-Programmers/ford">FORD</a>
+            </p>
+          </div>
+        </div>
+        <br>
+      </div> <!-- /container -->
+    </footer>
+    <!-- sqpopt theme: the button switches the theme, and remembers it for the guide too -->
+    <script>
+      document.querySelector('.theme-toggle').addEventListener('click', function () {
+        var root = document.documentElement;
+        var next = root.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-bs-theme', next);
+        try { localStorage.setItem('sqpopt-theme', next); } catch (e) {}
+      });
+    </script>
+  </body>
+</html>

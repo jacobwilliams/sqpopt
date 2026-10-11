@@ -1,0 +1,549 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - coverage.info - src/sqpopt_restoration_module.f90</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../index.html" title="Click to go to top-level">top level</a> - <a href="index.html" title="Click to go to directory src">src</a> - sqpopt_restoration_module.f90<span style="font-size: 80%;"> (source / <a href="sqpopt_restoration_module.f90.func-c.html" title="Click to go to function table">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">coverage.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">95.7&nbsp;%</td>
+            <td class="headerCovTableEntry">141</td>
+            <td class="headerCovTableEntry">135</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2026-10-11 01:22:22</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryMed">75.0&nbsp;%</td>
+            <td class="headerCovTableEntry">8</td>
+            <td class="headerCovTableEntry">6</td>
+          </tr>
+                  <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : !*******************************************************************************</span>
+<span id="L2"><span class="lineNum">       2</span>              : !&gt; author: Jacob Williams</span>
+<span id="L3"><span class="lineNum">       3</span>              : !  license: MIT</span>
+<span id="L4"><span class="lineNum">       4</span>              : !</span>
+<span id="L5"><span class="lineNum">       5</span>              : !  Feasibility restoration, used by [[sqpopt_iterate_module]] when the QP</span>
+<span id="L6"><span class="lineNum">       6</span>              : !  subproblem reports that the linearized constraints are inconsistent</span>
+<span id="L7"><span class="lineNum">       7</span>              : !  (`sqpopt_infeasible`), so that no QP step can be trusted, or when the</span>
+<span id="L8"><span class="lineNum">       8</span>              : !  filter or funnel line search, or the trust region, finds no acceptable</span>
+<span id="L9"><span class="lineNum">       9</span>              : !  step at an infeasible point (one whose largest constraint violation, as</span>
+<span id="L10"><span class="lineNum">      10</span>              : !  the convergence test measures it, exceeds `options%ctol`: a round-off</span>
+<span id="L11"><span class="lineNum">      11</span>              : !  violation has nothing to restore). Two strategies are available</span>
+<span id="L12"><span class="lineNum">      12</span>              : !  (`options%restoration_mode`):</span>
+<span id="L13"><span class="lineNum">      13</span>              : !</span>
+<span id="L14"><span class="lineNum">      14</span>              : !  * `sqpopt_restoration_phase` (**default**): when the filter or funnel</span>
+<span id="L15"><span class="lineNum">      15</span>              : !    line search, or the trust region, finds no acceptable step, a</span>
+<span id="L16"><span class="lineNum">      16</span>              : !    **feasibility restoration phase**, as in filter-SQP methods (Fletcher</span>
+<span id="L17"><span class="lineNum">      17</span>              : !    &amp; Leyffer; Wächter &amp; Biegler; and the Uno solver's</span>
+<span id="L18"><span class="lineNum">      18</span>              : !    `FeasibilityRestoration`). (An inconsistent QP is still handled by the</span>
+<span id="L19"><span class="lineNum">      19</span>              : !    Gauss-Newton step below, falling back to the QP's elastic step, which</span>
+<span id="L20"><span class="lineNum">      20</span>              : !    also accounts for the objective: on the Hock-Schittkowski problems</span>
+<span id="L21"><span class="lineNum">      21</span>              : !    this finds better local solutions than a pure feasibility phase.) The</span>
+<span id="L22"><span class="lineNum">      22</span>              : !    solver switches to minimizing the constraint violation for as many</span>
+<span id="L23"><span class="lineNum">      23</span>              : !    major iterations as needed (see [[restoration_phase_step]]): each one</span>
+<span id="L24"><span class="lineNum">      24</span>              : !    solves a *feasibility QP* with the regular QP solvers, whose objective</span>
+<span id="L25"><span class="lineNum">      25</span>              : !    is a proximal term toward the point where the phase started, and</span>
+<span id="L26"><span class="lineNum">      26</span>              : !    whose linearized constraints are enforced (or, if they are</span>
+<span id="L27"><span class="lineNum">      27</span>              : !    inconsistent, their \( \ell_1 \) violation is minimized by the QP's</span>
+<span id="L28"><span class="lineNum">      28</span>              : !    elastic mode), followed by a backtracking search on the \( \ell_1 \)</span>
+<span id="L29"><span class="lineNum">      29</span>              : !    violation. The phase ends (see [[restoration_phase_done]]) once the</span>
+<span id="L30"><span class="lineNum">      30</span>              : !    violation has dropped below `restoration_exit_factor` times its value</span>
+<span id="L31"><span class="lineNum">      31</span>              : !    at the start of the phase *and* the point is acceptable to the filter</span>
+<span id="L32"><span class="lineNum">      32</span>              : !    (or funnel), when the point is feasible, after</span>
+<span id="L33"><span class="lineNum">      33</span>              : !    `restoration_max_iter` iterations, or when a phase step (and its</span>
+<span id="L34"><span class="lineNum">      34</span>              : !    Gauss-Newton fallback) fails, so that the next iteration tries the</span>
+<span id="L35"><span class="lineNum">      35</span>              : !    optimality QP again. The point where the phase started</span>
+<span id="L36"><span class="lineNum">      36</span>              : !    is added to the filter (or the funnel is tightened toward it), so the</span>
+<span id="L37"><span class="lineNum">      37</span>              : !    iterations can't cycle back to it.</span>
+<span id="L38"><span class="lineNum">      38</span>              : !  * `sqpopt_restoration_gauss_newton`: a single Gauss-Newton step on the</span>
+<span id="L39"><span class="lineNum">      39</span>              : !    constraint violation each time (the original, lightweight strategy;</span>
+<span id="L40"><span class="lineNum">      40</span>              : !    with the filter or funnel line search, the current point is added to</span>
+<span id="L41"><span class="lineNum">      41</span>              : !    the filter, or the funnel tightened, first):</span>
+<span id="L42"><span class="lineNum">      42</span>              : !</span>
+<span id="L43"><span class="lineNum">      43</span>              : !  $$ \min_x \; \tfrac12 \lVert r_c(x) \rVert_2^2 \quad \text{s.t.} \quad x_l \le x \le x_u $$</span>
+<span id="L44"><span class="lineNum">      44</span>              : !</span>
+<span id="L45"><span class="lineNum">      45</span>              : !  where \( r_c \) is the signed violation of each constraint's bounds.</span>
+<span id="L46"><span class="lineNum">      46</span>              : !  Repeated restoration steps converge to either a feasible point (after</span>
+<span id="L47"><span class="lineNum">      47</span>              : !  which the normal SQP iterations resume) or a point that is stationary</span>
+<span id="L48"><span class="lineNum">      48</span>              : !  for the violation, which [[check_convergence]] then reports as</span>
+<span id="L49"><span class="lineNum">      49</span>              : !  `sqpopt_infeasible`. This step is also the fallback when a restoration</span>
+<span id="L50"><span class="lineNum">      50</span>              : !  phase step fails.</span>
+<span id="L51"><span class="lineNum">      51</span>              : !</span>
+<span id="L52"><span class="lineNum">      52</span>              : !  A problem with more equality constraints than variables has an</span>
+<span id="L53"><span class="lineNum">      53</span>              : !  inconsistent QP at every iteration, and is solved by these steps alone</span>
+<span id="L54"><span class="lineNum">      54</span>              : !  (see [[sqpopt_nlls_module]] for a better way to pose one whose</span>
+<span id="L55"><span class="lineNum">      55</span>              : !  equations can't all hold).</span>
+<span id="L56"><span class="lineNum">      56</span>              : !</span>
+<span id="L57"><span class="lineNum">      57</span>              : !  In both cases, before a point that is stationary for the violation is</span>
+<span id="L58"><span class="lineNum">      58</span>              : !  reported as infeasible, [[escape_step]] looks for a second-order</span>
+<span id="L59"><span class="lineNum">      59</span>              : !  decrease of the violation.</span>
+<span id="L60"><span class="lineNum">      60</span>              : </span>
+<span id="L61"><span class="lineNum">      61</span>              :     module sqpopt_restoration_module</span>
+<span id="L62"><span class="lineNum">      62</span>              : </span>
+<span id="L63"><span class="lineNum">      63</span>              :     use sqpopt_kinds,          only: wp =&gt; sqpopt_module_wp</span>
+<span id="L64"><span class="lineNum">      64</span>              :     use sqpopt_types_module,   only: sqpopt_sparse_matrix, sqpopt_success, sqpopt_line_search_failed, sqpopt_all_finite, &amp;</span>
+<span id="L65"><span class="lineNum">      65</span>              :                                      sqpopt_infeasible, sqpopt_qp_solve_failed, sqpopt_out_of_memory</span>
+<span id="L66"><span class="lineNum">      66</span>              :     use sqpopt_problem_module, only: sqpopt_problem_type</span>
+<span id="L67"><span class="lineNum">      67</span>              :     use sqpopt_hessian_module, only: sqpopt_hessian_type</span>
+<span id="L68"><span class="lineNum">      68</span>              :     use sqpopt_qp_solver_module,  only: sqpopt_qp_solver_type</span>
+<span id="L69"><span class="lineNum">      69</span>              :     use sqpopt_linesearch_module, only: sqpopt_linesearch_type, l1_violation</span>
+<span id="L70"><span class="lineNum">      70</span>              :     use sqpopt_linalg_module,     only: sparse_matvec</span>
+<span id="L71"><span class="lineNum">      71</span>              :     use lsqr_module,           only: lsqr_solver_ez</span>
+<span id="L72"><span class="lineNum">      72</span>              :     use sqpopt_least_squares_module, only: sqpopt_least_squares_type</span>
+<span id="L73"><span class="lineNum">      73</span>              : </span>
+<span id="L74"><span class="lineNum">      74</span>              :     implicit none</span>
+<span id="L75"><span class="lineNum">      75</span>              : </span>
+<span id="L76"><span class="lineNum">      76</span>              :     private</span>
+<span id="L77"><span class="lineNum">      77</span>              : </span>
+<span id="L78"><span class="lineNum">      78</span>              :     public :: restoration_step, escape_step</span>
+<span id="L79"><span class="lineNum">      79</span>              : </span>
+<span id="L80"><span class="lineNum">      80</span>              :     integer, parameter, public :: sqpopt_restoration_phase        = 1 !! (default) a feasibility restoration phase</span>
+<span id="L81"><span class="lineNum">      81</span>              :                                                                       !! (see the module documentation)</span>
+<span id="L82"><span class="lineNum">      82</span>              :     integer, parameter, public :: sqpopt_restoration_gauss_newton = 2 !! a single Gauss-Newton step on the violation</span>
+<span id="L83"><span class="lineNum">      83</span>              : </span>
+<span id="L84"><span class="lineNum">      84</span>              :     type, public :: sqpopt_restoration_type</span>
+<span id="L85"><span class="lineNum">      85</span>              :         !! the state of the feasibility restoration phase (internal; reset on each `solve`)</span>
+<span id="L86"><span class="lineNum">      86</span>              :         logical  :: active    = .false.  !! whether the solver is in the restoration phase</span>
+<span id="L87"><span class="lineNum">      87</span>              :         integer  :: n_iter    = 0        !! number of iterations of the current phase</span>
+<span id="L88"><span class="lineNum">      88</span>              :         integer  :: n_phases  = 0        !! number of restoration phases so far</span>
+<span id="L89"><span class="lineNum">      89</span>              :         real(wp) :: theta_ref = 0.0_wp   !! \( \ell_1 \) violation where the phase started</span>
+<span id="L90"><span class="lineNum">      90</span>              :         real(wp), dimension(:), allocatable :: x_ref !! the point where the phase started (the proximal center)</span>
+<span id="L91"><span class="lineNum">      91</span>              :         type(sqpopt_qp_solver_type) :: qp   !! the QP solver for the feasibility QPs (a copy of the main one,</span>
+<span id="L92"><span class="lineNum">      92</span>              :                                             !! so that the latter's warm start is kept for the optimality QPs)</span>
+<span id="L93"><span class="lineNum">      93</span>              :         type(sqpopt_hessian_type)   :: hess !! the feasibility QP's Hessian (the proximal term, \( \zeta I \))</span>
+<span id="L94"><span class="lineNum">      94</span>              :         contains</span>
+<span id="L95"><span class="lineNum">      95</span>              :         procedure, public :: enter =&gt; restoration_phase_enter</span>
+<span id="L96"><span class="lineNum">      96</span>              :         procedure, public :: step  =&gt; restoration_phase_step</span>
+<span id="L97"><span class="lineNum">      97</span>              :         procedure, public :: done  =&gt; restoration_phase_done</span>
+<span id="L98"><span class="lineNum">      98</span>              :     end type sqpopt_restoration_type</span>
+<span id="L99"><span class="lineNum">      99</span>              : </span>
+<span id="L100"><span class="lineNum">     100</span>              :     real(wp), parameter :: zeta = 1.0_wp !! weight \( \zeta \) of the feasibility QP's proximal term (only its ratio</span>
+<span id="L101"><span class="lineNum">     101</span>              :                                          !! to the QP's elastic weight matters: with consistent linearized constraints</span>
+<span id="L102"><span class="lineNum">     102</span>              :                                          !! the step is the one closest to the proximal center)</span>
+<span id="L103"><span class="lineNum">     103</span>              : </span>
+<span id="L104"><span class="lineNum">     104</span>              :     contains</span>
+<span id="L105"><span class="lineNum">     105</span>              : !*******************************************************************************</span>
+<span id="L106"><span class="lineNum">     106</span>              : </span>
+<span id="L107"><span class="lineNum">     107</span>              : !*******************************************************************************</span>
+<span id="L108"><span class="lineNum">     108</span>              : !&gt;</span>
+<span id="L109"><span class="lineNum">     109</span>              : !  take one Gauss-Newton step toward feasibility of the constraints (see</span>
+<span id="L110"><span class="lineNum">     110</span>              : !  the module-level documentation), with a backtracking Armijo search on</span>
+<span id="L111"><span class="lineNum">     111</span>              : !  \( \tfrac12 \lVert r_c \rVert_2^2 \). If no decrease is found, `x_new=x`</span>
+<span id="L112"><span class="lineNum">     112</span>              : !  and `istat=sqpopt_line_search_failed` (also if `LSQR` stops at its</span>
+<span id="L113"><span class="lineNum">     113</span>              : !  iteration limit before finding the Gauss-Newton step). With</span>
+<span id="L114"><span class="lineNum">     114</span>              : !  `least_squares` (if it is enabled), the Gauss-Newton step is computed by</span>
+<span id="L115"><span class="lineNum">     115</span>              : !  a direct solve, and by `LSQR` only if that fails.</span>
+<span id="L116"><span class="lineNum">     116</span>              : !</span>
+<span id="L117"><span class="lineNum">     117</span>              : !  If `direction` is present, it is searched along instead of the</span>
+<span id="L118"><span class="lineNum">     118</span>              : !  Gauss-Newton direction (for when that can't make progress: at a point</span>
+<span id="L119"><span class="lineNum">     119</span>              : !  that is stationary for the violation, a decrease may still be possible</span>
+<span id="L120"><span class="lineNum">     120</span>              : !  to second order, e.g. along the QP's elastic step where `J=0`). Along a</span>
+<span id="L121"><span class="lineNum">     121</span>              : !  direction without first-order decrease, any decrease of the violation</span>
+<span id="L122"><span class="lineNum">     122</span>              : !  is accepted.</span>
+<span id="L123"><span class="lineNum">     123</span>              : </span>
+<span id="L124"><span class="lineNum">     124</span> <span class="tlaGNC">         125 :     subroutine restoration_step(problem, jac, x, c, max_step, x_new, alpha, istat, direction, least_squares)</span></span>
+<span id="L125"><span class="lineNum">     125</span>              : </span>
+<span id="L126"><span class="lineNum">     126</span>              :     type(sqpopt_problem_type),  intent(inout) :: problem  !! problem definition</span>
+<span id="L127"><span class="lineNum">     127</span>              :     type(sqpopt_sparse_matrix), intent(in)    :: jac      !! constraint Jacobian at `x`, `dimension(m,n)`</span>
+<span id="L128"><span class="lineNum">     128</span>              :     real(wp), dimension(:),     intent(in)    :: x        !! current point `dimension(n)`</span>
+<span id="L129"><span class="lineNum">     129</span>              :     real(wp), dimension(:),     intent(in)    :: c        !! constraint values at `x` `dimension(m)`</span>
+<span id="L130"><span class="lineNum">     130</span>              :     real(wp),                   intent(in)    :: max_step !! cap on \( \lVert p \rVert_2 \)</span>
+<span id="L131"><span class="lineNum">     131</span>              :     real(wp), dimension(:),     intent(out)   :: x_new    !! new point `dimension(n)`</span>
+<span id="L132"><span class="lineNum">     132</span>              :     real(wp),                   intent(out)   :: alpha    !! accepted step length (`0` if none)</span>
+<span id="L133"><span class="lineNum">     133</span>              :     integer,                    intent(out)   :: istat    !! status code (see [[sqpopt_types_module]])</span>
+<span id="L134"><span class="lineNum">     134</span>              :     real(wp), dimension(:), optional, intent(in) :: direction !! search direction to use instead of Gauss-Newton `dimension(n)`</span>
+<span id="L135"><span class="lineNum">     135</span>              :     type(sqpopt_least_squares_type), optional, intent(inout) :: least_squares !! the direct least-squares solver</span>
+<span id="L136"><span class="lineNum">     136</span>              :                                                                               !! (see [[sqpopt_least_squares_module]])</span>
+<span id="L137"><span class="lineNum">     137</span>              : </span>
+<span id="L138"><span class="lineNum">     138</span>              :     real(wp), parameter :: sigma     = 1.0e-4_wp !! Armijo sufficient-decrease parameter</span>
+<span id="L139"><span class="lineNum">     139</span>              :     real(wp), parameter :: backtrack = 0.5_wp    !! step-length reduction factor</span>
+<span id="L140"><span class="lineNum">     140</span>              :     integer,  parameter :: max_ls    = 30        !! maximum number of backtracking steps</span>
+<span id="L141"><span class="lineNum">     141</span>              :     integer,  parameter :: lsqr_itnlim_stop = 5  !! `LSQR`'s `istop` for &quot;iteration limit reached&quot;</span>
+<span id="L142"><span class="lineNum">     142</span>              : </span>
+<span id="L143"><span class="lineNum">     143</span> <span class="tlaGNC">         125 :     real(wp), dimension(:), allocatable :: rc, c_trial</span></span>
+<span id="L144"><span class="lineNum">     144</span> <span class="tlaGNC">         125 :     real(wp), dimension(:), allocatable :: p, x_trial, lb, ub</span></span>
+<span id="L145"><span class="lineNum">     145</span>              :     real(wp) :: h0, h_trial, dh0</span>
+<span id="L146"><span class="lineNum">     146</span> <span class="tlaGNC">         125 :     type(lsqr_solver_ez) :: lsqr</span></span>
+<span id="L147"><span class="lineNum">     147</span>              :     integer :: istop, it</span>
+<span id="L148"><span class="lineNum">     148</span>              :     logical :: solved</span>
+<span id="L149"><span class="lineNum">     149</span>              : </span>
+<span id="L150"><span class="lineNum">     150</span> <span class="tlaGNC">         125 :     allocate(rc(size(c)), c_trial(size(c)), p(size(x)), x_trial(size(x)), lb(size(x)), ub(size(x)))</span></span>
+<span id="L151"><span class="lineNum">     151</span>              : </span>
+<span id="L152"><span class="lineNum">     152</span> <span class="tlaGNC">         645 :     rc = violation(c, problem%c_lb, problem%c_ub)</span></span>
+<span id="L153"><span class="lineNum">     153</span> <span class="tlaGNC">         520 :     h0 = 0.5_wp*dot_product(rc, rc)</span></span>
+<span id="L154"><span class="lineNum">     154</span>              : </span>
+<span id="L155"><span class="lineNum">     155</span>              :     ! Gauss-Newton step: minimum-norm solution of J*p = -r_c, then made to</span>
+<span id="L156"><span class="lineNum">     156</span>              :     ! respect the variable bounds and the step-length cap:</span>
+<span id="L157"><span class="lineNum">     157</span> <span class="tlaGNC">         125 :     if (present(direction)) then</span></span>
+<span id="L158"><span class="lineNum">     158</span> <span class="tlaGNC">          96 :         p = direction</span></span>
+<span id="L159"><span class="lineNum">     159</span>              :     else</span>
+<span id="L160"><span class="lineNum">     160</span> <span class="tlaGNC">         103 :         solved = .false.</span></span>
+<span id="L161"><span class="lineNum">     161</span> <span class="tlaGNC">         103 :         if (present(least_squares)) then</span></span>
+<span id="L162"><span class="lineNum">     162</span> <span class="tlaGNC">         103 :             block</span></span>
+<span id="L163"><span class="lineNum">     163</span> <span class="tlaGNC">         103 :                 logical, dimension(:), allocatable :: all_rows</span></span>
+<span id="L164"><span class="lineNum">     164</span> <span class="tlaGNC">         103 :                 allocate(all_rows(size(c)))</span></span>
+<span id="L165"><span class="lineNum">     165</span> <span class="tlaGNC">         452 :                 all_rows = .true.</span></span>
+<span id="L166"><span class="lineNum">     166</span> <span class="tlaGNC">         555 :                 c_trial = -rc   ! (the right-hand side; `c_trial` is free until the line search)</span></span>
+<span id="L167"><span class="lineNum">     167</span> <span class="tlaGNC">         206 :                 call least_squares%min_norm(jac, all_rows, c_trial, p, solved)</span></span>
+<span id="L168"><span class="lineNum">     168</span>              :             end block</span>
+<span id="L169"><span class="lineNum">     169</span>              :         end if</span>
+<span id="L170"><span class="lineNum">     170</span> <span class="tlaGNC">         103 :         if (.not. solved) then</span></span>
+<span id="L171"><span class="lineNum">     171</span>              :             call lsqr%initialize(problem%m, problem%n, jac%val, jac%irow, jac%icol, &amp;</span>
+<span id="L172"><span class="lineNum">     172</span> <span class="tlaGNC">         103 :                                  itnlim=2*(problem%m+problem%n)+10)</span></span>
+<span id="L173"><span class="lineNum">     173</span> <span class="tlaGNC">         555 :             c_trial = -rc   ! (the right-hand side; `c_trial` is free until the line search)</span></span>
+<span id="L174"><span class="lineNum">     174</span> <span class="tlaGNC">         103 :             call lsqr%solve(c_trial, 0.0_wp, p, istop)</span></span>
+<span id="L175"><span class="lineNum">     175</span> <span class="tlaGNC">         103 :             if (istop == lsqr_itnlim_stop .or. .not. sqpopt_all_finite(p)) then</span></span>
+<span id="L176"><span class="lineNum">     176</span>              :                 ! LSQR didn't converge: no usable Gauss-Newton step</span>
+<span id="L177"><span class="lineNum">     177</span> <span class="tlaUNC">           0 :                 alpha = 0.0_wp</span></span>
+<span id="L178"><span class="lineNum">     178</span> <span class="tlaUNC">           0 :                 x_new = x</span></span>
+<span id="L179"><span class="lineNum">     179</span> <span class="tlaUNC">           0 :                 istat = sqpopt_line_search_failed</span></span>
+<span id="L180"><span class="lineNum">     180</span> <span class="tlaGNC">          85 :                 return</span></span>
+<span id="L181"><span class="lineNum">     181</span>              :             end if</span>
+<span id="L182"><span class="lineNum">     182</span>              :         end if</span>
+<span id="L183"><span class="lineNum">     183</span>              :     end if</span>
+<span id="L184"><span class="lineNum">     184</span> <span class="tlaGNC">         125 :     call problem%step_bounds(x, lb, ub)</span></span>
+<span id="L185"><span class="lineNum">     185</span> <span class="tlaGNC">         550 :     p = min(max(x+p, lb), ub) - x</span></span>
+<span id="L186"><span class="lineNum">     186</span> <span class="tlaGNC">         527 :     if (norm2(p) &gt; max_step) p = p*(max_step/norm2(p))</span></span>
+<span id="L187"><span class="lineNum">     187</span>              : </span>
+<span id="L188"><span class="lineNum">     188</span>              :     ! directional derivative of 0.5*|r_c|^2 along p: r_c^T J p</span>
+<span id="L189"><span class="lineNum">     189</span> <span class="tlaGNC">         125 :     block</span></span>
+<span id="L190"><span class="lineNum">     190</span> <span class="tlaGNC">         125 :         real(wp), dimension(:), allocatable :: jp</span></span>
+<span id="L191"><span class="lineNum">     191</span>              :         integer :: k</span>
+<span id="L192"><span class="lineNum">     192</span> <span class="tlaGNC">         125 :         allocate(jp(size(c)))</span></span>
+<span id="L193"><span class="lineNum">     193</span> <span class="tlaGNC">         125 :         jp = 0.0_wp</span></span>
+<span id="L194"><span class="lineNum">     194</span> <span class="tlaGNC">        1264 :         do k = 1, jac%nnz</span></span>
+<span id="L195"><span class="lineNum">     195</span> <span class="tlaGNC">        1264 :             jp(jac%irow(k)) = jp(jac%irow(k)) + jac%val(k)*p(jac%icol(k))</span></span>
+<span id="L196"><span class="lineNum">     196</span>              :         end do</span>
+<span id="L197"><span class="lineNum">     197</span> <span class="tlaGNC">         645 :         dh0 = dot_product(rc, jp)</span></span>
+<span id="L198"><span class="lineNum">     198</span>              :     end block</span>
+<span id="L199"><span class="lineNum">     199</span>              : </span>
+<span id="L200"><span class="lineNum">     200</span> <span class="tlaGNC">         125 :     alpha = 1.0_wp</span></span>
+<span id="L201"><span class="lineNum">     201</span> <span class="tlaGNC">         125 :     if (present(direction)) dh0 = min(dh0, 0.0_wp)   ! (then any decrease is accepted)</span></span>
+<span id="L202"><span class="lineNum">     202</span> <span class="tlaGNC">         125 :     if (dh0 &lt; 0.0_wp .or. present(direction)) then</span></span>
+<span id="L203"><span class="lineNum">     203</span> <span class="tlaGNC">         568 :         do it = 1, max_ls</span></span>
+<span id="L204"><span class="lineNum">     204</span> <span class="tlaGNC">        2292 :             x_trial = x + alpha*p</span></span>
+<span id="L205"><span class="lineNum">     205</span> <span class="tlaGNC">         553 :             call problem%c(x_trial, c_trial)</span></span>
+<span id="L206"><span class="lineNum">     206</span> <span class="tlaGNC">         553 :             if (sqpopt_all_finite(c_trial)) then</span></span>
+<span id="L207"><span class="lineNum">     207</span> <span class="tlaGNC">        2345 :                 rc = violation(c_trial, problem%c_lb, problem%c_ub)</span></span>
+<span id="L208"><span class="lineNum">     208</span> <span class="tlaGNC">        1792 :                 h_trial = 0.5_wp*dot_product(rc, rc)</span></span>
+<span id="L209"><span class="lineNum">     209</span>              :             else</span>
+<span id="L210"><span class="lineNum">     210</span> <span class="tlaUNC">           0 :                 h_trial = huge(1.0_wp)  ! a non-finite trial point is always rejected</span></span>
+<span id="L211"><span class="lineNum">     211</span>              :             end if</span>
+<span id="L212"><span class="lineNum">     212</span> <span class="tlaGNC">         553 :             if (h_trial &lt;= h0 + sigma*alpha*dh0 .and. h_trial &lt; h0) then</span></span>
+<span id="L213"><span class="lineNum">     213</span> <span class="tlaGNC">         297 :                 x_new = x_trial</span></span>
+<span id="L214"><span class="lineNum">     214</span> <span class="tlaGNC">          85 :                 istat = sqpopt_success</span></span>
+<span id="L215"><span class="lineNum">     215</span> <span class="tlaGNC">          85 :                 return</span></span>
+<span id="L216"><span class="lineNum">     216</span>              :             end if</span>
+<span id="L217"><span class="lineNum">     217</span> <span class="tlaGNC">         483 :             alpha = backtrack*alpha</span></span>
+<span id="L218"><span class="lineNum">     218</span>              :         end do</span>
+<span id="L219"><span class="lineNum">     219</span>              :     end if</span>
+<span id="L220"><span class="lineNum">     220</span>              : </span>
+<span id="L221"><span class="lineNum">     221</span>              :     ! no decrease in the violation along the Gauss-Newton direction:</span>
+<span id="L222"><span class="lineNum">     222</span> <span class="tlaGNC">          40 :     alpha = 0.0_wp</span></span>
+<span id="L223"><span class="lineNum">     223</span> <span class="tlaGNC">         128 :     x_new = x</span></span>
+<span id="L224"><span class="lineNum">     224</span> <span class="tlaGNC">          40 :     istat = sqpopt_line_search_failed</span></span>
+<span id="L225"><span class="lineNum">     225</span>              : </span>
+<span id="L226"><span class="lineNum">     226</span> <span class="tlaGNC">         125 :     end subroutine restoration_step</span></span>
+<span id="L227"><span class="lineNum">     227</span>              : !*******************************************************************************</span>
+<span id="L228"><span class="lineNum">     228</span>              : </span>
+<span id="L229"><span class="lineNum">     229</span>              : !*******************************************************************************</span>
+<span id="L230"><span class="lineNum">     230</span>              : !&gt;</span>
+<span id="L231"><span class="lineNum">     231</span>              : !  look for a second-order decrease of the constraint violation from a point</span>
+<span id="L232"><span class="lineNum">     232</span>              : !  `x` that is stationary for it (where [[check_convergence]] would report</span>
+<span id="L233"><span class="lineNum">     233</span>              : !  `sqpopt_infeasible`). Such a point may be a saddle of the violation rather</span>
+<span id="L234"><span class="lineNum">     234</span>              : !  than a minimum: e.g. on a symmetry plane of the problem (`x_j=0`, with</span>
+<span id="L235"><span class="lineNum">     235</span>              : !  every function even in `x_j`), where the gradients' `x_j` components all</span>
+<span id="L236"><span class="lineNum">     236</span>              : !  vanish, so no first-order method, and no exactly computed step, ever</span>
+<span id="L237"><span class="lineNum">     237</span>              : !  leaves the plane.</span>
+<span id="L238"><span class="lineNum">     238</span>              : !</span>
+<span id="L239"><span class="lineNum">     239</span>              : !  Each variable whose column of the Jacobian is negligible in the violated</span>
+<span id="L240"><span class="lineNum">     240</span>              : !  rows (up to `max_probe` of them) is perturbed by `t*max(1,|x_j|)` in each</span>
+<span id="L241"><span class="lineNum">     241</span>              : !  direction, for `t` = `1e-3`, `1e-2`, `1e-1` (within its bounds). The</span>
+<span id="L242"><span class="lineNum">     242</span>              : !  first trial point with a lower (squared, l2) violation is returned in</span>
+<span id="L243"><span class="lineNum">     243</span>              : !  `x_new`, with `istat=sqpopt_success`; if there is none, `x_new=x` and</span>
+<span id="L244"><span class="lineNum">     244</span>              : !  `istat=sqpopt_line_search_failed`. This costs at most `6*max_probe`</span>
+<span id="L245"><span class="lineNum">     245</span>              : !  evaluations of the constraints.</span>
+<span id="L246"><span class="lineNum">     246</span>              : !</span>
+<span id="L247"><span class="lineNum">     247</span>              : !  A column is negligible if its largest element (in the violated rows) is</span>
+<span id="L248"><span class="lineNum">     248</span>              : !  below `tol`, the tolerance at which [[check_convergence]] takes the</span>
+<span id="L249"><span class="lineNum">     249</span>              : !  gradient of the violation to be zero, or below `sqrt(epsilon)` times the</span>
+<span id="L250"><span class="lineNum">     250</span>              : !  largest element of all the columns. The first test doesn't depend on the</span>
+<span id="L251"><span class="lineNum">     251</span>              : !  working precision: the iterates approach such a plane without landing on</span>
+<span id="L252"><span class="lineNum">     252</span>              : !  it exactly (in `real64`, round-off usually pushes them off it instead;</span>
+<span id="L253"><span class="lineNum">     253</span>              : !  in `real128` it doesn't, and e.g. TP88 stops next to the plane `x_2=0`</span>
+<span id="L254"><span class="lineNum">     254</span>              : !  with a column of `1e-8`, far above `sqrt(epsilon)`).</span>
+<span id="L255"><span class="lineNum">     255</span>              : </span>
+<span id="L256"><span class="lineNum">     256</span> <span class="tlaGNC">          22 :     subroutine escape_step(problem, jac, x, c, tol, x_new, istat)</span></span>
+<span id="L257"><span class="lineNum">     257</span>              : </span>
+<span id="L258"><span class="lineNum">     258</span>              :     type(sqpopt_problem_type),  intent(inout) :: problem  !! problem definition</span>
+<span id="L259"><span class="lineNum">     259</span>              :     type(sqpopt_sparse_matrix), intent(in)    :: jac      !! constraint Jacobian at `x`, `dimension(m,n)`</span>
+<span id="L260"><span class="lineNum">     260</span>              :     real(wp), dimension(:),     intent(in)    :: x        !! current point `dimension(n)`</span>
+<span id="L261"><span class="lineNum">     261</span>              :     real(wp), dimension(:),     intent(in)    :: c        !! constraint values at `x` `dimension(m)`</span>
+<span id="L262"><span class="lineNum">     262</span>              :     real(wp),                   intent(in)    :: tol      !! a Jacobian column is negligible below this (the convergence</span>
+<span id="L263"><span class="lineNum">     263</span>              :                                                           !! test's `ktol`)</span>
+<span id="L264"><span class="lineNum">     264</span>              :     real(wp), dimension(:),     intent(out)   :: x_new    !! new point `dimension(n)`</span>
+<span id="L265"><span class="lineNum">     265</span>              :     integer,                    intent(out)   :: istat    !! status code (see [[sqpopt_types_module]])</span>
+<span id="L266"><span class="lineNum">     266</span>              : </span>
+<span id="L267"><span class="lineNum">     267</span>              :     integer,  parameter :: max_probe = 10 !! maximum number of variables probed</span>
+<span id="L268"><span class="lineNum">     268</span>              :     real(wp), parameter :: steps(3) = [1.0e-3_wp, 1.0e-2_wp, 1.0e-1_wp] !! relative perturbations tried</span>
+<span id="L269"><span class="lineNum">     269</span>              :     real(wp), parameter :: col_tol = sqrt(epsilon(1.0_wp)) !! a column is also negligible below this (relative)</span>
+<span id="L270"><span class="lineNum">     270</span>              : </span>
+<span id="L271"><span class="lineNum">     271</span> <span class="tlaGNC">          22 :     real(wp), dimension(:), allocatable :: rc, c_trial</span></span>
+<span id="L272"><span class="lineNum">     272</span> <span class="tlaGNC">          22 :     real(wp), dimension(:), allocatable :: colmax, x_trial, lb, ub</span></span>
+<span id="L273"><span class="lineNum">     273</span>              :     real(wp) :: h0, h_trial, jmax, xj</span>
+<span id="L274"><span class="lineNum">     274</span>              :     integer :: j, k, i, s, n_probe</span>
+<span id="L275"><span class="lineNum">     275</span>              : </span>
+<span id="L276"><span class="lineNum">     276</span> <span class="tlaGNC">          22 :     allocate(rc(size(c)), c_trial(size(c)), colmax(size(x)), x_trial(size(x)), lb(size(x)), ub(size(x)))</span></span>
+<span id="L277"><span class="lineNum">     277</span>              : </span>
+<span id="L278"><span class="lineNum">     278</span> <span class="tlaGNC">          68 :     x_new = x</span></span>
+<span id="L279"><span class="lineNum">     279</span> <span class="tlaGNC">          22 :     istat = sqpopt_line_search_failed</span></span>
+<span id="L280"><span class="lineNum">     280</span>              : </span>
+<span id="L281"><span class="lineNum">     281</span> <span class="tlaGNC">         112 :     rc = violation(c, problem%c_lb, problem%c_ub)</span></span>
+<span id="L282"><span class="lineNum">     282</span> <span class="tlaGNC">          90 :     h0 = 0.5_wp*dot_product(rc, rc)</span></span>
+<span id="L283"><span class="lineNum">     283</span> <span class="tlaGNC">          23 :     if (h0 &lt;= 0.0_wp) return</span></span>
+<span id="L284"><span class="lineNum">     284</span>              : </span>
+<span id="L285"><span class="lineNum">     285</span>              :     ! largest Jacobian element of each variable in the violated rows:</span>
+<span id="L286"><span class="lineNum">     286</span> <span class="tlaGNC">          22 :     colmax = 0.0_wp</span></span>
+<span id="L287"><span class="lineNum">     287</span> <span class="tlaGNC">         154 :     do k = 1, jac%nnz</span></span>
+<span id="L288"><span class="lineNum">     288</span> <span class="tlaGNC">         154 :         if (rc(jac%irow(k)) /= 0.0_wp) colmax(jac%icol(k)) = max(colmax(jac%icol(k)), abs(jac%val(k)))</span></span>
+<span id="L289"><span class="lineNum">     289</span>              :     end do</span>
+<span id="L290"><span class="lineNum">     290</span> <span class="tlaGNC">          68 :     jmax = maxval(colmax)</span></span>
+<span id="L291"><span class="lineNum">     291</span>              : </span>
+<span id="L292"><span class="lineNum">     292</span> <span class="tlaGNC">          22 :     call problem%step_bounds(x, lb, ub)</span></span>
+<span id="L293"><span class="lineNum">     293</span> <span class="tlaGNC">          22 :     n_probe = 0</span></span>
+<span id="L294"><span class="lineNum">     294</span> <span class="tlaGNC">          67 :     do j = 1, size(x)</span></span>
+<span id="L295"><span class="lineNum">     295</span> <span class="tlaGNC">          46 :         if (colmax(j) &gt; max(tol, col_tol*jmax)) cycle</span></span>
+<span id="L296"><span class="lineNum">     296</span> <span class="tlaGNC">          19 :         n_probe = n_probe + 1</span></span>
+<span id="L297"><span class="lineNum">     297</span> <span class="tlaGNC">          19 :         if (n_probe &gt; max_probe) exit</span></span>
+<span id="L298"><span class="lineNum">     298</span> <span class="tlaGNC">          94 :         do i = 1, size(steps)</span></span>
+<span id="L299"><span class="lineNum">     299</span> <span class="tlaGNC">         181 :             do s = 1, -1, -2</span></span>
+<span id="L300"><span class="lineNum">     300</span> <span class="tlaGNC">         109 :                 xj = min(max(x(j) + s*steps(i)*max(1.0_wp, abs(x(j))), lb(j)), ub(j))</span></span>
+<span id="L301"><span class="lineNum">     301</span> <span class="tlaGNC">         109 :                 if (xj == x(j)) cycle</span></span>
+<span id="L302"><span class="lineNum">     302</span> <span class="tlaGNC">         436 :                 x_trial    = x</span></span>
+<span id="L303"><span class="lineNum">     303</span> <span class="tlaGNC">         109 :                 x_trial(j) = xj</span></span>
+<span id="L304"><span class="lineNum">     304</span> <span class="tlaGNC">         109 :                 call problem%c(x_trial, c_trial)</span></span>
+<span id="L305"><span class="lineNum">     305</span> <span class="tlaGNC">         109 :                 if (.not. sqpopt_all_finite(c_trial)) cycle</span></span>
+<span id="L306"><span class="lineNum">     306</span> <span class="tlaGNC">         429 :                 rc = violation(c_trial, problem%c_lb, problem%c_ub)</span></span>
+<span id="L307"><span class="lineNum">     307</span> <span class="tlaGNC">         320 :                 h_trial = 0.5_wp*dot_product(rc, rc)</span></span>
+<span id="L308"><span class="lineNum">     308</span> <span class="tlaGNC">         163 :                 if (h_trial &lt; h0) then</span></span>
+<span id="L309"><span class="lineNum">     309</span> <span class="tlaGNC">           3 :                     x_new = x_trial</span></span>
+<span id="L310"><span class="lineNum">     310</span> <span class="tlaGNC">           1 :                     istat = sqpopt_success</span></span>
+<span id="L311"><span class="lineNum">     311</span> <span class="tlaGNC">           1 :                     return</span></span>
+<span id="L312"><span class="lineNum">     312</span>              :                 end if</span>
+<span id="L313"><span class="lineNum">     313</span>              :             end do</span>
+<span id="L314"><span class="lineNum">     314</span>              :         end do</span>
+<span id="L315"><span class="lineNum">     315</span>              :     end do</span>
+<span id="L316"><span class="lineNum">     316</span>              : </span>
+<span id="L317"><span class="lineNum">     317</span> <span class="tlaGNC">          22 :     end subroutine escape_step</span></span>
+<span id="L318"><span class="lineNum">     318</span>              : !*******************************************************************************</span>
+<span id="L319"><span class="lineNum">     319</span>              : </span>
+<span id="L320"><span class="lineNum">     320</span>              : !*******************************************************************************</span>
+<span id="L321"><span class="lineNum">     321</span>              : !&gt;</span>
+<span id="L322"><span class="lineNum">     322</span>              : !  start a feasibility restoration phase at `x` (with \( \ell_1 \)</span>
+<span id="L323"><span class="lineNum">     323</span>              : !  violation `theta`): record where it started, and set up the feasibility</span>
+<span id="L324"><span class="lineNum">     324</span>              : !  QP's solver (a copy of `qp_solver`) and Hessian.</span>
+<span id="L325"><span class="lineNum">     325</span>              : </span>
+<span id="L326"><span class="lineNum">     326</span> <span class="tlaGNC">          10 :     subroutine restoration_phase_enter(me, x, theta, qp_solver)</span></span>
+<span id="L327"><span class="lineNum">     327</span>              : </span>
+<span id="L328"><span class="lineNum">     328</span>              :     class(sqpopt_restoration_type), intent(inout) :: me</span>
+<span id="L329"><span class="lineNum">     329</span>              :     real(wp), dimension(:),         intent(in)    :: x         !! the current point `dimension(n)`</span>
+<span id="L330"><span class="lineNum">     330</span>              :     real(wp),                       intent(in)    :: theta     !! its \( \ell_1 \) constraint violation</span>
+<span id="L331"><span class="lineNum">     331</span>              :     type(sqpopt_qp_solver_type),    intent(in)    :: qp_solver !! the main QP solver (copied)</span>
+<span id="L332"><span class="lineNum">     332</span>              : </span>
+<span id="L333"><span class="lineNum">     333</span> <span class="tlaGNC">          10 :     me%active    = .true.</span></span>
+<span id="L334"><span class="lineNum">     334</span> <span class="tlaGNC">          10 :     me%n_iter    = 0</span></span>
+<span id="L335"><span class="lineNum">     335</span> <span class="tlaGNC">          10 :     me%n_phases  = me%n_phases + 1</span></span>
+<span id="L336"><span class="lineNum">     336</span> <span class="tlaGNC">          10 :     me%theta_ref = theta</span></span>
+<span id="L337"><span class="lineNum">     337</span> <span class="tlaGNC">     6002030 :     me%x_ref     = x</span></span>
+<span id="L338"><span class="lineNum">     338</span> <span class="tlaGNC">          10 :     me%qp        = qp_solver</span></span>
+<span id="L339"><span class="lineNum">     339</span> <span class="tlaGNC">          10 :     call me%hess%initialize(size(x), 1, scale0=zeta)</span></span>
+<span id="L340"><span class="lineNum">     340</span>              : </span>
+<span id="L341"><span class="lineNum">     341</span> <span class="tlaGNC">          10 :     end subroutine restoration_phase_enter</span></span>
+<span id="L342"><span class="lineNum">     342</span>              : !*******************************************************************************</span>
+<span id="L343"><span class="lineNum">     343</span>              : </span>
+<span id="L344"><span class="lineNum">     344</span>              : !*******************************************************************************</span>
+<span id="L345"><span class="lineNum">     345</span>              : !&gt;</span>
+<span id="L346"><span class="lineNum">     346</span>              : !  one iteration of the feasibility restoration phase from `x`: solve the</span>
+<span id="L347"><span class="lineNum">     347</span>              : !  feasibility QP</span>
+<span id="L348"><span class="lineNum">     348</span>              : !</span>
+<span id="L349"><span class="lineNum">     349</span>              : !  $$ \min_p \; \zeta (x-x_{ref})^T p + \tfrac12 \zeta \lVert p \rVert^2</span>
+<span id="L350"><span class="lineNum">     350</span>              : !     \quad \text{s.t.} \quad c_l \le c + J p \le c_u, \quad x_l \le x+p \le x_u $$</span>
+<span id="L351"><span class="lineNum">     351</span>              : !</span>
+<span id="L352"><span class="lineNum">     352</span>              : !  (whose elastic mode minimizes the \( \ell_1 \) violation of the</span>
+<span id="L353"><span class="lineNum">     353</span>              : !  linearized constraints if they are inconsistent), then backtrack along</span>
+<span id="L354"><span class="lineNum">     354</span>              : !  `p` until the \( \ell_1 \) violation \( \theta \) satisfies the Armijo</span>
+<span id="L355"><span class="lineNum">     355</span>              : !  condition \( \theta(x+\alpha p) \le \theta(x) - \eta\alpha\,\text{pred} \),</span>
+<span id="L356"><span class="lineNum">     356</span>              : !  where \( \text{pred} = \theta(c) - \theta(c+Jp) \) is the decrease</span>
+<span id="L357"><span class="lineNum">     357</span>              : !  predicted by the linearization. If the QP predicts no decrease, or no</span>
+<span id="L358"><span class="lineNum">     358</span>              : !  step length is accepted, `x_new=x` and</span>
+<span id="L359"><span class="lineNum">     359</span>              : !  `istat=sqpopt_line_search_failed`. If the QP solver couldn't allocate its</span>
+<span id="L360"><span class="lineNum">     360</span>              : !  matrices, `x_new=x` and `istat=sqpopt_out_of_memory` (and `me%qp`'s</span>
+<span id="L361"><span class="lineNum">     361</span>              : !  `out_of_memory` is set, for [[sqpopt_iterate]] to stop the solve).</span>
+<span id="L362"><span class="lineNum">     362</span>              : </span>
+<span id="L363"><span class="lineNum">     363</span> <span class="tlaGNC">          82 :     subroutine restoration_phase_step(me, problem, jac, x, c, x_new, alpha, istat)</span></span>
+<span id="L364"><span class="lineNum">     364</span>              : </span>
+<span id="L365"><span class="lineNum">     365</span>              :     class(sqpopt_restoration_type), intent(inout) :: me</span>
+<span id="L366"><span class="lineNum">     366</span>              :     type(sqpopt_problem_type),  intent(inout) :: problem  !! problem definition</span>
+<span id="L367"><span class="lineNum">     367</span>              :     type(sqpopt_sparse_matrix), intent(in)    :: jac      !! constraint Jacobian at `x`, `dimension(m,n)`</span>
+<span id="L368"><span class="lineNum">     368</span>              :     real(wp), dimension(:),     intent(in)    :: x        !! current point `dimension(n)`</span>
+<span id="L369"><span class="lineNum">     369</span>              :     real(wp), dimension(:),     intent(in)    :: c        !! constraint values at `x` `dimension(m)`</span>
+<span id="L370"><span class="lineNum">     370</span>              :     real(wp), dimension(:),     intent(out)   :: x_new    !! new point `dimension(n)`</span>
+<span id="L371"><span class="lineNum">     371</span>              :     real(wp),                   intent(out)   :: alpha    !! accepted step length (`0` if none)</span>
+<span id="L372"><span class="lineNum">     372</span>              :     integer,                    intent(out)   :: istat    !! status code (see [[sqpopt_types_module]])</span>
+<span id="L373"><span class="lineNum">     373</span>              : </span>
+<span id="L374"><span class="lineNum">     374</span>              :     real(wp), parameter :: eta       = 1.0e-4_wp !! Armijo constant</span>
+<span id="L375"><span class="lineNum">     375</span>              :     real(wp), parameter :: alpha_min = 1.0e-8_wp !! smallest step length tried</span>
+<span id="L376"><span class="lineNum">     376</span>              : </span>
+<span id="L377"><span class="lineNum">     377</span> <span class="tlaGNC">          82 :     real(wp), dimension(:), allocatable :: g_r, p, x_trial, lb, ub</span></span>
+<span id="L378"><span class="lineNum">     378</span> <span class="tlaGNC">          82 :     real(wp), dimension(:), allocatable :: lambda_r, jp, c_trial</span></span>
+<span id="L379"><span class="lineNum">     379</span>              :     real(wp) :: theta0, theta_t, pred</span>
+<span id="L380"><span class="lineNum">     380</span>              :     integer :: qp_istat</span>
+<span id="L381"><span class="lineNum">     381</span>              : </span>
+<span id="L382"><span class="lineNum">     382</span> <span class="tlaGNC">          82 :     allocate(g_r(size(x)), p(size(x)), x_trial(size(x)), lb(size(x)), ub(size(x)))</span></span>
+<span id="L383"><span class="lineNum">     383</span> <span class="tlaGNC">          82 :     allocate(lambda_r(size(c)), jp(size(c)), c_trial(size(c)))</span></span>
+<span id="L384"><span class="lineNum">     384</span>              : </span>
+<span id="L385"><span class="lineNum">     385</span> <span class="tlaGNC">          82 :     me%n_iter = me%n_iter + 1</span></span>
+<span id="L386"><span class="lineNum">     386</span> <span class="tlaGNC">     6029444 :     x_new = x</span></span>
+<span id="L387"><span class="lineNum">     387</span> <span class="tlaGNC">          82 :     alpha = 0.0_wp</span></span>
+<span id="L388"><span class="lineNum">     388</span> <span class="tlaGNC">          82 :     istat = sqpopt_line_search_failed</span></span>
+<span id="L389"><span class="lineNum">     389</span>              : </span>
+<span id="L390"><span class="lineNum">     390</span> <span class="tlaGNC">          82 :     theta0 = l1_violation(c, problem%c_lb, problem%c_ub)</span></span>
+<span id="L391"><span class="lineNum">     391</span> <span class="tlaGNC">     6029526 :     g_r = zeta*(x - me%x_ref)</span></span>
+<span id="L392"><span class="lineNum">     392</span> <span class="tlaGNC">          82 :     call problem%step_bounds(x, lb, ub)</span></span>
+<span id="L393"><span class="lineNum">     393</span>              :     call me%qp%solve(me%hess, jac, x, g_r, c, lb, ub, problem%c_lb, problem%c_ub, &amp;</span>
+<span id="L394"><span class="lineNum">     394</span> <span class="tlaGNC">          82 :                      p, lambda_r, qp_istat)</span></span>
+<span id="L395"><span class="lineNum">     395</span> <span class="tlaGNC">          82 :     if (qp_istat == sqpopt_out_of_memory) then</span></span>
+<span id="L396"><span class="lineNum">     396</span> <span class="tlaGNC">           1 :         istat = sqpopt_out_of_memory</span></span>
+<span id="L397"><span class="lineNum">     397</span> <span class="tlaGNC">          82 :         return</span></span>
+<span id="L398"><span class="lineNum">     398</span>              :     end if</span>
+<span id="L399"><span class="lineNum">     399</span> <span class="tlaGNC">          81 :     if (qp_istat /= sqpopt_success .and. qp_istat /= sqpopt_infeasible .and. qp_istat /= sqpopt_qp_solve_failed) return</span></span>
+<span id="L400"><span class="lineNum">     400</span>              : </span>
+<span id="L401"><span class="lineNum">     401</span>              :     ! the decrease in the violation predicted by the linearization:</span>
+<span id="L402"><span class="lineNum">     402</span> <span class="tlaGNC">          81 :     call sparse_matvec(jac, p, jp)</span></span>
+<span id="L403"><span class="lineNum">     403</span> <span class="tlaGNC">       14778 :     c_trial = c + jp   ! (the linearized constraints; `c_trial` is free until the line search)</span></span>
+<span id="L404"><span class="lineNum">     404</span> <span class="tlaGNC">          81 :     pred = theta0 - l1_violation(c_trial, problem%c_lb, problem%c_ub)</span></span>
+<span id="L405"><span class="lineNum">     405</span> <span class="tlaGNC">          81 :     if (.not. (pred &gt; 1.0e-12_wp*max(1.0_wp, theta0))) return</span></span>
+<span id="L406"><span class="lineNum">     406</span>              : </span>
+<span id="L407"><span class="lineNum">     407</span> <span class="tlaGNC">          73 :     alpha = 1.0_wp</span></span>
+<span id="L408"><span class="lineNum">     408</span> <span class="tlaGNC">         141 :     do</span></span>
+<span id="L409"><span class="lineNum">     409</span> <span class="tlaGNC">       86456 :         x_trial = x + alpha*p</span></span>
+<span id="L410"><span class="lineNum">     410</span> <span class="tlaGNC">         214 :         call problem%c(x_trial, c_trial)</span></span>
+<span id="L411"><span class="lineNum">     411</span> <span class="tlaGNC">         214 :         if (sqpopt_all_finite(c_trial)) then</span></span>
+<span id="L412"><span class="lineNum">     412</span> <span class="tlaGNC">         214 :             theta_t = l1_violation(c_trial, problem%c_lb, problem%c_ub)</span></span>
+<span id="L413"><span class="lineNum">     413</span> <span class="tlaGNC">         214 :             if (theta_t &lt;= theta0 - eta*alpha*pred) then</span></span>
+<span id="L414"><span class="lineNum">     414</span> <span class="tlaGNC">       29419 :                 x_new = x_trial</span></span>
+<span id="L415"><span class="lineNum">     415</span> <span class="tlaGNC">          73 :                 istat = sqpopt_success</span></span>
+<span id="L416"><span class="lineNum">     416</span> <span class="tlaGNC">          73 :                 return</span></span>
+<span id="L417"><span class="lineNum">     417</span>              :             end if</span>
+<span id="L418"><span class="lineNum">     418</span>              :         end if</span>
+<span id="L419"><span class="lineNum">     419</span> <span class="tlaGNC">         141 :         alpha = 0.5_wp*alpha</span></span>
+<span id="L420"><span class="lineNum">     420</span> <span class="tlaGNC">         141 :         if (alpha &lt; alpha_min) exit</span></span>
+<span id="L421"><span class="lineNum">     421</span>              :     end do</span>
+<span id="L422"><span class="lineNum">     422</span> <span class="tlaUNC">           0 :     alpha = 0.0_wp</span></span>
+<span id="L423"><span class="lineNum">     423</span>              : </span>
+<span id="L424"><span class="lineNum">     424</span> <span class="tlaGNC">          82 :     end subroutine restoration_phase_step</span></span>
+<span id="L425"><span class="lineNum">     425</span>              : !*******************************************************************************</span>
+<span id="L426"><span class="lineNum">     426</span>              : </span>
+<span id="L427"><span class="lineNum">     427</span>              : !*******************************************************************************</span>
+<span id="L428"><span class="lineNum">     428</span>              : !&gt;</span>
+<span id="L429"><span class="lineNum">     429</span>              : !  whether the restoration phase can end at a point with \( \ell_1 \)</span>
+<span id="L430"><span class="lineNum">     430</span>              : !  violation `theta` and objective `f`: the violation is at most</span>
+<span id="L431"><span class="lineNum">     431</span>              : !  `exit_factor` times its value where the phase started and the point is</span>
+<span id="L432"><span class="lineNum">     432</span>              : !  acceptable to the filter or funnel (see [[sqpopt_linesearch_type]]'s</span>
+<span id="L433"><span class="lineNum">     433</span>              : !  `globalization_acceptable`); or the point is feasible</span>
+<span id="L434"><span class="lineNum">     434</span>              : !  (\( \theta \le \) `feas_tol`); or the phase has taken `max_iter`</span>
+<span id="L435"><span class="lineNum">     435</span>              : !  iterations. Ends the phase (`active=.false.`) if so.</span>
+<span id="L436"><span class="lineNum">     436</span>              : </span>
+<span id="L437"><span class="lineNum">     437</span> <span class="tlaGNC">          77 :     function restoration_phase_done(me, linesearch, theta, f, exit_factor, feas_tol, max_iter) result(done)</span></span>
+<span id="L438"><span class="lineNum">     438</span>              : </span>
+<span id="L439"><span class="lineNum">     439</span>              :     class(sqpopt_restoration_type), intent(inout) :: me</span>
+<span id="L440"><span class="lineNum">     440</span>              :     type(sqpopt_linesearch_type),   intent(in)    :: linesearch  !! supplies the filter or funnel</span>
+<span id="L441"><span class="lineNum">     441</span>              :     real(wp),                       intent(in)    :: theta       !! \( \ell_1 \) violation at the new point</span>
+<span id="L442"><span class="lineNum">     442</span>              :     real(wp),                       intent(in)    :: f           !! objective at the new point</span>
+<span id="L443"><span class="lineNum">     443</span>              :     real(wp),                       intent(in)    :: exit_factor !! required reduction of the violation</span>
+<span id="L444"><span class="lineNum">     444</span>              :     real(wp),                       intent(in)    :: feas_tol    !! a violation this small ends the phase regardless</span>
+<span id="L445"><span class="lineNum">     445</span>              :     integer,                        intent(in)    :: max_iter    !! maximum number of iterations of a phase</span>
+<span id="L446"><span class="lineNum">     446</span>              :     logical :: done</span>
+<span id="L447"><span class="lineNum">     447</span>              : </span>
+<span id="L448"><span class="lineNum">     448</span>              :     done = (theta &lt;= exit_factor*me%theta_ref .and. linesearch%globalization_acceptable(theta, f)) &amp;</span>
+<span id="L449"><span class="lineNum">     449</span> <span class="tlaGNC">          77 :            .or. theta &lt;= feas_tol .or. me%n_iter &gt;= max_iter</span></span>
+<span id="L450"><span class="lineNum">     450</span> <span class="tlaGNC">          77 :     if (done) me%active = .false.</span></span>
+<span id="L451"><span class="lineNum">     451</span>              : </span>
+<span id="L452"><span class="lineNum">     452</span> <span class="tlaGNC">          77 :     end function restoration_phase_done</span></span>
+<span id="L453"><span class="lineNum">     453</span>              : !*******************************************************************************</span>
+<span id="L454"><span class="lineNum">     454</span>              : </span>
+<span id="L455"><span class="lineNum">     455</span>              : !*******************************************************************************</span>
+<span id="L456"><span class="lineNum">     456</span>              : !&gt;</span>
+<span id="L457"><span class="lineNum">     457</span>              : !  the signed violation of the constraint bounds: `c-c_lb` below the lower</span>
+<span id="L458"><span class="lineNum">     458</span>              : !  bound, `c-c_ub` above the upper bound, and `0` in between.</span>
+<span id="L459"><span class="lineNum">     459</span>              : </span>
+<span id="L460"><span class="lineNum">     460</span> <span class="tlaGNC">        1913 :     elemental function violation(c, c_lb, c_ub) result(rc)</span></span>
+<span id="L461"><span class="lineNum">     461</span>              : </span>
+<span id="L462"><span class="lineNum">     462</span>              :     real(wp), intent(in) :: c    !! constraint value</span>
+<span id="L463"><span class="lineNum">     463</span>              :     real(wp), intent(in) :: c_lb !! its lower bound</span>
+<span id="L464"><span class="lineNum">     464</span>              :     real(wp), intent(in) :: c_ub !! its upper bound</span>
+<span id="L465"><span class="lineNum">     465</span>              :     real(wp) :: rc</span>
+<span id="L466"><span class="lineNum">     466</span>              : </span>
+<span id="L467"><span class="lineNum">     467</span> <span class="tlaGNC">        1913 :     rc = min(c-c_lb, 0.0_wp) + max(c-c_ub, 0.0_wp)</span></span>
+<span id="L468"><span class="lineNum">     468</span>              : </span>
+<span id="L469"><span class="lineNum">     469</span> <span class="tlaGNC">        1913 :     end function violation</span></span>
+<span id="L470"><span class="lineNum">     470</span>              : !*******************************************************************************</span>
+<span id="L471"><span class="lineNum">     471</span>              : </span>
+<span id="L472"><span class="lineNum">     472</span> <span class="tlaUNC">           0 :     end module sqpopt_restoration_module</span></span>
+<span id="L473"><span class="lineNum">     473</span>              : !*******************************************************************************</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com/linux-test-project/lcov" target="_parent">LCOV version 2.5-0</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

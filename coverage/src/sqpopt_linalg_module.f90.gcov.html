@@ -1,0 +1,389 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - coverage.info - src/sqpopt_linalg_module.f90</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../index.html" title="Click to go to top-level">top level</a> - <a href="index.html" title="Click to go to directory src">src</a> - sqpopt_linalg_module.f90<span style="font-size: 80%;"> (source / <a href="sqpopt_linalg_module.f90.func-c.html" title="Click to go to function table">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">coverage.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">94.5&nbsp;%</td>
+            <td class="headerCovTableEntry">109</td>
+            <td class="headerCovTableEntry">103</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2026-10-11 01:22:22</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryMed">75.0&nbsp;%</td>
+            <td class="headerCovTableEntry">8</td>
+            <td class="headerCovTableEntry">6</td>
+          </tr>
+                  <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : !*******************************************************************************</span>
+<span id="L2"><span class="lineNum">       2</span>              : !&gt; author: Jacob Williams</span>
+<span id="L3"><span class="lineNum">       3</span>              : !  license: MIT</span>
+<span id="L4"><span class="lineNum">       4</span>              : !</span>
+<span id="L5"><span class="lineNum">       5</span>              : !  Sparse linear algebra utility routines. All matrices in `sqpopt` are</span>
+<span id="L6"><span class="lineNum">       6</span>              : !  stored in coordinate (COO) format (1-based `irow`/`icol`/`val` triplets,</span>
+<span id="L7"><span class="lineNum">       7</span>              : !  see [[sqpopt_types_module(module):sqpopt_sparse_matrix(type)]]) -- dense</span>
+<span id="L8"><span class="lineNum">       8</span>              : !  \( n \times n \) or \( m \times n \) arrays are never formed. This is</span>
+<span id="L9"><span class="lineNum">       9</span>              : !  the same triplet convention used by the `lusol` and `LSQR`</span>
+<span id="L10"><span class="lineNum">      10</span>              : !  dependencies, so that a [[sqpopt_sparse_matrix]] can be passed directly</span>
+<span id="L11"><span class="lineNum">      11</span>              : !  to those solvers.</span>
+<span id="L12"><span class="lineNum">      12</span>              : </span>
+<span id="L13"><span class="lineNum">      13</span>              :     module sqpopt_linalg_module</span>
+<span id="L14"><span class="lineNum">      14</span>              : </span>
+<span id="L15"><span class="lineNum">      15</span>              :     use sqpopt_kinds, only: wp =&gt; sqpopt_module_wp</span>
+<span id="L16"><span class="lineNum">      16</span>              :     use sqpopt_types_module, only: sqpopt_sparse_matrix</span>
+<span id="L17"><span class="lineNum">      17</span>              :     use lusol,               only: lu1fac, lu6sol, lu8rpc</span>
+<span id="L18"><span class="lineNum">      18</span>              :     use lusol_precision,     only: ip, rp</span>
+<span id="L19"><span class="lineNum">      19</span>              : </span>
+<span id="L20"><span class="lineNum">      20</span>              :     implicit none</span>
+<span id="L21"><span class="lineNum">      21</span>              : </span>
+<span id="L22"><span class="lineNum">      22</span>              :     private</span>
+<span id="L23"><span class="lineNum">      23</span>              : </span>
+<span id="L24"><span class="lineNum">      24</span>              :     public :: sparse_matvec</span>
+<span id="L25"><span class="lineNum">      25</span>              :     public :: sparse_matvec_transpose</span>
+<span id="L26"><span class="lineNum">      26</span>              :     public :: independent_columns</span>
+<span id="L27"><span class="lineNum">      27</span>              : </span>
+<span id="L28"><span class="lineNum">      28</span>              :     type, public :: sqpopt_lu_type</span>
+<span id="L29"><span class="lineNum">      29</span>              :         !! sparse LU factors of a square matrix (`LUSOL`), for repeated solves</span>
+<span id="L30"><span class="lineNum">      30</span>              :         !! with it and its transpose. See [[sqpopt_lu_type(type):factorize(bound)]].</span>
+<span id="L31"><span class="lineNum">      31</span>              :         private</span>
+<span id="L32"><span class="lineNum">      32</span>              :         integer(ip) :: n = 0</span>
+<span id="L33"><span class="lineNum">      33</span>              :         integer(ip) :: lena = 0</span>
+<span id="L34"><span class="lineNum">      34</span>              :         integer(ip) :: luparm(30) = 0</span>
+<span id="L35"><span class="lineNum">      35</span>              :         real(rp)    :: parmlu(30) = 0.0_rp</span>
+<span id="L36"><span class="lineNum">      36</span>              :         real(rp),    dimension(:), allocatable :: a</span>
+<span id="L37"><span class="lineNum">      37</span>              :         integer(ip), dimension(:), allocatable :: indc, indr, p, q, lenc, lenr, locc, locr</span>
+<span id="L38"><span class="lineNum">      38</span>              :         real(rp),    dimension(:), allocatable :: v, w !! work vectors of the solves and the column</span>
+<span id="L39"><span class="lineNum">      39</span>              :                                                        !! replacements `dimension(n)` (kept here so that a</span>
+<span id="L40"><span class="lineNum">      40</span>              :                                                        !! solve allocates nothing)</span>
+<span id="L41"><span class="lineNum">      41</span>              :         contains</span>
+<span id="L42"><span class="lineNum">      42</span>              :         procedure, public :: factorize =&gt; lu_factorize</span>
+<span id="L43"><span class="lineNum">      43</span>              :         procedure, public :: solve     =&gt; lu_solve</span>
+<span id="L44"><span class="lineNum">      44</span>              :         procedure, public :: replace_column =&gt; lu_replace_column</span>
+<span id="L45"><span class="lineNum">      45</span>              :     end type sqpopt_lu_type</span>
+<span id="L46"><span class="lineNum">      46</span>              : </span>
+<span id="L47"><span class="lineNum">      47</span>              :     contains</span>
+<span id="L48"><span class="lineNum">      48</span>              : !*******************************************************************************</span>
+<span id="L49"><span class="lineNum">      49</span>              : </span>
+<span id="L50"><span class="lineNum">      50</span>              : !*******************************************************************************</span>
+<span id="L51"><span class="lineNum">      51</span>              : !&gt;</span>
+<span id="L52"><span class="lineNum">      52</span>              : !  compute the sparse matrix-vector product \( y = A x \), operating</span>
+<span id="L53"><span class="lineNum">      53</span>              : !  directly on the COO triplets (never forms a dense matrix).</span>
+<span id="L54"><span class="lineNum">      54</span>              : </span>
+<span id="L55"><span class="lineNum">      55</span> <span class="tlaGNC">       38665 :     subroutine sparse_matvec(a, x, y)</span></span>
+<span id="L56"><span class="lineNum">      56</span>              : </span>
+<span id="L57"><span class="lineNum">      57</span>              :     type(sqpopt_sparse_matrix), intent(in)  :: a  !! sparse matrix, `dimension(nrows,ncols)`</span>
+<span id="L58"><span class="lineNum">      58</span>              :     real(wp), dimension(:),     intent(in)  :: x  !! vector to multiply `dimension(ncols)`</span>
+<span id="L59"><span class="lineNum">      59</span>              :     real(wp), dimension(:),     intent(out) :: y  !! result vector `dimension(nrows)`</span>
+<span id="L60"><span class="lineNum">      60</span>              : </span>
+<span id="L61"><span class="lineNum">      61</span>              :     integer :: k  !! nonzero element counter</span>
+<span id="L62"><span class="lineNum">      62</span>              : </span>
+<span id="L63"><span class="lineNum">      63</span> <span class="tlaGNC">     2472266 :     y = 0.0_wp</span></span>
+<span id="L64"><span class="lineNum">      64</span> <span class="tlaGNC">     6321289 :     do k = 1, a%nnz</span></span>
+<span id="L65"><span class="lineNum">      65</span> <span class="tlaGNC">     6321289 :         y(a%irow(k)) = y(a%irow(k)) + a%val(k)*x(a%icol(k))</span></span>
+<span id="L66"><span class="lineNum">      66</span>              :     end do</span>
+<span id="L67"><span class="lineNum">      67</span>              : </span>
+<span id="L68"><span class="lineNum">      68</span> <span class="tlaGNC">       38665 :     end subroutine sparse_matvec</span></span>
+<span id="L69"><span class="lineNum">      69</span>              : !*******************************************************************************</span>
+<span id="L70"><span class="lineNum">      70</span>              : </span>
+<span id="L71"><span class="lineNum">      71</span>              : !*******************************************************************************</span>
+<span id="L72"><span class="lineNum">      72</span>              : !&gt;</span>
+<span id="L73"><span class="lineNum">      73</span>              : !  compute the sparse transposed matrix-vector product \( x = A^T y \),</span>
+<span id="L74"><span class="lineNum">      74</span>              : !  operating directly on the COO triplets (never forms a dense matrix).</span>
+<span id="L75"><span class="lineNum">      75</span>              : </span>
+<span id="L76"><span class="lineNum">      76</span> <span class="tlaGNC">       81896 :     subroutine sparse_matvec_transpose(a, y, x)</span></span>
+<span id="L77"><span class="lineNum">      77</span>              : </span>
+<span id="L78"><span class="lineNum">      78</span>              :     type(sqpopt_sparse_matrix), intent(in)  :: a  !! sparse matrix, `dimension(nrows,ncols)`</span>
+<span id="L79"><span class="lineNum">      79</span>              :     real(wp), dimension(:),     intent(in)  :: y  !! vector to multiply `dimension(nrows)`</span>
+<span id="L80"><span class="lineNum">      80</span>              :     real(wp), dimension(:),     intent(out) :: x  !! result vector `dimension(ncols)`</span>
+<span id="L81"><span class="lineNum">      81</span>              : </span>
+<span id="L82"><span class="lineNum">      82</span>              :     integer :: k  !! nonzero element counter</span>
+<span id="L83"><span class="lineNum">      83</span>              : </span>
+<span id="L84"><span class="lineNum">      84</span> <span class="tlaGNC">    65357896 :     x = 0.0_wp</span></span>
+<span id="L85"><span class="lineNum">      85</span> <span class="tlaGNC">    10846483 :     do k = 1, a%nnz</span></span>
+<span id="L86"><span class="lineNum">      86</span> <span class="tlaGNC">    10846483 :         x(a%icol(k)) = x(a%icol(k)) + a%val(k)*y(a%irow(k))</span></span>
+<span id="L87"><span class="lineNum">      87</span>              :     end do</span>
+<span id="L88"><span class="lineNum">      88</span>              : </span>
+<span id="L89"><span class="lineNum">      89</span> <span class="tlaGNC">       81896 :     end subroutine sparse_matvec_transpose</span></span>
+<span id="L90"><span class="lineNum">      90</span>              : !*******************************************************************************</span>
+<span id="L91"><span class="lineNum">      91</span>              : </span>
+<span id="L92"><span class="lineNum">      92</span>              : !*******************************************************************************</span>
+<span id="L93"><span class="lineNum">      93</span>              : !&gt;</span>
+<span id="L94"><span class="lineNum">      94</span>              : !  find a maximal linearly independent subset of the columns of the sparse</span>
+<span id="L95"><span class="lineNum">      95</span>              : !  matrix `A` (`nrows x ncols`, COO triplets), with one rank-revealing</span>
+<span id="L96"><span class="lineNum">      96</span>              : !  sparse LU factorization (`LUSOL`'s `lu1fac` with threshold complete</span>
+<span id="L97"><span class="lineNum">      97</span>              : !  pivoting).</span>
+<span id="L98"><span class="lineNum">      98</span>              : !</span>
+<span id="L99"><span class="lineNum">      99</span>              : !  Column `j` is judged dependent if it gets no pivot, or if its diagonal</span>
+<span id="L100"><span class="lineNum">     100</span>              : !  of `U` is at most `rel_tol` times the largest element of its column of</span>
+<span id="L101"><span class="lineNum">     101</span>              : !  `U` (or at most `abs_tol`).</span>
+<span id="L102"><span class="lineNum">     102</span>              : !</span>
+<span id="L103"><span class="lineNum">     103</span>              : !  Which columns of a dependent group are kept is up to the pivoting, but</span>
+<span id="L104"><span class="lineNum">     104</span>              : !  it can be steered. Unit columns (a single entry of exactly `+/-1`) are</span>
+<span id="L105"><span class="lineNum">     105</span>              : !  always kept first (at most one per row), and complete pivoting prefers</span>
+<span id="L106"><span class="lineNum">     106</span>              : !  large elements, so columns scaled up are preferred over columns scaled</span>
+<span id="L107"><span class="lineNum">     107</span>              : !  down. (Scaling doesn't affect the relative test.)</span>
+<span id="L108"><span class="lineNum">     108</span>              : !</span>
+<span id="L109"><span class="lineNum">     109</span>              : !  `istat` is `0` on success, or else `lu1fac`'s `inform` code (it is never</span>
+<span id="L110"><span class="lineNum">     110</span>              : !  `1`, which only means that some columns are dependent).</span>
+<span id="L111"><span class="lineNum">     111</span>              : </span>
+<span id="L112"><span class="lineNum">     112</span> <span class="tlaGNC">        5843 :     subroutine independent_columns(nrows, ncols, irow, icol, val, rel_tol, abs_tol, independent, istat)</span></span>
+<span id="L113"><span class="lineNum">     113</span>              : </span>
+<span id="L114"><span class="lineNum">     114</span>              :     integer,                intent(in)  :: nrows       !! number of rows of `A`</span>
+<span id="L115"><span class="lineNum">     115</span>              :     integer,                intent(in)  :: ncols       !! number of columns of `A`</span>
+<span id="L116"><span class="lineNum">     116</span>              :     integer,  dimension(:), intent(in)  :: irow        !! row indices of the nonzeros of `A`</span>
+<span id="L117"><span class="lineNum">     117</span>              :     integer,  dimension(:), intent(in)  :: icol        !! column indices of the nonzeros of `A`</span>
+<span id="L118"><span class="lineNum">     118</span>              :     real(wp), dimension(:), intent(in)  :: val         !! the nonzeros of `A` (no duplicate `(irow,icol)` pairs)</span>
+<span id="L119"><span class="lineNum">     119</span>              :     real(wp),               intent(in)  :: rel_tol     !! relative singularity tolerance (e.g. `1e-8`)</span>
+<span id="L120"><span class="lineNum">     120</span>              :     real(wp),               intent(in)  :: abs_tol     !! absolute singularity tolerance</span>
+<span id="L121"><span class="lineNum">     121</span>              :     logical,  dimension(:), intent(out) :: independent !! `dimension(ncols)`: whether each column is in the subset</span>
+<span id="L122"><span class="lineNum">     122</span>              :     integer,                intent(out) :: istat       !! status (0 = success)</span>
+<span id="L123"><span class="lineNum">     123</span>              : </span>
+<span id="L124"><span class="lineNum">     124</span>              :     integer(ip) :: m, n, nelem, lena, inform, attempt</span>
+<span id="L125"><span class="lineNum">     125</span>              :     integer(ip) :: luparm(30)</span>
+<span id="L126"><span class="lineNum">     126</span>              :     real(rp)    :: parmlu(30)</span>
+<span id="L127"><span class="lineNum">     127</span> <span class="tlaGNC">        5843 :     real(rp),    dimension(:), allocatable :: a, w</span></span>
+<span id="L128"><span class="lineNum">     128</span> <span class="tlaGNC">        5843 :     integer(ip), dimension(:), allocatable :: indc, indr, p, q, lenc, lenr, locc, locr, &amp;</span></span>
+<span id="L129"><span class="lineNum">     129</span> <span class="tlaGNC">        5843 :                                               iploc, iqloc, ipinv, iqinv</span></span>
+<span id="L130"><span class="lineNum">     130</span>              : </span>
+<span id="L131"><span class="lineNum">     131</span> <span class="tlaGNC">     2861579 :     independent = .false.</span></span>
+<span id="L132"><span class="lineNum">     132</span> <span class="tlaGNC">        5843 :     istat = 0</span></span>
+<span id="L133"><span class="lineNum">     133</span> <span class="tlaGNC">        5843 :     if (ncols == 0) return</span></span>
+<span id="L134"><span class="lineNum">     134</span> <span class="tlaGNC">        5843 :     if (nrows == 0 .or. size(val) == 0) return   ! (every column is zero)</span></span>
+<span id="L135"><span class="lineNum">     135</span>              : </span>
+<span id="L136"><span class="lineNum">     136</span> <span class="tlaGNC">        5837 :     m     = nrows</span></span>
+<span id="L137"><span class="lineNum">     137</span> <span class="tlaGNC">        5837 :     n     = ncols</span></span>
+<span id="L138"><span class="lineNum">     138</span> <span class="tlaGNC">        5837 :     nelem = size(val)</span></span>
+<span id="L139"><span class="lineNum">     139</span> <span class="tlaGNC">        5837 :     lena  = 1 + max(5*nelem, 10*m, 10*n, 10000_ip)</span></span>
+<span id="L140"><span class="lineNum">     140</span> <span class="tlaUNC">           0 :     allocate(p(m), q(n), lenc(n), lenr(m), locc(n), locr(m), &amp;</span></span>
+<span id="L141"><span class="lineNum">     141</span> <span class="tlaGNC">        5837 :              iploc(n), iqloc(m), ipinv(m), iqinv(n), w(n))</span></span>
+<span id="L142"><span class="lineNum">     142</span>              : </span>
+<span id="L143"><span class="lineNum">     143</span> <span class="tlaGNC">        5845 :     do attempt = 1, 3   ! (enlarging the workspace if `lu1fac` asks for it)</span></span>
+<span id="L144"><span class="lineNum">     144</span> <span class="tlaGNC">        5845 :         if (allocated(a)) deallocate(a, indc, indr)</span></span>
+<span id="L145"><span class="lineNum">     145</span> <span class="tlaGNC">        5845 :         allocate(a(lena), indc(lena), indr(lena))</span></span>
+<span id="L146"><span class="lineNum">     146</span> <span class="tlaGNC">     4447999 :         a(1:nelem)    = real(val, rp)</span></span>
+<span id="L147"><span class="lineNum">     147</span> <span class="tlaGNC">     4447999 :         indc(1:nelem) = irow   ! (LUSOL: row indices in `indc`, column indices in `indr`)</span></span>
+<span id="L148"><span class="lineNum">     148</span> <span class="tlaGNC">     4447999 :         indr(1:nelem) = icol</span></span>
+<span id="L149"><span class="lineNum">     149</span>              : </span>
+<span id="L150"><span class="lineNum">     150</span> <span class="tlaGNC">        5845 :         luparm = 0</span></span>
+<span id="L151"><span class="lineNum">     151</span> <span class="tlaGNC">        5845 :         luparm(1) = 6      ! nout</span></span>
+<span id="L152"><span class="lineNum">     152</span> <span class="tlaGNC">        5845 :         luparm(2) = -1     ! lprint: no output (not even the &quot;singular&quot; message)</span></span>
+<span id="L153"><span class="lineNum">     153</span> <span class="tlaGNC">        5845 :         luparm(3) = 5      ! maxcol</span></span>
+<span id="L154"><span class="lineNum">     154</span> <span class="tlaGNC">        5845 :         luparm(6) = 2      ! TCP: threshold complete pivoting (rank revealing)</span></span>
+<span id="L155"><span class="lineNum">     155</span> <span class="tlaGNC">        5845 :         luparm(8) = 1      ! keepLU (needed for the relative singularity test)</span></span>
+<span id="L156"><span class="lineNum">     156</span> <span class="tlaGNC">        5845 :         parmlu = 0.0_rp</span></span>
+<span id="L157"><span class="lineNum">     157</span> <span class="tlaGNC">        5845 :         parmlu(1) = 5.0_rp                          ! Ltol1 (small, for a reliable rank)</span></span>
+<span id="L158"><span class="lineNum">     158</span> <span class="tlaGNC">        5845 :         parmlu(2) = 5.0_rp                          ! Ltol2</span></span>
+<span id="L159"><span class="lineNum">     159</span> <span class="tlaGNC">        5845 :         parmlu(3) = epsilon(1.0_rp)**0.8_rp         ! small: entries treated as zero</span></span>
+<span id="L160"><span class="lineNum">     160</span> <span class="tlaGNC">        5845 :         parmlu(4) = real(abs_tol, rp)               ! Utol1</span></span>
+<span id="L161"><span class="lineNum">     161</span> <span class="tlaGNC">        5845 :         parmlu(5) = real(rel_tol, rp)               ! Utol2</span></span>
+<span id="L162"><span class="lineNum">     162</span> <span class="tlaGNC">        5845 :         parmlu(6) = 3.0_rp                          ! Uspace</span></span>
+<span id="L163"><span class="lineNum">     163</span> <span class="tlaGNC">        5845 :         parmlu(7) = 0.3_rp                          ! dens1</span></span>
+<span id="L164"><span class="lineNum">     164</span> <span class="tlaGNC">        5845 :         parmlu(8) = 0.5_rp                          ! dens2</span></span>
+<span id="L165"><span class="lineNum">     165</span>              : </span>
+<span id="L166"><span class="lineNum">     166</span>              :         call lu1fac(m, n, nelem, lena, luparm, parmlu, a, indc, indr, p, q, &amp;</span>
+<span id="L167"><span class="lineNum">     167</span> <span class="tlaGNC">        5845 :                     lenc, lenr, locc, locr, iploc, iqloc, ipinv, iqinv, w, inform)</span></span>
+<span id="L168"><span class="lineNum">     168</span> <span class="tlaGNC">        5845 :         if (inform /= 7) exit</span></span>
+<span id="L169"><span class="lineNum">     169</span> <span class="tlaGNC">        5853 :         lena = max(2*lena, luparm(13) + 1)</span></span>
+<span id="L170"><span class="lineNum">     170</span>              :     end do</span>
+<span id="L171"><span class="lineNum">     171</span>              : </span>
+<span id="L172"><span class="lineNum">     172</span> <span class="tlaGNC">        5837 :     if (inform == 0 .or. inform == 1) then</span></span>
+<span id="L173"><span class="lineNum">     173</span> <span class="tlaGNC">     2861553 :         independent = w &gt; 0.0_rp</span></span>
+<span id="L174"><span class="lineNum">     174</span>              :     else</span>
+<span id="L175"><span class="lineNum">     175</span> <span class="tlaUNC">           0 :         istat = int(inform)</span></span>
+<span id="L176"><span class="lineNum">     176</span>              :     end if</span>
+<span id="L177"><span class="lineNum">     177</span>              : </span>
+<span id="L178"><span class="lineNum">     178</span> <span class="tlaGNC">        5843 :     end subroutine independent_columns</span></span>
+<span id="L179"><span class="lineNum">     179</span>              : !*******************************************************************************</span>
+<span id="L180"><span class="lineNum">     180</span>              : </span>
+<span id="L181"><span class="lineNum">     181</span>              : !*******************************************************************************</span>
+<span id="L182"><span class="lineNum">     182</span>              : !&gt;</span>
+<span id="L183"><span class="lineNum">     183</span>              : !  factorize the square `n x n` sparse matrix `A` (COO triplets, no</span>
+<span id="L184"><span class="lineNum">     184</span>              : !  duplicate `(irow,icol)` pairs) with `LUSOL`'s `lu1fac` (threshold rook</span>
+<span id="L185"><span class="lineNum">     185</span>              : !  pivoting, for stability). `istat` is `0` on success, `1` if `A` appears</span>
+<span id="L186"><span class="lineNum">     186</span>              : !  to be singular (see [[independent_columns]] for the test), or else</span>
+<span id="L187"><span class="lineNum">     187</span>              : !  `lu1fac`'s `inform` code; the factors can only be used if it is `0`.</span>
+<span id="L188"><span class="lineNum">     188</span>              : </span>
+<span id="L189"><span class="lineNum">     189</span> <span class="tlaGNC">        5021 :     subroutine lu_factorize(me, n, irow, icol, val, rel_tol, istat)</span></span>
+<span id="L190"><span class="lineNum">     190</span>              : </span>
+<span id="L191"><span class="lineNum">     191</span>              :     class(sqpopt_lu_type),  intent(inout) :: me</span>
+<span id="L192"><span class="lineNum">     192</span>              :     integer,                intent(in)    :: n       !! order of `A`</span>
+<span id="L193"><span class="lineNum">     193</span>              :     integer,  dimension(:), intent(in)    :: irow    !! row indices of the nonzeros of `A`</span>
+<span id="L194"><span class="lineNum">     194</span>              :     integer,  dimension(:), intent(in)    :: icol    !! column indices of the nonzeros of `A`</span>
+<span id="L195"><span class="lineNum">     195</span>              :     real(wp), dimension(:), intent(in)    :: val     !! the nonzeros of `A`</span>
+<span id="L196"><span class="lineNum">     196</span>              :     real(wp),               intent(in)    :: rel_tol !! relative singularity tolerance (e.g. `1e-10`)</span>
+<span id="L197"><span class="lineNum">     197</span>              :     integer,                intent(out)   :: istat   !! status (0 = success)</span>
+<span id="L198"><span class="lineNum">     198</span>              : </span>
+<span id="L199"><span class="lineNum">     199</span>              :     integer(ip) :: nelem, inform, attempt</span>
+<span id="L200"><span class="lineNum">     200</span> <span class="tlaGNC">        5021 :     integer(ip), dimension(:), allocatable :: iploc, iqloc, ipinv, iqinv</span></span>
+<span id="L201"><span class="lineNum">     201</span> <span class="tlaGNC">        5021 :     real(rp),    dimension(:), allocatable :: w</span></span>
+<span id="L202"><span class="lineNum">     202</span>              : </span>
+<span id="L203"><span class="lineNum">     203</span> <span class="tlaGNC">        5021 :     me%n  = n</span></span>
+<span id="L204"><span class="lineNum">     204</span> <span class="tlaGNC">        5021 :     nelem = size(val)</span></span>
+<span id="L205"><span class="lineNum">     205</span> <span class="tlaGNC">        5021 :     istat = 0</span></span>
+<span id="L206"><span class="lineNum">     206</span> <span class="tlaGNC">        5021 :     if (n == 0) return</span></span>
+<span id="L207"><span class="lineNum">     207</span> <span class="tlaGNC">        5021 :     me%lena = 1 + max(10*nelem, 20*me%n, 10000_ip)   ! (with room for column replacements)</span></span>
+<span id="L208"><span class="lineNum">     208</span> <span class="tlaGNC">        5021 :     if (allocated(me%p)) deallocate(me%p, me%q, me%lenc, me%lenr, me%locc, me%locr, me%v, me%w)</span></span>
+<span id="L209"><span class="lineNum">     209</span> <span class="tlaUNC">           0 :     allocate(me%p(n), me%q(n), me%lenc(n), me%lenr(n), me%locc(n), me%locr(n), me%v(n), me%w(n), &amp;</span></span>
+<span id="L210"><span class="lineNum">     210</span> <span class="tlaGNC">        5021 :              iploc(n), iqloc(n), ipinv(n), iqinv(n), w(n))</span></span>
+<span id="L211"><span class="lineNum">     211</span>              : </span>
+<span id="L212"><span class="lineNum">     212</span> <span class="tlaGNC">        5021 :     do attempt = 1, 3   ! (enlarging the workspace if `lu1fac` asks for it)</span></span>
+<span id="L213"><span class="lineNum">     213</span> <span class="tlaGNC">        5021 :         if (allocated(me%a)) deallocate(me%a, me%indc, me%indr)</span></span>
+<span id="L214"><span class="lineNum">     214</span> <span class="tlaGNC">        5021 :         allocate(me%a(me%lena), me%indc(me%lena), me%indr(me%lena))</span></span>
+<span id="L215"><span class="lineNum">     215</span> <span class="tlaGNC">     1658587 :         me%a(1:nelem)    = real(val, rp)</span></span>
+<span id="L216"><span class="lineNum">     216</span> <span class="tlaGNC">     1658587 :         me%indc(1:nelem) = irow</span></span>
+<span id="L217"><span class="lineNum">     217</span> <span class="tlaGNC">     1658587 :         me%indr(1:nelem) = icol</span></span>
+<span id="L218"><span class="lineNum">     218</span>              : </span>
+<span id="L219"><span class="lineNum">     219</span> <span class="tlaGNC">      155651 :         me%luparm = 0</span></span>
+<span id="L220"><span class="lineNum">     220</span> <span class="tlaGNC">        5021 :         me%luparm(1) = 6      ! nout</span></span>
+<span id="L221"><span class="lineNum">     221</span> <span class="tlaGNC">        5021 :         me%luparm(2) = -1     ! lprint: no output</span></span>
+<span id="L222"><span class="lineNum">     222</span> <span class="tlaGNC">        5021 :         me%luparm(3) = 5      ! maxcol</span></span>
+<span id="L223"><span class="lineNum">     223</span> <span class="tlaGNC">        5021 :         me%luparm(6) = 1      ! TRP: threshold rook pivoting</span></span>
+<span id="L224"><span class="lineNum">     224</span> <span class="tlaGNC">        5021 :         me%luparm(8) = 1      ! keepLU</span></span>
+<span id="L225"><span class="lineNum">     225</span> <span class="tlaGNC">      155651 :         me%parmlu = 0.0_rp</span></span>
+<span id="L226"><span class="lineNum">     226</span> <span class="tlaGNC">        5021 :         me%parmlu(1) = 10.0_rp                      ! Ltol1</span></span>
+<span id="L227"><span class="lineNum">     227</span> <span class="tlaGNC">        5021 :         me%parmlu(2) = 10.0_rp                      ! Ltol2</span></span>
+<span id="L228"><span class="lineNum">     228</span> <span class="tlaGNC">        5021 :         me%parmlu(3) = epsilon(1.0_rp)**0.8_rp      ! small</span></span>
+<span id="L229"><span class="lineNum">     229</span> <span class="tlaGNC">        5021 :         me%parmlu(4) = epsilon(1.0_rp)**0.67_rp     ! Utol1</span></span>
+<span id="L230"><span class="lineNum">     230</span> <span class="tlaGNC">        5021 :         me%parmlu(5) = real(rel_tol, rp)            ! Utol2</span></span>
+<span id="L231"><span class="lineNum">     231</span> <span class="tlaGNC">        5021 :         me%parmlu(6) = 3.0_rp                       ! Uspace</span></span>
+<span id="L232"><span class="lineNum">     232</span> <span class="tlaGNC">        5021 :         me%parmlu(7) = 0.3_rp                       ! dens1</span></span>
+<span id="L233"><span class="lineNum">     233</span> <span class="tlaGNC">        5021 :         me%parmlu(8) = 0.5_rp                       ! dens2</span></span>
+<span id="L234"><span class="lineNum">     234</span>              : </span>
+<span id="L235"><span class="lineNum">     235</span>              :         call lu1fac(me%n, me%n, nelem, me%lena, me%luparm, me%parmlu, me%a, me%indc, me%indr, &amp;</span>
+<span id="L236"><span class="lineNum">     236</span> <span class="tlaGNC">        5021 :                     me%p, me%q, me%lenc, me%lenr, me%locc, me%locr, iploc, iqloc, ipinv, iqinv, w, inform)</span></span>
+<span id="L237"><span class="lineNum">     237</span> <span class="tlaGNC">        5021 :         if (inform /= 7) exit</span></span>
+<span id="L238"><span class="lineNum">     238</span> <span class="tlaUNC">           0 :         me%lena = max(2*me%lena, me%luparm(13) + 1)</span></span>
+<span id="L239"><span class="lineNum">     239</span>              :     end do</span>
+<span id="L240"><span class="lineNum">     240</span> <span class="tlaGNC">        5021 :     istat = int(inform)</span></span>
+<span id="L241"><span class="lineNum">     241</span>              : </span>
+<span id="L242"><span class="lineNum">     242</span> <span class="tlaGNC">        5021 :     end subroutine lu_factorize</span></span>
+<span id="L243"><span class="lineNum">     243</span>              : !*******************************************************************************</span>
+<span id="L244"><span class="lineNum">     244</span>              : </span>
+<span id="L245"><span class="lineNum">     245</span>              : !*******************************************************************************</span>
+<span id="L246"><span class="lineNum">     246</span>              : !&gt;</span>
+<span id="L247"><span class="lineNum">     247</span>              : !  solve \( A x = b \) (or \( A^T x = b \) if `transpose`) with the factors</span>
+<span id="L248"><span class="lineNum">     248</span>              : !  from [[sqpopt_lu_type(type):factorize(bound)]].</span>
+<span id="L249"><span class="lineNum">     249</span>              : </span>
+<span id="L250"><span class="lineNum">     250</span> <span class="tlaGNC">     1810075 :     subroutine lu_solve(me, b, x, transpose)</span></span>
+<span id="L251"><span class="lineNum">     251</span>              : </span>
+<span id="L252"><span class="lineNum">     252</span>              :     class(sqpopt_lu_type),  intent(inout) :: me</span>
+<span id="L253"><span class="lineNum">     253</span>              :     real(wp), dimension(:), intent(in)    :: b         !! right-hand side `dimension(n)`</span>
+<span id="L254"><span class="lineNum">     254</span>              :     real(wp), dimension(:), intent(out)   :: x         !! solution `dimension(n)`</span>
+<span id="L255"><span class="lineNum">     255</span>              :     logical,                intent(in)    :: transpose !! solve with \( A^T \) instead of \( A \)</span>
+<span id="L256"><span class="lineNum">     256</span>              : </span>
+<span id="L257"><span class="lineNum">     257</span>              :     integer(ip) :: inform</span>
+<span id="L258"><span class="lineNum">     258</span>              : </span>
+<span id="L259"><span class="lineNum">     259</span> <span class="tlaGNC">     1810075 :     if (me%n == 0) return</span></span>
+<span id="L260"><span class="lineNum">     260</span> <span class="tlaGNC">     1810075 :     if (transpose) then</span></span>
+<span id="L261"><span class="lineNum">     261</span> <span class="tlaGNC">   220857817 :         me%w(1:me%n) = real(b, rp)   ! (mode 6: `v` solves `A'v = w`; `w` is destroyed)</span></span>
+<span id="L262"><span class="lineNum">     262</span>              :         call lu6sol(6_ip, me%n, me%n, me%v, me%w, me%lena, me%luparm, me%parmlu, me%a, me%indc, me%indr, &amp;</span>
+<span id="L263"><span class="lineNum">     263</span> <span class="tlaGNC">      882653 :                     me%p, me%q, me%lenc, me%lenr, me%locc, me%locr, inform)</span></span>
+<span id="L264"><span class="lineNum">     264</span> <span class="tlaGNC">   220857817 :         x = real(me%v, wp)</span></span>
+<span id="L265"><span class="lineNum">     265</span>              :     else</span>
+<span id="L266"><span class="lineNum">     266</span> <span class="tlaGNC">   220007303 :         me%v(1:me%n) = real(b, rp)   ! (mode 5: `w` solves `A w = v`; `v` is altered)</span></span>
+<span id="L267"><span class="lineNum">     267</span>              :         call lu6sol(5_ip, me%n, me%n, me%v, me%w, me%lena, me%luparm, me%parmlu, me%a, me%indc, me%indr, &amp;</span>
+<span id="L268"><span class="lineNum">     268</span> <span class="tlaGNC">      927422 :                     me%p, me%q, me%lenc, me%lenr, me%locc, me%locr, inform)</span></span>
+<span id="L269"><span class="lineNum">     269</span> <span class="tlaGNC">   220007303 :         x = real(me%w, wp)</span></span>
+<span id="L270"><span class="lineNum">     270</span>              :     end if</span>
+<span id="L271"><span class="lineNum">     271</span>              : </span>
+<span id="L272"><span class="lineNum">     272</span>              :     end subroutine lu_solve</span>
+<span id="L273"><span class="lineNum">     273</span>              : !*******************************************************************************</span>
+<span id="L274"><span class="lineNum">     274</span>              : </span>
+<span id="L275"><span class="lineNum">     275</span>              : !*******************************************************************************</span>
+<span id="L276"><span class="lineNum">     276</span>              : !&gt;</span>
+<span id="L277"><span class="lineNum">     277</span>              : !  update the factors when column `jrep` of the matrix is replaced by the</span>
+<span id="L278"><span class="lineNum">     278</span>              : !  sparse column (`irow`, `val`), with `LUSOL`'s `lu8rpc` (a Bartels-Golub</span>
+<span id="L279"><span class="lineNum">     279</span>              : !  update). `istat` is `0` on success; otherwise (the new matrix appears to</span>
+<span id="L280"><span class="lineNum">     280</span>              : !  be singular, the update seemed unstable, or the factors ran out of</span>
+<span id="L281"><span class="lineNum">     281</span>              : !  storage) the factors can no longer be used, and the matrix should be</span>
+<span id="L282"><span class="lineNum">     282</span>              : !  factorized again.</span>
+<span id="L283"><span class="lineNum">     283</span>              : </span>
+<span id="L284"><span class="lineNum">     284</span> <span class="tlaGNC">        9292 :     subroutine lu_replace_column(me, jrep, irow, val, istat)</span></span>
+<span id="L285"><span class="lineNum">     285</span>              : </span>
+<span id="L286"><span class="lineNum">     286</span>              :     class(sqpopt_lu_type),  intent(inout) :: me</span>
+<span id="L287"><span class="lineNum">     287</span>              :     integer,                intent(in)    :: jrep  !! the column to replace</span>
+<span id="L288"><span class="lineNum">     288</span>              :     integer,  dimension(:), intent(in)    :: irow  !! row indices of the nonzeros of the new column</span>
+<span id="L289"><span class="lineNum">     289</span>              :     real(wp), dimension(:), intent(in)    :: val   !! the nonzeros of the new column</span>
+<span id="L290"><span class="lineNum">     290</span>              :     integer,                intent(out)   :: istat !! status (0 = success)</span>
+<span id="L291"><span class="lineNum">     291</span>              : </span>
+<span id="L292"><span class="lineNum">     292</span>              :     real(rp)    :: diag, vnorm</span>
+<span id="L293"><span class="lineNum">     293</span>              :     integer(ip) :: inform, nrank0</span>
+<span id="L294"><span class="lineNum">     294</span>              :     integer :: k</span>
+<span id="L295"><span class="lineNum">     295</span>              : </span>
+<span id="L296"><span class="lineNum">     296</span> <span class="tlaGNC">     5566022 :     me%v(1:me%n) = 0.0_rp</span></span>
+<span id="L297"><span class="lineNum">     297</span> <span class="tlaGNC">       25157 :     do k = 1, size(val)</span></span>
+<span id="L298"><span class="lineNum">     298</span> <span class="tlaGNC">       25157 :         me%v(irow(k)) = me%v(irow(k)) + real(val(k), rp)</span></span>
+<span id="L299"><span class="lineNum">     299</span>              :     end do</span>
+<span id="L300"><span class="lineNum">     300</span> <span class="tlaGNC">        9292 :     nrank0 = me%luparm(16)</span></span>
+<span id="L301"><span class="lineNum">     301</span>              :     call lu8rpc(1_ip, 1_ip, me%n, me%n, int(jrep, ip), me%v, me%w, me%lena, me%luparm, me%parmlu, &amp;</span>
+<span id="L302"><span class="lineNum">     302</span> <span class="tlaGNC">        9292 :                 me%a, me%indc, me%indr, me%p, me%q, me%lenc, me%lenr, me%locc, me%locr, inform, diag, vnorm)</span></span>
+<span id="L303"><span class="lineNum">     303</span> <span class="tlaGNC">        9292 :     if (inform == 0 .and. me%luparm(16) == nrank0) then</span></span>
+<span id="L304"><span class="lineNum">     304</span> <span class="tlaGNC">        9292 :         istat = 0</span></span>
+<span id="L305"><span class="lineNum">     305</span>              :     else</span>
+<span id="L306"><span class="lineNum">     306</span> <span class="tlaUNC">           0 :         istat = max(1, int(abs(inform)))</span></span>
+<span id="L307"><span class="lineNum">     307</span>              :     end if</span>
+<span id="L308"><span class="lineNum">     308</span>              : </span>
+<span id="L309"><span class="lineNum">     309</span> <span class="tlaGNC">        9292 :     end subroutine lu_replace_column</span></span>
+<span id="L310"><span class="lineNum">     310</span>              : !*******************************************************************************</span>
+<span id="L311"><span class="lineNum">     311</span>              : </span>
+<span id="L312"><span class="lineNum">     312</span> <span class="tlaUNC">           0 :     end module sqpopt_linalg_module</span></span>
+<span id="L313"><span class="lineNum">     313</span>              : !*******************************************************************************</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com/linux-test-project/lcov" target="_parent">LCOV version 2.5-0</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

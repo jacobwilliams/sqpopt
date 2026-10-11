@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SQPOPT: Choosing settings</title>
+<meta name="description" content="Which SQPOPT settings to use for small dense problems, large sparse problems, and problems with many or few degrees of freedom, with measurements.">
+<link rel="icon" type="image/png" href="media/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<link rel="stylesheet" href="css/style.css">
+<script>
+  // apply the saved theme before first paint
+  try { var t = localStorage.getItem('sqpopt-theme'); if (t) document.documentElement.setAttribute('data-theme', t); } catch (e) {}
+</script>
+</head>
+<body>
+
+<header class="topbar">
+  <button class="nav-toggle" aria-label="Toggle navigation" aria-expanded="false">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+  </button>
+  <a class="brand" href="index.html">
+    <img src="media/logo.png" alt="" width="32" height="32">
+    <span>SQPOPT</span>
+    <span class="brand-sub">Choosing settings</span>
+  </a>
+  <nav class="top-links">
+    <a href="index.html">User Guide</a>
+    <a href="api/index.html">API docs</a>
+    <a class="gh-link" href="https://github.com/jacobwilliams/sqpopt" aria-label="SQPOPT on GitHub" title="SQPOPT on GitHub"><svg viewBox="0 0 16 16" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M8 0c4.42 0 8 3.58 8 8a8.01 8.01 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A8 8 0 0 1 0 8c0-4.42 3.58-8 8-8Z"/></svg></a>
+    <button class="theme-toggle" aria-label="Toggle dark mode" title="Toggle dark mode">
+      <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg>
+      <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+  </nav>
+</header>
+
+<div class="layout">
+
+<aside class="sidebar" id="sidebar">
+  <nav class="toc" aria-label="Contents">
+    <p class="toc-group">Choosing settings</p>
+    <a href="#summary">Summary</a>
+    <a href="#where-time-goes">Where the time goes</a>
+    <a href="#small">Small problems</a>
+    <a href="#qp-solver">Which QP solver</a>
+    <a href="#large-sparse">Large sparse problems</a>
+    <a href="#dof">Degrees of freedom</a>
+    <a href="#derivatives">Derivatives</a>
+    <a href="#hard">When the defaults fail</a>
+    <a href="#other-solvers">Coming from another solver</a>
+    <a href="#method">How these were measured</a>
+    <a href="index.html" class="toc-ext">&larr; User guide</a>
+  </nav>
+</aside>
+
+<main class="content" id="top">
+
+<h1>Choosing settings</h1>
+
+<p class="lede">The defaults work for most problems. This page explains when to change them, based on measurements: the 305 Hock&ndash;Schittkowski problems (small, dense) and families of large sparse problems with known solutions, solved with every relevant setting.</p>
+
+<p>The settings mentioned here are described in full in the guide's <a href="index.html#configuration">configuration reference</a>. All times are for a release build (<code>--profile release</code>) on one core of an Apple M-series laptop. Only the ratios between them matter.</p>
+
+<!-- ============================================================ -->
+<h2 id="summary">Summary</h2>
+
+<div class="table-wrap"><table>
+<thead><tr><th>your problem</th><th>start with</th><th>why</th></tr></thead>
+<tbody>
+<tr><td>Small (up to about 50 variables), any structure</td><td>the defaults</td><td>The dense QP is chosen automatically. At this size every QP takes milliseconds, and the dense one needs slightly fewer function evaluations than the sparse one. <code>options%qp_solver_mode = sqpopt_qp_daqp</code> takes the same steps faster, but the difference is a few milliseconds.</td></tr>
+<tr><td>50&ndash;200 variables, cheap functions</td><td><code>options%qp_solver_mode = sqpopt_qp_daqp</code> if the Jacobian is dense; <code>sqpopt_qp_reduced_hessian</code> if it is sparse</td><td>The default switches to the sparse QP only above 200 variables, but the dense QP it uses until then is slow: the sparse QP was 2&ndash;11&times; faster at about 100 variables, and 7&ndash;100&times; at 200. <a href="index.html#daqp">DAQP</a> takes the dense QP's steps 6&ndash;40&times; faster. With a dense Jacobian it was the fastest, 6&times; faster than the sparse QP, with fewer function evaluations; with a sparse one, the sparse QP was faster from about 200 variables (<a href="#qp-solver">details</a>).</td></tr>
+<tr><td>Large and sparse (more than 200 variables)</td><td>the defaults, and perhaps a larger <code>max_iter</code></td><td>The sparse QP with its LU null space is chosen automatically. The default limit of 100 major iterations can be low for large problems solved with a quasi-Newton Hessian.</td></tr>
+<tr><td>Second derivatives available</td><td><code>options%hessian_mode = sqpopt_hessian_exact</code></td><td>On large problems, 1.4&ndash;7&times; fewer iterations than L-BFGS, and convergence to the full tolerances (<a href="#large-sparse">details</a>). On small problems the default L-BFGS is just as good.</td></tr>
+<tr><td>Second derivatives available, and a small problem (up to a few hundred variables and constraints)</td><td>the exact Hessian with <code>options%inertia_control</code> and <code>options%linear_solver = sqpopt_linear_solver_dense</code></td><td>Inertia control finds the shift that makes an indefinite Hessian convex, and with the exact Hessian it needs a solver that pivots. The dense solver does, and forms the KKT matrix as a dense array, which costs nothing at this size: on the HS problems it needed 9,426 evaluations, like MUMPS (9,400), against 13,654 with the default QDLDL (<a href="index.html#linear-solver">details</a>). Don't use it on large problems (<a href="index.html#dense-matrices">why</a>).</td></tr>
+<tr><td>Very large (tens of thousands of variables or more)</td><td>the exact Hessian with <code>options%inertia_control</code> and <code>options%direct_qp</code>; without second derivatives, <code>direct_qp</code> alone (its automatic L-BFGS memory is 10 pairs). Add <code>direct_least_squares</code> if the solve takes second-order corrections or restoration steps. If the problem is coupled in two or three dimensions (a grid, a mesh) and you have a build with MUMPS, try <code>options%linear_solver = sqpopt_linear_solver_mumps</code></td><td>The active-set QP dominates the run time at this size. The direct QP method replaces it by sparse factorizations: 0.24 s instead of 22 s at 100,000 variables, and a million variables in 2.6 s, with QDLDL, the default linear solver (<a href="performance.html#large-problems">details</a>). On banded and chained problems like those, QDLDL is 5 to 10 times faster than MUMPS; on 2-D and 3-D coupling MUMPS is many times faster (<a href="index.html#linear-solver">details</a>).</td></tr>
+<tr><td>Many degrees of freedom (\( n - m \) large)</td><td>the exact Hessian if you can, else the defaults</td><td>The quasi-Newton Hessian has to learn the curvature in all those directions; the exact one doesn't. Don't raise <code>dense_max_ns</code> (<a href="#dof">details</a>).</td></tr>
+<tr><td>Few degrees of freedom</td><td>the defaults</td><td>The constraints determine most of the solution. L-BFGS converges quickly, and the QP faces are small and solved directly.</td></tr>
+<tr><td>No derivatives (finite differences)</td><td>central differences, or forward differences with <code>derivative_accuracy = sqpopt_derivatives_fast</code></td><td>Central differences match analytic derivatives; the fast/accurate switch needs about 40% fewer function evaluations, and is as robust (<a href="#derivatives">details</a>).</td></tr>
+<tr><td>Fails, or converges slowly</td><td>check the scaling, then see <a href="#hard">When the defaults fail</a></td><td></td></tr>
+</tbody>
+</table></div>
+
+<p>Two settings are almost never worth changing: keep the sparse QP's <code>null_space = sqpopt_null_space_lu</code> (the <code>LSQR</code> alternative was slower on all but two of the tests here, by up to 200&times; on the larger problems) and <code>warm_start = .true.</code> (a cold start took up to 5&times; longer).</p>
+
+<!-- ============================================================ -->
+<h2 id="where-time-goes">First, find where the time goes</h2>
+
+<p>An SQP solve spends its time in two places: <strong>your functions</strong> (one call of <code>fc</code> and usually one of <code>gjac</code> per iteration, more when steps are rejected), and <strong>the QP subproblems</strong> (one or more per iteration). Which one dominates decides what to tune:</p>
+
+<ul>
+  <li>If your functions are expensive (a simulation, say), only the number of iterations matters: reduce it with a better Hessian (<a href="#derivatives">exact</a>), better <a href="index.html#scaling">scaling</a>, or a better starting point. The QP settings hardly matter.</li>
+  <li>If your functions are cheap, the QP usually dominates, and the choice of QP solver can change the run time by a factor of 100 (<a href="#qp-solver">below</a>).</li>
+</ul>
+
+<p>The results report the split: <code>results%time</code> is the total, and <code>results%time_functions</code> and <code>results%time_qp</code> are the parts spent in your functions and in the QP. With <code>options%print_level = 1</code> the final summary prints them too.</p>
+
+<!-- ============================================================ -->
+<h2 id="small">Small problems</h2>
+
+<p>The Hock&ndash;Schittkowski collection is the classic test set of small problems: 305 problems with 2 to 100 variables, given to the solver with dense Jacobians. Here are the outcomes with different Hessian and QP settings. <code>fc</code> calls are summed over the solved problems, and the time is for all 305 problems together.</p>
+
+<div class="table-wrap"><table class="bench">
+<thead><tr><th>configuration</th><th class="num">solved</th><th class="num">local</th><th class="num">failed</th><th class="num"><code>fc</code> calls</th><th class="num">time</th></tr></thead>
+<tbody>
+<tr class="best"><td><strong>defaults</strong> (dense QP, L-BFGS with \( \max(10,\min(n,100)) \) pairs)</td><td class="num"><strong>281</strong></td><td class="num">24</td><td class="num">0</td><td class="num"><strong>9,121</strong></td><td class="num">0.7 s</td></tr>
+<tr><td>sparse QP (LU)</td><td class="num">281</td><td class="num">24</td><td class="num">0</td><td class="num">10,191</td><td class="num">0.8 s</td></tr>
+<tr><td><a href="index.html#daqp">DAQP</a> (<code>qp_solver_mode = sqpopt_qp_daqp</code>)</td><td class="num">282</td><td class="num">23</td><td class="num">0</td><td class="num">9,044</td><td class="num">0.6 s</td></tr>
+<tr><td>sparse QP (<code>LSQR</code>)</td><td class="num">279</td><td class="num">26</td><td class="num">0</td><td class="num">9,016</td><td class="num">0.7 s</td></tr>
+<tr><td>L-BFGS, 5 pairs</td><td class="num">279</td><td class="num">26</td><td class="num">0</td><td class="num">10,967</td><td class="num">0.2 s</td></tr>
+<tr><td>L-BFGS, 10 pairs</td><td class="num">281</td><td class="num">24</td><td class="num">0</td><td class="num">9,656</td><td class="num">0.1 s</td></tr>
+<tr><td>L-BFGS, 30 pairs</td><td class="num">280</td><td class="num">25</td><td class="num">0</td><td class="num">9,563</td><td class="num">0.2 s</td></tr>
+<tr><td>L-SR1</td><td class="num">266</td><td class="num">26</td><td class="num">13</td><td class="num">28,349</td><td class="num">0.6 s</td></tr>
+<tr><td>L-SR1, <a href="index.html#spectrum">convexified</a> (<code>hessian%convexify</code>)</td><td class="num">266</td><td class="num">31</td><td class="num">8</td><td class="num">15,967</td><td class="num">1.8 s</td></tr>
+<tr><td>L-SR1, convexified, with DAQP</td><td class="num">271</td><td class="num">28</td><td class="num">6</td><td class="num">17,186</td><td class="num">1.6 s</td></tr>
+<tr><td>exact Hessian (by differences of the gradients)</td><td class="num">270</td><td class="num">32</td><td class="num">3</td><td class="num">11,197</td><td class="num">1.6 s</td></tr>
+<tr><td>exact Hessian with <a href="index.html#inertia-control">inertia control</a></td><td class="num">273</td><td class="num">29</td><td class="num">3</td><td class="num">13,654</td><td class="num">1.6 s</td></tr>
+<tr><td>exact Hessian with inertia control, MUMPS as the <a href="index.html#linear-solver">linear solver</a> (a build with it)</td><td class="num">274</td><td class="num">29</td><td class="num">2</td><td class="num">9,400</td><td class="num">1.5 s</td></tr>
+<tr><td>exact Hessian with inertia control, the dense solver (<code>linear_solver = sqpopt_linear_solver_dense</code>)</td><td class="num">273</td><td class="num">30</td><td class="num">2</td><td class="num">9,426</td><td class="num">1.5 s</td></tr>
+<tr><td>L-SR1 with inertia control</td><td class="num">276</td><td class="num">28</td><td class="num">1</td><td class="num">10,984</td><td class="num">2.8 s</td></tr>
+</tbody>
+</table></div>
+
+<ul>
+  <li><strong>Keep the defaults.</strong> At this size, solving all 305 problems takes about a second whatever the settings, so only robustness and the number of function evaluations matter, and the defaults are best or close to best on both.</li>
+  <li><strong>The dense QP needs about 10% fewer evaluations</strong> than the sparse one here. When your functions are expensive and the problem is small, that is worth more than the QP's run time.</li>
+  <li><strong>DAQP does as well as the dense QP</strong>, with one more problem solved and slightly fewer evaluations. It solves the convex QPs, and the dense QP the others (102 of the 7,608 QPs, mostly ones whose linearized constraints were inconsistent). At this size its speed doesn't show.</li>
+  <li><strong>L-SR1 needs inertia control.</strong> With it, SR1 solves 276 problems and fails on 1, close to the defaults, though it takes longer (276 and 2 with MUMPS; QDLDL is three times faster here).</li>
+  <li><strong>Avoid plain L-SR1 on small problems.</strong> It failed on 13 problems and needed 3&times; the evaluations. SR1 is not guaranteed to stay positive definite, and on small problems the QP then often ends at a bound or takes a poor step. Shifting it by its smallest eigenvalue (<code>hessian%convexify</code>) fails on fewer and halves the evaluations, without a factorization, and makes its QPs convex, for DAQP. But inertia control, which shifts it only as much as the QP needs, is better here and more reliable on large problems (<a href="performance.html#large-problems">details</a>).</li>
+  <li><strong>Fewer L-BFGS pairs</strong> make each iteration cheaper but cost more iterations. The automatic memory keeps up to 100 pairs, which matters on the larger HS problems (TP302, <code>n</code>&nbsp;=&nbsp;100, needs 491 iterations with 10 pairs and 143 with 100).</li>
+  <li><strong>The exact Hessian</strong> takes 30% fewer iterations (median) on the problems both solve, but its Newton steps are less robust far from a solution on this set (the Hessians are approximated by differences here, since the collection has no second derivatives). Turn on <code>options%inertia_control</code> with it: it solved 3 more problems. Then choose a linear solver that pivots: <code>options%linear_solver = sqpopt_linear_solver_dense</code> on a small problem like these (it forms dense matrices, so not on large ones), or <code>sqpopt_linear_solver_mumps</code> if your build has MUMPS. Inertia control with MUMPS solved 4 more problems, with 16% fewer evaluations, and with the dense solver 3 more, with 16% fewer, where QDLDL, which doesn't pivot, needed 22% more (it shifts a Hessian with zeros on its diagonal more than needed). The guide's <a href="performance.html#hs">Performance</a> section compares the globalization strategies on the same set.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="qp-solver">Which QP solver</h2>
+
+<p><code>options%qp_solver_mode = sqpopt_qp_auto</code> (the default) uses the dense QP for problems with at most <code>qp_solver%auto_dense_max_n = 200</code> variables, and the sparse QP above. The dense QP refactorizes dense matrices whenever its working set changes, so its cost grows roughly as \( n^3 \) per QP iteration; the sparse QP's grows with the number of nonzeros and the fill-in of the LU factors. <a href="index.html#daqp">DAQP</a> (<code>sqpopt_qp_daqp</code>, never chosen automatically) also works with dense matrices, but factors the Hessian once per QP and then updates its factors as the working set changes. It solves the convex QPs, and leaves the others to the dense QP.</p>
+
+<p>Total solve time in seconds, on three problem families (<code>example/settings_study.f90</code>, the faster of two runs). The number of iterations was the same for each QP solver, or nearly so, so the differences are almost all QP time. DAQP took the dense QP's steps, with the same function evaluations; on the <code>dense</code> family, those were up to 30% fewer than the sparse QP's:</p>
+
+<div class="table-wrap"><table class="bench compact">
+<thead><tr><th>problem</th><th class="num"><code>n</code></th><th class="num">dense QP</th><th class="num">sparse QP (LU)</th><th class="num">sparse QP (<code>LSQR</code>)</th><th class="num">DAQP</th></tr></thead>
+<tbody>
+<tr><td rowspan="6"><code>control</code>: optimal control, 3 nonzeros per Jacobian row</td><td class="num">51</td><td class="num">0.007</td><td class="num">0.002</td><td class="num">0.005</td><td class="num"><strong>0.001</strong></td></tr>
+<tr><td class="num">101</td><td class="num">0.034</td><td class="num"><strong>0.003</strong></td><td class="num">0.021</td><td class="num">0.004</td></tr>
+<tr><td class="num">201</td><td class="num">0.41</td><td class="num"><strong>0.004</strong></td><td class="num">0.12</td><td class="num">0.029</td></tr>
+<tr><td class="num">401</td><td class="num">8.3</td><td class="num"><strong>0.014</strong></td><td class="num">1.6</td><td class="num">0.30</td></tr>
+<tr><td class="num">801</td><td class="num">&mdash;</td><td class="num"><strong>0.038</strong></td><td class="num">12</td><td class="num">&mdash;</td></tr>
+<tr><td class="num">1601</td><td class="num">&mdash;</td><td class="num"><strong>0.073</strong></td><td class="num">&mdash;</td><td class="num">&mdash;</td></tr>
+<tr><td rowspan="6"><code>elliptic</code>: control on a 2D grid, 6 nonzeros per row, LU fill-in</td><td class="num">50</td><td class="num">0.007</td><td class="num">0.007</td><td class="num">0.014</td><td class="num"><strong>0.003</strong></td></tr>
+<tr><td class="num">98</td><td class="num">0.055</td><td class="num">0.013</td><td class="num">0.047</td><td class="num"><strong>0.010</strong></td></tr>
+<tr><td class="num">200</td><td class="num">0.62</td><td class="num"><strong>0.044</strong></td><td class="num">0.23</td><td class="num">0.072</td></tr>
+<tr><td class="num">392</td><td class="num">4.8</td><td class="num"><strong>0.12</strong></td><td class="num">0.67</td><td class="num">0.47</td></tr>
+<tr><td class="num">800</td><td class="num">&mdash;</td><td class="num"><strong>0.38</strong></td><td class="num">2.2</td><td class="num">&mdash;</td></tr>
+<tr><td class="num">1568</td><td class="num">&mdash;</td><td class="num"><strong>3.2</strong></td><td class="num">&mdash;</td><td class="num">&mdash;</td></tr>
+<tr><td rowspan="5"><code>dense</code>: every constraint depends on every variable (\( m = n/2 \))</td><td class="num">20</td><td class="num">0.001</td><td class="num">0.001</td><td class="num"></td><td class="num"><strong>&lt;0.001</strong></td></tr>
+<tr><td class="num">50</td><td class="num">0.005</td><td class="num">0.007</td><td class="num"></td><td class="num"><strong>0.001</strong></td></tr>
+<tr><td class="num">100</td><td class="num">0.058</td><td class="num">0.032</td><td class="num"></td><td class="num"><strong>0.005</strong></td></tr>
+<tr><td class="num">200</td><td class="num">1.2</td><td class="num">0.18</td><td class="num"></td><td class="num"><strong>0.031</strong></td></tr>
+<tr><td class="num">400</td><td class="num">15</td><td class="num">1.1</td><td class="num"></td><td class="num"><strong>0.18</strong></td></tr>
+</tbody>
+</table></div>
+<p class="small">&mdash;: not run (minutes; the dense QP and DAQP are not run above 500 variables). The dense problem's <code>LSQR</code> column was not measured.</p>
+
+<ul>
+  <li><strong>Up to about 50 variables</strong>, every QP solver takes milliseconds, and the dense QP (and DAQP, with the same steps) needs slightly fewer function evaluations than the sparse one (on the HS problems and the <code>dense</code> family). The default does the right thing.</li>
+  <li><strong>From about 50 to 200 variables</strong>, the default still picks the dense QP, which is the slowest choice here. <strong>DAQP</strong> takes the same steps 6&ndash;40&times; faster, and with a dense Jacobian it was the fastest of all (6&times; faster than the sparse QP at 100 and 200 variables). With a sparse Jacobian, the sparse QP was faster from about 200 variables (7&times; on <code>control</code>), and up to 100&times; faster than the dense QP. If your functions are cheap, choose one explicitly, or lower the switch-over point:
+<pre><code class="language-fortran">options%qp_solver_mode = sqpopt_qp_daqp               ! DAQP (dense Jacobians)
+! or:
+options%qp_solver_mode = sqpopt_qp_reduced_hessian    ! always the sparse QP
+! or:
+qp_solver%auto_dense_max_n = 50                       ! the sparse QP above 50 variables
+call solver%initialize(problem=problem, options=options, qp_solver=qp_solver)</code></pre>
+  If your functions are expensive, the dense QP's slightly better steps may still be worth its cost at this size (DAQP gives them faster); compare <code>results%n_eval_fc</code> both ways.</li>
+  <li><strong>Above 200 variables</strong>, use the sparse QP (the default). The dense QP stores <code>n&times;n</code> and <code>m&times;n</code> arrays and quickly becomes impractical. DAQP stores them too, but it was still 6&times; faster than the sparse QP on the <code>dense</code> problem with 400 variables; on the sparse problems, the sparse QP was 4&ndash;20&times; faster at that size.</li>
+  <li><strong>Keep the LU null space.</strong> <code>LSQR</code> was 2&ndash;200&times; slower than LU on the sparse problems here, and the gap grows with the size. (It was faster only on the small, dense HS problems, 1.5&nbsp;s against 4.0&nbsp;s in all, where the dense QP is faster still, and on <code>ball</code> with the exact Hessian below.)</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="large-sparse">Large sparse problems</h2>
+
+<p>Three large problems with manufactured solutions (so the answer is known exactly) from <code>test/test_sparse_options.f90</code>, each solved with every sparse-QP and Hessian setting. Each cell gives major iterations and total time:</p>
+
+<ul>
+  <li><code>elliptic</code>: control on a 16&times;16 grid, <code>n</code>&nbsp;=&nbsp;512, 256 nonlinear equality constraints, 1 in 7 control bounds active (many degrees of freedom);</li>
+  <li><code>ball</code>: a linear objective on a ball, <code>n</code>&nbsp;=&nbsp;1002, one constraint containing every variable, a third of the bounds active;</li>
+  <li><code>chain</code>: a projection onto 299 convex inequality constraints, 40% of them active at the solution, from a start that violates all of them.</li>
+</ul>
+
+<div class="table-wrap"><table class="bench compact">
+<thead><tr><th>configuration</th><th class="num"><code>elliptic</code></th><th class="num"><code>ball</code></th><th class="num"><code>chain</code></th></tr></thead>
+<tbody>
+<tr><td><strong>defaults</strong> (sparse QP with LU, L-BFGS)</td><td class="num">47 / 0.23 s<sup>a</sup></td><td class="num">17 / 0.068 s</td><td class="num">12 / 0.11 s</td></tr>
+<tr class="best"><td><strong>exact Hessian</strong></td><td class="num"><strong>7 / 0.005 s</strong></td><td class="num">12 / 0.077 s</td><td class="num"><strong>7</strong> / 0.13 s</td></tr>
+<tr><td>L-BFGS, 5 pairs</td><td class="num">46 / 0.11 s<sup>a</sup></td><td class="num">16 / 0.066 s</td><td class="num">12 / 0.11 s</td></tr>
+<tr><td>L-SR1</td><td class="num">35 / 0.31 s</td><td class="num">16 / 0.008 s</td><td class="num">11 / 0.13 s</td></tr>
+<tr><td><code>warm_start = .false.</code></td><td class="num">47 / 1.1 s<sup>a</sup></td><td class="num">17 / 0.083 s</td><td class="num">12 / 0.22 s</td></tr>
+<tr><td><code>dense_max_ns = 250</code></td><td class="num">47 / 0.26 s<sup>a</sup></td><td class="num">17 / 0.22 s</td><td class="num">12 / 0.18 s</td></tr>
+<tr><td><code>null_space = sqpopt_null_space_lsqr</code></td><td class="num">47 / 1.2 s<sup>a</sup></td><td class="num">17 / 0.12 s</td><td class="num">12 / 2.5 s</td></tr>
+</tbody>
+</table></div>
+<p class="small"><sup>a</sup> stopped with <code>sqpopt_acceptable</code> (the looser tolerances) rather than <code>sqpopt_success</code>; every other solve reached <code>sqpopt_success</code>. All of them reached the known solution.</p>
+
+<ul>
+  <li><strong>Supply the exact Hessian if you can.</strong> It cut the iterations by 1.4&ndash;7&times;, and reached the full tolerances where L-BFGS stopped at the acceptable ones. The more degrees of freedom, the bigger the gain (<a href="#dof">next section</a>). Its sparsity pattern has to be given too (<a href="index.html#exact-hessian">Exact Hessian</a>); a nonconvex Hessian is handled automatically, with a diagonal shift (found most reliably with <a href="index.html#inertia-control">inertia control</a>, with MUMPS as the linear solver if your build has it).</li>
+  <li><strong>L-SR1 is competitive at this size</strong> (it took the fewest iterations of the quasi-Newton options on all three, tied on <code>ball</code>), unlike on the small problems. On <code>ball</code> it was also the fastest, because its <a href="index.html#unconstrained-step">unconstrained step</a> solved most of the QPs (64 QP iterations, against 791 with L-BFGS). These three problems didn't need a correction of the SR1 matrix, but larger ones can: on two of the four <a href="performance.html#large-problems">large problems</a> with 10,000 variables, uncorrected SR1 took 7 to 8 minutes, and with inertia control 3.6 and 4.6 s. If L-BFGS converges slowly on a large problem, try SR1 with <code>options%inertia_control</code> (and <code>direct_qp</code>), not <code>hessian%convexify</code>, which was over 100 times slower on one of them.</li>
+  <li><strong>A short L-BFGS memory</strong> made each iteration cheaper without costing iterations here (5 pairs halved the time on <code>elliptic</code>), but cost iterations on the small problems. Try it when the QP time dominates.</li>
+  <li><strong>Keep the warm start.</strong> Starting each QP from the previous one's working set cut the QP iterations 2.5&ndash;4&times; on <code>elliptic</code> and <code>chain</code> (and the time 2&ndash;5&times;).</li>
+  <li><strong>Raise <code>max_iter</code>.</strong> Its default, 100, is enough for every problem on this page, but large problems solved with a quasi-Newton Hessian can need several hundred iterations. The tests here use 2000&ndash;3000; a solve stops as soon as it converges anyway.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="dof">Degrees of freedom</h2>
+
+<p>At a solution, the active constraints and bounds fix the variables in all but \( n - n_{active} \) directions: the <em>degrees of freedom</em>. Near a solution, SQP is a Newton-like method in those directions only. The number of degrees of freedom decides two things:</p>
+<ul>
+  <li><strong>How much the quasi-Newton Hessian has to learn.</strong> L-BFGS learns the curvature in the free directions from one step per iteration, so many degrees of freedom with very different curvatures take many iterations. The exact Hessian has the curvature from the start.</li>
+  <li><strong>How large the QP's reduced problem is.</strong> In the sparse QP, the degrees of freedom are the <em>superbasic</em> variables. A face with at most <code>dense_max_ns</code> (50) of them is solved directly, with a dense Cholesky factorization of the reduced Hessian; larger ones by conjugate gradients.</li>
+</ul>
+
+<p>To isolate this, <code>example/settings_study.f90</code> solves the same optimal-control problem (1000 time steps, 1001 equality constraints) with \( K \) piecewise-constant controls, so it has \( K \) degrees of freedom. Iterations / total time:</p>
+
+<div class="table-wrap"><table class="bench compact">
+<thead><tr><th class="num">degrees of freedom</th><th class="num">defaults (L-BFGS, 100 pairs)</th><th class="num">L-BFGS, 10 pairs</th><th class="num">exact Hessian</th><th class="num"><code>dense_max_ns = 1000</code></th></tr></thead>
+<tbody>
+<tr><td class="num">5</td><td class="num">29 / 0.037 s</td><td class="num">51 / 0.058 s<sup>a</sup></td><td class="num"><strong>8 / 0.007 s</strong></td><td class="num">(as the defaults)</td></tr>
+<tr><td class="num">20</td><td class="num">31 / 0.056 s</td><td class="num">40 / 0.060 s</td><td class="num"><strong>8 / 0.008 s</strong></td><td class="num">(as the defaults)</td></tr>
+<tr><td class="num">100</td><td class="num">27 / 0.054 s</td><td class="num">31 / 0.054 s</td><td class="num"><strong>8 / 0.008 s</strong></td><td class="num">27 / 0.14 s</td></tr>
+<tr><td class="num">400</td><td class="num">34 / 0.10 s</td><td class="num">42 / 0.092 s</td><td class="num"><strong>8 / 0.010 s</strong></td><td class="num">34 / 1.5 s</td></tr>
+<tr><td class="num">1000</td><td class="num">35 / 0.14 s</td><td class="num">35 / 0.12 s</td><td class="num"><strong>8 / 0.014 s</strong></td><td class="num">38 / 9.7 s</td></tr>
+</tbody>
+</table></div>
+<p class="small"><sup>a</sup> stopped with <code>sqpopt_acceptable</code>. With 500 pairs, every result was identical to the defaults' (no solve took 100 iterations, so the extra pairs were never used). <code>dense_max_ns = 0</code> (always CG) was also identical to the defaults.</p>
+
+<ul>
+  <li><strong>The exact Hessian's iteration count doesn't depend on the degrees of freedom</strong> (8 throughout); L-BFGS's does. On this problem it grew only from about 30 to 35, because its reduced Hessian is well conditioned. On less regular problems the gap is much larger: 47 against 7 iterations on <code>elliptic</code> (256 degrees of freedom), and 143 against 491 iterations between 100 and 10 pairs on TP302 (100 degrees of freedom).</li>
+  <li><strong>Many degrees of freedom:</strong> use the exact Hessian if you have it. Otherwise keep the automatic L-BFGS memory, which grows with <code>n</code> up to 100 pairs, or raise <code>lbfgs_memory</code> if the solve takes more iterations than that. Try L-SR1 too.</li>
+  <li><strong>Few degrees of freedom:</strong> the constraints do most of the work, and any Hessian converges quickly. A very short memory hurt here (10 pairs: 51 iterations against 29, at 5 degrees of freedom), so keep the automatic one.</li>
+  <li><strong>Leave <code>dense_max_ns</code> alone.</strong> The direct solve costs \( O(n_s^3) \) per face. Raising the limit to 1000 made the solve up to 70&times; slower (at 1000 degrees of freedom) for no gain in iterations, and lowering it to 0 changed nothing. The default of 50 only takes the direct route where it is cheap.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="derivatives">Derivatives</h2>
+
+<p>If you can't supply analytic first derivatives, <code>gjac</code> can compute them by finite differences. On the HS problems (function evaluations of the differences are counted separately from <code>fc</code>; both are summed over the solved problems):</p>
+
+<div class="table-wrap"><table class="bench">
+<thead><tr><th>derivatives</th><th class="num">solved</th><th class="num">failed</th><th class="num"><code>fc</code> calls</th><th class="num">evaluations for the differences</th></tr></thead>
+<tbody>
+<tr class="best"><td><strong>analytic</strong></td><td class="num"><strong>281</strong></td><td class="num">0</td><td class="num">9,121</td><td class="num">&mdash;</td></tr>
+<tr><td>central differences</td><td class="num">279</td><td class="num">0</td><td class="num">8,504</td><td class="num">273,088</td></tr>
+<tr><td>forward differences</td><td class="num">279</td><td class="num">2</td><td class="num">10,208</td><td class="num">144,486</td></tr>
+<tr><td><code>derivative_accuracy = sqpopt_derivatives_fast</code> (forward differences, then central near the solution)</td><td class="num">280</td><td class="num">0</td><td class="num">9,991</td><td class="num">157,230</td></tr>
+</tbody>
+</table></div>
+
+<ul>
+  <li><strong>Central differences</strong> are nearly as good as analytic derivatives (279 problems solved against 281), at \( 2n \) extra evaluations per gradient.</li>
+  <li><strong>Forward differences</strong> halve that cost, but their error (about the square root of machine precision) can keep the solver from meeting tight tolerances: two problems failed.</li>
+  <li><strong>The fast/accurate switch</strong> gets most of both: it asks <code>gjac</code> for fast derivatives (compute forward differences when the <code>accuracy</code> argument is <code>sqpopt_derivatives_fast</code>) until it is near a solution, then for accurate ones (central differences). It needed 41% fewer evaluations than central differences throughout, and solved the same problems. See <a href="index.html#fast-derivatives">Fast derivatives</a>.</li>
+  <li><strong>Exact second derivatives</strong> pay off on large problems with many degrees of freedom (<a href="#dof">above</a>). On small problems, L-BFGS does as well.</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="hard">When the defaults fail</h2>
+
+<p>Set <code>options%print_level = 1</code> (one line per iteration, with flags for its events) or <code>3</code> (also the QP solves, line-search trials, and restoration phases) to see what happens. Then, in rough order of how often they help:</p>
+
+<ol>
+  <li><strong>Check the scaling.</strong> Variables that differ by orders of magnitude are the most common cause of slow convergence or failure. The objective and constraints are scaled automatically, the variables are not. See <a href="index.html#scaling">Scaling</a>.</li>
+  <li><strong>Check the derivatives</strong>, against finite differences at a few points. A wrong gradient typically shows as line-search failures (<code>F</code> flags) or <code>sqpopt_line_search_failed</code> near a solution.</li>
+  <li><strong>Stopped at <code>max_iter</code>, still improving:</strong> raise <code>max_iter</code>, and supply the exact Hessian if you can.</li>
+  <li><strong>Stopped with <code>sqpopt_acceptable</code> or <code>sqpopt_stalled</code>:</strong> the point satisfies looser tolerances, which is often all the accuracy a quasi-Newton Hessian can reach on a large problem. The exact Hessian usually reaches the full tolerances.</li>
+  <li><strong>Many restoration steps (<code>R</code>/<code>P</code> flags) or <code>sqpopt_infeasible</code>:</strong> the iterates have trouble getting feasible. Try a better starting point first. <code>restoration_mode = sqpopt_restoration_gauss_newton</code> is a cheaper alternative to the restoration phase that occasionally does better.</li>
+  <li><strong>Try another globalization.</strong> The funnel line search (<code>linesearch_mode = sqpopt_linesearch_funnel</code>) is as robust as the default filter on the HS set and takes a different path, so it can succeed where the filter doesn't. The trust region needs the fewest evaluations on the HS set but solves fewer problems. The <a href="performance.html#hs">Performance</a> table compares them all.</li>
+  <li><strong>A local solution that isn't the one you want:</strong> SQP finds a local solution near the start. Different settings (the exact Hessian, another globalization) take different paths and may end at different local solutions, as do different starting points.</li>
+</ol>
+
+<!-- ============================================================ -->
+<h2 id="other-solvers">Coming from another solver</h2>
+
+<p>If you know another solver, this table gives the SQPOPT settings that come closest to its <em>method</em>: the same kind of Hessian, subproblem, and step-acceptance test. It is a guide to the options, not a promise of the same behaviour. The implementations differ in many details, and none of these solvers was run for this page except SLSQP. The last column is what SQPOPT does with those settings on the 305 Hock&ndash;Schittkowski problems (solved / local / failed, and <code>fc</code> calls on the solved ones). The defaults give 280 / 25 / 0 with 9,067.</p>
+
+<div class="table-wrap"><table class="solver-table">
+<thead><tr><th>solver</th><th>its method</th><th>closest SQPOPT settings</th><th style="white-space:nowrap">HS problems</th></tr></thead>
+<tbody>
+<tr><td><a href="https://github.com/jacobwilliams/slsqp">SLSQP</a> (Kraft)</td><td>dense BFGS; a least-squares form of the QP; backtracking on the \( \ell_1 \) merit function</td><td><code>linesearch_mode = sqpopt_linesearch_armijo</code><br><code>merit_mode = sqpopt_merit_l1</code></td><td>275 / 24 / 6<br>20,224</td></tr>
+<tr><td><a href="https://www.hsl.rl.ac.uk/archive/">VF13AD</a> (Powell, HSL)</td><td>a positive definite variable-metric (BFGS) matrix; a penalty line-search function with the watchdog technique, which goes back to the best point if relaxed steps don't pay off</td><td><code>linesearch_mode = sqpopt_linesearch_watchdog</code><br><code>merit_mode = sqpopt_merit_l1</code></td><td>275 / 27 / 3<br>23,314</td></tr>
+<tr><td>NLPQLP (Schittkowski)</td><td>dense BFGS; an augmented Lagrangian merit function; a non-monotone line search when the monotone one fails</td><td><code>linesearch_mode = sqpopt_linesearch_armijo</code><br><code>merit_mode = sqpopt_merit_augmented_lagrangian</code><br><code>linesearch%nonmonotone_len = 10</code></td><td>277 / 28 / 0<br>10,271</td></tr>
+<tr><td><a href="https://ccom.ucsd.edu/~optimizers/solvers/snopt/">SNOPT</a> (Gill, Murray, Saunders)</td><td>BFGS (dense for up to 75 nonlinear variables, else limited-memory); a sparse reduced-Hessian active-set QP with elastic mode; a line search on an augmented Lagrangian merit function</td><td><code>linesearch_mode = sqpopt_linesearch_armijo</code><br><code>merit_mode = sqpopt_merit_augmented_lagrangian</code><br><code>penalty_update = sqpopt_penalty_model</code><br><code>qp_solver_mode = sqpopt_qp_reduced_hessian</code></td><td>277 / 26 / 2<br>11,282</td></tr>
+<tr><td>filterSQP (Fletcher, Leyffer)</td><td>a trust region with a filter; the exact Hessian; restoration when the subproblem is inconsistent</td><td><code>trust_region%enabled = .true.</code><br><code>hessian_mode = sqpopt_hessian_exact</code><br>(and <code>inertia_control = .true.</code>, with MUMPS as the linear solver if you can)</td><td>265 / 34 / 6<br>10,690<br>with inertia control:<br>264 / 34 / 7<br>9,823<br>with it and MUMPS:<br>266 / 33 / 6<br>5,370</td></tr>
+<tr><td><a href="https://github.com/coin-or/Ipopt">IPOPT</a> (W&auml;chter, Biegler)</td><td>an interior-point method: the exact Hessian, one sparse factorization per iteration with inertia correction, a filter line search</td><td>the default filter line search, and<br><code>hessian_mode = sqpopt_hessian_exact</code><br><code>inertia_control = .true.</code><br><code>direct_qp = .true.</code><br><code>direct_least_squares = .true.</code><br>(and, with the exact Hessian, <code>linear_solver = sqpopt_linear_solver_mumps</code> if you have it)</td><td>273 / 30 / 2<br>13,815<br>with MUMPS:<br>271 / 30 / 4<br>9,445</td></tr>
+<tr><td><a href="https://github.com/cvanaret/Uno">Uno</a> (Vanaret, Leyffer)</td><td>a choice of methods; its funnel SQP is the newest</td><td><code>linesearch_mode = sqpopt_linesearch_funnel</code><br>(for its filterSQP and IPOPT presets, see those rows)</td><td>280 / 25 / 0<br>9,360</td></tr>
+<tr><td>Yukon (GMAT)</td><td>dense BFGS; the \( \ell_1 \) merit function with non-monotone steps; a maximum step for each variable</td><td><code>linesearch_mode = sqpopt_linesearch_watchdog</code><br><code>merit_mode = sqpopt_merit_l1</code><br><code>call problem%set_max_step(...)</code></td><td>275 / 27 / 3<br>23,314<br>(without step limits)</td></tr>
+</tbody>
+</table></div>
+
+<ul>
+  <li><strong>The defaults do better than every look-alike here.</strong> SQPOPT's default (the filter line search with L-BFGS) solves more of these problems, with fewer evaluations, than any of the configurations above. Use the table to reproduce a behaviour you rely on, or to compare, not as a recommendation.</li>
+  <li><strong>Dense BFGS.</strong> SQPOPT has no dense BFGS matrix. Its L-BFGS memory is \( \max(10, \min(n, 100)) \) pairs by default, so on a problem with up to 100 variables it keeps every pair until the first reset, and behaves like the dense update. For a larger problem solved elsewhere with dense BFGS, raise <code>options%lbfgs_memory</code>.</li>
+  <li><strong>SLSQP itself</strong>, run on the same problems from the same starting points, solves 262, with 18 local solutions and 25 failures (11,468 <code>fc</code> calls): see <a href="performance.html#hs-results">the results of every problem</a>. The look-alike settings do better than that because the rest of SQPOPT is still at work: the elastic QP, the second-order correction, the restoration.</li>
+  <li><strong>SNOPT.</strong> SQPOPT's sparse QP follows the design of SNOPT's QP solver, SQOPT (a basis factorization and a reduced Hessian), and its elastic mode is the same idea. Its differences, from the SNOPT user's guide: it keeps the linear constraints satisfied at every iterate, so the functions are only evaluated where those hold (SQPOPT guarantees that only for the bounds on the variables); its limited-memory matrix is a diagonal with at most 10 updates, which are discarded back to the diagonal when the limit is reached (SQPOPT keeps the newest pairs, up to 100 by default: set <code>options%lbfgs_memory = 10</code> to come closer); once it enters elastic mode it stays in it for the rest of the solve; and its QP can keep a Cholesky or a quasi-Newton factor of the reduced Hessian, where SQPOPT's uses conjugate gradients or a dense factor rebuilt for each face. The sparse QP is SQPOPT's default for more than 200 variables; the setting in the table forces it for small problems too.</li>
+  <li><strong>filterSQP.</strong> It solves nonconvex QPs with the exact Hessian; SQPOPT shifts an indefinite Hessian instead (see <a href="index.html#inertia-control">Inertia control</a>). The trust region is SQPOPT's weakest globalization on this problem set: prefer the default line search unless you need a trust region.</li>
+  <li><strong>IPOPT.</strong> There is no interior-point method in SQPOPT. The settings in the table share IPOPT's ingredients (they are the fastest configuration on <a href="performance.html#large-problems">large problems</a>), but the methods scale differently. An interior-point iteration costs one factorization however many inequality constraints change their activity; SQPOPT's direct QP is at its best when the active set changes little from one iteration to the next. An active-set method, on the other hand, restarts well from a nearby solution (<code>lambda0</code>, and the QP's working set), which an interior-point method does not. IPOPT with <code>hessian_approximation = limited-memory</code> corresponds to SQPOPT's default L-BFGS, with <code>direct_qp</code> on large problems.</li>
+  <li><strong>Uno</strong> builds its methods from parts, as SQPOPT's options do. Its trust-region funnel method corresponds to <code>linesearch_mode = sqpopt_linesearch_funnel</code> with <code>trust_region%enabled = .true.</code> (263 / 40 / 2 with 10,676 here, with L-BFGS).</li>
+  <li><strong>No counterpart.</strong> filterSD (Fletcher) uses no Hessian approximation at all, and OPTGRA (ESA) is a gradient-projection method: SQPOPT has no settings like them. The nearest to filterSD in structure is the trust region with the filter and L-BFGS (263 / 39 / 3 with 9,251).</li>
+</ul>
+
+<pre><code class="language-fortran">! for example, the settings closest to SNOPT:
+options%linesearch_mode = sqpopt_linesearch_armijo
+options%merit_mode      = sqpopt_merit_augmented_lagrangian
+options%penalty_update  = sqpopt_penalty_model
+options%qp_solver_mode  = sqpopt_qp_reduced_hessian
+call solver%initialize(problem=problem, options=options)</code></pre>
+
+<!-- ============================================================ -->
+<h2 id="method">How these were measured</h2>
+
+<p>Every number on this page can be reproduced with a release build:</p>
+
+<pre><code class="language-bash"># small problems: the HS suite with a configuration option
+# (e.g. --qp=sparse, --qp=sparse-lsqr, --hessian=sr1, --hessian=exact,
+#  --lbfgs-memory=10, --derivatives=central, --derivatives=forward, --derivatives=fast)
+fpm test test_hs_suite --profile release -- /dev/null --qp=sparse
+
+# large sparse problems: every sparse-QP and Hessian setting
+fpm test test_sparse_options --profile release
+
+# the QP solver against size, and the degrees-of-freedom study
+fpm run --example settings_study --profile release</code></pre>
+
+<p class="small">The test problems are deliberately regular (smooth, well scaled, with unique solutions), so that each setting's effect is measurable. Your problem may behave differently. When it matters, try the two or three most promising settings from this page on your own problem, and compare the iterations, <code>results%n_eval_fc</code>, and <code>results%time_qp</code>.</p>
+
+<footer class="footer">
+  <p>SQPOPT is released under the <a href="https://github.com/jacobwilliams/sqpopt/blob/master/LICENSE">MIT license</a>. &copy; Jacob Williams.</p>
+  <p><a href="index.html">User guide</a> &middot; <a href="api/index.html">API reference</a> &middot; <a href="https://github.com/jacobwilliams/sqpopt">Source on GitHub</a></p>
+</footer>
+
+</main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/fortran.min.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

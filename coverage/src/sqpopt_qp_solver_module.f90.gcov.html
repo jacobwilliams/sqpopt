@@ -1,0 +1,661 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - coverage.info - src/sqpopt_qp_solver_module.f90</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../index.html" title="Click to go to top-level">top level</a> - <a href="index.html" title="Click to go to directory src">src</a> - sqpopt_qp_solver_module.f90<span style="font-size: 80%;"> (source / <a href="sqpopt_qp_solver_module.f90.func-c.html" title="Click to go to function table">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">coverage.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">97.6&nbsp;%</td>
+            <td class="headerCovTableEntry">169</td>
+            <td class="headerCovTableEntry">165</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2026-10-11 01:22:22</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
+            <td class="headerCovTableEntry">14</td>
+            <td class="headerCovTableEntry">14</td>
+          </tr>
+                  <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : !*******************************************************************************</span>
+<span id="L2"><span class="lineNum">       2</span>              : !&gt; author: Jacob Williams</span>
+<span id="L3"><span class="lineNum">       3</span>              : !  license: MIT</span>
+<span id="L4"><span class="lineNum">       4</span>              : !</span>
+<span id="L5"><span class="lineNum">       5</span>              : !  Solves the quadratic programming (QP) subproblem generated at each</span>
+<span id="L6"><span class="lineNum">       6</span>              : !  major SQP iteration:</span>
+<span id="L7"><span class="lineNum">       7</span>              : !</span>
+<span id="L8"><span class="lineNum">       8</span>              : !  $$ \min_{p} \; \frac{1}{2} p^T H p + g^T p $$</span>
+<span id="L9"><span class="lineNum">       9</span>              : !</span>
+<span id="L10"><span class="lineNum">      10</span>              : !  subject to the linearized constraints and variable bounds:</span>
+<span id="L11"><span class="lineNum">      11</span>              : !</span>
+<span id="L12"><span class="lineNum">      12</span>              : !  $$ c_l - c(x) \le J(x) p \le c_u - c(x) $$</span>
+<span id="L13"><span class="lineNum">      13</span>              : !  $$ x_l - x \le p \le x_u - x $$</span>
+<span id="L14"><span class="lineNum">      14</span>              : !</span>
+<span id="L15"><span class="lineNum">      15</span>              : !  The subproblem is solved by one of the active-set QP solvers, selected</span>
+<span id="L16"><span class="lineNum">      16</span>              : !  by `mode`:</span>
+<span id="L17"><span class="lineNum">      17</span>              : !</span>
+<span id="L18"><span class="lineNum">      18</span>              : !  * `sqpopt_qp_dense`: a dense active-set QP (see [[sqpopt_qp_dense_module]]);</span>
+<span id="L19"><span class="lineNum">      19</span>              : !  * `sqpopt_qp_reduced_hessian`: a sparse/matrix-free active-set QP (see</span>
+<span id="L20"><span class="lineNum">      20</span>              : !    [[sqpopt_qp_reduced_hessian_module]]);</span>
+<span id="L21"><span class="lineNum">      21</span>              : !  * `sqpopt_qp_daqp`: DAQP's dual active-set solver for dense convex QPs</span>
+<span id="L22"><span class="lineNum">      22</span>              : !    (see [[sqpopt_qp_daqp_module]]), with `sqpopt_qp_dense` as its</span>
+<span id="L23"><span class="lineNum">      23</span>              : !    fallback: a QP that DAQP doesn't solve (a nonconvex one, inconsistent</span>
+<span id="L24"><span class="lineNum">      24</span>              : !    linearized constraints, ...), and a forced elastic re-solve, are solved</span>
+<span id="L25"><span class="lineNum">      25</span>              : !    by the dense solver. The two share the working set that each QP starts</span>
+<span id="L26"><span class="lineNum">      26</span>              : !    from;</span>
+<span id="L27"><span class="lineNum">      27</span>              : !  * `sqpopt_qp_auto` (the default): `sqpopt_qp_dense` when</span>
+<span id="L28"><span class="lineNum">      28</span>              : !    `n &lt;= auto_dense_max_n`, else `sqpopt_qp_reduced_hessian`.</span>
+<span id="L29"><span class="lineNum">      29</span>              : !</span>
+<span id="L30"><span class="lineNum">      30</span>              : !  Before either is run, the *unconstrained step* is tried (unless</span>
+<span id="L31"><span class="lineNum">      31</span>              : !  `unconstrained_step` is false): with the limited-memory BFGS Hessian,</span>
+<span id="L32"><span class="lineNum">      32</span>              : !  which is positive definite, the minimizer of the QP's objective alone is</span>
+<span id="L33"><span class="lineNum">      33</span>              : !  \( p = -H^{-1} g \), which the two-loop recursion gives in `O(nk)`</span>
+<span id="L34"><span class="lineNum">      34</span>              : !  operations for `k` stored pairs (see [[hessian_inverse_vector_product]]).</span>
+<span id="L35"><span class="lineNum">      35</span>              : !  With the limited-memory SR1 Hessian, if it is positive definite (with</span>
+<span id="L36"><span class="lineNum">      36</span>              : !  its shift: see `hessian%convexify`), the step is the minimizer of the</span>
+<span id="L37"><span class="lineNum">      37</span>              : !  QP's objective within the step cap \( \lVert p \rVert_2 \le \)</span>
+<span id="L38"><span class="lineNum">      38</span>              : !  `max_step*step_scale` (below), an L2 trust-region subproblem solved in</span>
+<span id="L39"><span class="lineNum">      39</span>              : !  closed form from the matrix's spectral decomposition (see</span>
+<span id="L40"><span class="lineNum">      40</span>              : !  [[sqpopt_spectral_module]]), in about `4nk` operations; a step on the</span>
+<span id="L41"><span class="lineNum">      41</span>              : !  cap's boundary counts as capped. (An indefinite SR1 matrix is left to</span>
+<span id="L42"><span class="lineNum">      42</span>              : !  the QP solver and the shifts: the step was worse there.)</span>
+<span id="L43"><span class="lineNum">      43</span>              : !  If that step satisfies the bounds and the linearized constraints, it is</span>
+<span id="L44"><span class="lineNum">      44</span>              : !  the solution of the QP, with zero multipliers, and no QP solver is run.</span>
+<span id="L45"><span class="lineNum">      45</span>              : !  That is every QP of a problem without constraints whose bounds aren't</span>
+<span id="L46"><span class="lineNum">      46</span>              : !  active, where the active-set solvers would otherwise work with every</span>
+<span id="L47"><span class="lineNum">      47</span>              : !  variable free (the sparse one by conjugate gradients on a reduced</span>
+<span id="L48"><span class="lineNum">      48</span>              : !  Hessian of order `n`). When the step isn't feasible, the attempt costs</span>
+<span id="L49"><span class="lineNum">      49</span>              : !  one such product.</span>
+<span id="L50"><span class="lineNum">      50</span>              : !</span>
+<span id="L51"><span class="lineNum">      51</span>              : !  With `direct` (`options%direct_qp`), the</span>
+<span id="L52"><span class="lineNum">      52</span>              : !  subproblem is then tried directly, by factoring the KKT matrix of the</span>
+<span id="L53"><span class="lineNum">      53</span>              : !  working set that the active-set solver would start from (see</span>
+<span id="L54"><span class="lineNum">      54</span>              : !  [[sqpopt_qp_direct_module]]); the active-set solver is only run if that</span>
+<span id="L55"><span class="lineNum">      55</span>              : !  doesn't give the solution within `direct_max_changes` changes of the</span>
+<span id="L56"><span class="lineNum">      56</span>              : !  working set.</span>
+<span id="L57"><span class="lineNum">      57</span>              : !</span>
+<span id="L58"><span class="lineNum">      58</span>              : !  Both enforce the variable bounds and the linearized constraints exactly</span>
+<span id="L59"><span class="lineNum">      59</span>              : !  as part of the QP solve. The step length is then capped at</span>
+<span id="L60"><span class="lineNum">      60</span>              : !  `max_step*step_scale` (a trust-region-style safeguard), where the major</span>
+<span id="L61"><span class="lineNum">      61</span>              : !  iterations adapt `step_scale` like a trust radius: it doubles after a</span>
+<span id="L62"><span class="lineNum">      62</span>              : !  capped step that the line search accepted in full, and halves (down to</span>
+<span id="L63"><span class="lineNum">      63</span>              : !  1) after a shortened one. Each solve starts with</span>
+<span id="L64"><span class="lineNum">      64</span>              : !  `step_scale = max(1, ||x0||_inf/max_step)`, so the cap starts at</span>
+<span id="L65"><span class="lineNum">      65</span>              : !  \( \max(\) `max_step` \(, \lVert x_0 \rVert_\infty) \): relative to the</span>
+<span id="L66"><span class="lineNum">      66</span>              : !  size of the variables, and a solution far away is still reached in a</span>
+<span id="L67"><span class="lineNum">      67</span>              : !  few iterations.</span>
+<span id="L68"><span class="lineNum">      68</span>              : </span>
+<span id="L69"><span class="lineNum">      69</span>              :     module sqpopt_qp_solver_module</span>
+<span id="L70"><span class="lineNum">      70</span>              : </span>
+<span id="L71"><span class="lineNum">      71</span>              :     use sqpopt_kinds,          only: wp =&gt; sqpopt_module_wp</span>
+<span id="L72"><span class="lineNum">      72</span>              :     use, intrinsic :: iso_fortran_env, only: int64</span>
+<span id="L73"><span class="lineNum">      73</span>              :     use sqpopt_types_module,   only: sqpopt_sparse_matrix, sqpopt_out_of_memory, sqpopt_success, sqpopt_all_finite</span>
+<span id="L74"><span class="lineNum">      74</span>              :     use sqpopt_linalg_module,  only: sparse_matvec</span>
+<span id="L75"><span class="lineNum">      75</span>              :     use sqpopt_hessian_module, only: sqpopt_hessian_type</span>
+<span id="L76"><span class="lineNum">      76</span>              :     use sqpopt_qp_dense_module, only: sqpopt_dense_qp_type</span>
+<span id="L77"><span class="lineNum">      77</span>              :     use sqpopt_qp_reduced_hessian_module, only: sqpopt_reduced_hessian_qp_type</span>
+<span id="L78"><span class="lineNum">      78</span>              :     use sqpopt_qp_daqp_module,   only: sqpopt_daqp_qp_type</span>
+<span id="L79"><span class="lineNum">      79</span>              :     use sqpopt_spectral_module,  only: sqpopt_spectrum_type, sqpopt_spectrum_ok</span>
+<span id="L80"><span class="lineNum">      80</span>              :     use sqpopt_kkt_module,       only: sqpopt_kkt_type</span>
+<span id="L81"><span class="lineNum">      81</span>              :     use sqpopt_inertia_module,   only: sqpopt_inertia_type</span>
+<span id="L82"><span class="lineNum">      82</span>              :     use sqpopt_qp_direct_module, only: direct_qp_step, sqpopt_direct_solved</span>
+<span id="L83"><span class="lineNum">      83</span>              : </span>
+<span id="L84"><span class="lineNum">      84</span>              :     implicit none</span>
+<span id="L85"><span class="lineNum">      85</span>              : </span>
+<span id="L86"><span class="lineNum">      86</span>              :     private</span>
+<span id="L87"><span class="lineNum">      87</span>              : </span>
+<span id="L88"><span class="lineNum">      88</span>              :     integer, parameter, public :: sqpopt_qp_auto            = 0  !! (default) `sqpopt_qp_dense` if `n &lt;= auto_dense_max_n`,</span>
+<span id="L89"><span class="lineNum">      89</span>              :                                                                   !! else `sqpopt_qp_reduced_hessian`</span>
+<span id="L90"><span class="lineNum">      90</span>              :     integer, parameter, public :: sqpopt_qp_dense           = 2  !! dense active-set QP solver (see [[sqpopt_qp_dense_module]])</span>
+<span id="L91"><span class="lineNum">      91</span>              :     integer, parameter, public :: sqpopt_qp_reduced_hessian = 3  !! sparse (projected-CG) active-set QP solver (see [[sqpopt_qp_reduced_hessian_module]])</span>
+<span id="L92"><span class="lineNum">      92</span>              :                                                                   !! (value 1 was the removed composite-step heuristic)</span>
+<span id="L93"><span class="lineNum">      93</span>              :     integer, parameter, public :: sqpopt_qp_daqp            = 4  !! DAQP's dual active-set solver for dense convex QPs, with</span>
+<span id="L94"><span class="lineNum">      94</span>              :                                                                   !! `sqpopt_qp_dense` as its fallback (see [[sqpopt_qp_daqp_module]])</span>
+<span id="L95"><span class="lineNum">      95</span>              : </span>
+<span id="L96"><span class="lineNum">      96</span>              :     type, public :: sqpopt_qp_solver_type</span>
+<span id="L97"><span class="lineNum">      97</span>              :         !! workspace and options for the QP subproblem solver.</span>
+<span id="L98"><span class="lineNum">      98</span>              : </span>
+<span id="L99"><span class="lineNum">      99</span>              :         integer  :: mode                = sqpopt_qp_auto       !! which QP algorithm to use (see the `sqpopt_qp_*` constants)</span>
+<span id="L100"><span class="lineNum">     100</span>              :         integer  :: auto_dense_max_n    = 200                  !! `mode==sqpopt_qp_auto` uses the dense QP solver for problems</span>
+<span id="L101"><span class="lineNum">     101</span>              :                                                                  !! with at most this many variables, and the sparse</span>
+<span id="L102"><span class="lineNum">     102</span>              :                                                                  !! reduced-Hessian QP solver for larger ones</span>
+<span id="L103"><span class="lineNum">     103</span>              :         real(wp) :: max_step           = 2.0_wp                 !! trust-region-style cap on \( \lVert p \rVert_2 \):</span>
+<span id="L104"><span class="lineNum">     104</span>              :                                                                  !! `p` is rescaled if it is longer than `max_step*step_scale`</span>
+<span id="L105"><span class="lineNum">     105</span>              :                                                                  !! (the cap starts at \( \max(\) `max_step`</span>
+<span id="L106"><span class="lineNum">     106</span>              :                                                                  !! \(, \lVert x_0 \rVert_\infty) \), see the module docs)</span>
+<span id="L107"><span class="lineNum">     107</span>              :         real(wp) :: step_scale         = 1.0_wp                 !! the adaptive factor on `max_step` (internal state,</span>
+<span id="L108"><span class="lineNum">     108</span>              :                                                                  !! see the module docs; reset on each `solve`)</span>
+<span id="L109"><span class="lineNum">     109</span>              :         logical  :: capped             = .false.                !! whether the last step was capped (output)</span>
+<span id="L110"><span class="lineNum">     110</span>              :         integer  :: n_elastic          = 0                      !! elastic re-solves in this solve (internal state, see</span>
+<span id="L111"><span class="lineNum">     111</span>              :                                                                  !! [[sqpopt_iterate_module]])</span>
+<span id="L112"><span class="lineNum">     112</span>              :         integer  :: n_short            = 0                      !! consecutive very short line-search steps (internal</span>
+<span id="L113"><span class="lineNum">     113</span>              :                                                                  !! state, see [[sqpopt_iterate_module]])</span>
+<span id="L114"><span class="lineNum">     114</span>              :         integer :: n_iter = 0 !! number of active-set iterations taken by the last QP solve (output)</span>
+<span id="L115"><span class="lineNum">     115</span>              :         integer :: n_working = 0 !! size of the final working set of the last QP solve (output)</span>
+<span id="L116"><span class="lineNum">     116</span>              :         integer :: n_slacks  = 0 !! number of elastic slacks in the last QP solve (output)</span>
+<span id="L117"><span class="lineNum">     117</span>              :         real(wp) :: time = 0.0_wp !! wall-clock time spent in QP solves (output, seconds; reset on each `solve`)</span>
+<span id="L118"><span class="lineNum">     118</span>              :         logical :: negative_curvature = .false. !! whether the last QP solve found negative curvature of the Hessian</span>
+<span id="L119"><span class="lineNum">     119</span>              :                                                 !! in the variables (output; see [[sqpopt_iterate_module]])</span>
+<span id="L120"><span class="lineNum">     120</span>              :         logical :: out_of_memory = .false. !! whether a QP solve of this `solve` returned `sqpopt_out_of_memory`</span>
+<span id="L121"><span class="lineNum">     121</span>              :                                            !! (output; it stays set, so the solver stops whichever step asked</span>
+<span id="L122"><span class="lineNum">     122</span>              :                                            !! for that QP; reset on each `solve`)</span>
+<span id="L123"><span class="lineNum">     123</span>              :         logical :: unconstrained_step = .true. !! whether to try the unconstrained step first, with a</span>
+<span id="L124"><span class="lineNum">     124</span>              :                                            !! limited-memory Hessian (BFGS: \( -H^{-1} g \); SR1, if positive</span>
+<span id="L125"><span class="lineNum">     125</span>              :                                            !! definite: the minimizer within the step cap): if it satisfies the</span>
+<span id="L126"><span class="lineNum">     126</span>              :                                            !! bounds and the linearized constraints, it is the QP's solution, and</span>
+<span id="L127"><span class="lineNum">     127</span>              :                                            !! no QP solver is run (see the module docs)</span>
+<span id="L128"><span class="lineNum">     128</span>              :         logical :: unconstrained_used = .false. !! whether the last QP was solved by the unconstrained step (output)</span>
+<span id="L129"><span class="lineNum">     129</span>              :         integer :: n_unconstrained = 0     !! number of QPs of this `solve` solved by the unconstrained step (output)</span>
+<span id="L130"><span class="lineNum">     130</span>              :         logical :: direct = .false.        !! whether to try the direct method first (overwritten from</span>
+<span id="L131"><span class="lineNum">     131</span>              :                                            !! `options%direct_qp`; see [[sqpopt_qp_direct_module]])</span>
+<span id="L132"><span class="lineNum">     132</span>              :         integer :: direct_max_changes = 10 !! the direct method gives up, and the active-set solver is run,</span>
+<span id="L133"><span class="lineNum">     133</span>              :                                            !! after this many changes of the working set (each one is a</span>
+<span id="L134"><span class="lineNum">     134</span>              :                                            !! factorization) without reaching the solution</span>
+<span id="L135"><span class="lineNum">     135</span>              :         real(wp) :: direct_tol = 1.0e-8_wp !! the direct method's relative tolerance for a violated row or</span>
+<span id="L136"><span class="lineNum">     136</span>              :                                            !! bound, and for the sign of a multiplier</span>
+<span id="L137"><span class="lineNum">     137</span>              :         logical :: direct_used = .false.   !! whether the last QP was solved by the direct method (output)</span>
+<span id="L138"><span class="lineNum">     138</span>              :         integer :: direct_outcome = -1     !! how the direct method ended in the last QP solve: a `sqpopt_direct_*`</span>
+<span id="L139"><span class="lineNum">     139</span>              :                                            !! constant (see [[sqpopt_qp_direct_module]]), or `-1` if it wasn't</span>
+<span id="L140"><span class="lineNum">     140</span>              :                                            !! tried (output)</span>
+<span id="L141"><span class="lineNum">     141</span>              :         integer :: direct_changes = 0      !! the changes of the working set it made there (output)</span>
+<span id="L142"><span class="lineNum">     142</span>              :         integer :: n_solves = 0            !! number of QP solves in this `solve` (output)</span>
+<span id="L143"><span class="lineNum">     143</span>              :         integer :: n_direct = 0            !! of which, by the direct method (output)</span>
+<span id="L144"><span class="lineNum">     144</span>              :         logical :: daqp_fallback = .false. !! whether DAQP didn't solve the last QP, and the dense QP solver did</span>
+<span id="L145"><span class="lineNum">     145</span>              :                                            !! (output; with `mode==sqpopt_qp_daqp`)</span>
+<span id="L146"><span class="lineNum">     146</span>              :         logical :: daqp_used = .false.     !! whether DAQP solved the last QP (output; with `mode==sqpopt_qp_daqp`,</span>
+<span id="L147"><span class="lineNum">     147</span>              :                                            !! the dense QP solver solved it otherwise: a fallback, or a forced</span>
+<span id="L148"><span class="lineNum">     148</span>              :                                            !! elastic re-solve)</span>
+<span id="L149"><span class="lineNum">     149</span>              :         integer :: n_daqp_fallbacks = 0    !! number of QPs of this `solve` that DAQP didn't solve, solved by the</span>
+<span id="L150"><span class="lineNum">     150</span>              :                                            !! dense QP solver instead (output)</span>
+<span id="L151"><span class="lineNum">     151</span>              :         type(sqpopt_dense_qp_type)           :: dense_qp    !! the dense QP solver (used only when `mode` is</span>
+<span id="L152"><span class="lineNum">     152</span>              :                                                             !! `sqpopt_qp_dense`, or `sqpopt_qp_daqp` as its fallback)</span>
+<span id="L153"><span class="lineNum">     153</span>              :         type(sqpopt_reduced_hessian_qp_type) :: sparse_qp   !! the sparse QP solver (used only when `mode==sqpopt_qp_reduced_hessian`)</span>
+<span id="L154"><span class="lineNum">     154</span>              :         type(sqpopt_daqp_qp_type)            :: daqp_qp     !! the DAQP QP solver (used only when `mode==sqpopt_qp_daqp`)</span>
+<span id="L155"><span class="lineNum">     155</span>              : </span>
+<span id="L156"><span class="lineNum">     156</span>              :         contains</span>
+<span id="L157"><span class="lineNum">     157</span>              : </span>
+<span id="L158"><span class="lineNum">     158</span>              :         procedure, public :: solve =&gt; solve_qp_subproblem</span>
+<span id="L159"><span class="lineNum">     159</span>              :         procedure, public :: mode_name</span>
+<span id="L160"><span class="lineNum">     160</span>              :         procedure, public :: solver_name</span>
+<span id="L161"><span class="lineNum">     161</span>              :         procedure, public :: working_set</span>
+<span id="L162"><span class="lineNum">     162</span>              :         procedure, public :: starting_working_set</span>
+<span id="L163"><span class="lineNum">     163</span>              :         procedure, public :: elastic_slacks</span>
+<span id="L164"><span class="lineNum">     164</span>              : </span>
+<span id="L165"><span class="lineNum">     165</span>              :     end type sqpopt_qp_solver_type</span>
+<span id="L166"><span class="lineNum">     166</span>              : </span>
+<span id="L167"><span class="lineNum">     167</span>              :     contains</span>
+<span id="L168"><span class="lineNum">     168</span>              : !*******************************************************************************</span>
+<span id="L169"><span class="lineNum">     169</span>              : </span>
+<span id="L170"><span class="lineNum">     170</span>              : !*******************************************************************************</span>
+<span id="L171"><span class="lineNum">     171</span>              : !&gt;</span>
+<span id="L172"><span class="lineNum">     172</span>              : !  solve the linearized QP subproblem for the search direction `p` and</span>
+<span id="L173"><span class="lineNum">     173</span>              : !  the associated Lagrange multipliers `lambda`, dispatching to the</span>
+<span id="L174"><span class="lineNum">     174</span>              : !  active-set solver selected by `me%mode` (see [[sqpopt_qp_dense_module]],</span>
+<span id="L175"><span class="lineNum">     175</span>              : !  [[sqpopt_qp_reduced_hessian_module]], [[sqpopt_qp_daqp_module]]; with</span>
+<span id="L176"><span class="lineNum">     176</span>              : !  `sqpopt_qp_daqp`, a QP that DAQP doesn't solve, and a forced elastic</span>
+<span id="L177"><span class="lineNum">     177</span>              : !  solve, go to the dense solver, and `me%daqp_fallback` is set in the</span>
+<span id="L178"><span class="lineNum">     178</span>              : !  first case). If the solver returns</span>
+<span id="L179"><span class="lineNum">     179</span>              : !  `istat=sqpopt_out_of_memory`, `me%out_of_memory` is also set (and stays</span>
+<span id="L180"><span class="lineNum">     180</span>              : !  set), for [[sqpopt_iterate]] to stop the solve.</span>
+<span id="L181"><span class="lineNum">     181</span>              : !</span>
+<span id="L182"><span class="lineNum">     182</span>              : !  With the limited-memory BFGS Hessian (and `me%unconstrained_step`, and</span>
+<span id="L183"><span class="lineNum">     183</span>              : !  not in a forced elastic solve), the unconstrained step is tried first</span>
+<span id="L184"><span class="lineNum">     184</span>              : !  (see the module documentation): if it is feasible, it is the QP's</span>
+<span id="L185"><span class="lineNum">     185</span>              : !  solution (`me%unconstrained_used`), no solver is run, and the next QP</span>
+<span id="L186"><span class="lineNum">     186</span>              : !  starts from an empty working set.</span>
+<span id="L187"><span class="lineNum">     187</span>              : !</span>
+<span id="L188"><span class="lineNum">     188</span>              : !  If `kkt` is given (and `me%direct` is set, and this is not a forced</span>
+<span id="L189"><span class="lineNum">     189</span>              : !  elastic solve), the direct method is tried</span>
+<span id="L190"><span class="lineNum">     190</span>              : !  next (see [[direct_qp_step]]), from the working set that the active-set</span>
+<span id="L191"><span class="lineNum">     191</span>              : !  solver would start from. If it finds the QP's solution, the active-set</span>
+<span id="L192"><span class="lineNum">     192</span>              : !  solver is not run (`me%direct_used`), and the working set it ended with</span>
+<span id="L193"><span class="lineNum">     193</span>              : !  is kept as that solver's warm start. With `inertia`, the direct method</span>
+<span id="L194"><span class="lineNum">     194</span>              : !  may increase the exact Hessian's shift (`hessian%shift`).</span>
+<span id="L195"><span class="lineNum">     195</span>              : !</span>
+<span id="L196"><span class="lineNum">     196</span>              : !  The time spent here is added to `me%time`, without the time that `kkt`</span>
+<span id="L197"><span class="lineNum">     197</span>              : !  spent factoring and solving (which its solver counts itself).</span>
+<span id="L198"><span class="lineNum">     198</span>              : </span>
+<span id="L199"><span class="lineNum">     199</span> <span class="tlaGNC">       24826 :     subroutine solve_qp_subproblem(me, hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat, &amp;</span></span>
+<span id="L200"><span class="lineNum">     200</span> <span class="tlaGNC">       24826 :                                    elastic_sign, elastic_weight, kkt, inertia)</span></span>
+<span id="L201"><span class="lineNum">     201</span>              : </span>
+<span id="L202"><span class="lineNum">     202</span>              :     class(sqpopt_qp_solver_type), intent(inout) :: me</span>
+<span id="L203"><span class="lineNum">     203</span>              :     type(sqpopt_hessian_type),  intent(inout) :: hessian !! matrix-free Hessian approximation (never a dense `n x n` matrix)</span>
+<span id="L204"><span class="lineNum">     204</span>              :     type(sqpopt_sparse_matrix), intent(in)    :: jac     !! sparse constraint Jacobian, `dimension(m,n)`</span>
+<span id="L205"><span class="lineNum">     205</span>              :     real(wp), dimension(:),     intent(in)    :: x       !! current point `dimension(n)`</span>
+<span id="L206"><span class="lineNum">     206</span>              :     real(wp), dimension(:),     intent(in)    :: g       !! objective gradient `dimension(n)`</span>
+<span id="L207"><span class="lineNum">     207</span>              :     real(wp), dimension(:),     intent(in)    :: c       !! current constraint values `dimension(m)`</span>
+<span id="L208"><span class="lineNum">     208</span>              :     real(wp), dimension(:),     intent(in)    :: x_lb    !! variable lower bounds `dimension(n)`</span>
+<span id="L209"><span class="lineNum">     209</span>              :     real(wp), dimension(:),     intent(in)    :: x_ub    !! variable upper bounds `dimension(n)`</span>
+<span id="L210"><span class="lineNum">     210</span>              :     real(wp), dimension(:),     intent(in)    :: c_lb    !! constraint lower bounds `dimension(m)`</span>
+<span id="L211"><span class="lineNum">     211</span>              :     real(wp), dimension(:),     intent(in)    :: c_ub    !! constraint upper bounds `dimension(m)`</span>
+<span id="L212"><span class="lineNum">     212</span>              :     real(wp), dimension(:),     intent(out)   :: p       !! computed search direction `dimension(n)`</span>
+<span id="L213"><span class="lineNum">     213</span>              :     real(wp), dimension(:),     intent(out)   :: lambda  !! Lagrange multipliers for the linearized constraints `dimension(m)`</span>
+<span id="L214"><span class="lineNum">     214</span>              :     integer,                    intent(out)   :: istat   !! status code (see [[sqpopt_types_module]])</span>
+<span id="L215"><span class="lineNum">     215</span>              :     integer,  dimension(:), optional, intent(in) :: elastic_sign   !! forced elastic mode: the rows to make</span>
+<span id="L216"><span class="lineNum">     216</span>              :                                                                   !! elastic, and in which direction (`+1`</span>
+<span id="L217"><span class="lineNum">     217</span>              :                                                                   !! relaxes a row's lower bound, `-1` its upper</span>
+<span id="L218"><span class="lineNum">     218</span>              :                                                                   !! bound, `0` none) `dimension(m)`</span>
+<span id="L219"><span class="lineNum">     219</span>              :     real(wp),               optional, intent(in) :: elastic_weight !! forced elastic mode: the fixed \( \ell_1 \)</span>
+<span id="L220"><span class="lineNum">     220</span>              :                                                                   !! weight of every elastic slack</span>
+<span id="L221"><span class="lineNum">     221</span>              :     type(sqpopt_kkt_type),  optional, intent(inout) :: kkt         !! the KKT matrix, for the direct method (see</span>
+<span id="L222"><span class="lineNum">     222</span>              :                                                                   !! [[sqpopt_kkt_module]])</span>
+<span id="L223"><span class="lineNum">     223</span>              :     type(sqpopt_inertia_type), optional, intent(inout) :: inertia  !! the inertia control, for the direct method</span>
+<span id="L224"><span class="lineNum">     224</span>              :                                                                   !! at a nonconvex face (see</span>
+<span id="L225"><span class="lineNum">     225</span>              :                                                                   !! [[sqpopt_inertia_module]])</span>
+<span id="L226"><span class="lineNum">     226</span>              : </span>
+<span id="L227"><span class="lineNum">     227</span>              :     logical :: forced</span>
+<span id="L228"><span class="lineNum">     228</span>              :     logical :: on_boundary !! whether the unconstrained step is on the boundary of the step cap (SR1)</span>
+<span id="L229"><span class="lineNum">     229</span>              :     integer(int64) :: t0, t1, rate</span>
+<span id="L230"><span class="lineNum">     230</span>              :     real(wp) :: t_kkt !! the time `kkt` spent in its solver during this call</span>
+<span id="L231"><span class="lineNum">     231</span>              : </span>
+<span id="L232"><span class="lineNum">     232</span> <span class="tlaGNC">       24826 :     call system_clock(t0, rate)</span></span>
+<span id="L233"><span class="lineNum">     233</span> <span class="tlaGNC">       24826 :     forced = present(elastic_sign) .and. present(elastic_weight)</span></span>
+<span id="L234"><span class="lineNum">     234</span> <span class="tlaGNC">       24826 :     me%n_solves    = me%n_solves + 1</span></span>
+<span id="L235"><span class="lineNum">     235</span> <span class="tlaGNC">       24826 :     me%unconstrained_used = .false.</span></span>
+<span id="L236"><span class="lineNum">     236</span> <span class="tlaGNC">       24826 :     me%daqp_fallback  = .false.</span></span>
+<span id="L237"><span class="lineNum">     237</span> <span class="tlaGNC">       24826 :     me%daqp_used      = .false.</span></span>
+<span id="L238"><span class="lineNum">     238</span> <span class="tlaGNC">       24826 :     me%direct_used    = .false.</span></span>
+<span id="L239"><span class="lineNum">     239</span> <span class="tlaGNC">       24826 :     me%direct_outcome = -1</span></span>
+<span id="L240"><span class="lineNum">     240</span> <span class="tlaGNC">       24826 :     me%direct_changes = 0</span></span>
+<span id="L241"><span class="lineNum">     241</span> <span class="tlaGNC">       24826 :     t_kkt = 0.0_wp</span></span>
+<span id="L242"><span class="lineNum">     242</span> <span class="tlaGNC">       24826 :     on_boundary = .false.</span></span>
+<span id="L243"><span class="lineNum">     243</span>              : </span>
+<span id="L244"><span class="lineNum">     244</span> <span class="tlaGNC">       24826 :     if (me%unconstrained_step .and. .not. forced) call solve_unconstrained()</span></span>
+<span id="L245"><span class="lineNum">     245</span> <span class="tlaGNC">       24826 :     if (.not. me%unconstrained_used) then</span></span>
+<span id="L246"><span class="lineNum">     246</span> <span class="tlaGNC">       12200 :         if (present(kkt) .and. me%direct .and. .not. forced) call solve_direct()</span></span>
+<span id="L247"><span class="lineNum">     247</span> <span class="tlaGNC">       12200 :         if (.not. me%direct_used) call solve_active_set()</span></span>
+<span id="L248"><span class="lineNum">     248</span>              :     end if</span>
+<span id="L249"><span class="lineNum">     249</span>              : </span>
+<span id="L250"><span class="lineNum">     250</span> <span class="tlaGNC">       24826 :     if (istat == sqpopt_out_of_memory) me%out_of_memory = .true.</span></span>
+<span id="L251"><span class="lineNum">     251</span>              : </span>
+<span id="L252"><span class="lineNum">     252</span>              :     ! trust-region-style safeguard on the step length:</span>
+<span id="L253"><span class="lineNum">     253</span>              :     ! (a step on the boundary of the cap counts as capped, so that the cap</span>
+<span id="L254"><span class="lineNum">     254</span>              :     ! grows when the line search accepts it: see [[sqpopt_iterate_module]])</span>
+<span id="L255"><span class="lineNum">     255</span> <span class="tlaGNC">    24772772 :     me%capped = norm2(p) &gt; me%max_step*me%step_scale</span></span>
+<span id="L256"><span class="lineNum">     256</span> <span class="tlaGNC">     1522510 :     if (me%capped) p = p*(me%max_step*me%step_scale/norm2(p))</span></span>
+<span id="L257"><span class="lineNum">     257</span> <span class="tlaGNC">       24826 :     me%capped = me%capped .or. (on_boundary .and. me%unconstrained_used)</span></span>
+<span id="L258"><span class="lineNum">     258</span>              : </span>
+<span id="L259"><span class="lineNum">     259</span>              :     ! the solvers only satisfy the bounds to within their own</span>
+<span id="L260"><span class="lineNum">     260</span>              :     ! tolerances, so make sure `x+p` (and hence every `x+alpha*p`,</span>
+<span id="L261"><span class="lineNum">     261</span>              :     ! `0&lt;=alpha&lt;=1`) is exactly within them -- the user functions must</span>
+<span id="L262"><span class="lineNum">     262</span>              :     ! never be evaluated outside the variable bounds:</span>
+<span id="L263"><span class="lineNum">     263</span> <span class="tlaGNC">    24772772 :     p = min(max(x + p, x_lb), x_ub) - x</span></span>
+<span id="L264"><span class="lineNum">     264</span>              : </span>
+<span id="L265"><span class="lineNum">     265</span> <span class="tlaGNC">       24826 :     call system_clock(t1)</span></span>
+<span id="L266"><span class="lineNum">     266</span> <span class="tlaGNC">       24826 :     me%time = me%time + max(real(t1 - t0, wp)/real(rate, wp) - t_kkt, 0.0_wp)</span></span>
+<span id="L267"><span class="lineNum">     267</span>              : </span>
+<span id="L268"><span class="lineNum">     268</span>              :     contains</span>
+<span id="L269"><span class="lineNum">     269</span>              : </span>
+<span id="L270"><span class="lineNum">     270</span> <span class="tlaGNC">       24716 :         subroutine solve_unconstrained()</span></span>
+<span id="L271"><span class="lineNum">     271</span>              :         !! try the unconstrained step of a limited-memory Hessian (see the</span>
+<span id="L272"><span class="lineNum">     272</span>              :         !! module documentation): \( -H^{-1} g \) with BFGS, and with SR1,</span>
+<span id="L273"><span class="lineNum">     273</span>              :         !! which may be indefinite, the minimizer of the QP's objective within</span>
+<span id="L274"><span class="lineNum">     274</span>              :         !! the step cap. Sets `me%unconstrained_used` if it is feasible, and so</span>
+<span id="L275"><span class="lineNum">     275</span>              :         !! solves the QP.</span>
+<span id="L276"><span class="lineNum">     276</span> <span class="tlaGNC">       24716 :         real(wp), dimension(:), allocatable :: jp, neg_g</span></span>
+<span id="L277"><span class="lineNum">     277</span>              :         integer :: n, m</span>
+<span id="L278"><span class="lineNum">     278</span> <span class="tlaGNC">       24716 :         if (hessian%exact) return</span></span>
+<span id="L279"><span class="lineNum">     279</span> <span class="tlaGNC">       19038 :         n = size(g)</span></span>
+<span id="L280"><span class="lineNum">     280</span> <span class="tlaGNC">       19038 :         m = size(c)</span></span>
+<span id="L281"><span class="lineNum">     281</span> <span class="tlaGNC">       19038 :         allocate(jp(m), neg_g(n))</span></span>
+<span id="L282"><span class="lineNum">     282</span> <span class="tlaGNC">       19038 :         if (hessian%use_sr1) then</span></span>
+<span id="L283"><span class="lineNum">     283</span>              :             ! (from the spectral decomposition, see [[sqpopt_spectral_module]]:</span>
+<span id="L284"><span class="lineNum">     284</span>              :             ! only for a positive definite matrix, whose QP is convex; an</span>
+<span id="L285"><span class="lineNum">     285</span>              :             ! indefinite one is left to the QP solver and the shifts)</span>
+<span id="L286"><span class="lineNum">     286</span>              :             block</span>
+<span id="L287"><span class="lineNum">     287</span> <span class="tlaGNC">         293 :                 type(sqpopt_spectrum_type) :: spectrum</span></span>
+<span id="L288"><span class="lineNum">     288</span>              :                 integer :: sp_istat</span>
+<span id="L289"><span class="lineNum">     289</span>              :                 real(wp) :: mu</span>
+<span id="L290"><span class="lineNum">     290</span> <span class="tlaGNC">         293 :                 call spectrum%compute(hessian, sp_istat, vectors=.true.)</span></span>
+<span id="L291"><span class="lineNum">     291</span> <span class="tlaGNC">         293 :                 if (sp_istat /= sqpopt_spectrum_ok) return</span></span>
+<span id="L292"><span class="lineNum">     292</span> <span class="tlaGNC">         293 :                 if (.not. spectrum%lambda_min() &gt; 0.0_wp) return</span></span>
+<span id="L293"><span class="lineNum">     293</span> <span class="tlaGNC">         191 :                 call spectrum%trust_region_step(hessian, g, me%max_step*me%step_scale, p, sp_istat, mu)</span></span>
+<span id="L294"><span class="lineNum">     294</span> <span class="tlaGNC">         191 :                 if (sp_istat /= sqpopt_spectrum_ok) return</span></span>
+<span id="L295"><span class="lineNum">     295</span> <span class="tlaGNC">         293 :                 on_boundary = mu &gt; 0.0_wp</span></span>
+<span id="L296"><span class="lineNum">     296</span>              :             end block</span>
+<span id="L297"><span class="lineNum">     297</span>              :         else</span>
+<span id="L298"><span class="lineNum">     298</span>              :             ! (only for a positive definite matrix with a cheap inverse)</span>
+<span id="L299"><span class="lineNum">     299</span> <span class="tlaGNC">       18745 :             if (hessian%shift /= 0.0_wp) return</span></span>
+<span id="L300"><span class="lineNum">     300</span> <span class="tlaGNC">     8240478 :             neg_g = -g</span></span>
+<span id="L301"><span class="lineNum">     301</span> <span class="tlaGNC">       18745 :             call hessian%inverse_vector_product(neg_g, p)</span></span>
+<span id="L302"><span class="lineNum">     302</span>              :         end if</span>
+<span id="L303"><span class="lineNum">     303</span> <span class="tlaGNC">       18936 :         if (.not. sqpopt_all_finite(p)) return</span></span>
+<span id="L304"><span class="lineNum">     304</span> <span class="tlaGNC">     8328510 :         if (.not. dot_product(g, p) &lt;= 0.0_wp) return</span></span>
+<span id="L305"><span class="lineNum">     305</span> <span class="tlaGNC">    16208685 :         if (any(x + p &lt; x_lb) .or. any(x + p &gt; x_ub)) return</span></span>
+<span id="L306"><span class="lineNum">     306</span> <span class="tlaGNC">       15408 :         if (m &gt; 0) then</span></span>
+<span id="L307"><span class="lineNum">     307</span> <span class="tlaGNC">        3688 :             call sparse_matvec(jac, p, jp)</span></span>
+<span id="L308"><span class="lineNum">     308</span> <span class="tlaGNC">      372221 :             if (any(c + jp &lt; c_lb) .or. any(c + jp &gt; c_ub)) return</span></span>
+<span id="L309"><span class="lineNum">     309</span>              :         end if</span>
+<span id="L310"><span class="lineNum">     310</span> <span class="tlaGNC">       12626 :         me%unconstrained_used = .true.</span></span>
+<span id="L311"><span class="lineNum">     311</span> <span class="tlaGNC">       12626 :         me%n_unconstrained = me%n_unconstrained + 1</span></span>
+<span id="L312"><span class="lineNum">     312</span> <span class="tlaGNC">       79377 :         lambda = 0.0_wp</span></span>
+<span id="L313"><span class="lineNum">     313</span> <span class="tlaGNC">       12626 :         istat  = sqpopt_success</span></span>
+<span id="L314"><span class="lineNum">     314</span> <span class="tlaGNC">       12626 :         me%n_iter    = 0</span></span>
+<span id="L315"><span class="lineNum">     315</span> <span class="tlaGNC">       12626 :         me%n_working = 0</span></span>
+<span id="L316"><span class="lineNum">     316</span> <span class="tlaGNC">       12626 :         me%n_slacks  = 0</span></span>
+<span id="L317"><span class="lineNum">     317</span> <span class="tlaGNC">       12626 :         me%negative_curvature = .false.</span></span>
+<span id="L318"><span class="lineNum">     318</span>              :         ! (the next QP starts from the empty working set)</span>
+<span id="L319"><span class="lineNum">     319</span> <span class="tlaGNC">       12626 :         if (uses_dense_working_set(me, n)) then</span></span>
+<span id="L320"><span class="lineNum">     320</span> <span class="tlaGNC">        5209 :             if (allocated(me%dense_qp%warm_status)) deallocate(me%dense_qp%warm_status)</span></span>
+<span id="L321"><span class="lineNum">     321</span> <span class="tlaGNC">      186796 :             allocate(me%dense_qp%warm_status(m + n), source=0)</span></span>
+<span id="L322"><span class="lineNum">     322</span>              :         else</span>
+<span id="L323"><span class="lineNum">     323</span> <span class="tlaGNC">        7417 :             if (allocated(me%sparse_qp%warm_status)) deallocate(me%sparse_qp%warm_status)</span></span>
+<span id="L324"><span class="lineNum">     324</span> <span class="tlaGNC">     7488613 :             allocate(me%sparse_qp%warm_status(m + n), source=0)</span></span>
+<span id="L325"><span class="lineNum">     325</span>              :         end if</span>
+<span id="L326"><span class="lineNum">     326</span> <span class="tlaGNC">       24716 :         end subroutine solve_unconstrained</span></span>
+<span id="L327"><span class="lineNum">     327</span>              : </span>
+<span id="L328"><span class="lineNum">     328</span> <span class="tlaGNC">        2920 :         subroutine solve_direct()</span></span>
+<span id="L329"><span class="lineNum">     329</span>              :         !! try the direct method (see [[sqpopt_qp_direct_module]]), from the</span>
+<span id="L330"><span class="lineNum">     330</span>              :         !! working set that the active-set solver would start from. Sets</span>
+<span id="L331"><span class="lineNum">     331</span>              :         !! `me%direct_used` if it solved the QP.</span>
+<span id="L332"><span class="lineNum">     332</span> <span class="tlaGNC">        2920 :         integer, dimension(:), allocatable :: status</span></span>
+<span id="L333"><span class="lineNum">     333</span> <span class="tlaGNC">        2920 :         if (.not. kkt%enabled) return</span></span>
+<span id="L334"><span class="lineNum">     334</span> <span class="tlaGNC">        2920 :         t_kkt = kkt%solver%time</span></span>
+<span id="L335"><span class="lineNum">     335</span> <span class="tlaGNC">        2920 :         call me%starting_working_set(x_lb, x_ub, c_lb, c_ub, status)</span></span>
+<span id="L336"><span class="lineNum">     336</span>              :         call direct_qp_step(kkt, hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, me%direct_max_changes, &amp;</span>
+<span id="L337"><span class="lineNum">     337</span> <span class="tlaGNC">        2920 :                             me%direct_tol, status, p, lambda, me%direct_changes, me%direct_outcome, inertia=inertia)</span></span>
+<span id="L338"><span class="lineNum">     338</span> <span class="tlaGNC">        2920 :         t_kkt = kkt%solver%time - t_kkt</span></span>
+<span id="L339"><span class="lineNum">     339</span> <span class="tlaGNC">        2920 :         me%direct_used = me%direct_outcome == sqpopt_direct_solved</span></span>
+<span id="L340"><span class="lineNum">     340</span> <span class="tlaGNC">        2920 :         if (.not. me%direct_used) return</span></span>
+<span id="L341"><span class="lineNum">     341</span> <span class="tlaGNC">        2890 :         istat = sqpopt_success</span></span>
+<span id="L342"><span class="lineNum">     342</span> <span class="tlaGNC">        2890 :         me%n_direct  = me%n_direct + 1</span></span>
+<span id="L343"><span class="lineNum">     343</span> <span class="tlaGNC">        2890 :         me%n_iter    = me%direct_changes</span></span>
+<span id="L344"><span class="lineNum">     344</span> <span class="tlaGNC">     2792978 :         me%n_working = count(status /= 0)</span></span>
+<span id="L345"><span class="lineNum">     345</span> <span class="tlaGNC">        2890 :         me%n_slacks  = 0</span></span>
+<span id="L346"><span class="lineNum">     346</span> <span class="tlaGNC">        2890 :         me%negative_curvature = .false.</span></span>
+<span id="L347"><span class="lineNum">     347</span>              :         ! (the next QP starts from this working set)</span>
+<span id="L348"><span class="lineNum">     348</span> <span class="tlaGNC">        2890 :         if (uses_dense_working_set(me, size(g))) then</span></span>
+<span id="L349"><span class="lineNum">     349</span> <span class="tlaGNC">        6878 :             me%dense_qp%warm_status = status</span></span>
+<span id="L350"><span class="lineNum">     350</span>              :         else</span>
+<span id="L351"><span class="lineNum">     351</span> <span class="tlaGNC">     2788844 :             me%sparse_qp%warm_status = status</span></span>
+<span id="L352"><span class="lineNum">     352</span>              :         end if</span>
+<span id="L353"><span class="lineNum">     353</span> <span class="tlaGNC">        2920 :         end subroutine solve_direct</span></span>
+<span id="L354"><span class="lineNum">     354</span>              : </span>
+<span id="L355"><span class="lineNum">     355</span> <span class="tlaGNC">        9310 :         subroutine solve_active_set()</span></span>
+<span id="L356"><span class="lineNum">     356</span>              :         !! solve the QP with the active-set solver selected by `me%mode`</span>
+<span id="L357"><span class="lineNum">     357</span> <span class="tlaGNC">        9520 :         select case (resolved_mode(me, size(g)))</span></span>
+<span id="L358"><span class="lineNum">     358</span>              :         case (sqpopt_qp_daqp)</span>
+<span id="L359"><span class="lineNum">     359</span> <span class="tlaGNC">         210 :             if (.not. forced) then</span></span>
+<span id="L360"><span class="lineNum">     360</span>              :                 call me%daqp_qp%solve(hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, me%dense_qp%warm_status, &amp;</span>
+<span id="L361"><span class="lineNum">     361</span> <span class="tlaGNC">         204 :                                       p, lambda, istat)</span></span>
+<span id="L362"><span class="lineNum">     362</span> <span class="tlaGNC">         204 :                 if (istat == sqpopt_success) then</span></span>
+<span id="L363"><span class="lineNum">     363</span> <span class="tlaGNC">         147 :                     me%daqp_used = .true.</span></span>
+<span id="L364"><span class="lineNum">     364</span> <span class="tlaGNC">         147 :                     me%n_iter    = me%daqp_qp%n_iter</span></span>
+<span id="L365"><span class="lineNum">     365</span> <span class="tlaGNC">         147 :                     me%n_working = me%daqp_qp%n_working</span></span>
+<span id="L366"><span class="lineNum">     366</span> <span class="tlaGNC">         147 :                     me%n_slacks  = 0</span></span>
+<span id="L367"><span class="lineNum">     367</span> <span class="tlaGNC">         147 :                     me%negative_curvature = .false.</span></span>
+<span id="L368"><span class="lineNum">     368</span> <span class="tlaGNC">         147 :                     return</span></span>
+<span id="L369"><span class="lineNum">     369</span>              :                 end if</span>
+<span id="L370"><span class="lineNum">     370</span> <span class="tlaGNC">          57 :                 me%daqp_fallback    = .true.</span></span>
+<span id="L371"><span class="lineNum">     371</span> <span class="tlaGNC">          57 :                 me%n_daqp_fallbacks = me%n_daqp_fallbacks + 1</span></span>
+<span id="L372"><span class="lineNum">     372</span>              :             end if</span>
+<span id="L373"><span class="lineNum">     373</span> <span class="tlaGNC">          63 :             call solve_dense()</span></span>
+<span id="L374"><span class="lineNum">     374</span>              :         case (sqpopt_qp_dense)</span>
+<span id="L375"><span class="lineNum">     375</span> <span class="tlaGNC">        5546 :             call solve_dense()</span></span>
+<span id="L376"><span class="lineNum">     376</span>              :         case default ! sqpopt_qp_reduced_hessian</span>
+<span id="L377"><span class="lineNum">     377</span> <span class="tlaGNC">        3554 :             if (forced) then</span></span>
+<span id="L378"><span class="lineNum">     378</span> <span class="tlaGNC">        2424 :                 me%sparse_qp%force_sign   = elastic_sign</span></span>
+<span id="L379"><span class="lineNum">     379</span> <span class="tlaGNC">          18 :                 me%sparse_qp%force_weight = elastic_weight</span></span>
+<span id="L380"><span class="lineNum">     380</span>              :             end if</span>
+<span id="L381"><span class="lineNum">     381</span> <span class="tlaGNC">        3554 :             call me%sparse_qp%solve(hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)</span></span>
+<span id="L382"><span class="lineNum">     382</span> <span class="tlaGNC">        3554 :             if (forced) then</span></span>
+<span id="L383"><span class="lineNum">     383</span> <span class="tlaGNC">          18 :                 deallocate(me%sparse_qp%force_sign)</span></span>
+<span id="L384"><span class="lineNum">     384</span> <span class="tlaGNC">          18 :                 me%sparse_qp%force_weight = 0.0_wp</span></span>
+<span id="L385"><span class="lineNum">     385</span>              :             end if</span>
+<span id="L386"><span class="lineNum">     386</span> <span class="tlaGNC">        3554 :             me%n_iter = me%sparse_qp%n_iter</span></span>
+<span id="L387"><span class="lineNum">     387</span> <span class="tlaGNC">        3554 :             me%n_working = me%sparse_qp%n_working</span></span>
+<span id="L388"><span class="lineNum">     388</span> <span class="tlaGNC">        3554 :             me%n_slacks  = me%sparse_qp%n_slacks</span></span>
+<span id="L389"><span class="lineNum">     389</span> <span class="tlaGNC">       12864 :             me%negative_curvature = me%sparse_qp%negative_curvature</span></span>
+<span id="L390"><span class="lineNum">     390</span>              :         end select</span>
+<span id="L391"><span class="lineNum">     391</span>              :         end subroutine solve_active_set</span>
+<span id="L392"><span class="lineNum">     392</span>              : </span>
+<span id="L393"><span class="lineNum">     393</span> <span class="tlaGNC">        5609 :         subroutine solve_dense()</span></span>
+<span id="L394"><span class="lineNum">     394</span>              :         !! solve the QP with the dense active-set solver</span>
+<span id="L395"><span class="lineNum">     395</span> <span class="tlaGNC">        5609 :         if (forced) then</span></span>
+<span id="L396"><span class="lineNum">     396</span> <span class="tlaGNC">         253 :             me%dense_qp%force_sign   = elastic_sign</span></span>
+<span id="L397"><span class="lineNum">     397</span> <span class="tlaGNC">          46 :             me%dense_qp%force_weight = elastic_weight</span></span>
+<span id="L398"><span class="lineNum">     398</span>              :         end if</span>
+<span id="L399"><span class="lineNum">     399</span> <span class="tlaGNC">        5609 :         call me%dense_qp%solve(hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, p, lambda, istat)</span></span>
+<span id="L400"><span class="lineNum">     400</span> <span class="tlaGNC">        5609 :         if (forced) then</span></span>
+<span id="L401"><span class="lineNum">     401</span> <span class="tlaGNC">          46 :             deallocate(me%dense_qp%force_sign)</span></span>
+<span id="L402"><span class="lineNum">     402</span> <span class="tlaGNC">          46 :             me%dense_qp%force_weight = 0.0_wp</span></span>
+<span id="L403"><span class="lineNum">     403</span>              :         end if</span>
+<span id="L404"><span class="lineNum">     404</span> <span class="tlaGNC">        5609 :         me%n_iter = me%dense_qp%n_iter</span></span>
+<span id="L405"><span class="lineNum">     405</span> <span class="tlaGNC">        5609 :         me%n_working = me%dense_qp%n_working</span></span>
+<span id="L406"><span class="lineNum">     406</span> <span class="tlaGNC">        5609 :         me%n_slacks  = me%dense_qp%n_slacks</span></span>
+<span id="L407"><span class="lineNum">     407</span> <span class="tlaGNC">        5609 :         me%negative_curvature = me%dense_qp%negative_curvature</span></span>
+<span id="L408"><span class="lineNum">     408</span> <span class="tlaGNC">        5609 :         end subroutine solve_dense</span></span>
+<span id="L409"><span class="lineNum">     409</span>              : </span>
+<span id="L410"><span class="lineNum">     410</span>              :     end subroutine solve_qp_subproblem</span>
+<span id="L411"><span class="lineNum">     411</span>              : !*******************************************************************************</span>
+<span id="L412"><span class="lineNum">     412</span>              : </span>
+<span id="L413"><span class="lineNum">     413</span>              : !*******************************************************************************</span>
+<span id="L414"><span class="lineNum">     414</span>              : !&gt;</span>
+<span id="L415"><span class="lineNum">     415</span>              : !  the QP algorithm actually used for a problem with `n` variables:</span>
+<span id="L416"><span class="lineNum">     416</span>              : !  `me%mode`, with `sqpopt_qp_auto` resolved to a specific solver.</span>
+<span id="L417"><span class="lineNum">     417</span>              : </span>
+<span id="L418"><span class="lineNum">     418</span> <span class="tlaGNC">       34041 :     pure integer function resolved_mode(me, n)</span></span>
+<span id="L419"><span class="lineNum">     419</span>              : </span>
+<span id="L420"><span class="lineNum">     420</span>              :     class(sqpopt_qp_solver_type), intent(in) :: me</span>
+<span id="L421"><span class="lineNum">     421</span>              :     integer,                      intent(in) :: n !! number of variables</span>
+<span id="L422"><span class="lineNum">     422</span>              : </span>
+<span id="L423"><span class="lineNum">     423</span> <span class="tlaGNC">       34041 :     if (me%mode == sqpopt_qp_auto) then</span></span>
+<span id="L424"><span class="lineNum">     424</span> <span class="tlaGNC">       32646 :         resolved_mode = merge(sqpopt_qp_dense, sqpopt_qp_reduced_hessian, n &lt;= me%auto_dense_max_n)</span></span>
+<span id="L425"><span class="lineNum">     425</span>              :     else</span>
+<span id="L426"><span class="lineNum">     426</span> <span class="tlaGNC">        1395 :         resolved_mode = me%mode</span></span>
+<span id="L427"><span class="lineNum">     427</span>              :     end if</span>
+<span id="L428"><span class="lineNum">     428</span>              : </span>
+<span id="L429"><span class="lineNum">     429</span> <span class="tlaGNC">       34041 :     end function resolved_mode</span></span>
+<span id="L430"><span class="lineNum">     430</span>              : !*******************************************************************************</span>
+<span id="L431"><span class="lineNum">     431</span>              : </span>
+<span id="L432"><span class="lineNum">     432</span>              : !*******************************************************************************</span>
+<span id="L433"><span class="lineNum">     433</span>              : !&gt;</span>
+<span id="L434"><span class="lineNum">     434</span>              : !  whether the working set of the QPs with `n` variables is kept by the</span>
+<span id="L435"><span class="lineNum">     435</span>              : !  dense QP solver: with `sqpopt_qp_dense`, and with `sqpopt_qp_daqp`,</span>
+<span id="L436"><span class="lineNum">     436</span>              : !  which shares it with the dense solver, its fallback.</span>
+<span id="L437"><span class="lineNum">     437</span>              : </span>
+<span id="L438"><span class="lineNum">     438</span> <span class="tlaGNC">       24669 :     pure logical function uses_dense_working_set(me, n)</span></span>
+<span id="L439"><span class="lineNum">     439</span>              : </span>
+<span id="L440"><span class="lineNum">     440</span>              :     class(sqpopt_qp_solver_type), intent(in) :: me</span>
+<span id="L441"><span class="lineNum">     441</span>              :     integer,                      intent(in) :: n !! number of variables</span>
+<span id="L442"><span class="lineNum">     442</span>              : </span>
+<span id="L443"><span class="lineNum">     443</span> <span class="tlaGNC">       58547 :     uses_dense_working_set = any(resolved_mode(me, n) == [sqpopt_qp_dense, sqpopt_qp_daqp])</span></span>
+<span id="L444"><span class="lineNum">     444</span>              : </span>
+<span id="L445"><span class="lineNum">     445</span> <span class="tlaGNC">       24669 :     end function uses_dense_working_set</span></span>
+<span id="L446"><span class="lineNum">     446</span>              : !*******************************************************************************</span>
+<span id="L447"><span class="lineNum">     447</span>              : </span>
+<span id="L448"><span class="lineNum">     448</span>              : !*******************************************************************************</span>
+<span id="L449"><span class="lineNum">     449</span>              : !&gt;</span>
+<span id="L450"><span class="lineNum">     450</span>              : !  the final working set of the last QP solve with `n` variables and `m`</span>
+<span id="L451"><span class="lineNum">     451</span>              : !  constraints: the side (`-1` lower, `+1` upper, `0` not in the working</span>
+<span id="L452"><span class="lineNum">     452</span>              : !  set) of each general row, then of each variable bound. `status` is</span>
+<span id="L453"><span class="lineNum">     453</span>              : !  returned unallocated if there is none (no QP of that size has been</span>
+<span id="L454"><span class="lineNum">     454</span>              : !  solved yet).</span>
+<span id="L455"><span class="lineNum">     455</span>              : </span>
+<span id="L456"><span class="lineNum">     456</span> <span class="tlaGNC">        9152 :     subroutine working_set(me, n, m, status)</span></span>
+<span id="L457"><span class="lineNum">     457</span>              : </span>
+<span id="L458"><span class="lineNum">     458</span>              :     class(sqpopt_qp_solver_type),       intent(in)  :: me</span>
+<span id="L459"><span class="lineNum">     459</span>              :     integer,                            intent(in)  :: n      !! number of variables</span>
+<span id="L460"><span class="lineNum">     460</span>              :     integer,                            intent(in)  :: m      !! number of constraints</span>
+<span id="L461"><span class="lineNum">     461</span>              :     integer, dimension(:), allocatable, intent(out) :: status !! the working set `dimension(m+n)` (see above)</span>
+<span id="L462"><span class="lineNum">     462</span>              : </span>
+<span id="L463"><span class="lineNum">     463</span> <span class="tlaGNC">        9152 :     if (uses_dense_working_set(me, n)) then</span></span>
+<span id="L464"><span class="lineNum">     464</span> <span class="tlaGNC">       17358 :         if (allocated(me%dense_qp%warm_status)) status = me%dense_qp%warm_status</span></span>
+<span id="L465"><span class="lineNum">     465</span>              :     else</span>
+<span id="L466"><span class="lineNum">     466</span> <span class="tlaGNC">     7995659 :         if (allocated(me%sparse_qp%warm_status)) status = me%sparse_qp%warm_status</span></span>
+<span id="L467"><span class="lineNum">     467</span>              :     end if</span>
+<span id="L468"><span class="lineNum">     468</span> <span class="tlaGNC">        9152 :     if (allocated(status)) then</span></span>
+<span id="L469"><span class="lineNum">     469</span> <span class="tlaGNC">        8819 :         if (size(status) /= m + n) deallocate(status)</span></span>
+<span id="L470"><span class="lineNum">     470</span>              :     end if</span>
+<span id="L471"><span class="lineNum">     471</span>              : </span>
+<span id="L472"><span class="lineNum">     472</span> <span class="tlaGNC">        9152 :     end subroutine working_set</span></span>
+<span id="L473"><span class="lineNum">     473</span>              : !*******************************************************************************</span>
+<span id="L474"><span class="lineNum">     474</span>              : </span>
+<span id="L475"><span class="lineNum">     475</span>              : !*******************************************************************************</span>
+<span id="L476"><span class="lineNum">     476</span>              : !&gt;</span>
+<span id="L477"><span class="lineNum">     477</span>              : !  the elastic slacks of the last QP solve with `n` variables: the general</span>
+<span id="L478"><span class="lineNum">     478</span>              : !  row of each, and its value at the QP's solution (by how much the step</span>
+<span id="L479"><span class="lineNum">     479</span>              : !  violates that linearized constraint). They are only kept if the</span>
+<span id="L480"><span class="lineNum">     480</span>              : !  active-set solvers' `keep_slacks` is set (the solver sets it for its</span>
+<span id="L481"><span class="lineNum">     481</span>              : !  diagnostics); `row` and `slack` have size zero if there are none.</span>
+<span id="L482"><span class="lineNum">     482</span>              : </span>
+<span id="L483"><span class="lineNum">     483</span> <span class="tlaGNC">          29 :     subroutine elastic_slacks(me, n, row, slack)</span></span>
+<span id="L484"><span class="lineNum">     484</span>              : </span>
+<span id="L485"><span class="lineNum">     485</span>              :     class(sqpopt_qp_solver_type),        intent(in)  :: me</span>
+<span id="L486"><span class="lineNum">     486</span>              :     integer,                             intent(in)  :: n     !! number of variables</span>
+<span id="L487"><span class="lineNum">     487</span>              :     integer,  dimension(:), allocatable, intent(out) :: row   !! the row of each elastic slack</span>
+<span id="L488"><span class="lineNum">     488</span>              :     real(wp), dimension(:), allocatable, intent(out) :: slack !! its value</span>
+<span id="L489"><span class="lineNum">     489</span>              : </span>
+<span id="L490"><span class="lineNum">     490</span> <span class="tlaGNC">          29 :     if (me%n_slacks &gt; 0) then</span></span>
+<span id="L491"><span class="lineNum">     491</span>              :         ! (with `sqpopt_qp_daqp`, slacks only come from its fallback, the dense solver)</span>
+<span id="L492"><span class="lineNum">     492</span> <span class="tlaGNC">           1 :         if (uses_dense_working_set(me, n)) then</span></span>
+<span id="L493"><span class="lineNum">     493</span> <span class="tlaGNC">           1 :             if (allocated(me%dense_qp%slack_row)) then</span></span>
+<span id="L494"><span class="lineNum">     494</span> <span class="tlaGNC">           1 :                 allocate(row(size(me%dense_qp%slack_row)), slack(size(me%dense_qp%slack_row)))</span></span>
+<span id="L495"><span class="lineNum">     495</span> <span class="tlaGNC">           3 :                 row   = me%dense_qp%slack_row</span></span>
+<span id="L496"><span class="lineNum">     496</span> <span class="tlaGNC">           3 :                 slack = me%dense_qp%slack_value</span></span>
+<span id="L497"><span class="lineNum">     497</span>              :             end if</span>
+<span id="L498"><span class="lineNum">     498</span>              :         else</span>
+<span id="L499"><span class="lineNum">     499</span> <span class="tlaUNC">           0 :             if (allocated(me%sparse_qp%slack_row)) then</span></span>
+<span id="L500"><span class="lineNum">     500</span> <span class="tlaUNC">           0 :                 allocate(row(size(me%sparse_qp%slack_row)), slack(size(me%sparse_qp%slack_row)))</span></span>
+<span id="L501"><span class="lineNum">     501</span> <span class="tlaUNC">           0 :                 row   = me%sparse_qp%slack_row</span></span>
+<span id="L502"><span class="lineNum">     502</span> <span class="tlaUNC">           0 :                 slack = me%sparse_qp%slack_value</span></span>
+<span id="L503"><span class="lineNum">     503</span>              :             end if</span>
+<span id="L504"><span class="lineNum">     504</span>              :         end if</span>
+<span id="L505"><span class="lineNum">     505</span>              :     end if</span>
+<span id="L506"><span class="lineNum">     506</span> <span class="tlaGNC">          29 :     if (.not. allocated(row)) allocate(row(0), slack(0))</span></span>
+<span id="L507"><span class="lineNum">     507</span>              : </span>
+<span id="L508"><span class="lineNum">     508</span> <span class="tlaGNC">          29 :     end subroutine elastic_slacks</span></span>
+<span id="L509"><span class="lineNum">     509</span>              : !*******************************************************************************</span>
+<span id="L510"><span class="lineNum">     510</span>              : </span>
+<span id="L511"><span class="lineNum">     511</span>              : !*******************************************************************************</span>
+<span id="L512"><span class="lineNum">     512</span>              : !&gt;</span>
+<span id="L513"><span class="lineNum">     513</span>              : !  the working set that the next QP solve will start from, for a problem</span>
+<span id="L514"><span class="lineNum">     514</span>              : !  with the given bounds: the final working set of the last one (see</span>
+<span id="L515"><span class="lineNum">     515</span>              : !  [[working_set]]), or, if there is none, the equality constraints and</span>
+<span id="L516"><span class="lineNum">     516</span>              : !  the fixed variables (the active-set solvers' crash start).</span>
+<span id="L517"><span class="lineNum">     517</span>              : </span>
+<span id="L518"><span class="lineNum">     518</span> <span class="tlaGNC">        5999 :     subroutine starting_working_set(me, x_lb, x_ub, c_lb, c_ub, status)</span></span>
+<span id="L519"><span class="lineNum">     519</span>              : </span>
+<span id="L520"><span class="lineNum">     520</span>              :     class(sqpopt_qp_solver_type),       intent(in)  :: me</span>
+<span id="L521"><span class="lineNum">     521</span>              :     real(wp), dimension(:),             intent(in)  :: x_lb   !! variable lower bounds `dimension(n)`</span>
+<span id="L522"><span class="lineNum">     522</span>              :     real(wp), dimension(:),             intent(in)  :: x_ub   !! variable upper bounds `dimension(n)`</span>
+<span id="L523"><span class="lineNum">     523</span>              :     real(wp), dimension(:),             intent(in)  :: c_lb   !! constraint lower bounds `dimension(m)`</span>
+<span id="L524"><span class="lineNum">     524</span>              :     real(wp), dimension(:),             intent(in)  :: c_ub   !! constraint upper bounds `dimension(m)`</span>
+<span id="L525"><span class="lineNum">     525</span>              :     integer, dimension(:), allocatable, intent(out) :: status !! the working set `dimension(m+n)` (see [[working_set]])</span>
+<span id="L526"><span class="lineNum">     526</span>              : </span>
+<span id="L527"><span class="lineNum">     527</span>              :     integer :: n, m</span>
+<span id="L528"><span class="lineNum">     528</span>              : </span>
+<span id="L529"><span class="lineNum">     529</span> <span class="tlaGNC">        5999 :     n = size(x_lb)</span></span>
+<span id="L530"><span class="lineNum">     530</span> <span class="tlaGNC">        5999 :     m = size(c_lb)</span></span>
+<span id="L531"><span class="lineNum">     531</span> <span class="tlaGNC">        5999 :     call me%working_set(n, m, status)</span></span>
+<span id="L532"><span class="lineNum">     532</span> <span class="tlaGNC">        5999 :     if (allocated(status)) return</span></span>
+<span id="L533"><span class="lineNum">     533</span> <span class="tlaGNC">         333 :     allocate(status(m+n))</span></span>
+<span id="L534"><span class="lineNum">     534</span> <span class="tlaGNC">         333 :     status = 0</span></span>
+<span id="L535"><span class="lineNum">     535</span> <span class="tlaGNC">      134379 :     where (c_ub - c_lb &lt;= 0.0_wp) status(1:m) = -1</span></span>
+<span id="L536"><span class="lineNum">     536</span> <span class="tlaGNC">      165037 :     where (x_ub - x_lb &lt;= 0.0_wp) status(m+1:m+n) = -1</span></span>
+<span id="L537"><span class="lineNum">     537</span>              : </span>
+<span id="L538"><span class="lineNum">     538</span>              :     end subroutine starting_working_set</span>
+<span id="L539"><span class="lineNum">     539</span>              : !*******************************************************************************</span>
+<span id="L540"><span class="lineNum">     540</span>              : </span>
+<span id="L541"><span class="lineNum">     541</span>              : !*******************************************************************************</span>
+<span id="L542"><span class="lineNum">     542</span>              : !&gt;</span>
+<span id="L543"><span class="lineNum">     543</span>              : !  the name of the QP algorithm used for a problem with `n` variables</span>
+<span id="L544"><span class="lineNum">     544</span>              : !  (`mode` with `sqpopt_qp_auto` resolved), for the printed output.</span>
+<span id="L545"><span class="lineNum">     545</span>              : </span>
+<span id="L546"><span class="lineNum">     546</span> <span class="tlaGNC">          34 :     function mode_name(me, n) result(name)</span></span>
+<span id="L547"><span class="lineNum">     547</span>              : </span>
+<span id="L548"><span class="lineNum">     548</span>              :     class(sqpopt_qp_solver_type), intent(in) :: me</span>
+<span id="L549"><span class="lineNum">     549</span>              :     integer,                      intent(in) :: n !! number of variables (which `sqpopt_qp_auto` depends on)</span>
+<span id="L550"><span class="lineNum">     550</span>              :     character(len=:), allocatable :: name</span>
+<span id="L551"><span class="lineNum">     551</span>              : </span>
+<span id="L552"><span class="lineNum">     552</span> <span class="tlaGNC">          21 :     select case (resolved_mode(me, n))</span></span>
+<span id="L553"><span class="lineNum">     553</span> <span class="tlaGNC">          21 :     case (sqpopt_qp_dense); name = 'dense QP'</span></span>
+<span id="L554"><span class="lineNum">     554</span> <span class="tlaGNC">          11 :     case (sqpopt_qp_daqp);  name = 'DAQP QP'</span></span>
+<span id="L555"><span class="lineNum">     555</span> <span class="tlaGNC">          34 :     case default;           name = 'sparse QP'</span></span>
+<span id="L556"><span class="lineNum">     556</span>              :     end select</span>
+<span id="L557"><span class="lineNum">     557</span> <span class="tlaGNC">          57 :     if (me%mode == sqpopt_qp_auto) name = name//' (auto)'</span></span>
+<span id="L558"><span class="lineNum">     558</span>              : </span>
+<span id="L559"><span class="lineNum">     559</span> <span class="tlaGNC">          34 :     end function mode_name</span></span>
+<span id="L560"><span class="lineNum">     560</span>              : !*******************************************************************************</span>
+<span id="L561"><span class="lineNum">     561</span>              : </span>
+<span id="L562"><span class="lineNum">     562</span>              : !*******************************************************************************</span>
+<span id="L563"><span class="lineNum">     563</span>              : !&gt;</span>
+<span id="L564"><span class="lineNum">     564</span>              : !  the name of the QP solver that solved the last QP with `n` variables, for</span>
+<span id="L565"><span class="lineNum">     565</span>              : !  the printed output: [[mode_name]], except that with `sqpopt_qp_daqp`, a</span>
+<span id="L566"><span class="lineNum">     566</span>              : !  QP that DAQP didn't solve (a fallback, or a forced elastic re-solve) was</span>
+<span id="L567"><span class="lineNum">     567</span>              : !  solved by the dense QP solver.</span>
+<span id="L568"><span class="lineNum">     568</span>              : </span>
+<span id="L569"><span class="lineNum">     569</span> <span class="tlaGNC">          28 :     function solver_name(me, n) result(name)</span></span>
+<span id="L570"><span class="lineNum">     570</span>              : </span>
+<span id="L571"><span class="lineNum">     571</span>              :     class(sqpopt_qp_solver_type), intent(in) :: me</span>
+<span id="L572"><span class="lineNum">     572</span>              :     integer,                      intent(in) :: n !! number of variables</span>
+<span id="L573"><span class="lineNum">     573</span>              :     character(len=:), allocatable :: name</span>
+<span id="L574"><span class="lineNum">     574</span>              : </span>
+<span id="L575"><span class="lineNum">     575</span> <span class="tlaGNC">          28 :     if (resolved_mode(me, n) == sqpopt_qp_daqp .and. .not. me%daqp_used) then</span></span>
+<span id="L576"><span class="lineNum">     576</span> <span class="tlaGNC">           8 :         name = 'dense QP'</span></span>
+<span id="L577"><span class="lineNum">     577</span>              :     else</span>
+<span id="L578"><span class="lineNum">     578</span> <span class="tlaGNC">          20 :         name = me%mode_name(n)</span></span>
+<span id="L579"><span class="lineNum">     579</span>              :     end if</span>
+<span id="L580"><span class="lineNum">     580</span>              : </span>
+<span id="L581"><span class="lineNum">     581</span> <span class="tlaGNC">          28 :     end function solver_name</span></span>
+<span id="L582"><span class="lineNum">     582</span>              : !*******************************************************************************</span>
+<span id="L583"><span class="lineNum">     583</span>              : </span>
+<span id="L584"><span class="lineNum">     584</span> <span class="tlaGNC">          23 :     end module sqpopt_qp_solver_module</span></span>
+<span id="L585"><span class="lineNum">     585</span>              : !*******************************************************************************</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com/linux-test-project/lcov" target="_parent">LCOV version 2.5-0</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

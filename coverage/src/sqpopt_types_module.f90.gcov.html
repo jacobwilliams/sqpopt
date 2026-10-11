@@ -1,0 +1,444 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - coverage.info - src/sqpopt_types_module.f90</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../index.html" title="Click to go to top-level">top level</a> - <a href="index.html" title="Click to go to directory src">src</a> - sqpopt_types_module.f90<span style="font-size: 80%;"> (source / <a href="sqpopt_types_module.f90.func-c.html" title="Click to go to function table">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">coverage.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">95.3&nbsp;%</td>
+            <td class="headerCovTableEntry">43</td>
+            <td class="headerCovTableEntry">41</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2026-10-11 01:22:22</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryLo">41.7&nbsp;%</td>
+            <td class="headerCovTableEntry">12</td>
+            <td class="headerCovTableEntry">5</td>
+          </tr>
+                  <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : !*******************************************************************************</span>
+<span id="L2"><span class="lineNum">       2</span>              : !&gt; author: Jacob Williams</span>
+<span id="L3"><span class="lineNum">       3</span>              : !  license: MIT</span>
+<span id="L4"><span class="lineNum">       4</span>              : !</span>
+<span id="L5"><span class="lineNum">       5</span>              : !  Common types and status codes used throughout `sqpopt`. Sparse matrices</span>
+<span id="L6"><span class="lineNum">       6</span>              : !  are always stored in coordinate (COO) format with 1-based indices --</span>
+<span id="L7"><span class="lineNum">       7</span>              : !  the same convention used by the `lusol` and `LSQR` dependencies</span>
+<span id="L8"><span class="lineNum">       8</span>              : !  -- so that they may be passed to those solvers without conversion.</span>
+<span id="L9"><span class="lineNum">       9</span>              : </span>
+<span id="L10"><span class="lineNum">      10</span>              :     module sqpopt_types_module</span>
+<span id="L11"><span class="lineNum">      11</span>              : </span>
+<span id="L12"><span class="lineNum">      12</span>              :     use sqpopt_kinds, only: wp =&gt; sqpopt_module_wp</span>
+<span id="L13"><span class="lineNum">      13</span>              :     use, intrinsic :: ieee_arithmetic, only: ieee_is_finite</span>
+<span id="L14"><span class="lineNum">      14</span>              : </span>
+<span id="L15"><span class="lineNum">      15</span>              :     implicit none</span>
+<span id="L16"><span class="lineNum">      16</span>              : </span>
+<span id="L17"><span class="lineNum">      17</span>              :     private</span>
+<span id="L18"><span class="lineNum">      18</span>              : </span>
+<span id="L19"><span class="lineNum">      19</span>              :     ! solver status/exit codes:</span>
+<span id="L20"><span class="lineNum">      20</span>              :     integer, parameter, public :: sqpopt_success              = 0  !! converged successfully</span>
+<span id="L21"><span class="lineNum">      21</span>              :     integer, parameter, public :: sqpopt_acceptable           = 1  !! converged to the &quot;acceptable&quot; (looser) tolerances, for</span>
+<span id="L22"><span class="lineNum">      22</span>              :                                                                    !! several consecutive iterations, but not to the normal ones</span>
+<span id="L23"><span class="lineNum">      23</span>              :     integer, parameter, public :: sqpopt_stalled              = 2  !! stopped -- the point is feasible but the objective and variables</span>
+<span id="L24"><span class="lineNum">      24</span>              :                                                                    !! have stopped changing (see `ftol`/`xtol`) before the KKT test</span>
+<span id="L25"><span class="lineNum">      25</span>              :                                                                    !! was satisfied -- usually an acceptable, if imprecise, solution</span>
+<span id="L26"><span class="lineNum">      26</span>              : </span>
+<span id="L27"><span class="lineNum">      27</span>              :     integer, parameter, public :: sqpopt_max_iter_reached     = 10 !! stopped -- maximum number of iterations reached</span>
+<span id="L28"><span class="lineNum">      28</span>              :     integer, parameter, public :: sqpopt_user_requested_stop  = 11 !! stopped -- user requested stop</span>
+<span id="L29"><span class="lineNum">      29</span>              :     integer, parameter, public :: sqpopt_max_evals_reached    = 12 !! stopped -- maximum number of function evaluations reached</span>
+<span id="L30"><span class="lineNum">      30</span>              :     integer, parameter, public :: sqpopt_time_limit_reached   = 13 !! stopped -- time limit reached</span>
+<span id="L31"><span class="lineNum">      31</span>              : </span>
+<span id="L32"><span class="lineNum">      32</span>              :     integer, parameter, public :: sqpopt_infeasible           = 21  !! stopped -- problem appears to be infeasible</span>
+<span id="L33"><span class="lineNum">      33</span>              :     integer, parameter, public :: sqpopt_line_search_failed   = 22  !! stopped -- line search failed to find an acceptable step</span>
+<span id="L34"><span class="lineNum">      34</span>              :     integer, parameter, public :: sqpopt_qp_solve_failed      = 23  !! stopped -- QP subproblem solver failed</span>
+<span id="L35"><span class="lineNum">      35</span>              :     integer, parameter, public :: sqpopt_invalid_input        = 24  !! stopped -- the problem definition or options are invalid</span>
+<span id="L36"><span class="lineNum">      36</span>              :     integer, parameter, public :: sqpopt_function_error       = 25  !! stopped -- the problem functions returned a non-finite value</span>
+<span id="L37"><span class="lineNum">      37</span>              :                                                                     !! (NaN or Inf) at the current point (trial points with</span>
+<span id="L38"><span class="lineNum">      38</span>              :                                                                     !! non-finite values are rejected instead)</span>
+<span id="L39"><span class="lineNum">      39</span>              :     integer, parameter, public :: sqpopt_unbounded            = 26 !! stopped -- the objective fell below its lower limit at a</span>
+<span id="L40"><span class="lineNum">      40</span>              :                                                                    !! feasible point (the problem appears to be unbounded)</span>
+<span id="L41"><span class="lineNum">      41</span>              :     integer, parameter, public :: sqpopt_out_of_memory        = 27 !! stopped -- an array could not be allocated (the dense</span>
+<span id="L42"><span class="lineNum">      42</span>              :                                                                    !! matrices of the dense QP solver)</span>
+<span id="L43"><span class="lineNum">      43</span>              : </span>
+<span id="L44"><span class="lineNum">      44</span>              :     real(wp), parameter, public :: sqpopt_infinity = 1.0e20_wp !! any bound with magnitude `&gt;= sqpopt_infinity` is treated</span>
+<span id="L45"><span class="lineNum">      45</span>              :                                                                 !! as absent (bounds are clamped to `[-sqpopt_infinity,</span>
+<span id="L46"><span class="lineNum">      46</span>              :                                                                 !! sqpopt_infinity]` so that e.g. `-huge(1.0_wp)` is safe to use)</span>
+<span id="L47"><span class="lineNum">      47</span>              : </span>
+<span id="L48"><span class="lineNum">      48</span>              :     public :: sqpopt_status_message</span>
+<span id="L49"><span class="lineNum">      49</span>              :     public :: sqpopt_all_finite</span>
+<span id="L50"><span class="lineNum">      50</span>              :     public :: sqpopt_iteration_flags</span>
+<span id="L51"><span class="lineNum">      51</span>              :     public :: l1_violation</span>
+<span id="L52"><span class="lineNum">      52</span>              :     public :: merit_slack</span>
+<span id="L53"><span class="lineNum">      53</span>              : </span>
+<span id="L54"><span class="lineNum">      54</span>              :     type, public :: sqpopt_sparse_matrix</span>
+<span id="L55"><span class="lineNum">      55</span>              :         !! a sparse matrix stored in coordinate (COO) format</span>
+<span id="L56"><span class="lineNum">      56</span>              :         integer :: nrows = 0  !! number of rows</span>
+<span id="L57"><span class="lineNum">      57</span>              :         integer :: ncols = 0  !! number of columns</span>
+<span id="L58"><span class="lineNum">      58</span>              :         integer :: nnz   = 0  !! number of nonzero elements</span>
+<span id="L59"><span class="lineNum">      59</span>              :         integer,  dimension(:), allocatable :: irow  !! row indices `dimension(nnz)`</span>
+<span id="L60"><span class="lineNum">      60</span>              :         integer,  dimension(:), allocatable :: icol  !! column indices `dimension(nnz)`</span>
+<span id="L61"><span class="lineNum">      61</span>              :         real(wp), dimension(:), allocatable :: val   !! nonzero values `dimension(nnz)`</span>
+<span id="L62"><span class="lineNum">      62</span>              :     end type sqpopt_sparse_matrix</span>
+<span id="L63"><span class="lineNum">      63</span>              : </span>
+<span id="L64"><span class="lineNum">      64</span>              :     type, public :: sqpopt_diagnosis_type</span>
+<span id="L65"><span class="lineNum">      65</span>              :         !! the diagnostics of a solve (see `options%diagnostic_level`): which</span>
+<span id="L66"><span class="lineNum">      66</span>              :         !! constraints and variables are responsible for the errors at the</span>
+<span id="L67"><span class="lineNum">      67</span>              :         !! final point, what the active set looks like there, and, from level</span>
+<span id="L68"><span class="lineNum">      68</span>              :         !! `2`, what the history of the iterations and the starting point</span>
+<span id="L69"><span class="lineNum">      69</span>              :         !! say. Values are for the original (unscaled) problem. Everything</span>
+<span id="L70"><span class="lineNum">      70</span>              :         !! here is also in the text of `report` and `problem_report`, which</span>
+<span id="L71"><span class="lineNum">      71</span>              :         !! is what the solver prints.</span>
+<span id="L72"><span class="lineNum">      72</span>              :         integer  :: level = 0 !! the diagnostic level these were computed at (`0`: none, and nothing below is set)</span>
+<span id="L73"><span class="lineNum">      73</span>              : </span>
+<span id="L74"><span class="lineNum">      74</span>              :         ! ---- the final point (level &gt;= 1) ----</span>
+<span id="L75"><span class="lineNum">      75</span>              :         integer,  dimension(:), allocatable :: violated_constraints !! the constraints with the largest violation of</span>
+<span id="L76"><span class="lineNum">      76</span>              :                                                                     !! their bounds, largest first (at most 5)</span>
+<span id="L77"><span class="lineNum">      77</span>              :         real(wp), dimension(:), allocatable :: violations           !! their violations</span>
+<span id="L78"><span class="lineNum">      78</span>              :         integer,  dimension(:), allocatable :: stationarity_variables !! the variables with the largest stationarity</span>
+<span id="L79"><span class="lineNum">      79</span>              :                                                                       !! residual (the gradient of the Lagrangian,</span>
+<span id="L80"><span class="lineNum">      80</span>              :                                                                       !! projected onto the bounds), largest first</span>
+<span id="L81"><span class="lineNum">      81</span>              :                                                                       !! (at most 5)</span>
+<span id="L82"><span class="lineNum">      82</span>              :         real(wp), dimension(:), allocatable :: stationarity_residuals !! their residuals</span>
+<span id="L83"><span class="lineNum">      83</span>              :         integer,  dimension(:), allocatable :: multiplier_constraints !! the constraints with the largest multipliers,</span>
+<span id="L84"><span class="lineNum">      84</span>              :                                                                       !! largest first (at most 5)</span>
+<span id="L85"><span class="lineNum">      85</span>              :         real(wp), dimension(:), allocatable :: multipliers          !! their multipliers</span>
+<span id="L86"><span class="lineNum">      86</span>              :         integer  :: n_active_constraints = 0 !! constraints at one of their bounds (including the equalities)</span>
+<span id="L87"><span class="lineNum">      87</span>              :         integer  :: n_active_bounds      = 0 !! variables at one of their bounds (including the fixed ones)</span>
+<span id="L88"><span class="lineNum">      88</span>              :         integer  :: n_weakly_active      = 0 !! active inequality constraints and bounds whose multiplier is</span>
+<span id="L89"><span class="lineNum">      89</span>              :                                              !! (nearly) zero</span>
+<span id="L90"><span class="lineNum">      90</span>              :         integer  :: n_wrong_sign         = 0 !! active inequality constraints and bounds whose multiplier has the</span>
+<span id="L91"><span class="lineNum">      91</span>              :                                              !! wrong sign for the bound they are at</span>
+<span id="L92"><span class="lineNum">      92</span>              :         integer  :: n_dependent          = -1 !! active constraints whose gradients are linearly dependent on those</span>
+<span id="L93"><span class="lineNum">      93</span>              :                                               !! of the others, in the variables that are not at a bound (`-1`: not</span>
+<span id="L94"><span class="lineNum">      94</span>              :                                               !! computed)</span>
+<span id="L95"><span class="lineNum">      95</span>              :         integer,  dimension(:), allocatable :: elastic_constraints !! the constraints that were elastic in the last</span>
+<span id="L96"><span class="lineNum">      96</span>              :                                                                    !! QP subproblem (its linearized constraints were</span>
+<span id="L97"><span class="lineNum">      97</span>              :                                                                    !! inconsistent, or it was an elastic re-solve),</span>
+<span id="L98"><span class="lineNum">      98</span>              :                                                                    !! largest slack first (at most 5)</span>
+<span id="L99"><span class="lineNum">      99</span>              :         real(wp), dimension(:), allocatable :: elastic_slacks      !! their slacks: by how much the QP's step violates</span>
+<span id="L100"><span class="lineNum">     100</span>              :                                                                    !! each linearized constraint</span>
+<span id="L101"><span class="lineNum">     101</span>              : </span>
+<span id="L102"><span class="lineNum">     102</span>              :         ! ---- the history of the iterations (level &gt;= 2) ----</span>
+<span id="L103"><span class="lineNum">     103</span>              :         real(wp) :: convergence_rate = 0.0_wp !! the factor by which the error (the larger of the KKT error over</span>
+<span id="L104"><span class="lineNum">     104</span>              :                                               !! `ktol` and the feasibility error over `ctol`) changed per</span>
+<span id="L105"><span class="lineNum">     105</span>              :                                               !! iteration, fitted over the last iterations (at most 20; `&lt; 1`:</span>
+<span id="L106"><span class="lineNum">     106</span>              :                                               !! converging; `0`: not enough iterations to tell)</span>
+<span id="L107"><span class="lineNum">     107</span>              :         integer  :: iterations_needed = -1    !! the further iterations it would take to reach the tolerances at</span>
+<span id="L108"><span class="lineNum">     108</span>              :                                               !! that rate (`-1`: unknown, or not converging)</span>
+<span id="L109"><span class="lineNum">     109</span>              :         integer  :: n_active_set_flips = 0    !! the consecutive iterations, up to the last one, in which the QP's</span>
+<span id="L110"><span class="lineNum">     110</span>              :                                               !! working set went back to what it was two iterations before</span>
+<span id="L111"><span class="lineNum">     111</span>              :         logical  :: objective_derivative_suspect = .false. !! whether the objective's changes along the steps</span>
+<span id="L112"><span class="lineNum">     112</span>              :                                                            !! disagreed with its gradient (see `derivative_suspects`)</span>
+<span id="L113"><span class="lineNum">     113</span>              :         integer,  dimension(:), allocatable :: derivative_suspects !! the constraints whose changes along the steps</span>
+<span id="L114"><span class="lineNum">     114</span>              :                                                                    !! disagreed with their Jacobian rows in most of</span>
+<span id="L115"><span class="lineNum">     115</span>              :                                                                    !! the steps (the worst first, at most 5): their</span>
+<span id="L116"><span class="lineNum">     116</span>              :                                                                    !! derivatives may be wrong</span>
+<span id="L117"><span class="lineNum">     117</span>              :         integer  :: slowest_iteration = 0     !! the iteration that took the most time</span>
+<span id="L118"><span class="lineNum">     118</span>              :         real(wp) :: slowest_iteration_time = 0.0_wp !! its time (seconds)</span>
+<span id="L119"><span class="lineNum">     119</span>              : </span>
+<span id="L120"><span class="lineNum">     120</span>              :         ! ---- the starting point (level &gt;= 2) ----</span>
+<span id="L121"><span class="lineNum">     121</span>              :         real(wp) :: constraint_gradient_ratio = 0.0_wp !! the largest over the smallest size of a constraint's</span>
+<span id="L122"><span class="lineNum">     122</span>              :                                                        !! gradient at the starting point (`0`: no constraints)</span>
+<span id="L123"><span class="lineNum">     123</span>              :         real(wp) :: variable_gradient_ratio   = 0.0_wp !! the largest over the smallest size of a variable's</span>
+<span id="L124"><span class="lineNum">     124</span>              :                                                        !! column of the objective gradient and the Jacobian there</span>
+<span id="L125"><span class="lineNum">     125</span>              :         integer  :: n_constant_constraints    = 0      !! constraints with no entry in the Jacobian's pattern</span>
+<span id="L126"><span class="lineNum">     126</span>              :         integer  :: n_single_variable_constraints = 0  !! constraints with a single entry there (a bound on the</span>
+<span id="L127"><span class="lineNum">     127</span>              :                                                        !! variable, if they are linear)</span>
+<span id="L128"><span class="lineNum">     128</span>              :         integer  :: n_dependent_equalities    = -1     !! equality constraints whose gradients at the starting</span>
+<span id="L129"><span class="lineNum">     129</span>              :                                                        !! point are linearly dependent on those of the others</span>
+<span id="L130"><span class="lineNum">     130</span>              :                                                        !! (`-1`: not computed)</span>
+<span id="L131"><span class="lineNum">     131</span>              :         logical  :: probe_not_finite = .false. !! level `3`: whether `f` or `c` is not finite at one of the two</span>
+<span id="L132"><span class="lineNum">     132</span>              :                                                !! points probed next to the starting point</span>
+<span id="L133"><span class="lineNum">     133</span>              : </span>
+<span id="L134"><span class="lineNum">     134</span>              :         character(len=:), allocatable :: problem_report !! the report on the starting point (level `&gt;= 2`), as</span>
+<span id="L135"><span class="lineNum">     135</span>              :                                                         !! printed before the iteration log: its lines, each</span>
+<span id="L136"><span class="lineNum">     136</span>              :                                                         !! ended by a newline character</span>
+<span id="L137"><span class="lineNum">     137</span>              :         character(len=:), allocatable :: report         !! the diagnosis of the solve, as printed after the</span>
+<span id="L138"><span class="lineNum">     138</span>              :                                                         !! summary: its lines, each ended by a newline character</span>
+<span id="L139"><span class="lineNum">     139</span>              :     end type sqpopt_diagnosis_type</span>
+<span id="L140"><span class="lineNum">     140</span>              : </span>
+<span id="L141"><span class="lineNum">     141</span>              :     type, public :: sqpopt_iter_info</span>
+<span id="L142"><span class="lineNum">     142</span>              :         !! information about one major iteration, for the iteration log</span>
+<span id="L143"><span class="lineNum">     143</span>              :         real(wp) :: f         = 0.0_wp  !! objective at the start of the iteration (of the scaled problem)</span>
+<span id="L144"><span class="lineNum">     144</span>              :         real(wp) :: kkt       = 0.0_wp  !! KKT error there (see [[check_convergence]])</span>
+<span id="L145"><span class="lineNum">     145</span>              :         real(wp) :: feas      = 0.0_wp  !! feasibility error there</span>
+<span id="L146"><span class="lineNum">     146</span>              :         real(wp) :: alpha     = 0.0_wp  !! step length taken</span>
+<span id="L147"><span class="lineNum">     147</span>              :         real(wp) :: step_norm = 0.0_wp  !! \( \lVert x_{k+1}-x_k \rVert_2 \)</span>
+<span id="L148"><span class="lineNum">     148</span>              :         real(wp) :: penalty   = 0.0_wp  !! merit function penalty parameter</span>
+<span id="L149"><span class="lineNum">     149</span>              :         integer  :: qp_istat  = 0       !! status of the QP solve</span>
+<span id="L150"><span class="lineNum">     150</span>              :         integer  :: qp_iter   = 0       !! active-set iterations of the QP solve</span>
+<span id="L151"><span class="lineNum">     151</span>              :         logical  :: restoration = .false. !! whether a feasibility-restoration step was taken (a single step, or</span>
+<span id="L152"><span class="lineNum">     152</span>              :                                           !! an iteration of a restoration phase: see `phase`)</span>
+<span id="L153"><span class="lineNum">     153</span>              :         logical  :: phase     = .false. !! whether the step was an iteration of a restoration phase</span>
+<span id="L154"><span class="lineNum">     154</span>              :         logical  :: stepped   = .false. !! whether the iteration got as far as computing a step</span>
+<span id="L155"><span class="lineNum">     155</span>              :         logical  :: soc       = .false. !! whether the accepted step was second-order corrected</span>
+<span id="L156"><span class="lineNum">     156</span>              :         logical  :: hess_reset = .false. !! whether the Hessian approximation was reset (or its shift increased)</span>
+<span id="L157"><span class="lineNum">     157</span>              :         logical  :: elastic   = .false. !! whether the QP was re-solved with diverging-multiplier constraints elastic</span>
+<span id="L158"><span class="lineNum">     158</span>              :         logical  :: escape    = .false. !! whether an escape step (from a stationary point of the violation) was taken</span>
+<span id="L159"><span class="lineNum">     159</span>              :         logical  :: nonmonotone = .false. !! whether the step came from the line search's non-monotone retry</span>
+<span id="L160"><span class="lineNum">     160</span>              :         logical  :: relaxed   = .false. !! whether the step was a watchdog relaxed step</span>
+<span id="L161"><span class="lineNum">     161</span>              :         real(wp) :: stat_unscaled = 0.0_wp !! stationarity error of the *unscaled* problem at the start of the iteration</span>
+<span id="L162"><span class="lineNum">     162</span>              :         real(wp) :: lam_max   = 0.0_wp  !! largest multiplier magnitude of the unscaled problem, after the step</span>
+<span id="L163"><span class="lineNum">     163</span>              :         real(wp) :: glob      = 0.0_wp  !! the globalization's state after the step: the merit penalty, the number</span>
+<span id="L164"><span class="lineNum">     164</span>              :                                         !! of filter entries, the funnel width, or the trust-region radius</span>
+<span id="L165"><span class="lineNum">     165</span>              :         real(wp) :: hess_measure = 0.0_wp !! the number of stored quasi-Newton pairs, or the exact Hessian's shift</span>
+<span id="L166"><span class="lineNum">     166</span>              :         integer  :: n_fc      = 0       !! calls of `fc` during the iteration (set by the caller)</span>
+<span id="L167"><span class="lineNum">     167</span>              :         logical  :: derivatives = .false. !! whether the solver switched from fast to accurate derivatives (see</span>
+<span id="L168"><span class="lineNum">     168</span>              :                                           !! `options%derivative_accuracy`)</span>
+<span id="L169"><span class="lineNum">     169</span>              :     end type sqpopt_iter_info</span>
+<span id="L170"><span class="lineNum">     170</span>              : </span>
+<span id="L171"><span class="lineNum">     171</span>              :     type, public :: sqpopt_results_type</span>
+<span id="L172"><span class="lineNum">     172</span>              :         !! the outcome of a solve (see `sqpopt_type%get_results`). Values are</span>
+<span id="L173"><span class="lineNum">     173</span>              :         !! for the original (unscaled) problem.</span>
+<span id="L174"><span class="lineNum">     174</span>              :         integer  :: istat      = 0       !! status code</span>
+<span id="L175"><span class="lineNum">     175</span>              :         character(len=:), allocatable :: message !! description of the status</span>
+<span id="L176"><span class="lineNum">     176</span>              :         integer  :: iterations = 0       !! number of major iterations performed</span>
+<span id="L177"><span class="lineNum">     177</span>              :         integer  :: n_eval_fc   = 0      !! number of calls of the objective and constraint function (`fc`)</span>
+<span id="L178"><span class="lineNum">     178</span>              :         integer  :: n_eval_gjac = 0      !! number of calls of the gradient and Jacobian function (`gjac`)</span>
+<span id="L179"><span class="lineNum">     179</span>              :         integer  :: n_eval_hess = 0      !! number of calls of the Lagrangian Hessian function (`hess`)</span>
+<span id="L180"><span class="lineNum">     180</span>              :         real(wp) :: f          = 0.0_wp  !! objective function value at `x`</span>
+<span id="L181"><span class="lineNum">     181</span>              :         real(wp) :: kkt_error  = 0.0_wp  !! KKT (stationarity/complementarity) error at `x` (of the scaled problem,</span>
+<span id="L182"><span class="lineNum">     182</span>              :                                           !! as used by the convergence test)</span>
+<span id="L183"><span class="lineNum">     183</span>              :         real(wp) :: feasibility_error = 0.0_wp !! largest violation of a constraint or variable bound at `x`</span>
+<span id="L184"><span class="lineNum">     184</span>              :         real(wp) :: stationarity_error = 0.0_wp !! stationarity error at `x` of the original (unscaled) problem (see</span>
+<span id="L185"><span class="lineNum">     185</span>              :                                                  !! `options%dual_inf_tol`)</span>
+<span id="L186"><span class="lineNum">     186</span>              :         real(wp) :: time       = 0.0_wp  !! wall-clock time of the solve (seconds)</span>
+<span id="L187"><span class="lineNum">     187</span>              :         real(wp) :: time_functions = 0.0_wp !! of which, in the user's functions</span>
+<span id="L188"><span class="lineNum">     188</span>              :         real(wp) :: time_qp        = 0.0_wp !! of which, in the QP subproblem solver (without the factorizations)</span>
+<span id="L189"><span class="lineNum">     189</span>              :         real(wp) :: time_factorization = 0.0_wp !! of which, in the sparse factorizations and their solves (see</span>
+<span id="L190"><span class="lineNum">     190</span>              :                                                 !! `n_factorizations`)</span>
+<span id="L191"><span class="lineNum">     191</span>              :         integer  :: n_qp_iterations      = 0 !! total active-set iterations of the QP subproblem solves (and, for</span>
+<span id="L192"><span class="lineNum">     192</span>              :                                              !! those solved directly, changes of the working set)</span>
+<span id="L193"><span class="lineNum">     193</span>              :         integer  :: n_qp_solves          = 0 !! QP subproblems solved (without those of restoration phases)</span>
+<span id="L194"><span class="lineNum">     194</span>              :         integer  :: n_direct_qp          = 0 !! of which, solved directly, without the active-set solver (see</span>
+<span id="L195"><span class="lineNum">     195</span>              :                                              !! `options%direct_qp`)</span>
+<span id="L196"><span class="lineNum">     196</span>              :         integer  :: n_unconstrained_qp   = 0 !! of which, solved by the unconstrained step of the limited-memory</span>
+<span id="L197"><span class="lineNum">     197</span>              :                                              !! BFGS Hessian, without a QP solver (see</span>
+<span id="L198"><span class="lineNum">     198</span>              :                                              !! `qp_solver%unconstrained_step`)</span>
+<span id="L199"><span class="lineNum">     199</span>              :         integer  :: n_daqp_fallbacks     = 0 !! of which, with `options%qp_solver_mode = sqpopt_qp_daqp`, not solved</span>
+<span id="L200"><span class="lineNum">     200</span>              :                                              !! by DAQP (a nonconvex QP, inconsistent linearized constraints, ...),</span>
+<span id="L201"><span class="lineNum">     201</span>              :                                              !! but by the dense QP solver instead</span>
+<span id="L202"><span class="lineNum">     202</span>              :         integer  :: n_factorizations     = 0 !! sparse factorizations, by the inertia control, the direct QP</span>
+<span id="L203"><span class="lineNum">     203</span>              :                                              !! method, and the direct least-squares solves (see</span>
+<span id="L204"><span class="lineNum">     204</span>              :                                              !! `options%inertia_control`, `direct_qp`, and</span>
+<span id="L205"><span class="lineNum">     205</span>              :                                              !! `direct_least_squares`; `0` without them)</span>
+<span id="L206"><span class="lineNum">     206</span>              :         integer  :: n_soc                = 0 !! accepted second-order-corrected steps</span>
+<span id="L207"><span class="lineNum">     207</span>              :         integer  :: n_hessian_resets     = 0 !! iterations in which the Hessian approximation was reset (or, with the</span>
+<span id="L208"><span class="lineNum">     208</span>              :                                              !! exact Hessian, its shift increased)</span>
+<span id="L209"><span class="lineNum">     209</span>              :         integer  :: n_restoration_steps  = 0 !! iterations that took a feasibility-restoration step (including those</span>
+<span id="L210"><span class="lineNum">     210</span>              :                                              !! of restoration phases)</span>
+<span id="L211"><span class="lineNum">     211</span>              :         integer  :: n_restoration_phases = 0 !! restoration phases entered</span>
+<span id="L212"><span class="lineNum">     212</span>              :         integer  :: n_elastic            = 0 !! QP re-solves with constraints elastic (see</span>
+<span id="L213"><span class="lineNum">     213</span>              :                                              !! `options%elastic_multiplier_limit`)</span>
+<span id="L214"><span class="lineNum">     214</span>              :         integer  :: n_escape             = 0 !! escape steps from a stationary point of the violation</span>
+<span id="L215"><span class="lineNum">     215</span>              :         integer  :: derivative_switch_iteration = 0 !! the iteration at which the solver switched from fast to</span>
+<span id="L216"><span class="lineNum">     216</span>              :                                                     !! accurate derivatives (`0` if it didn't: see</span>
+<span id="L217"><span class="lineNum">     217</span>              :                                                     !! `options%derivative_accuracy`)</span>
+<span id="L218"><span class="lineNum">     218</span>              :         real(wp), dimension(:), allocatable :: x      !! final point `dimension(n)`</span>
+<span id="L219"><span class="lineNum">     219</span>              :         real(wp), dimension(:), allocatable :: c      !! constraint values at `x` `dimension(m)`</span>
+<span id="L220"><span class="lineNum">     220</span>              :         real(wp), dimension(:), allocatable :: lambda !! constraint multipliers `dimension(m)` (for the Lagrangian</span>
+<span id="L221"><span class="lineNum">     221</span>              :                                                       !! \( f - \lambda^T c - z^T x \): \( \lambda_i \ge 0 \) at a lower</span>
+<span id="L222"><span class="lineNum">     222</span>              :                                                       !! bound, \( \le 0 \) at an upper bound)</span>
+<span id="L223"><span class="lineNum">     223</span>              :         real(wp), dimension(:), allocatable :: z      !! variable-bound multipliers `dimension(n)` (same sign convention;</span>
+<span id="L224"><span class="lineNum">     224</span>              :                                                       !! zero for a variable not at a bound)</span>
+<span id="L225"><span class="lineNum">     225</span>              :         type(sqpopt_diagnosis_type) :: diagnosis      !! the diagnostics of the solve (only with</span>
+<span id="L226"><span class="lineNum">     226</span>              :                                                       !! `options%diagnostic_level &gt;= 1`)</span>
+<span id="L227"><span class="lineNum">     227</span>              :     end type sqpopt_results_type</span>
+<span id="L228"><span class="lineNum">     228</span>              : </span>
+<span id="L229"><span class="lineNum">     229</span>              :     abstract interface</span>
+<span id="L230"><span class="lineNum">     230</span>              :         subroutine sqpopt_report_func(iter, x, f, c, lambda, user_stop, data)</span>
+<span id="L231"><span class="lineNum">     231</span>              :             !! user-supplied callback invoked once per major SQP iteration</span>
+<span id="L232"><span class="lineNum">     232</span>              :             !! for progress monitoring (see `sqpopt_type%initialize`'s</span>
+<span id="L233"><span class="lineNum">     233</span>              :             !! `report` argument). Set `user_stop=.true.` to have the</span>
+<span id="L234"><span class="lineNum">     234</span>              :             !! solver stop after the current iteration</span>
+<span id="L235"><span class="lineNum">     235</span>              :             !! (`istat=sqpopt_user_requested_stop`). The values are for the</span>
+<span id="L236"><span class="lineNum">     236</span>              :             !! original (unscaled) problem.</span>
+<span id="L237"><span class="lineNum">     237</span>              :             import :: wp</span>
+<span id="L238"><span class="lineNum">     238</span>              :             implicit none</span>
+<span id="L239"><span class="lineNum">     239</span>              :             integer,                intent(in)    :: iter      !! major iteration number (starts at 1)</span>
+<span id="L240"><span class="lineNum">     240</span>              :             real(wp), dimension(:), intent(in)    :: x         !! current optimization variables `dimension(n)`</span>
+<span id="L241"><span class="lineNum">     241</span>              :             real(wp),               intent(in)    :: f         !! current objective function value</span>
+<span id="L242"><span class="lineNum">     242</span>              :             real(wp), dimension(:), intent(in)    :: c         !! current constraint values `dimension(m)`</span>
+<span id="L243"><span class="lineNum">     243</span>              :             real(wp), dimension(:), intent(in)    :: lambda    !! current Lagrange multiplier estimate `dimension(m)`</span>
+<span id="L244"><span class="lineNum">     244</span>              :             logical,                intent(out)   :: user_stop !! set `.true.` to request the solver stop</span>
+<span id="L245"><span class="lineNum">     245</span>              :             class(*), optional,     intent(inout) :: data      !! the user data given to `set_functions`</span>
+<span id="L246"><span class="lineNum">     246</span>              :         end subroutine sqpopt_report_func</span>
+<span id="L247"><span class="lineNum">     247</span>              :     end interface</span>
+<span id="L248"><span class="lineNum">     248</span>              : </span>
+<span id="L249"><span class="lineNum">     249</span>              :     public :: sqpopt_report_func</span>
+<span id="L250"><span class="lineNum">     250</span>              : </span>
+<span id="L251"><span class="lineNum">     251</span>              :     contains</span>
+<span id="L252"><span class="lineNum">     252</span>              : !*******************************************************************************</span>
+<span id="L253"><span class="lineNum">     253</span>              : </span>
+<span id="L254"><span class="lineNum">     254</span>              : !*******************************************************************************</span>
+<span id="L255"><span class="lineNum">     255</span>              : !&gt;</span>
+<span id="L256"><span class="lineNum">     256</span>              : !  a human-readable description of a solver status code.</span>
+<span id="L257"><span class="lineNum">     257</span>              : </span>
+<span id="L258"><span class="lineNum">     258</span> <span class="tlaGNC">         947 :     pure function sqpopt_status_message(istat) result(msg)</span></span>
+<span id="L259"><span class="lineNum">     259</span>              : </span>
+<span id="L260"><span class="lineNum">     260</span>              :     integer, intent(in) :: istat !! status code (one of the `sqpopt_*` status parameters)</span>
+<span id="L261"><span class="lineNum">     261</span>              :     character(len=:), allocatable :: msg</span>
+<span id="L262"><span class="lineNum">     262</span>              : </span>
+<span id="L263"><span class="lineNum">     263</span> <span class="tlaGNC">        1765 :     select case (istat)</span></span>
+<span id="L264"><span class="lineNum">     264</span> <span class="tlaGNC">         818 :     case (sqpopt_success);             msg = 'converged successfully'</span></span>
+<span id="L265"><span class="lineNum">     265</span> <span class="tlaGNC">          28 :     case (sqpopt_acceptable);          msg = 'converged to an acceptable level'</span></span>
+<span id="L266"><span class="lineNum">     266</span> <span class="tlaGNC">          17 :     case (sqpopt_stalled);             msg = 'feasible, but no further progress is being made'</span></span>
+<span id="L267"><span class="lineNum">     267</span> <span class="tlaGNC">           2 :     case (sqpopt_max_iter_reached);    msg = 'maximum number of iterations reached'</span></span>
+<span id="L268"><span class="lineNum">     268</span> <span class="tlaGNC">           1 :     case (sqpopt_user_requested_stop); msg = 'user requested stop'</span></span>
+<span id="L269"><span class="lineNum">     269</span> <span class="tlaGNC">           1 :     case (sqpopt_max_evals_reached);   msg = 'maximum number of function evaluations reached'</span></span>
+<span id="L270"><span class="lineNum">     270</span> <span class="tlaGNC">           1 :     case (sqpopt_time_limit_reached);  msg = 'time limit reached'</span></span>
+<span id="L271"><span class="lineNum">     271</span> <span class="tlaGNC">          20 :     case (sqpopt_infeasible);          msg = 'problem appears to be (locally) infeasible'</span></span>
+<span id="L272"><span class="lineNum">     272</span> <span class="tlaGNC">           7 :     case (sqpopt_line_search_failed);  msg = 'line search failed to find an acceptable step'</span></span>
+<span id="L273"><span class="lineNum">     273</span> <span class="tlaGNC">           2 :     case (sqpopt_qp_solve_failed);     msg = 'QP subproblem solver failed'</span></span>
+<span id="L274"><span class="lineNum">     274</span> <span class="tlaGNC">          44 :     case (sqpopt_invalid_input);       msg = 'invalid problem definition or options'</span></span>
+<span id="L275"><span class="lineNum">     275</span>              :     case (sqpopt_function_error);      msg = 'the problem functions returned a non-finite value (NaN or Inf), '// &amp;</span>
+<span id="L276"><span class="lineNum">     276</span> <span class="tlaGNC">           4 :                                                'or could not be evaluated, at the current point'</span></span>
+<span id="L277"><span class="lineNum">     277</span> <span class="tlaGNC">           1 :     case (sqpopt_unbounded);           msg = 'the objective fell below its lower limit (the problem appears to be unbounded)'</span></span>
+<span id="L278"><span class="lineNum">     278</span> <span class="tlaGNC">           1 :     case (sqpopt_out_of_memory);       msg = 'out of memory (an array could not be allocated)'</span></span>
+<span id="L279"><span class="lineNum">     279</span> <span class="tlaGNC">         947 :     case default;                      msg = 'unknown status code'</span></span>
+<span id="L280"><span class="lineNum">     280</span>              :     end select</span>
+<span id="L281"><span class="lineNum">     281</span>              : </span>
+<span id="L282"><span class="lineNum">     282</span> <span class="tlaGNC">         947 :     end function sqpopt_status_message</span></span>
+<span id="L283"><span class="lineNum">     283</span>              : !*******************************************************************************</span>
+<span id="L284"><span class="lineNum">     284</span>              : </span>
+<span id="L285"><span class="lineNum">     285</span>              : !*******************************************************************************</span>
+<span id="L286"><span class="lineNum">     286</span>              : !&gt;</span>
+<span id="L287"><span class="lineNum">     287</span>              : !  the flags of an iteration, as in the last column of the iteration log</span>
+<span id="L288"><span class="lineNum">     288</span>              : !  (see `options%print_level`): `R` restoration step, `P` restoration</span>
+<span id="L289"><span class="lineNum">     289</span>              : !  phase, `S` second-order correction, `H` Hessian reset, `E` elastic QP</span>
+<span id="L290"><span class="lineNum">     290</span>              : !  re-solve, `X` escape step, `N` non-monotone step, `W` watchdog relaxed</span>
+<span id="L291"><span class="lineNum">     291</span>              : !  step, `D` switched to accurate derivatives, `Q` QP failed, `F` no</span>
+<span id="L292"><span class="lineNum">     292</span>              : !  acceptable step.</span>
+<span id="L293"><span class="lineNum">     293</span>              : </span>
+<span id="L294"><span class="lineNum">     294</span> <span class="tlaGNC">         126 :     pure function sqpopt_iteration_flags(info, iter_istat) result(flags)</span></span>
+<span id="L295"><span class="lineNum">     295</span>              : </span>
+<span id="L296"><span class="lineNum">     296</span>              :     type(sqpopt_iter_info), intent(in) :: info       !! what happened in the iteration</span>
+<span id="L297"><span class="lineNum">     297</span>              :     integer,                intent(in) :: iter_istat !! the iteration's status code</span>
+<span id="L298"><span class="lineNum">     298</span>              :     character(len=12) :: flags</span>
+<span id="L299"><span class="lineNum">     299</span>              : </span>
+<span id="L300"><span class="lineNum">     300</span> <span class="tlaGNC">         126 :     flags = ''</span></span>
+<span id="L301"><span class="lineNum">     301</span> <span class="tlaGNC">         126 :     if (info%restoration .and. .not. info%phase) flags = trim(flags)//'R'</span></span>
+<span id="L302"><span class="lineNum">     302</span> <span class="tlaGNC">         126 :     if (info%phase)       flags = trim(flags)//'P'</span></span>
+<span id="L303"><span class="lineNum">     303</span> <span class="tlaGNC">         126 :     if (info%soc)         flags = trim(flags)//'S'</span></span>
+<span id="L304"><span class="lineNum">     304</span> <span class="tlaGNC">         126 :     if (info%hess_reset)  flags = trim(flags)//'H'</span></span>
+<span id="L305"><span class="lineNum">     305</span> <span class="tlaGNC">         126 :     if (info%elastic)     flags = trim(flags)//'E'</span></span>
+<span id="L306"><span class="lineNum">     306</span> <span class="tlaGNC">         126 :     if (info%escape)      flags = trim(flags)//'X'</span></span>
+<span id="L307"><span class="lineNum">     307</span> <span class="tlaGNC">         126 :     if (info%nonmonotone) flags = trim(flags)//'N'</span></span>
+<span id="L308"><span class="lineNum">     308</span> <span class="tlaGNC">         126 :     if (info%relaxed)     flags = trim(flags)//'W'</span></span>
+<span id="L309"><span class="lineNum">     309</span> <span class="tlaGNC">         126 :     if (info%derivatives) flags = trim(flags)//'D'</span></span>
+<span id="L310"><span class="lineNum">     310</span> <span class="tlaGNC">         126 :     if (info%qp_istat == sqpopt_qp_solve_failed) flags = trim(flags)//'Q'</span></span>
+<span id="L311"><span class="lineNum">     311</span> <span class="tlaGNC">         126 :     if (info%stepped .and. iter_istat /= sqpopt_success .and. iter_istat /= sqpopt_qp_solve_failed) then</span></span>
+<span id="L312"><span class="lineNum">     312</span> <span class="tlaUNC">           0 :         flags = trim(flags)//'F'</span></span>
+<span id="L313"><span class="lineNum">     313</span>              :     end if</span>
+<span id="L314"><span class="lineNum">     314</span>              : </span>
+<span id="L315"><span class="lineNum">     315</span> <span class="tlaGNC">         126 :     end function sqpopt_iteration_flags</span></span>
+<span id="L316"><span class="lineNum">     316</span>              : !*******************************************************************************</span>
+<span id="L317"><span class="lineNum">     317</span>              : </span>
+<span id="L318"><span class="lineNum">     318</span>              : !*******************************************************************************</span>
+<span id="L319"><span class="lineNum">     319</span>              : !&gt;</span>
+<span id="L320"><span class="lineNum">     320</span>              : !  true if every element of `v` is finite (not NaN or +/-Inf). Uses</span>
+<span id="L321"><span class="lineNum">     321</span>              : !  `ieee_is_finite`, which (unlike an ordinary comparison) does not</span>
+<span id="L322"><span class="lineNum">     322</span>              : !  raise an IEEE invalid exception on a NaN.</span>
+<span id="L323"><span class="lineNum">     323</span>              : </span>
+<span id="L324"><span class="lineNum">     324</span> <span class="tlaGNC">      222123 :     pure logical function sqpopt_all_finite(v)</span></span>
+<span id="L325"><span class="lineNum">     325</span>              : </span>
+<span id="L326"><span class="lineNum">     326</span>              :     real(wp), dimension(:), intent(in) :: v !! the values to check</span>
+<span id="L327"><span class="lineNum">     327</span>              : </span>
+<span id="L328"><span class="lineNum">     328</span> <span class="tlaGNC">    70199907 :     sqpopt_all_finite = all(ieee_is_finite(v))</span></span>
+<span id="L329"><span class="lineNum">     329</span>              : </span>
+<span id="L330"><span class="lineNum">     330</span> <span class="tlaGNC">      222123 :     end function sqpopt_all_finite</span></span>
+<span id="L331"><span class="lineNum">     331</span>              : !*******************************************************************************</span>
+<span id="L332"><span class="lineNum">     332</span>              : </span>
+<span id="L333"><span class="lineNum">     333</span>              : !*******************************************************************************</span>
+<span id="L334"><span class="lineNum">     334</span>              : !&gt;</span>
+<span id="L335"><span class="lineNum">     335</span>              : !  the \( \ell_1 \) constraint violation \( h(x) = \lVert \max(c_l-c,0,c-c_u)</span>
+<span id="L336"><span class="lineNum">     336</span>              : !  \rVert_1 \) (the filter's and the funnel's \( \theta \), and the violation</span>
+<span id="L337"><span class="lineNum">     337</span>              : !  term of the `sqpopt_merit_l1` merit function).</span>
+<span id="L338"><span class="lineNum">     338</span>              : </span>
+<span id="L339"><span class="lineNum">     339</span> <span class="tlaGNC">       53335 :     pure function l1_violation(c, c_lb, c_ub) result(h)</span></span>
+<span id="L340"><span class="lineNum">     340</span>              : </span>
+<span id="L341"><span class="lineNum">     341</span>              :     real(wp), dimension(:), intent(in) :: c    !! constraint values `dimension(m)`</span>
+<span id="L342"><span class="lineNum">     342</span>              :     real(wp), dimension(:), intent(in) :: c_lb !! their lower bounds `dimension(m)`</span>
+<span id="L343"><span class="lineNum">     343</span>              :     real(wp), dimension(:), intent(in) :: c_ub !! their upper bounds `dimension(m)`</span>
+<span id="L344"><span class="lineNum">     344</span>              :     real(wp) :: h</span>
+<span id="L345"><span class="lineNum">     345</span>              : </span>
+<span id="L346"><span class="lineNum">     346</span> <span class="tlaGNC">     2344499 :     h = sum(max(c_lb-c, 0.0_wp) + max(c-c_ub, 0.0_wp))</span></span>
+<span id="L347"><span class="lineNum">     347</span>              : </span>
+<span id="L348"><span class="lineNum">     348</span> <span class="tlaGNC">       53335 :     end function l1_violation</span></span>
+<span id="L349"><span class="lineNum">     349</span>              : !*******************************************************************************</span>
+<span id="L350"><span class="lineNum">     350</span>              : </span>
+<span id="L351"><span class="lineNum">     351</span>              : !*******************************************************************************</span>
+<span id="L352"><span class="lineNum">     352</span>              : !&gt;</span>
+<span id="L353"><span class="lineNum">     353</span>              : !  the roundoff-level slack allowed when comparing a trial merit function</span>
+<span id="L354"><span class="lineNum">     354</span>              : !  (or objective) value against the current one,</span>
+<span id="L355"><span class="lineNum">     355</span>              : !  \( 10 \epsilon \max(1,|\phi_0|) \) (as in IPOPT's `Compare_le`).</span>
+<span id="L356"><span class="lineNum">     356</span>              : </span>
+<span id="L357"><span class="lineNum">     357</span> <span class="tlaGNC">       22259 :     pure function merit_slack(phi0) result(slack)</span></span>
+<span id="L358"><span class="lineNum">     358</span>              : </span>
+<span id="L359"><span class="lineNum">     359</span>              :     real(wp), intent(in) :: phi0 !! merit function (or objective) value at the current point</span>
+<span id="L360"><span class="lineNum">     360</span>              :     real(wp) :: slack</span>
+<span id="L361"><span class="lineNum">     361</span>              : </span>
+<span id="L362"><span class="lineNum">     362</span> <span class="tlaGNC">       22259 :     slack = 10.0_wp*epsilon(1.0_wp)*max(1.0_wp, abs(phi0))</span></span>
+<span id="L363"><span class="lineNum">     363</span>              : </span>
+<span id="L364"><span class="lineNum">     364</span> <span class="tlaGNC">       22259 :     end function merit_slack</span></span>
+<span id="L365"><span class="lineNum">     365</span>              : !*******************************************************************************</span>
+<span id="L366"><span class="lineNum">     366</span>              : </span>
+<span id="L367"><span class="lineNum">     367</span> <span class="tlaUNC">           0 :     end module sqpopt_types_module</span></span>
+<span id="L368"><span class="lineNum">     368</span>              : !*******************************************************************************</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com/linux-test-project/lcov" target="_parent">LCOV version 2.5-0</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

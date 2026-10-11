@@ -1,0 +1,1519 @@
+<!-- -*- mode: jinja2 -*- -->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- sqpopt theme: set before the page is drawn; the guide's choice (the same
+         localStorage key, on the same site), or else the system's -->
+    <script>
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('sqpopt-theme'); } catch (e) {}
+        if (t !== 'dark' && t !== 'light') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-bs-theme', t);
+      })();
+    </script>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta name="description" content="Modern Fortran SQP OPTimizer">
+    <meta name="author" content="Jacob Williams" >
+    <link rel="icon" href="../favicon.png">
+
+    <title>sqpopt_kkt_type &ndash; sqpopt </title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <!-- Font Awesome -->
+    <link href="../css/fontawesome.min.css" rel="stylesheet">
+    <link href="../css/brands.min.css" rel="stylesheet">
+    <link href="../css/regular.min.css" rel="stylesheet">
+    <link href="../css/solid.min.css" rel="stylesheet">
+    <link href="../css/v4-font-face.min.css" rel="stylesheet">
+    <link href="../css/v4-shims.min.css" rel="stylesheet">
+    <!-- MathJax -->
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        TeX: { equationNumbers: { autoNumber: "AMS" } }
+      });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@2.7.9/MathJax.js?config=TeX-AMS-MML_HTMLorMML" async
+            integrity="sha256-DViIOMYdwlM/axqoGDPeUyf0urLoHMN4QACBKyB58Uw=" crossorigin="anonymous"></script>
+    <!-- Other scripts and stylesheets -->
+    <link href="../css/local.css" rel="stylesheet">
+    <link href="../css/pygments.css" rel="stylesheet">
+      <link href="../css/user.css" rel="stylesheet">
+    <script src="../js/svg-pan-zoom.min.js"></script>
+  </head>
+
+  <body>
+
+    <!-- Fixed navbar -->
+    <div class="container-fluid mb-sm-4 mb-xl-2">
+      <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+          <a class="navbar-brand" href="../index.html">sqpopt </a>
+          <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbar"
+                  aria-expanded="false" aria-controls="navbar" aria-label="Toggle navigation">
+                  <span class="navbar-toggler-icon">
+          </button>
+
+          <div id="navbar" class="navbar-collapse collapse">
+            <ul class="navbar-nav">
+                  <li class="nav-item">
+                    <a class="nav-link" href="../lists/files.html">Source Files</a>
+                  </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/modules.html">Modules</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/procedures.html">Procedures</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/absint.html">Abstract Interfaces</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/types.html">Derived Types</a>
+                </li>
+            </ul>
+              <div class="d-flex align-items-end flex-grow-1">
+                <form action="../search.html" role="search" class="ms-auto">
+                  <input type="text" class="form-control" aria-label="Search" placeholder="Search" name="q" id="tipue_search_input" autocomplete="off" required>
+                </form>
+              </div>
+            <!-- sqpopt theme: the light/dark button -->
+            <button type="button" class="btn nav-link theme-toggle ms-lg-3" aria-label="Toggle dark mode" title="Toggle dark mode">
+              <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg>
+              <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div><!--/.nav-collapse -->
+        </div>
+      </nav>
+    </div>
+
+    <div class="container">
+  <div class="row">
+    <h1>sqpopt_kkt_type
+      <small>Derived Type</small>
+      
+    </h1>
+      <div class="container p-2 mb-4 bg-light border rounded-3">
+    <div class="row align-items-center justify-content-between" id="info-bar">
+      <div class="col">
+        <ul class="list-inline" style="margin-bottom:0px;display:inline">
+
+            <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
+              <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
+                 title="<p> 3.7% of total for derived types.</p>Including implementation: 151 statements,  2.3% of total for derived types.">27 statements</a>
+            </li>
+
+            <li class="list-inline-item" id="source-file">
+              <i class="fa fa-code"></i>
+              <a href="../src/sqpopt_kkt_module.f90"> Source File</a>
+            </li>
+        </ul>
+      </div>
+      <div class="col">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb justify-content-end mb-0">
+                <li class="breadcrumb-item"><a href='../sourcefile/sqpopt_kkt_module.f90.html'>sqpopt_kkt_module.f90</a></li>
+                <li class="breadcrumb-item"><a href='../module/sqpopt_kkt_module.html'>sqpopt_kkt_module</a></li>
+            <li class="breadcrumb-item active" aria-current="page">sqpopt_kkt_type</li>
+          </ol>
+        </nav>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Enable Bootstrap tooltips
+    (function () {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+      const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+    })();
+  </script>
+
+  </div>
+  
+  <div class="row">
+    <div class="col-md-3 hidden-xs hidden-sm visible-md visible-lg">
+      <div id="sidebar">
+      <h3>Contents</h3>
+  
+      <div class="card mb-4">
+      <a data-bs-toggle="collapse" href="#vars-0"
+         aria-expanded="false" aria-controls="vars-0">
+         <h4 class="card-header bg-primary text-white">Variables</h4>
+      </a>
+      <div id="vars-0" class="collapse">
+        <div class="list-group list-group-flush">
+            <a class="list-group-item" href="../type/sqpopt_kkt_type.html#variable-enabled~3">enabled</a>
+            <a class="list-group-item" href="../type/sqpopt_kkt_type.html#variable-n_negative~2">n_negative</a>
+            <a class="list-group-item" href="../type/sqpopt_kkt_type.html#variable-singular">singular</a>
+            <a class="list-group-item" href="../type/sqpopt_kkt_type.html#variable-inertia_known">inertia_known</a>
+            <a class="list-group-item" href="../type/sqpopt_kkt_type.html#variable-solver">solver</a>
+            <a class="list-group-item" href="../type/sqpopt_kkt_type.html#variable-n~20">n</a>
+            <a class="list-group-item" href="../type/sqpopt_kkt_type.html#variable-m~8">m</a>
+            <a class="list-group-item" href="../type/sqpopt_kkt_type.html#variable-h_irow~2">h_irow</a>
+            <a class="list-group-item" href="../type/sqpopt_kkt_type.html#variable-h_icol~2">h_icol</a>
+            <a class="list-group-item" href="../type/sqpopt_kkt_type.html#variable-val~5">val</a>
+            <a class="list-group-item" href="../type/sqpopt_kkt_type.html#variable-current">current</a>
+            <a class="list-group-item" href="../type/sqpopt_kkt_type.html#variable-in_set">in_set</a>
+            <a class="list-group-item" href="../type/sqpopt_kkt_type.html#variable-diag~2">diag</a>
+            <a class="list-group-item" href="../type/sqpopt_kkt_type.html#variable-reg">reg</a>
+            <a class="list-group-item" href="../type/sqpopt_kkt_type.html#variable-rank">rank</a>
+            <a class="list-group-item" href="../type/sqpopt_kkt_type.html#variable-t_lu">t_lu</a>
+            <a class="list-group-item" href="../type/sqpopt_kkt_type.html#variable-t_piv">t_piv</a>
+        </div>
+      </div>
+    </div>
+
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+      <div class="card mb-4">
+      <a data-bs-toggle="collapse" href="#boundprocs-0"
+         aria-expanded="false" aria-controls="boundprocs-0">
+         <h4 class="card-header bg-primary text-white">Type-Bound Procedures</h4>
+      </a>
+      <div id="boundprocs-0" class="collapse">
+        <div class="list-group list-group-flush">
+            <a class="list-group-item" href="../type/sqpopt_kkt_type.html#boundprocedure-initialize~2">initialize</a>
+            <a class="list-group-item" href="../type/sqpopt_kkt_type.html#boundprocedure-new_matrices">new_matrices</a>
+            <a class="list-group-item" href="../type/sqpopt_kkt_type.html#boundprocedure-factor">factor</a>
+            <a class="list-group-item" href="../type/sqpopt_kkt_type.html#boundprocedure-factor_identity">factor_identity</a>
+            <a class="list-group-item" href="../type/sqpopt_kkt_type.html#boundprocedure-solve~4">solve</a>
+            <a class="list-group-item" href="../type/sqpopt_kkt_type.html#boundprocedure-destroy">destroy</a>
+        </div>
+      </div>
+    </div>
+
+  
+  
+    <div class="card card-primary">
+      <div class="card-header text-left"><h3 class="card-title">Source Code</h3></div>
+      <div class="list-group">
+        <a class="list-group-item" href="../type/sqpopt_kkt_type.html#src">sqpopt_kkt_type</a>
+      </div>
+    </div>
+
+
+  </div>
+
+    </div>
+    
+    <div class="col-md-9" id='text'>
+      <h2 id="type-def-statement">
+        type, public :: sqpopt_kkt_type</h2>
+    <p>the KKT matrix of a working set, and its factorization (see the
+module documentation). It holds the sparse solver, so it must not
+be copied, and <a href="../proc/kkt_destroy.html">kkt_destroy</a> must be called when the solve ends.</p>
+<br>      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">Inherits</h3>
+        </div>
+        <div class="card-body">
+          <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: type~~sqpopt_kkt_type~~InheritsGraph Pages: 1 -->
+<svg id="typesqpopt_kkt_typeInheritsGraph" width="528pt" height="32pt"
+ viewBox="0.00 0.00 528.00 32.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="type~~sqpopt_kkt_type~~InheritsGraph" class="graph" transform="scale(1 1) rotate(0) translate(4 28.27)">
+<title>type~~sqpopt_kkt_type~~InheritsGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 523.81,-28.27 523.81,4 -4,4"/>
+<!-- type~sqpopt_kkt_type -->
+<g id="type~~sqpopt_kkt_type~~InheritsGraph_node1" class="node">
+<title>type~sqpopt_kkt_type</title>
+<polygon fill="none" stroke="black" points="519.81,-24.27 422.79,-24.27 422.79,0 519.81,0 519.81,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="471.3" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_kkt_type</text>
+</g>
+<!-- type~sqpopt_symmetric_solver_type -->
+<g id="type~~sqpopt_kkt_type~~InheritsGraph_node2" class="node">
+<title>type~sqpopt_symmetric_solver_type</title>
+<g id="a_type~~sqpopt_kkt_type~~InheritsGraph_node2"><a xlink:href="../type/sqpopt_symmetric_solver_type.html" xlink:title="sqpopt_symmetric_solver_type">
+<polygon fill="#5cb85c" stroke="#5cb85c" points="357.54,-24.27 182.52,-24.27 182.52,0 357.54,0 357.54,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="270.03" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_symmetric_solver_type</text>
+</a>
+</g>
+</g>
+<!-- type~sqpopt_kkt_type&#45;&gt;type~sqpopt_symmetric_solver_type -->
+<g id="type~~sqpopt_kkt_type~~InheritsGraph_edge1" class="edge">
+<title>type~sqpopt_kkt_type&#45;&gt;type~sqpopt_symmetric_solver_type</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M422.32,-12.13C406.29,-12.13 387.81,-12.13 369.38,-12.13"/>
+<polygon fill="#000000" stroke="#000000" points="369.45,-8.64 359.45,-12.14 369.45,-15.64 369.45,-8.64"/>
+<text xml:space="preserve" text-anchor="middle" x="390.17" y="-14.36" font-family="Helvetica,sans-Serif" font-size="9.50">solver</text>
+</g>
+<!-- type~sqpopt_sparse_ldl_type -->
+<g id="type~~sqpopt_kkt_type~~InheritsGraph_node3" class="node">
+<title>type~sqpopt_sparse_ldl_type</title>
+<g id="a_type~~sqpopt_kkt_type~~InheritsGraph_node3"><a xlink:href="../type/sqpopt_sparse_ldl_type.html" xlink:title="sqpopt_sparse_ldl_type">
+<polygon fill="#5cb85c" stroke="#5cb85c" points="134.52,-24.27 0,-24.27 0,0 134.52,0 134.52,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="67.26" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_sparse_ldl_type</text>
+</a>
+</g>
+</g>
+<!-- type~sqpopt_symmetric_solver_type&#45;&gt;type~sqpopt_sparse_ldl_type -->
+<g id="type~~sqpopt_kkt_type~~InheritsGraph_edge2" class="edge">
+<title>type~sqpopt_symmetric_solver_type&#45;&gt;type~sqpopt_sparse_ldl_type</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M182.14,-12.13C170.29,-12.13 158.2,-12.13 146.52,-12.13"/>
+<polygon fill="#000000" stroke="#000000" points="146.52,-8.64 136.52,-12.14 146.52,-15.64 146.52,-8.64"/>
+<text xml:space="preserve" text-anchor="middle" x="158.52" y="-14.36" font-family="Helvetica,sans-Serif" font-size="9.50">ldl</text>
+</g>
+</g>
+</svg>
+</div>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#InheritsGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="InheritsGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="184pt" height="32pt"
+ viewBox="0.00 0.00 184.00 32.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 179.88,-28.27 179.88,4 -4,4"/>
+<!-- Type -->
+<g id="node1" class="node">
+<title>Type</title>
+<polygon fill="#5cb85c" stroke="#5cb85c" points="54,-24.27 0,-24.27 0,0 54,0 54,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="27" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Type</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node2" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="175.88,-24.27 72.12,-24.27 72.12,0 175.88,0 175.88,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="124" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a derived type to the parent type which it
+extends. Dashed arrows point from a derived type to the other
+types it contains as a components, with a label listing the name(s) of
+said component(s).
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <h3 class="card-title">Inherited by</h3>
+        </div>
+        <div class="card-body">
+          <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: type~~sqpopt_kkt_type~~InheritedByGraph Pages: 1 -->
+<svg id="typesqpopt_kkt_typeInheritedByGraph" width="309pt" height="32pt"
+ viewBox="0.00 0.00 309.00 32.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="type~~sqpopt_kkt_type~~InheritedByGraph" class="graph" transform="scale(1 1) rotate(0) translate(4 28.27)">
+<title>type~~sqpopt_kkt_type~~InheritedByGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 304.54,-28.27 304.54,4 -4,4"/>
+<!-- type~sqpopt_kkt_type -->
+<g id="type~~sqpopt_kkt_type~~InheritedByGraph_node1" class="node">
+<title>type~sqpopt_kkt_type</title>
+<polygon fill="none" stroke="black" points="97.02,-24.27 0,-24.27 0,0 97.02,0 97.02,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="48.51" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_kkt_type</text>
+</g>
+<!-- type~sqpopt_least_squares_type -->
+<g id="type~~sqpopt_kkt_type~~InheritedByGraph_node2" class="node">
+<title>type~sqpopt_least_squares_type</title>
+<g id="a_type~~sqpopt_kkt_type~~InheritedByGraph_node2"><a xlink:href="../type/sqpopt_least_squares_type.html" xlink:title="sqpopt_least_squares_type">
+<polygon fill="#5cb85c" stroke="#5cb85c" points="300.54,-24.27 147.27,-24.27 147.27,0 300.54,0 300.54,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="223.91" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_least_squares_type</text>
+</a>
+</g>
+</g>
+<!-- type~sqpopt_least_squares_type&#45;&gt;type~sqpopt_kkt_type -->
+<g id="type~~sqpopt_kkt_type~~InheritedByGraph_edge1" class="edge">
+<title>type~sqpopt_least_squares_type&#45;&gt;type~sqpopt_kkt_type</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M146.85,-12.13C134.03,-12.13 120.88,-12.13 108.57,-12.13"/>
+<polygon fill="#000000" stroke="#000000" points="108.57,-8.64 98.57,-12.14 108.57,-15.64 108.57,-8.64"/>
+<text xml:space="preserve" text-anchor="middle" x="122.15" y="-14.36" font-family="Helvetica,sans-Serif" font-size="9.50">kkt</text>
+</g>
+</g>
+</svg>
+</div>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#InheritedByGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="InheritedByGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="184pt" height="32pt"
+ viewBox="0.00 0.00 184.00 32.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 179.88,-28.27 179.88,4 -4,4"/>
+<!-- Type -->
+<g id="node1" class="node">
+<title>Type</title>
+<polygon fill="#5cb85c" stroke="#5cb85c" points="54,-24.27 0,-24.27 0,0 54,0 54,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="27" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Type</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node2" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="175.88,-24.27 72.12,-24.27 72.12,0 175.88,0 175.88,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="124" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a derived type to the parent type which it
+extends. Dashed arrows point from a derived type to the other
+types it contains as a components, with a label listing the name(s) of
+said component(s).
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+        </div>
+      </div>
+    <br>
+
+    <section>
+    <h2>Components</h2>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Visibility</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+<th></th><th scope="col">Initial</th>        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-enabled~3"></span>
+              logical,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>enabled</strong></td>
+<td> =</td>
+                <td>.false.</td>
+            <td>
+                <p>whether it can be used (set by <a href="../proc/kkt_initialize.html">kkt_initialize</a>, and unset if
+a factorization fails)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-n_negative~2"></span>
+              integer,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>n_negative</strong></td>
+<td> =</td>
+                <td>0</td>
+            <td>
+                <p>of the last factorization: the number of directions of negative
+curvature on the working set's face (the negative eigenvalues of
+<script type="math/tex"> K </script> beyond <code>m</code>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-singular"></span>
+              logical,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>singular</strong></td>
+<td> =</td>
+                <td>.false.</td>
+            <td>
+                <p>of the last factorization: whether <script type="math/tex"> K </script> is singular (the
+working set's rows are dependent, or the face has a direction
+of zero curvature)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-inertia_known"></span>
+              logical,
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>inertia_known</strong></td>
+<td> =</td>
+                <td>.true.</td>
+            <td>
+                <p>of the last factorization: whether the sparse solver could
+tell the inertia of <script type="math/tex"> K </script> (if not, <code>n_negative</code> counts the
+directions it couldn't tell as negative curvature: see
+<a href="../proc/kkt_negatives.html">kkt_negatives</a>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-solver"></span>
+              type(<a href='sqpopt_symmetric_solver_type.html'>sqpopt_symmetric_solver_type</a>),
+            </td>
+              <td>public</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>solver</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+                <p>the sparse solver (with its counts and its time)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-n~20"></span>
+              integer,
+            </td>
+              <td>private</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>n</strong></td>
+<td> =</td>
+                <td>0</td>
+            <td>
+                <p>number of variables</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-m~8"></span>
+              integer,
+            </td>
+              <td>private</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>m</strong></td>
+<td> =</td>
+                <td>0</td>
+            <td>
+                <p>number of constraints</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-h_irow~2"></span>
+              integer,
+            </td>
+              <td>private,</td>
+            <td>
+              dimension(:), allocatable
+            </td>
+            <td>::</td>
+            <td><strong>h_irow</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+                <p>row indices of the Hessian's pattern</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-h_icol~2"></span>
+              integer,
+            </td>
+              <td>private,</td>
+            <td>
+              dimension(:), allocatable
+            </td>
+            <td>::</td>
+            <td><strong>h_icol</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+                <p>column indices of the Hessian's pattern</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-val~5"></span>
+              real(kind=wp),
+            </td>
+              <td>private,</td>
+            <td>
+              dimension(:), allocatable
+            </td>
+            <td>::</td>
+            <td><strong>val</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+                <p>the values of <script type="math/tex"> K </script>: its diagonal, then the Hessian's
+elements, then the Jacobian's</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-current"></span>
+              logical,
+            </td>
+              <td>private</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>current</strong></td>
+<td> =</td>
+                <td>.false.</td>
+            <td>
+                <p>whether there is one, for the current matrices</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-in_set"></span>
+              logical,
+            </td>
+              <td>private,</td>
+            <td>
+              dimension(:), allocatable
+            </td>
+            <td>::</td>
+            <td><strong>in_set</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+                <p>its working set <code>dimension(m+n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-diag~2"></span>
+              real(kind=wp),
+            </td>
+              <td>private</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>diag</strong></td>
+<td> =</td>
+                <td>0.0_wp</td>
+            <td>
+                <p>what was added to its Hessian's diagonal</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-reg"></span>
+              real(kind=wp),
+            </td>
+              <td>private</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>reg</strong></td>
+<td> =</td>
+                <td>0.0_wp</td>
+            <td>
+                <p>its regularization <script type="math/tex"> \epsilon </script>
+</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-rank"></span>
+              integer,
+            </td>
+              <td>private</td>
+            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>rank</strong></td>
+<td> =</td>
+                <td>0</td>
+            <td>
+                <p>the rank <code>r</code> of its quasi-Newton Hessian's low-rank part
+(<code>0</code> if it has none)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-t_lu"></span>
+              real(kind=wp),
+            </td>
+              <td>private,</td>
+            <td>
+              dimension(:,:), allocatable
+            </td>
+            <td>::</td>
+            <td><strong>t_lu</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+                <p>the LU factors of its matrix <script type="math/tex"> T </script>
+<code>dimension(r,r)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-t_piv"></span>
+              integer,
+            </td>
+              <td>private,</td>
+            <td>
+              dimension(:), allocatable
+            </td>
+            <td>::</td>
+            <td><strong>t_piv</strong></td>
+                <td></td>
+                <td></td>
+            <td>
+                <p>the row pivots of that factorization <code>dimension(r)</code></p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+    </section>
+    <br>
+    
+
+
+      <section>
+        <h2>Type-Bound Procedures</h2>
+          <div class="row">
+              <div class="card mt-3">
+    <div class="card-header codesum">
+      <span class="anchor" id="boundprocedure-initialize~2"></span>
+      <h3>
+          procedure, public ::
+  <strong>initialize</strong> => <a href='/home/runner/work/sqpopt/sqpopt/web/api/proc/kkt_initialize.html'>kkt_initialize</a>
+        
+      </h3>
+    </div>
+      <ul class="list-group">
+          <li class="list-group-item">
+                    <h3>
+    private  subroutine <a href='../proc/kkt_initialize.html'>kkt_initialize</a>(me, n, m, jac_irow, jac_icol, ok, hess_irow, hess_icol, threads, solver)  
+</h3>
+    
+
+  <p>set up the KKT matrix of a problem with <code>n</code> variables, <code>m</code> constraints,
+and the Jacobian sparsity pattern <code>jac_irow</code>/<code>jac_icol</code>. The Hessian's
+pattern is <code>hess_irow</code>/<code>hess_icol</code> (each off-diagonal element once, as
+for <a href="../proc/set_hessian_sparsity.html">set_hessian_sparsity</a>); without it, the Hessian is diagonal. The
+pattern of <script type="math/tex"> K </script> is its whole diagonal, then the Hessian's elements,
+then the Jacobian's. <code>solver</code> is the sparse solver
+(<code>sqpopt_linear_solver_*</code>, default <code>auto</code>; with QDLDL, each constraint's
+row is ordered after its variables, see <a href="../proc/delay_negative_rows.html">delay_negative_rows</a>). <code>ok</code> is
+false, and the matrix is left disabled, if that solver isn't available
+in this build or couldn't be started.</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" ></span>
+              class(<a href='sqpopt_kkt_type.html'>sqpopt_kkt_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" ></span>
+              integer,
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>n</strong></td>
+            <td>
+<p>number of variables</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" ></span>
+              integer,
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>m</strong></td>
+            <td>
+<p>number of constraints</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" ></span>
+              integer,
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>jac_irow</strong></td>
+            <td>
+<p>row indices of the Jacobian's nonzeros</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" ></span>
+              integer,
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>jac_icol</strong></td>
+            <td>
+<p>column indices of the Jacobian's nonzeros</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" ></span>
+              logical,
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>ok</strong></td>
+            <td>
+<p>whether the matrix can now be factored</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" ></span>
+              integer,
+            </td>
+<td>intent(in),</td>
+              <td>optional,</td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>hess_irow</strong></td>
+            <td>
+<p>row indices of the Hessian's nonzeros</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" ></span>
+              integer,
+            </td>
+<td>intent(in),</td>
+              <td>optional,</td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>hess_icol</strong></td>
+            <td>
+<p>column indices of the Hessian's nonzeros</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" ></span>
+              integer,
+            </td>
+<td>intent(in),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>threads</strong></td>
+            <td>
+<p>number of OpenMP threads of the sparse solver (see
+<a href="../proc/symmetric_solver_initialize.html">symmetric_solver_initialize</a>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" ></span>
+              integer,
+            </td>
+<td>intent(in),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>solver</strong></td>
+            <td>
+<p>the sparse solver (<code>sqpopt_linear_solver_*</code>)</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+          </li>
+      </ul>
+  </div>
+
+          </div>
+          <div class="row">
+              <div class="card mt-3">
+    <div class="card-header codesum">
+      <span class="anchor" id="boundprocedure-new_matrices"></span>
+      <h3>
+          procedure, public ::
+  <strong>new_matrices</strong> => <a href='/home/runner/work/sqpopt/sqpopt/web/api/proc/kkt_new_matrices.html'>kkt_new_matrices</a>
+        
+      </h3>
+    </div>
+      <ul class="list-group">
+          <li class="list-group-item">
+                    <h3>
+    private  subroutine <a href='../proc/kkt_new_matrices.html'>kkt_new_matrices</a>(me)  
+</h3>
+    
+
+  <p>note that the Hessian's or the Jacobian's values have changed (a new
+major iteration), so the factorization that is kept no longer applies.</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" ></span>
+              class(<a href='sqpopt_kkt_type.html'>sqpopt_kkt_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+          </li>
+      </ul>
+  </div>
+
+          </div>
+          <div class="row">
+              <div class="card mt-3">
+    <div class="card-header codesum">
+      <span class="anchor" id="boundprocedure-factor"></span>
+      <h3>
+          procedure, public ::
+  <strong>factor</strong> => <a href='/home/runner/work/sqpopt/sqpopt/web/api/proc/kkt_factor.html'>kkt_factor</a>
+        
+      </h3>
+    </div>
+      <ul class="list-group">
+          <li class="list-group-item">
+                    <h3>
+    private  subroutine <a href='../proc/kkt_factor.html'>kkt_factor</a>(me, hessian, jac, status, ok, reg)  
+</h3>
+    
+
+  <p>factor the KKT matrix of the working set <code>status</code>, with the Hessian
+<code>hessian</code> (the exact one, with its current values and shift, or a
+quasi-Newton one, with its current pairs: see the module documentation).
+On success, <code>n_negative</code> and <code>singular</code> describe the working set's face,
+and <a href="../proc/kkt_solve.html">kkt_solve</a> can be called. If this is the factorization that is
+kept, nothing is computed. The matrix must have been initialized with
+the Hessian's sparsity pattern in the first case, and without one in the
+second.</p><a href="../proc/kkt_factor.html" class="pull-right"><emph>Read more&hellip;</emph></a>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" ></span>
+              class(<a href='sqpopt_kkt_type.html'>sqpopt_kkt_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" ></span>
+              type(<a href='sqpopt_hessian_type.html'>sqpopt_hessian_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>hessian</strong></td>
+            <td>
+<p>the Hessian (see <a href="../module/sqpopt_hessian_module.html">sqpopt_hessian_module</a>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" ></span>
+              type(<a href='sqpopt_sparse_matrix.html'>sqpopt_sparse_matrix</a>),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>jac</strong></td>
+            <td>
+<p>the constraint Jacobian <code>dimension(m,n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" ></span>
+              integer,
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>status</strong></td>
+            <td>
+<p>the working set: nonzero for each general row, then each
+variable bound, that is in it <code>dimension(m+n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" ></span>
+              logical,
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>ok</strong></td>
+            <td>
+<p>whether the factorization is available</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" ></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>reg</strong></td>
+            <td>
+<p>the regularization <script type="math/tex"> \epsilon \ge 0 </script> (default 0)</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+          </li>
+      </ul>
+  </div>
+
+          </div>
+          <div class="row">
+              <div class="card mt-3">
+    <div class="card-header codesum">
+      <span class="anchor" id="boundprocedure-factor_identity"></span>
+      <h3>
+          procedure, public ::
+  <strong>factor_identity</strong> => <a href='/home/runner/work/sqpopt/sqpopt/web/api/proc/kkt_factor_identity.html'>kkt_factor_identity</a>
+        
+      </h3>
+    </div>
+      <ul class="list-group">
+          <li class="list-group-item">
+                    <h3>
+    private  subroutine <a href='../proc/kkt_factor_identity.html'>kkt_factor_identity</a>(me, scale, jac, status, reg, ok)  
+</h3>
+    
+
+  <p>factor the KKT matrix of the working set <code>status</code> with the Hessian
+<code>scale</code> <script type="math/tex"> \times I </script> and the regularization <code>reg</code> (<script type="math/tex"> \epsilon </script>),
+as <a href="../proc/kkt_factor.html">kkt_factor</a> does for the exact Hessian. The matrix must have been
+initialized without a Hessian pattern.</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" ></span>
+              class(<a href='sqpopt_kkt_type.html'>sqpopt_kkt_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" ></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>scale</strong></td>
+            <td>
+<p>the Hessian is <code>scale</code> times the identity</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" ></span>
+              type(<a href='sqpopt_sparse_matrix.html'>sqpopt_sparse_matrix</a>),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>jac</strong></td>
+            <td>
+<p>the constraint Jacobian <code>dimension(m,n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" ></span>
+              integer,
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>status</strong></td>
+            <td>
+<p>the working set (see <a href="../proc/kkt_factor.html">kkt_factor</a>) <code>dimension(m+n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" ></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>reg</strong></td>
+            <td>
+<p>the regularization <script type="math/tex"> \epsilon \ge 0 </script>
+</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" ></span>
+              logical,
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>ok</strong></td>
+            <td>
+<p>whether the factorization is available</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+          </li>
+      </ul>
+  </div>
+
+          </div>
+          <div class="row">
+              <div class="card mt-3">
+    <div class="card-header codesum">
+      <span class="anchor" id="boundprocedure-solve~4"></span>
+      <h3>
+          procedure, public ::
+  <strong>solve</strong> => <a href='/home/runner/work/sqpopt/sqpopt/web/api/proc/kkt_solve.html'>kkt_solve</a>
+        
+      </h3>
+    </div>
+      <ul class="list-group">
+          <li class="list-group-item">
+                    <h3>
+    private  subroutine <a href='../proc/kkt_solve.html'>kkt_solve</a>(me, v, ok, hessian)  
+</h3>
+    
+
+  <p>solve <script type="math/tex"> K v = r </script> with the factorization that is kept: <code>v</code> holds <code>r</code>
+on entry and the solution on exit. Its first <code>n</code> elements belong to the
+variables, and the other <code>m</code> to the constraints. Because of the fixed
+pattern (see the module documentation), the solution's element is the
+right-hand side's own for a variable at a bound of the working set, and
+minus that for a constraint outside it.</p><a href="../proc/kkt_solve.html" class="pull-right"><emph>Read more&hellip;</emph></a>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" ></span>
+              class(<a href='sqpopt_kkt_type.html'>sqpopt_kkt_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" ></span>
+              real(kind=wp),
+            </td>
+<td>intent(inout),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>v</strong></td>
+            <td>
+<p>the right-hand side, overwritten by the solution <code>dimension(n+m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" ></span>
+              logical,
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>ok</strong></td>
+            <td>
+<p>whether a solution was found</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" ></span>
+              type(<a href='sqpopt_hessian_type.html'>sqpopt_hessian_type</a>),
+            </td>
+<td>intent(in),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>hessian</strong></td>
+            <td>
+<p>the quasi-Newton Hessian that was factored</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+          </li>
+      </ul>
+  </div>
+
+          </div>
+          <div class="row">
+              <div class="card mt-3">
+    <div class="card-header codesum">
+      <span class="anchor" id="boundprocedure-destroy"></span>
+      <h3>
+          procedure, public ::
+  <strong>destroy</strong> => <a href='/home/runner/work/sqpopt/sqpopt/web/api/proc/kkt_destroy.html'>kkt_destroy</a>
+        
+      </h3>
+    </div>
+      <ul class="list-group">
+          <li class="list-group-item">
+                    <h3>
+    private  subroutine <a href='../proc/kkt_destroy.html'>kkt_destroy</a>(me)  
+</h3>
+    
+
+  <p>free the solver and the arrays, and return to the initial (disabled)
+state. It does nothing if the matrix was never initialized.</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" ></span>
+              class(<a href='sqpopt_kkt_type.html'>sqpopt_kkt_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+          </li>
+      </ul>
+  </div>
+
+          </div>
+      </section>
+
+    <section>
+    <h3><span class="anchor" id="src"></span>Source Code</h3>
+    <div class="hl codehilite"><pre><span></span><span class="w">    </span><span class="k">type</span><span class="p">,</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">sqpopt_kkt_type</span><span class="w"></span>
+<span class="w">        </span><span class="c">!! the KKT matrix of a working set, and its factorization (see the</span>
+<span class="w">        </span><span class="c">!! module documentation). It holds the sparse solver, so it must not</span>
+<span class="w">        </span><span class="c">!! be copied, and [[kkt_destroy]] must be called when the solve ends.</span>
+
+<span class="w">        </span><span class="k">private</span>
+
+<span class="k">        </span><span class="kt">logical</span><span class="p">,</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">enabled</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w">  </span><span class="c">!! whether it can be used (set by [[kkt_initialize]], and unset if</span>
+<span class="w">                                              </span><span class="c">!! a factorization fails)</span>
+<span class="w">        </span><span class="kt">integer</span><span class="p">,</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">n_negative</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w">     </span><span class="c">!! of the last factorization: the number of directions of negative</span>
+<span class="w">                                              </span><span class="c">!! curvature on the working set&#39;s face (the negative eigenvalues of</span>
+<span class="w">                                              </span><span class="c">!! \( K \) beyond `m`)</span>
+<span class="w">        </span><span class="kt">logical</span><span class="p">,</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">singular</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"> </span><span class="c">!! of the last factorization: whether \( K \) is singular (the</span>
+<span class="w">                                              </span><span class="c">!! working set&#39;s rows are dependent, or the face has a direction</span>
+<span class="w">                                              </span><span class="c">!! of zero curvature)</span>
+<span class="w">        </span><span class="kt">logical</span><span class="p">,</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">inertia_known</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">true</span><span class="p">.</span><span class="w"> </span><span class="c">!! of the last factorization: whether the sparse solver could</span>
+<span class="w">                                                  </span><span class="c">!! tell the inertia of \( K \) (if not, `n_negative` counts the</span>
+<span class="w">                                                  </span><span class="c">!! directions it couldn&#39;t tell as negative curvature: see</span>
+<span class="w">                                                  </span><span class="c">!! [[kkt_negatives]])</span>
+<span class="w">        </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_symmetric_solver_type</span><span class="p">),</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">solver</span><span class="w"> </span><span class="c">!! the sparse solver (with its counts and its time)</span>
+
+<span class="w">        </span><span class="kt">integer</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w">   </span><span class="c">!! number of variables</span>
+<span class="w">        </span><span class="kt">integer</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">m</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w">   </span><span class="c">!! number of constraints</span>
+<span class="w">        </span><span class="kt">integer</span><span class="p">,</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">allocatable</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">h_irow</span><span class="w"> </span><span class="c">!! row indices of the Hessian&#39;s pattern</span>
+<span class="w">        </span><span class="kt">integer</span><span class="p">,</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">allocatable</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">h_icol</span><span class="w"> </span><span class="c">!! column indices of the Hessian&#39;s pattern</span>
+<span class="w">        </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">allocatable</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">val</span><span class="w">   </span><span class="c">!! the values of \( K \): its diagonal, then the Hessian&#39;s</span>
+<span class="w">                                                     </span><span class="c">!! elements, then the Jacobian&#39;s</span>
+
+<span class="w">        </span><span class="c">! the factorization that is kept (see the module documentation):</span>
+<span class="w">        </span><span class="kt">logical</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">current</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w">                </span><span class="c">!! whether there is one, for the current matrices</span>
+<span class="w">        </span><span class="kt">logical</span><span class="p">,</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">allocatable</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">in_set</span><span class="w"> </span><span class="c">!! its working set `dimension(m+n)`</span>
+<span class="w">        </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">diag</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="w">                    </span><span class="c">!! what was added to its Hessian&#39;s diagonal</span>
+<span class="w">        </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">reg</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="w">                    </span><span class="c">!! its regularization \( \epsilon \)</span>
+<span class="w">        </span><span class="kt">integer</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">rank</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w">                         </span><span class="c">!! the rank `r` of its quasi-Newton Hessian&#39;s low-rank part</span>
+<span class="w">                                                     </span><span class="c">!! (`0` if it has none)</span>
+<span class="w">        </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:,:),</span><span class="w"> </span><span class="k">allocatable</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">t_lu</span><span class="w">  </span><span class="c">!! the LU factors of its matrix \( T \) `dimension(r,r)`</span>
+<span class="w">        </span><span class="kt">integer</span><span class="p">,</span><span class="w">  </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">   </span><span class="k">allocatable</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">t_piv</span><span class="w"> </span><span class="c">!! the row pivots of that factorization `dimension(r)`</span>
+
+<span class="w">        </span><span class="k">contains</span>
+
+<span class="k">        procedure</span><span class="p">,</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">initialize</span><span class="w">      </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">kkt_initialize</span><span class="w"></span>
+<span class="w">        </span><span class="k">procedure</span><span class="p">,</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">new_matrices</span><span class="w">    </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">kkt_new_matrices</span><span class="w"></span>
+<span class="w">        </span><span class="k">procedure</span><span class="p">,</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">factor</span><span class="w">          </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">kkt_factor</span><span class="w"></span>
+<span class="w">        </span><span class="k">procedure</span><span class="p">,</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">factor_identity</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">kkt_factor_identity</span><span class="w"></span>
+<span class="w">        </span><span class="k">procedure</span><span class="p">,</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">solve</span><span class="w">           </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">kkt_solve</span><span class="w"></span>
+<span class="w">        </span><span class="k">procedure</span><span class="p">,</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">destroy</span><span class="w">         </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">kkt_destroy</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">end type </span><span class="n">sqpopt_kkt_type</span><span class="w"></span>
+</pre></div>
+
+    </section>
+    
+    </div>
+  </div>
+
+      <hr>
+    </div> <!-- /container -->
+    <footer>
+      <div class="container">
+        <div class="row justify-content-between">
+          <div class="col">
+            <p>
+              sqpopt
+ was developed by Jacob Williams<br>              &copy; 2026 
+</p>
+          </div>
+          <div class="col">
+            <p class="text-end">
+              Documentation generated by
+              <a href="https://github.com/Fortran-FOSS-Programmers/ford">FORD</a>
+            </p>
+          </div>
+        </div>
+        <br>
+      </div> <!-- /container -->
+    </footer>
+    <!-- sqpopt theme: the button switches the theme, and remembers it for the guide too -->
+    <script>
+      document.querySelector('.theme-toggle').addEventListener('click', function () {
+        var root = document.documentElement;
+        var next = root.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-bs-theme', next);
+        try { localStorage.setItem('sqpopt-theme', next); } catch (e) {}
+      });
+    </script>
+  </body>
+</html>

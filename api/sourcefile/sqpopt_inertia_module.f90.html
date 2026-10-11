@@ -1,0 +1,1062 @@
+<!-- -*- mode: jinja2 -*- -->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- sqpopt theme: set before the page is drawn; the guide's choice (the same
+         localStorage key, on the same site), or else the system's -->
+    <script>
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('sqpopt-theme'); } catch (e) {}
+        if (t !== 'dark' && t !== 'light') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-bs-theme', t);
+      })();
+    </script>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta name="description" content="Modern Fortran SQP OPTimizer">
+    <meta name="author" content="Jacob Williams" >
+    <link rel="icon" href="../favicon.png">
+
+    <title>sqpopt_inertia_module.f90 &ndash; sqpopt</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <!-- Font Awesome -->
+    <link href="../css/fontawesome.min.css" rel="stylesheet">
+    <link href="../css/brands.min.css" rel="stylesheet">
+    <link href="../css/regular.min.css" rel="stylesheet">
+    <link href="../css/solid.min.css" rel="stylesheet">
+    <link href="../css/v4-font-face.min.css" rel="stylesheet">
+    <link href="../css/v4-shims.min.css" rel="stylesheet">
+    <!-- MathJax -->
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        TeX: { equationNumbers: { autoNumber: "AMS" } }
+      });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@2.7.9/MathJax.js?config=TeX-AMS-MML_HTMLorMML" async
+            integrity="sha256-DViIOMYdwlM/axqoGDPeUyf0urLoHMN4QACBKyB58Uw=" crossorigin="anonymous"></script>
+    <!-- Other scripts and stylesheets -->
+    <link href="../css/local.css" rel="stylesheet">
+    <link href="../css/pygments.css" rel="stylesheet">
+      <link href="../css/user.css" rel="stylesheet">
+    <script src="../js/svg-pan-zoom.min.js"></script>
+  </head>
+
+  <body>
+
+    <!-- Fixed navbar -->
+    <div class="container-fluid mb-sm-4 mb-xl-2">
+      <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+          <a class="navbar-brand" href="../index.html">sqpopt </a>
+          <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbar"
+                  aria-expanded="false" aria-controls="navbar" aria-label="Toggle navigation">
+                  <span class="navbar-toggler-icon">
+          </button>
+
+          <div id="navbar" class="navbar-collapse collapse">
+            <ul class="navbar-nav">
+                  <li class="nav-item">
+                    <a class="nav-link" href="../lists/files.html">Source Files</a>
+                  </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/modules.html">Modules</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/procedures.html">Procedures</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/absint.html">Abstract Interfaces</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/types.html">Derived Types</a>
+                </li>
+            </ul>
+              <div class="d-flex align-items-end flex-grow-1">
+                <form action="../search.html" role="search" class="ms-auto">
+                  <input type="text" class="form-control" aria-label="Search" placeholder="Search" name="q" id="tipue_search_input" autocomplete="off" required>
+                </form>
+              </div>
+            <!-- sqpopt theme: the light/dark button -->
+            <button type="button" class="btn nav-link theme-toggle ms-lg-3" aria-label="Toggle dark mode" title="Toggle dark mode">
+              <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg>
+              <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div><!--/.nav-collapse -->
+        </div>
+      </nav>
+    </div>
+
+    <div class="container">
+  <div class="row">
+    <h1>sqpopt_inertia_module.f90
+      <small>Source File</small>
+      
+    </h1>
+      <div class="container p-2 mb-4 bg-light border rounded-3">
+    <div class="row align-items-center justify-content-between" id="info-bar">
+      <div class="col">
+        <ul class="list-inline" style="margin-bottom:0px;display:inline">
+
+            <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
+              <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
+                 title=" 0.5% of total for source files.">60 statements</a>
+            </li>
+
+            <li class="list-inline-item" id="source-file">
+              <i class="fa fa-code"></i>
+              <a href="../src/sqpopt_inertia_module.f90"> Source File</a>
+            </li>
+        </ul>
+      </div>
+      <div class="col">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb justify-content-end mb-0">
+            <li class="breadcrumb-item active" aria-current="page">sqpopt_inertia_module.f90</li>
+          </ol>
+        </nav>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Enable Bootstrap tooltips
+    (function () {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+      const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+    })();
+  </script>
+
+  </div>
+  <div class="row">
+    <div class="col-md-3 hidden-xs hidden-sm visible-md visible-lg">
+        <div id="sidebar">
+      <h3>Contents</h3>
+  
+  
+  
+  
+  
+      <div class="card mb-4">
+      <a data-bs-toggle="collapse" href="#mods-0"
+         aria-expanded="false" aria-controls="mods-0">
+         <h4 class="card-header bg-primary text-white">Modules</h4>
+      </a>
+      <div id="mods-0" class="collapse">
+        <div class="list-group list-group-flush">
+            <a class="list-group-item" href="../module/sqpopt_inertia_module.html">sqpopt_inertia_module</a>
+        </div>
+      </div>
+    </div>
+
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+    <div class="card card-primary">
+      <div class="card-header text-left"><h3 class="card-title">Source Code</h3></div>
+      <div class="list-group">
+        <a class="list-group-item" href="../sourcefile/sqpopt_inertia_module.f90.html#src">sqpopt_inertia_module.f90</a>
+      </div>
+    </div>
+
+
+  </div>
+
+    </div>
+    <div class="col-md-9" id='text'>
+      
+      <br>
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">This file depends on</h3>
+          </div>
+          <div class="card-body">
+            <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph Pages: 1 -->
+<svg id="sourcefilesqpopt_inertia_modulef90EfferentGraph" width="641pt" height="219pt"
+ viewBox="0.00 0.00 641.00 219.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph" class="graph" transform="scale(0.554681 0.554681) rotate(0) translate(4 390.2)">
+<title>sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-390.2 1151.62,-390.2 1151.62,4 -4,4"/>
+<!-- sourcefile~sqpopt_inertia_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_node1" class="node">
+<title>sourcefile~sqpopt_inertia_module.f90</title>
+<polygon fill="none" stroke="black" points="1147.62,-258.43 994.35,-258.43 994.35,-234.16 1147.62,-234.16 1147.62,-258.43"/>
+<text xml:space="preserve" text-anchor="middle" x="1070.98" y="-242.69" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_inertia_module.f90</text>
+</g>
+<!-- sourcefile~sqpopt_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_node2" class="node">
+<title>sourcefile~sqpopt_hessian_module.f90</title>
+<g id="a_sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_node2"><a xlink:href="../sourcefile/sqpopt_hessian_module.f90.html" xlink:title="sqpopt_hessian_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="529.56,-336.43 370.29,-336.43 370.29,-312.16 529.56,-312.16 529.56,-336.43"/>
+<text xml:space="preserve" text-anchor="middle" x="449.92" y="-320.69" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_inertia_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_edge1" class="edge">
+<title>sourcefile~sqpopt_inertia_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M680.57,-324.29C634.65,-324.29 583.55,-324.29 541.25,-324.29"/>
+<polygon fill="#000000" stroke="#000000" points="541.35,-320.79 531.35,-324.29 541.35,-327.79 541.35,-320.79"/>
+</g>
+<!-- sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_node3" class="node">
+<title>sourcefile~sqpopt_kinds.f90</title>
+<g id="a_sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_node3"><a xlink:href="../sourcefile/sqpopt_kinds.f90.html" xlink:title="sqpopt_kinds.F90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="103.02,-216.43 0,-216.43 0,-192.16 103.02,-192.16 103.02,-216.43"/>
+<text xml:space="preserve" text-anchor="middle" x="51.51" y="-200.69" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_kinds.F90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_inertia_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_edge2" class="edge">
+<title>sourcefile~sqpopt_inertia_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M680.57,-324.29C481.16,-336.99 422.62,-426.62 232.78,-364.29"/>
+</g>
+<!-- sourcefile~sqpopt_kkt_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_node4" class="node">
+<title>sourcefile~sqpopt_kkt_module.f90</title>
+<g id="a_sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_node4"><a xlink:href="../sourcefile/sqpopt_kkt_module.f90.html" xlink:title="sqpopt_kkt_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="958.35,-219.43 823.83,-219.43 823.83,-195.16 958.35,-195.16 958.35,-219.43"/>
+<text xml:space="preserve" text-anchor="middle" x="891.09" y="-203.69" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_kkt_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_inertia_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_edge3" class="edge">
+<title>sourcefile~sqpopt_inertia_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1012.72,-233.74C996.14,-230.1 977.87,-226.1 960.67,-222.33"/>
+<polygon fill="#000000" stroke="#000000" points="961.55,-218.94 951.03,-220.21 960.05,-225.77 961.55,-218.94"/>
+</g>
+<!-- sourcefile~sqpopt_types_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_node5" class="node">
+<title>sourcefile~sqpopt_types_module.f90</title>
+<g id="a_sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_node5"><a xlink:href="../sourcefile/sqpopt_types_module.f90.html" xlink:title="sqpopt_types_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="305.41,-216.43 158.14,-216.43 158.14,-192.16 305.41,-192.16 305.41,-216.43"/>
+<text xml:space="preserve" text-anchor="middle" x="231.78" y="-200.69" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_types_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_inertia_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_edge4" class="edge">
+<title>sourcefile~sqpopt_inertia_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1032.82,-258.91C964.38,-280.99 813.44,-324.29 682.57,-324.29"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M680.57,-324.29C662.48,-325.5 376.59,-268.73 360.54,-260.29 340.79,-249.9 344.14,-235.95 324.54,-225.29 321.71,-223.75 318.78,-222.33 315.77,-221.01"/>
+<polygon fill="#000000" stroke="#000000" points="317.3,-217.85 306.71,-217.46 314.74,-224.37 317.3,-217.85"/>
+</g>
+<!-- sourcefile~sqpopt_hessian_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_edge7" class="edge">
+<title>sourcefile~sqpopt_hessian_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M407.23,-336.9C353.86,-352.19 264.51,-374.71 232.78,-364.29"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M230.78,-364.29C189,-350.58 173.47,-354.62 139.02,-327.29 104.14,-299.63 77.35,-254.25 63.34,-227.03"/>
+<polygon fill="#000000" stroke="#000000" points="66.56,-225.64 58.97,-218.26 60.3,-228.77 66.56,-225.64"/>
+</g>
+<!-- sourcefile~sqpopt_dense_linalg_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_node6" class="node">
+<title>sourcefile~sqpopt_dense_linalg_module.f90</title>
+<g id="a_sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_node6"><a xlink:href="../sourcefile/sqpopt_dense_linalg_module.f90.html" xlink:title="sqpopt_dense_linalg_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="324.54,-258.43 139.02,-258.43 139.02,-234.16 324.54,-234.16 324.54,-258.43"/>
+<text xml:space="preserve" text-anchor="middle" x="231.78" y="-242.69" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_dense_linalg_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_hessian_module.f90&#45;&gt;sourcefile~sqpopt_dense_linalg_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_edge5" class="edge">
+<title>sourcefile~sqpopt_hessian_module.f90&#45;&gt;sourcefile~sqpopt_dense_linalg_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M402.77,-311.67C389.09,-307.67 374.13,-303.04 360.54,-298.29 330.41,-287.76 297.03,-274.1 271.94,-263.42"/>
+<polygon fill="#000000" stroke="#000000" points="273.35,-260.22 262.78,-259.5 270.59,-266.65 273.35,-260.22"/>
+</g>
+<!-- sourcefile~sqpopt_eigen_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_node7" class="node">
+<title>sourcefile~sqpopt_eigen_module.f90</title>
+<g id="a_sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_node7"><a xlink:href="../sourcefile/sqpopt_eigen_module.f90.html" xlink:title="sqpopt_eigen_module.F90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="307.29,-318.43 156.27,-318.43 156.27,-294.16 307.29,-294.16 307.29,-318.43"/>
+<text xml:space="preserve" text-anchor="middle" x="231.78" y="-302.69" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_eigen_module.F90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_hessian_module.f90&#45;&gt;sourcefile~sqpopt_eigen_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_edge6" class="edge">
+<title>sourcefile~sqpopt_hessian_module.f90&#45;&gt;sourcefile~sqpopt_eigen_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M369.97,-317.72C353.26,-316.33 335.53,-314.85 318.57,-313.44"/>
+<polygon fill="#000000" stroke="#000000" points="319.32,-309.99 309.07,-312.65 318.74,-316.96 319.32,-309.99"/>
+</g>
+<!-- sourcefile~sqpopt_kkt_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_edge9" class="edge">
+<title>sourcefile~sqpopt_kkt_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M680.57,-246.29C611.05,-258.61 534.08,-288.26 489.25,-307.24"/>
+<polygon fill="#000000" stroke="#000000" points="488.04,-303.95 480.22,-311.11 490.79,-310.39 488.04,-303.95"/>
+</g>
+<!-- sourcefile~sqpopt_kkt_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_edge10" class="edge">
+<title>sourcefile~sqpopt_kkt_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M876.74,-194.87C858,-177.91 822.32,-147.35 787.83,-127.29 572.31,-1.98 466.25,41.13 232.78,-46.29"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M230.78,-46.29C191.6,-60.97 173.16,-43.11 139.02,-67.29 98.51,-95.98 72.75,-150.21 60.64,-181.14"/>
+<polygon fill="#000000" stroke="#000000" points="57.43,-179.74 57.2,-190.34 63.99,-182.2 57.43,-179.74"/>
+</g>
+<!-- sourcefile~sqpopt_kkt_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_edge12" class="edge">
+<title>sourcefile~sqpopt_kkt_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M825.19,-219.85C784.31,-227.67 730.4,-237.82 682.57,-246.29"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M680.57,-246.29C580.07,-264.1 552.87,-251.19 450.92,-246.29"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M448.92,-246.29C420.32,-244.92 351.15,-230.76 298.7,-219.26"/>
+<polygon fill="#000000" stroke="#000000" points="299.78,-215.91 289.26,-217.18 298.27,-222.75 299.78,-215.91"/>
+</g>
+<!-- sourcefile~sqpopt_kkt_module.f90&#45;&gt;sourcefile~sqpopt_dense_linalg_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_edge8" class="edge">
+<title>sourcefile~sqpopt_kkt_module.f90&#45;&gt;sourcefile~sqpopt_dense_linalg_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M448.92,-246.29C412.23,-244.53 371.99,-244.12 336.28,-244.28"/>
+<polygon fill="#000000" stroke="#000000" points="336.35,-240.78 326.37,-244.34 336.39,-247.78 336.35,-240.78"/>
+</g>
+<!-- sourcefile~sqpopt_symmetric_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_node8" class="node">
+<title>sourcefile~sqpopt_symmetric_solver_module.f90</title>
+<g id="a_sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_node8"><a xlink:href="../sourcefile/sqpopt_symmetric_solver_module.f90.html" xlink:title="sqpopt_symmetric_solver_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="787.83,-160.43 575.31,-160.43 575.31,-136.16 787.83,-136.16 787.83,-160.43"/>
+<text xml:space="preserve" text-anchor="middle" x="681.57" y="-144.69" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_symmetric_solver_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_kkt_module.f90&#45;&gt;sourcefile~sqpopt_symmetric_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_edge11" class="edge">
+<title>sourcefile~sqpopt_kkt_module.f90&#45;&gt;sourcefile~sqpopt_symmetric_solver_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M845.83,-194.71C814.14,-185.7 771.27,-173.51 737.42,-163.89"/>
+<polygon fill="#000000" stroke="#000000" points="738.8,-160.64 728.22,-161.27 736.88,-167.37 738.8,-160.64"/>
+</g>
+<!-- sourcefile~sqpopt_types_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_edge13" class="edge">
+<title>sourcefile~sqpopt_types_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M157.76,-204.29C143.48,-204.29 128.64,-204.29 114.76,-204.29"/>
+<polygon fill="#000000" stroke="#000000" points="114.87,-200.79 104.87,-204.29 114.87,-207.79 114.87,-200.79"/>
+</g>
+<!-- sourcefile~sqpopt_dense_linalg_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_edge14" class="edge">
+<title>sourcefile~sqpopt_dense_linalg_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M175.44,-233.75C163.42,-230.99 150.79,-228.07 139.02,-225.29 131.06,-223.41 122.69,-221.42 114.42,-219.43"/>
+<polygon fill="#000000" stroke="#000000" points="115.27,-216.03 104.73,-217.09 113.63,-222.84 115.27,-216.03"/>
+</g>
+<!-- sourcefile~sqpopt_eigen_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_edge15" class="edge">
+<title>sourcefile~sqpopt_eigen_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M196.34,-293.81C178.74,-286.9 157.24,-277.62 139.02,-267.29 116.52,-254.54 92.9,-237.02 76.04,-223.7"/>
+<polygon fill="#000000" stroke="#000000" points="78.59,-221.26 68.6,-217.73 74.21,-226.72 78.59,-221.26"/>
+</g>
+<!-- sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_edge17" class="edge">
+<title>sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M448.92,-128.29C353.24,-119.78 327.71,-113.58 232.78,-128.29"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M230.78,-128.29C175.49,-136.86 116.81,-166.37 82.47,-185.99"/>
+<polygon fill="#000000" stroke="#000000" points="80.81,-182.91 73.93,-190.97 84.34,-188.96 80.81,-182.91"/>
+</g>
+<!-- sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_edge21" class="edge">
+<title>sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M645.69,-160.89C617.42,-170.5 576.33,-183.1 539.31,-189.29 464.85,-201.74 378.92,-205.01 317.02,-205.44"/>
+<polygon fill="#000000" stroke="#000000" points="317.25,-201.94 307.27,-205.48 317.28,-208.94 317.25,-201.94"/>
+</g>
+<!-- sourcefile~sqpopt_dense_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_node9" class="node">
+<title>sourcefile~sqpopt_dense_ldl_module.f90</title>
+<g id="a_sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_node9"><a xlink:href="../sourcefile/sqpopt_dense_ldl_module.f90.html" xlink:title="sqpopt_dense_ldl_module.F90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="535.56,-180.43 364.29,-180.43 364.29,-156.16 535.56,-156.16 535.56,-180.43"/>
+<text xml:space="preserve" text-anchor="middle" x="449.92" y="-164.69" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_dense_ldl_module.F90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_dense_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_edge16" class="edge">
+<title>sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_dense_ldl_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M574.82,-157.5C565.63,-158.3 556.37,-159.11 547.26,-159.9"/>
+<polygon fill="#000000" stroke="#000000" points="547,-156.41 537.34,-160.77 547.61,-163.39 547,-156.41"/>
+</g>
+<!-- sourcefile~sqpopt_mumps_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_node10" class="node">
+<title>sourcefile~sqpopt_mumps_ldl_module.f90</title>
+<g id="a_sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_node10"><a xlink:href="../sourcefile/sqpopt_mumps_ldl_module.f90.html" xlink:title="sqpopt_mumps_ldl_module.F90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="539.31,-100.43 360.54,-100.43 360.54,-76.16 539.31,-76.16 539.31,-100.43"/>
+<text xml:space="preserve" text-anchor="middle" x="449.92" y="-84.69" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_mumps_ldl_module.F90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_mumps_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_edge18" class="edge">
+<title>sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_mumps_ldl_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M632.43,-135.71C596.76,-126.39 547.94,-113.64 509.92,-103.71"/>
+<polygon fill="#000000" stroke="#000000" points="511.03,-100.38 500.47,-101.24 509.26,-107.15 511.03,-100.38"/>
+</g>
+<!-- sourcefile~sqpopt_qdldl_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_node11" class="node">
+<title>sourcefile~sqpopt_qdldl_ldl_module.f90</title>
+<g id="a_sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_node11"><a xlink:href="../sourcefile/sqpopt_qdldl_ldl_module.f90.html" xlink:title="sqpopt_qdldl_ldl_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="531.43,-58.43 368.41,-58.43 368.41,-34.16 531.43,-34.16 531.43,-58.43"/>
+<text xml:space="preserve" text-anchor="middle" x="449.92" y="-42.69" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qdldl_ldl_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_qdldl_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_edge19" class="edge">
+<title>sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_qdldl_ldl_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M662.69,-135.77C636.68,-118.1 586.36,-85.92 539.31,-67.29 534.65,-65.45 529.78,-63.73 524.83,-62.15"/>
+<polygon fill="#000000" stroke="#000000" points="525.94,-58.83 515.36,-59.33 523.94,-65.54 525.94,-58.83"/>
+</g>
+<!-- sourcefile~sqpopt_sparse_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_node12" class="node">
+<title>sourcefile~sqpopt_sparse_ldl_module.f90</title>
+<g id="a_sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_node12"><a xlink:href="../sourcefile/sqpopt_sparse_ldl_module.f90.html" xlink:title="sqpopt_sparse_ldl_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="317.79,-100.43 145.77,-100.43 145.77,-76.16 317.79,-76.16 317.79,-100.43"/>
+<text xml:space="preserve" text-anchor="middle" x="231.78" y="-84.69" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_sparse_ldl_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_sparse_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_edge20" class="edge">
+<title>sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_sparse_ldl_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M575.1,-139.19C536.08,-135.8 491.48,-131.9 450.92,-128.29"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M448.92,-128.29C397.11,-123.68 339.19,-112.64 296.36,-103.32"/>
+<polygon fill="#000000" stroke="#000000" points="297.25,-99.93 286.73,-101.2 295.74,-106.77 297.25,-99.93"/>
+</g>
+<!-- sourcefile~sqpopt_dense_ldl_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_edge23" class="edge">
+<title>sourcefile~sqpopt_dense_ldl_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M401.57,-155.74C348.14,-142.25 264.55,-123.37 232.78,-128.29"/>
+</g>
+<!-- sourcefile~sqpopt_dense_ldl_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_edge25" class="edge">
+<title>sourcefile~sqpopt_dense_ldl_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M373.33,-180.88C355.1,-183.92 335.5,-187.18 316.91,-190.28"/>
+<polygon fill="#000000" stroke="#000000" points="316.57,-186.79 307.28,-191.88 317.72,-193.69 316.57,-186.79"/>
+</g>
+<!-- sourcefile~sqpopt_dense_ldl_module.f90&#45;&gt;sourcefile~sqpopt_dense_linalg_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_edge22" class="edge">
+<title>sourcefile~sqpopt_dense_ldl_module.f90&#45;&gt;sourcefile~sqpopt_dense_linalg_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M425.67,-180.7C401.11,-193.38 360.98,-212.92 324.54,-225.29 318.74,-227.26 312.67,-229.11 306.53,-230.82"/>
+<polygon fill="#000000" stroke="#000000" points="305.68,-227.42 296.92,-233.37 307.48,-234.19 305.68,-227.42"/>
+</g>
+<!-- sourcefile~sqpopt_dense_ldl_module.f90&#45;&gt;sourcefile~sqpopt_sparse_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_edge24" class="edge">
+<title>sourcefile~sqpopt_dense_ldl_module.f90&#45;&gt;sourcefile~sqpopt_sparse_ldl_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M394.4,-155.74C382.9,-152.14 371.07,-147.69 360.54,-142.29 342.5,-133.05 342.62,-123.45 324.54,-114.29 317.04,-110.5 308.91,-107.18 300.69,-104.31"/>
+<polygon fill="#000000" stroke="#000000" points="301.91,-101.03 291.32,-101.26 299.74,-107.68 301.91,-101.03"/>
+</g>
+<!-- sourcefile~sqpopt_mumps_ldl_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_edge26" class="edge">
+<title>sourcefile~sqpopt_mumps_ldl_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M391.98,-75.7C330.5,-62.33 240.28,-43.49 232.78,-46.29"/>
+</g>
+<!-- sourcefile~sqpopt_mumps_ldl_module.f90&#45;&gt;sourcefile~sqpopt_sparse_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_edge27" class="edge">
+<title>sourcefile~sqpopt_mumps_ldl_module.f90&#45;&gt;sourcefile~sqpopt_sparse_ldl_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M360.07,-88.29C350.01,-88.29 339.71,-88.29 329.55,-88.29"/>
+<polygon fill="#000000" stroke="#000000" points="329.66,-84.79 319.66,-88.29 329.66,-91.79 329.66,-84.79"/>
+</g>
+<!-- sourcefile~sqpopt_qdldl_ldl_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_edge28" class="edge">
+<title>sourcefile~sqpopt_qdldl_ldl_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M374.59,-33.66C331.8,-29.45 277.76,-29.45 232.78,-46.29"/>
+</g>
+<!-- sourcefile~sqpopt_qdldl_ldl_module.f90&#45;&gt;sourcefile~sqpopt_sparse_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_edge29" class="edge">
+<title>sourcefile~sqpopt_qdldl_ldl_module.f90&#45;&gt;sourcefile~sqpopt_sparse_ldl_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M384.07,-58.89C360.35,-63.5 333.3,-68.76 308.7,-73.54"/>
+<polygon fill="#000000" stroke="#000000" points="308.22,-70.07 299.07,-75.41 309.55,-76.94 308.22,-70.07"/>
+</g>
+<!-- sourcefile~sqpopt_sparse_ldl_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~EfferentGraph_edge30" class="edge">
+<title>sourcefile~sqpopt_sparse_ldl_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M169.17,-100.86C158.7,-104.35 148.25,-108.75 139.02,-114.29 109.64,-131.93 83.55,-162.12 67.89,-182.62"/>
+<polygon fill="#000000" stroke="#000000" points="65.12,-180.48 61.98,-190.59 70.75,-184.65 65.12,-180.48"/>
+</g>
+</g>
+</svg>
+</div>                <script>
+                  var pansourcefilesqpopt_inertia_modulef90EfferentGraph = svgPanZoom('#sourcefilesqpopt_inertia_modulef90EfferentGraph',
+                    {zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true,}
+                  );
+                </script>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#EfferentGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="EfferentGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="200pt" height="32pt"
+ viewBox="0.00 0.00 200.00 32.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 195.52,-28.27 195.52,4 -4,4"/>
+<!-- Source File -->
+<g id="node1" class="node">
+<title>Source File</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="69.27,-24.27 0,-24.27 0,0 69.27,0 69.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="34.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Source File</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node2" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="191.52,-24.27 87.75,-24.27 87.75,0 191.52,0 191.52,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="139.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a file to a file which it depends on. A file
+is dependent upon another if the latter must be compiled before the former
+can be.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Files dependent on this one</h3>
+          </div>
+          <div class="card-body">
+            <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph Pages: 1 -->
+<svg id="sourcefilesqpopt_inertia_modulef90AfferentGraph" width="641pt" height="96pt"
+ viewBox="0.00 0.00 641.00 96.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph" class="graph" transform="scale(0.375034 0.375034) rotate(0) translate(4 250.76)">
+<title>sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-250.76 1705.18,-250.76 1705.18,4 -4,4"/>
+<!-- sourcefile~sqpopt_inertia_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_node1" class="node">
+<title>sourcefile~sqpopt_inertia_module.f90</title>
+<polygon fill="none" stroke="black" points="153.27,-63.27 0,-63.27 0,-39 153.27,-39 153.27,-63.27"/>
+<text xml:space="preserve" text-anchor="middle" x="76.64" y="-47.53" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_inertia_module.f90</text>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_node2" class="node">
+<title>sourcefile~sqpopt_iterate_module.f90</title>
+<g id="a_sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_node2"><a xlink:href="../sourcefile/sqpopt_iterate_module.f90.html" xlink:title="sqpopt_iterate_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1376.64,-102.27 1222.62,-102.27 1222.62,-78 1376.64,-78 1376.64,-102.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1299.63" y="-86.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_iterate_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_edge1" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1222.37,-88.39C1184.56,-87.97 1138.22,-88.12 1096.74,-90.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1094.74,-90.13C1004.28,-94.52 981.48,-87.02 890.97,-90.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M888.97,-90.13C837.61,-91.9 826.11,-76.23 775.08,-70.13 644.01,-54.47 610.52,-57.56 478.68,-51.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M476.68,-51.13C385.15,-44.04 365.73,-6.83 274.03,-11.13"/>
+</g>
+<!-- sourcefile~sqpopt_qp_direct_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_node4" class="node">
+<title>sourcefile~sqpopt_qp_direct_module.f90</title>
+<g id="a_sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_node4"><a xlink:href="../sourcefile/sqpopt_qp_direct_module.f90.html" xlink:title="sqpopt_qp_direct_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="356.79,-63.27 189.27,-63.27 189.27,-39 356.79,-39 356.79,-63.27"/>
+<text xml:space="preserve" text-anchor="middle" x="273.03" y="-47.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qp_direct_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_qp_direct_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_edge8" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_qp_direct_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M476.68,-51.13C441.32,-49.41 402.44,-49.04 368.29,-49.23"/>
+<polygon fill="#000000" stroke="#000000" points="368.38,-45.73 358.41,-49.3 368.43,-52.73 368.38,-45.73"/>
+</g>
+<!-- sourcefile~sqpopt_qp_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_node5" class="node">
+<title>sourcefile~sqpopt_qp_solver_module.f90</title>
+<g id="a_sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_node5"><a xlink:href="../sourcefile/sqpopt_qp_solver_module.f90.html" xlink:title="sqpopt_qp_solver_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="562.56,-103.27 392.79,-103.27 392.79,-79 562.56,-79 562.56,-103.27"/>
+<text xml:space="preserve" text-anchor="middle" x="477.68" y="-87.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qp_solver_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_edge11" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M888.97,-90.13C853.36,-91.36 844.56,-96.94 811.08,-109.13 753.65,-130.06 747.92,-181.29 687.82,-170.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M685.82,-170.13C622.56,-158.39 553.58,-128.3 513.34,-108.83"/>
+<polygon fill="#000000" stroke="#000000" points="514.89,-105.69 504.38,-104.43 511.81,-111.98 514.89,-105.69"/>
+</g>
+<!-- sourcefile~sqpopt_trust_region_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_node6" class="node">
+<title>sourcefile~sqpopt_trust_region_module.f90</title>
+<g id="a_sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_node6"><a xlink:href="../sourcefile/sqpopt_trust_region_module.f90.html" xlink:title="sqpopt_trust_region_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1186.62,-24.27 1004.85,-24.27 1004.85,0 1186.62,0 1186.62,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1095.74" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_trust_region_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_trust_region_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_edge17" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_trust_region_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1260.19,-77.5C1248.11,-73.4 1234.76,-68.71 1222.62,-64.13 1193.42,-53.12 1160.87,-39.65 1136.19,-29.17"/>
+<polygon fill="#000000" stroke="#000000" points="1137.75,-26.03 1127.17,-25.33 1135,-32.47 1137.75,-26.03"/>
+</g>
+<!-- sourcefile~sqpopt_diagnostics_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_node7" class="node">
+<title>sourcefile~sqpopt_diagnostics_module.f90</title>
+<g id="a_sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_node7"><a xlink:href="../sourcefile/sqpopt_diagnostics_module.f90.html" xlink:title="sqpopt_diagnostics_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1185.12,-180.27 1006.35,-180.27 1006.35,-156 1185.12,-156 1185.12,-180.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1095.74" y="-164.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_diagnostics_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_diagnostics_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_edge20" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_diagnostics_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1274.62,-102.59C1252.24,-113.88 1217.74,-130.49 1186.62,-142.13 1176.9,-145.77 1166.43,-149.21 1156.2,-152.33"/>
+<polygon fill="#000000" stroke="#000000" points="1155.27,-148.95 1146.68,-155.15 1157.26,-155.67 1155.27,-148.95"/>
+</g>
+<!-- sourcefile~sqpopt_options_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_node9" class="node">
+<title>sourcefile~sqpopt_options_module.f90</title>
+<g id="a_sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_node9"><a xlink:href="../sourcefile/sqpopt_options_module.f90.html" xlink:title="sqpopt_options_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="968.85,-142.27 811.08,-142.27 811.08,-118 968.85,-118 968.85,-142.27"/>
+<text xml:space="preserve" text-anchor="middle" x="889.97" y="-126.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_options_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_edge23" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1094.74,-90.13C1043.88,-92.6 987.12,-104.52 946.45,-114.71"/>
+<polygon fill="#000000" stroke="#000000" points="945.71,-111.29 936.89,-117.15 947.45,-118.07 945.71,-111.29"/>
+</g>
+<!-- sourcefile~sqpopt_restoration_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_node10" class="node">
+<title>sourcefile~sqpopt_restoration_module.f90</title>
+<g id="a_sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_node10"><a xlink:href="../sourcefile/sqpopt_restoration_module.f90.html" xlink:title="sqpopt_restoration_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="775.08,-103.27 598.56,-103.27 598.56,-79 775.08,-79 775.08,-103.27"/>
+<text xml:space="preserve" text-anchor="middle" x="686.82" y="-87.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_restoration_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_restoration_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_edge26" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_restoration_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M888.97,-90.13C855.72,-91.28 819.36,-91.71 786.81,-91.8"/>
+<polygon fill="#000000" stroke="#000000" points="786.97,-88.3 776.98,-91.82 786.98,-95.3 786.97,-88.3"/>
+</g>
+<!-- sourcefile~sqpopt_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_node3" class="node">
+<title>sourcefile~sqpopt_module.f90</title>
+<g id="a_sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_node3"><a xlink:href="../sourcefile/sqpopt_module.f90.html" xlink:title="sqpopt_module.F90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1528.41,-180.27 1412.64,-180.27 1412.64,-156 1528.41,-156 1528.41,-180.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1470.53" y="-164.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_module.F90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_edge2" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M888.97,-208.13C615.74,-201.38 542,-261.89 274.03,-208.13"/>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_iterate_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_edge6" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_iterate_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1442.02,-155.6C1432.69,-151.34 1422.21,-146.54 1412.64,-142.13 1387.54,-130.57 1359.32,-117.47 1337.48,-107.31"/>
+<polygon fill="#000000" stroke="#000000" points="1339.23,-104.26 1328.69,-103.22 1336.28,-110.61 1339.23,-104.26"/>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_edge12" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1298.63,-168.13C1247.98,-168.13 1236.88,-182.83 1186.62,-189.13 1055.97,-205.52 1022.5,-214.27 890.97,-208.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M888.97,-208.13C876.09,-207.82 720.48,-176.2 687.82,-170.13"/>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_trust_region_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_edge18" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_trust_region_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1432.3,-155.59C1425.2,-152.02 1418.25,-147.58 1412.64,-142.13 1386.69,-116.93 1404.8,-91.85 1376.64,-69.13 1349.54,-47.27 1333.39,-61.95 1300.63,-50.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1298.63,-50.13C1266.75,-38.64 1230.73,-30.44 1198.03,-24.68"/>
+<polygon fill="#000000" stroke="#000000" points="1199.01,-21.29 1188.57,-23.07 1197.84,-28.19 1199.01,-21.29"/>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_diagnostics_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_edge21" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_diagnostics_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1298.63,-168.13C1265.47,-168.13 1229.25,-168.13 1196.76,-168.13"/>
+<polygon fill="#000000" stroke="#000000" points="1196.95,-164.64 1186.95,-168.14 1196.95,-171.64 1196.95,-164.64"/>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_edge24" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1412.46,-168.13C1379.73,-168.13 1337.87,-168.13 1300.63,-168.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1298.63,-168.13C1207.15,-168.13 1188.11,-132.38 1096.74,-128.13"/>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_restoration_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_edge27" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_restoration_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1298.63,-50.13C1204.66,-16.24 919.36,-54.23 774.37,-76.81"/>
+<polygon fill="#000000" stroke="#000000" points="774.17,-73.3 764.83,-78.31 775.25,-80.22 774.17,-73.3"/>
+</g>
+<!-- sourcefile~sqpopt_qp_direct_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_edge3" class="edge">
+<title>sourcefile~sqpopt_qp_direct_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M189.03,-51.13C181.03,-51.13 172.9,-51.13 164.87,-51.13"/>
+<polygon fill="#000000" stroke="#000000" points="165.1,-47.64 155.1,-51.14 165.1,-54.64 165.1,-47.64"/>
+</g>
+<!-- sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_edge4" class="edge">
+<title>sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M466.71,-103.69C438.88,-137.13 356.88,-224.75 274.03,-208.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M272.03,-208.13C190.64,-191.81 122.32,-112.18 93,-73"/>
+<polygon fill="#000000" stroke="#000000" points="95.86,-70.98 87.14,-64.97 90.21,-75.11 95.86,-70.98"/>
+</g>
+<!-- sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_qp_direct_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_edge9" class="edge">
+<title>sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_qp_direct_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M412.84,-78.53C392.58,-74.53 369.99,-70.08 349.02,-65.94"/>
+<polygon fill="#000000" stroke="#000000" points="349.87,-62.54 339.38,-64.03 348.51,-69.41 349.87,-62.54"/>
+</g>
+<!-- sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_edge5" class="edge">
+<title>sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1004.42,-7.79C921.82,-4.9 796.34,-3.23 687.82,-13.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M685.82,-13.13C503.87,-32.91 456.82,-1.89 274.03,-11.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M272.03,-11.13C223.47,-13.41 169.4,-25.33 130.64,-35.57"/>
+<polygon fill="#000000" stroke="#000000" points="129.83,-32.16 121.08,-38.14 131.65,-38.92 129.83,-32.16"/>
+</g>
+<!-- sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_edge16" class="edge">
+<title>sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M685.82,-13.13C626.61,-18.54 618.42,-44.75 562.56,-65.13 553.09,-68.59 542.92,-72 533.03,-75.15"/>
+<polygon fill="#000000" stroke="#000000" points="532,-71.8 523.5,-78.13 534.09,-78.48 532,-71.8"/>
+</g>
+<!-- sourcefile~sqpopt_diagnostics_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_edge10" class="edge">
+<title>sourcefile~sqpopt_diagnostics_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1006.23,-177.76C923.26,-184.62 796.12,-189.58 687.82,-170.13"/>
+</g>
+<!-- sourcefile~sqpopt_diagnostics_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_edge22" class="edge">
+<title>sourcefile~sqpopt_diagnostics_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1027.17,-155.53C1008.85,-152.12 988.86,-148.39 969.98,-144.87"/>
+<polygon fill="#000000" stroke="#000000" points="970.66,-141.44 960.19,-143.04 969.38,-148.32 970.66,-141.44"/>
+</g>
+<!-- sourcefile~sqpopt_nlls_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_node8" class="node">
+<title>sourcefile~sqpopt_nlls_module.f90</title>
+<g id="a_sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_node8"><a xlink:href="../sourcefile/sqpopt_nlls_module.f90.html" xlink:title="sqpopt_nlls_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1701.18,-180.27 1564.41,-180.27 1564.41,-156 1701.18,-156 1701.18,-180.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1632.8" y="-164.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_nlls_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_edge7" class="edge">
+<title>sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1564.29,-168.13C1556.36,-168.13 1548.26,-168.13 1540.31,-168.13"/>
+<polygon fill="#000000" stroke="#000000" points="1540.32,-164.64 1530.32,-168.14 1540.32,-171.64 1540.32,-164.64"/>
+</g>
+<!-- sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_edge13" class="edge">
+<title>sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1600.41,-180.67C1542.27,-202.72 1413.45,-246.13 1300.63,-246.13 1300.63,-246.13 1300.63,-246.13 1094.74,-246.13 968.22,-246.13 933.92,-252.43 811.08,-222.13 753.35,-207.9 746.28,-180.99 687.82,-170.13"/>
+</g>
+<!-- sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_trust_region_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_edge19" class="edge">
+<title>sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_trust_region_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1577,-155.53C1545.91,-148.11 1506.37,-138.22 1471.53,-128.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1469.53,-128.13C1413.71,-111.98 1429.38,-60.52 1376.64,-36.13 1321.35,-10.57 1253.38,-4.24 1198.27,-4.46"/>
+<polygon fill="#000000" stroke="#000000" points="1198.55,-0.95 1188.59,-4.57 1198.63,-7.95 1198.55,-0.95"/>
+</g>
+<!-- sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_edge25" class="edge">
+<title>sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1469.53,-128.13C1389.7,-105.99 1179.49,-131.98 1096.74,-128.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1094.74,-128.13C1057.25,-126.78 1015.86,-126.89 980.23,-127.48"/>
+<polygon fill="#000000" stroke="#000000" points="980.33,-123.98 970.39,-127.66 980.46,-130.98 980.33,-123.98"/>
+</g>
+<!-- sourcefile~sqpopt_options_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_edge14" class="edge">
+<title>sourcefile~sqpopt_options_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M845.32,-142.7C795.61,-156.32 717.43,-175.45 687.82,-170.13"/>
+</g>
+<!-- sourcefile~sqpopt_options_module.f90&#45;&gt;sourcefile~sqpopt_restoration_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_edge28" class="edge">
+<title>sourcefile~sqpopt_options_module.f90&#45;&gt;sourcefile~sqpopt_restoration_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M823.94,-117.53C804.85,-113.83 783.8,-109.75 764.08,-105.92"/>
+<polygon fill="#000000" stroke="#000000" points="764.94,-102.52 754.45,-104.05 763.61,-109.39 764.94,-102.52"/>
+</g>
+<!-- sourcefile~sqpopt_restoration_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_inertia_module.f90~~AfferentGraph_edge15" class="edge">
+<title>sourcefile~sqpopt_restoration_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M598.27,-91.13C590.32,-91.13 582.23,-91.13 574.21,-91.13"/>
+<polygon fill="#000000" stroke="#000000" points="574.45,-87.64 564.45,-91.14 574.45,-94.64 574.45,-87.64"/>
+</g>
+</g>
+</svg>
+</div>                <script>
+                  var pansourcefilesqpopt_inertia_modulef90AfferentGraph = svgPanZoom('#sourcefilesqpopt_inertia_modulef90AfferentGraph',
+                    {zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true,}
+                  );
+                </script>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#AfferentGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="AfferentGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="200pt" height="32pt"
+ viewBox="0.00 0.00 200.00 32.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 195.52,-28.27 195.52,4 -4,4"/>
+<!-- Source File -->
+<g id="node1" class="node">
+<title>Source File</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="69.27,-24.27 0,-24.27 0,0 69.27,0 69.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="34.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Source File</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node2" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="191.52,-24.27 87.75,-24.27 87.75,0 191.52,0 191.52,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="139.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a file to a file which it depends on. A file
+is dependent upon another if the latter must be compiled before the former
+can be.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+          </div>
+        </div>
+<br>
+      <section>
+        <h2><span class="anchor" id="src"></span>Source Code</h2>
+        <div class="hl codehilite"><pre><span></span><a id="ln-1" name="ln-1" href="#ln-1"></a><span class="c">!*******************************************************************************</span>
+<a id="ln-2" name="ln-2" href="#ln-2"></a><span class="c">!&gt; author: Jacob Williams</span>
+<a id="ln-3" name="ln-3" href="#ln-3"></a><span class="c">!  license: MIT</span>
+<a id="ln-4" name="ln-4" href="#ln-4"></a><span class="c">!</span>
+<a id="ln-5" name="ln-5" href="#ln-5"></a><span class="c">!  Inertia control for the Hessians that can be indefinite, the exact one</span>
+<a id="ln-6" name="ln-6" href="#ln-6"></a><span class="c">!  and SR1 (`options%inertia_control`): the shift \( \delta \) of</span>
+<a id="ln-7" name="ln-7" href="#ln-7"></a><span class="c">!  \( H + \delta I \) is found from a sparse factorization of the KKT</span>
+<a id="ln-8" name="ln-8" href="#ln-8"></a><span class="c">!  matrix of the QP subproblem&#39;s working set (see [[sqpopt_kkt_module]]),</span>
+<a id="ln-9" name="ln-9" href="#ln-9"></a><span class="c">!  by the sparse solver of `options%linear_solver` (MUMPS or QDLDL; with</span>
+<a id="ln-10" name="ln-10" href="#ln-10"></a><span class="c">!  the exact Hessian, MUMPS is the better one, see</span>
+<a id="ln-11" name="ln-11" href="#ln-11"></a><span class="c">!  [[sqpopt_symmetric_solver_module]]).</span>
+<a id="ln-12" name="ln-12" href="#ln-12"></a><span class="c">!</span>
+<a id="ln-13" name="ln-13" href="#ln-13"></a><span class="c">!  The QP subproblem&#39;s step is only a minimizer if the Hessian is positive</span>
+<a id="ln-14" name="ln-14" href="#ln-14"></a><span class="c">!  definite on the null space of the working set&#39;s constraints,</span>
+<a id="ln-15" name="ln-15" href="#ln-15"></a><span class="c">!  \( Z^THZ \succ 0 \). The factorization of the KKT matrix tells how many</span>
+<a id="ln-16" name="ln-16" href="#ln-16"></a><span class="c">!  directions of negative curvature that null space has, so the smallest</span>
+<a id="ln-17" name="ln-17" href="#ln-17"></a><span class="c">!  shift that leaves none is found by refactoring ([[inertia_correct]]),</span>
+<a id="ln-18" name="ln-18" href="#ln-18"></a><span class="c">!  much as in IPOPT: first the current shift, then `shift_min` times the</span>
+<a id="ln-19" name="ln-19" href="#ln-19"></a><span class="c">!  size of the Hessian (or a third of the last shift that was needed, if</span>
+<a id="ln-20" name="ln-20" href="#ln-20"></a><span class="c">!  that is larger), then 8 times as much at each attempt, up to</span>
+<a id="ln-21" name="ln-21" href="#ln-21"></a><span class="c">!  `shift_max`. (IPOPT multiplies by 100 until a shift has been needed</span>
+<a id="ln-22" name="ln-22" href="#ln-22"></a><span class="c">!  once. On the Hock-Schittkowski problems that was no better: 273 solved</span>
+<a id="ln-23" name="ln-23" href="#ln-23"></a><span class="c">!  and 3 failed, against 274 and 2, with 1% more function evaluations.</span>
+<a id="ln-24" name="ln-24" href="#ln-24"></a><span class="c">!  Factors of 2, 4, and 16 gave 271 or 272 solved.)</span>
+<a id="ln-25" name="ln-25" href="#ln-25"></a><span class="c">!</span>
+<a id="ln-26" name="ln-26" href="#ln-26"></a><span class="c">!  This only decides the shift. The QP subproblems are solved by</span>
+<a id="ln-27" name="ln-27" href="#ln-27"></a><span class="c">!  [[sqpopt_qp_solver_module]] with the shifted Hessian (see</span>
+<a id="ln-28" name="ln-28" href="#ln-28"></a><span class="c">!  [[sqpopt_iterate]]), which can reuse the factorization for a direct step</span>
+<a id="ln-29" name="ln-29" href="#ln-29"></a><span class="c">!  (see [[sqpopt_qp_direct_module]]).</span>
+<a id="ln-30" name="ln-30" href="#ln-30"></a>
+<a id="ln-31" name="ln-31" href="#ln-31"></a><span class="w">    </span><span class="k">module </span><span class="n">sqpopt_inertia_module</span><span class="w"></span>
+<a id="ln-32" name="ln-32" href="#ln-32"></a>
+<a id="ln-33" name="ln-33" href="#ln-33"></a><span class="w">    </span><span class="k">use </span><span class="n">sqpopt_kinds</span><span class="p">,</span><span class="w">          </span><span class="k">only</span><span class="p">:</span><span class="w"> </span><span class="n">wp</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">sqpopt_module_wp</span><span class="w"></span>
+<a id="ln-34" name="ln-34" href="#ln-34"></a><span class="w">    </span><span class="k">use </span><span class="n">sqpopt_types_module</span><span class="p">,</span><span class="w">   </span><span class="k">only</span><span class="p">:</span><span class="w"> </span><span class="n">sqpopt_sparse_matrix</span><span class="w"></span>
+<a id="ln-35" name="ln-35" href="#ln-35"></a><span class="w">    </span><span class="k">use </span><span class="n">sqpopt_hessian_module</span><span class="p">,</span><span class="w"> </span><span class="k">only</span><span class="p">:</span><span class="w"> </span><span class="n">sqpopt_hessian_type</span><span class="w"></span>
+<a id="ln-36" name="ln-36" href="#ln-36"></a><span class="w">    </span><span class="k">use </span><span class="n">sqpopt_kkt_module</span><span class="p">,</span><span class="w">     </span><span class="k">only</span><span class="p">:</span><span class="w"> </span><span class="n">sqpopt_kkt_type</span><span class="w"></span>
+<a id="ln-37" name="ln-37" href="#ln-37"></a>
+<a id="ln-38" name="ln-38" href="#ln-38"></a><span class="w">    </span><span class="k">implicit none</span>
+<a id="ln-39" name="ln-39" href="#ln-39"></a>
+<a id="ln-40" name="ln-40" href="#ln-40"></a><span class="k">    private</span>
+<a id="ln-41" name="ln-41" href="#ln-41"></a>
+<a id="ln-42" name="ln-42" href="#ln-42"></a>
+<a id="ln-43" name="ln-43" href="#ln-43"></a><span class="k">    type</span><span class="p">,</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">sqpopt_inertia_type</span><span class="w"></span>
+<a id="ln-44" name="ln-44" href="#ln-44"></a><span class="w">        </span><span class="c">!! the inertia control of one solve: the state of the shift&#39;s search</span>
+<a id="ln-45" name="ln-45" href="#ln-45"></a><span class="w">        </span><span class="c">!! (see the module documentation). The KKT matrix it factors is a</span>
+<a id="ln-46" name="ln-46" href="#ln-46"></a><span class="w">        </span><span class="c">!! [[sqpopt_kkt_type]], which the caller owns.</span>
+<a id="ln-47" name="ln-47" href="#ln-47"></a>
+<a id="ln-48" name="ln-48" href="#ln-48"></a><span class="w">        </span><span class="kt">logical</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">enabled</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w">     </span><span class="c">!! whether inertia control is in use (set by the solver, and unset by</span>
+<a id="ln-49" name="ln-49" href="#ln-49"></a><span class="w">                                          </span><span class="c">!! [[inertia_correct]] if the KKT matrix can&#39;t be factored)</span>
+<a id="ln-50" name="ln-50" href="#ln-50"></a><span class="w">        </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">shift_last</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="w">   </span><span class="c">!! the last shift that a correction ended with (`0` if none has</span>
+<a id="ln-51" name="ln-51" href="#ln-51"></a><span class="w">                                          </span><span class="c">!! been needed yet)</span>
+<a id="ln-52" name="ln-52" href="#ln-52"></a>
+<a id="ln-53" name="ln-53" href="#ln-53"></a><span class="w">        </span><span class="k">contains</span>
+<a id="ln-54" name="ln-54" href="#ln-54"></a>
+<a id="ln-55" name="ln-55" href="#ln-55"></a><span class="k">        procedure</span><span class="p">,</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">correct</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">inertia_correct</span><span class="w"></span>
+<a id="ln-56" name="ln-56" href="#ln-56"></a><span class="w">        </span><span class="k">procedure</span><span class="p">,</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">raise</span><span class="w">   </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">inertia_raise</span><span class="w"></span>
+<a id="ln-57" name="ln-57" href="#ln-57"></a>
+<a id="ln-58" name="ln-58" href="#ln-58"></a><span class="w">    </span><span class="k">end type </span><span class="n">sqpopt_inertia_type</span><span class="w"></span>
+<a id="ln-59" name="ln-59" href="#ln-59"></a>
+<a id="ln-60" name="ln-60" href="#ln-60"></a><span class="w">    </span><span class="k">contains</span><span class="w"></span>
+<a id="ln-61" name="ln-61" href="#ln-61"></a><span class="c">!*******************************************************************************</span>
+<a id="ln-62" name="ln-62" href="#ln-62"></a>
+<a id="ln-63" name="ln-63" href="#ln-63"></a><span class="c">!*******************************************************************************</span>
+<a id="ln-64" name="ln-64" href="#ln-64"></a><span class="c">!&gt;</span>
+<a id="ln-65" name="ln-65" href="#ln-65"></a><span class="c">!  increase the Hessian&#39;s shift (`hessian%shift`), if necessary, until</span>
+<a id="ln-66" name="ln-66" href="#ln-66"></a><span class="c">!  \( H + \delta I \) has no negative curvature on the null space of the</span>
+<a id="ln-67" name="ln-67" href="#ln-67"></a><span class="c">!  working set `status` (see the module documentation for the shifts that</span>
+<a id="ln-68" name="ln-68" href="#ln-68"></a><span class="c">!  are tried). The shift is never decreased: the search starts from its</span>
+<a id="ln-69" name="ln-69" href="#ln-69"></a><span class="c">!  current value. On success, `kkt` holds the factorization for the final</span>
+<a id="ln-70" name="ln-70" href="#ln-70"></a><span class="c">!  shift.</span>
+<a id="ln-71" name="ln-71" href="#ln-71"></a><span class="c">!</span>
+<a id="ln-72" name="ln-72" href="#ln-72"></a><span class="c">!  `ok` is true if no negative curvature is left. It is false if inertia</span>
+<a id="ln-73" name="ln-73" href="#ln-73"></a><span class="c">!  control isn&#39;t enabled, if a factorization failed (inertia control is then</span>
+<a id="ln-74" name="ln-74" href="#ln-74"></a><span class="c">!  disabled for the rest of the solve), or if the largest shift,</span>
+<a id="ln-75" name="ln-75" href="#ln-75"></a><span class="c">!  `shift_max`, isn&#39;t enough.</span>
+<a id="ln-76" name="ln-76" href="#ln-76"></a>
+<a id="ln-77" name="ln-77" href="#ln-77"></a><span class="w">    </span><span class="k">subroutine </span><span class="n">inertia_correct</span><span class="p">(</span><span class="n">me</span><span class="p">,</span><span class="w"> </span><span class="n">kkt</span><span class="p">,</span><span class="w"> </span><span class="n">hessian</span><span class="p">,</span><span class="w"> </span><span class="n">jac</span><span class="p">,</span><span class="w"> </span><span class="n">status</span><span class="p">,</span><span class="w"> </span><span class="n">changed</span><span class="p">,</span><span class="w"> </span><span class="n">ok</span><span class="p">,</span><span class="w"> </span><span class="n">n_negative</span><span class="p">)</span><span class="w"></span>
+<a id="ln-78" name="ln-78" href="#ln-78"></a>
+<a id="ln-79" name="ln-79" href="#ln-79"></a><span class="w">    </span><span class="k">class</span><span class="p">(</span><span class="n">sqpopt_inertia_type</span><span class="p">),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">me</span><span class="w"></span>
+<a id="ln-80" name="ln-80" href="#ln-80"></a><span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_kkt_type</span><span class="p">),</span><span class="w">      </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">kkt</span><span class="w">     </span><span class="c">!! the KKT matrix (see [[sqpopt_kkt_module]])</span>
+<a id="ln-81" name="ln-81" href="#ln-81"></a><span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_hessian_type</span><span class="p">),</span><span class="w">  </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">hessian</span><span class="w"> </span><span class="c">!! the Hessian (its `shift` is updated)</span>
+<a id="ln-82" name="ln-82" href="#ln-82"></a><span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_sparse_matrix</span><span class="p">),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">jac</span><span class="w">     </span><span class="c">!! the constraint Jacobian `dimension(m,n)`</span>
+<a id="ln-83" name="ln-83" href="#ln-83"></a><span class="w">    </span><span class="kt">integer</span><span class="p">,</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">      </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">status</span><span class="w">  </span><span class="c">!! the working set: nonzero for each general row, then each</span>
+<a id="ln-84" name="ln-84" href="#ln-84"></a><span class="w">                                                         </span><span class="c">!! variable bound, that is in it `dimension(m+n)`</span>
+<a id="ln-85" name="ln-85" href="#ln-85"></a><span class="w">    </span><span class="kt">logical</span><span class="p">,</span><span class="w">                    </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w">   </span><span class="kd">::</span><span class="w"> </span><span class="n">changed</span><span class="w"> </span><span class="c">!! whether the shift was increased</span>
+<a id="ln-86" name="ln-86" href="#ln-86"></a><span class="w">    </span><span class="kt">logical</span><span class="p">,</span><span class="w">                    </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w">   </span><span class="kd">::</span><span class="w"> </span><span class="n">ok</span><span class="w">      </span><span class="c">!! whether no negative curvature is left (see above)</span>
+<a id="ln-87" name="ln-87" href="#ln-87"></a><span class="w">    </span><span class="kt">integer</span><span class="p">,</span><span class="w"> </span><span class="k">optional</span><span class="p">,</span><span class="w">          </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w">   </span><span class="kd">::</span><span class="w"> </span><span class="n">n_negative</span><span class="w"> </span><span class="c">!! the number of directions of negative curvature</span>
+<a id="ln-88" name="ln-88" href="#ln-88"></a><span class="w">                                                            </span><span class="c">!! found with the shift on entry (`-1` if nothing</span>
+<a id="ln-89" name="ln-89" href="#ln-89"></a><span class="w">                                                            </span><span class="c">!! was factored)</span>
+<a id="ln-90" name="ln-90" href="#ln-90"></a>
+<a id="ln-91" name="ln-91" href="#ln-91"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">shift_max</span><span class="w"></span>
+<a id="ln-92" name="ln-92" href="#ln-92"></a><span class="w">    </span><span class="kt">logical</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">first</span><span class="p">,</span><span class="w"> </span><span class="n">factored</span><span class="w"></span>
+<a id="ln-93" name="ln-93" href="#ln-93"></a>
+<a id="ln-94" name="ln-94" href="#ln-94"></a><span class="w">    </span><span class="n">changed</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"></span>
+<a id="ln-95" name="ln-95" href="#ln-95"></a><span class="w">    </span><span class="n">ok</span><span class="w">      </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"></span>
+<a id="ln-96" name="ln-96" href="#ln-96"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">present</span><span class="p">(</span><span class="n">n_negative</span><span class="p">))</span><span class="w"> </span><span class="n">n_negative</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="w"></span>
+<a id="ln-97" name="ln-97" href="#ln-97"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(.</span><span class="nb">not</span><span class="p">.</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">enabled</span><span class="p">)</span><span class="w"> </span><span class="k">return</span>
+<a id="ln-98" name="ln-98" href="#ln-98"></a>
+<a id="ln-99" name="ln-99" href="#ln-99"></a><span class="k">    </span><span class="n">shift_max</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">hessian</span><span class="p">%</span><span class="n">shift_max</span><span class="o">*</span><span class="n">hessian</span><span class="p">%</span><span class="n">magnitude</span><span class="p">()</span><span class="w"></span>
+<a id="ln-100" name="ln-100" href="#ln-100"></a><span class="w">    </span><span class="n">first</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">true</span><span class="p">.</span><span class="w"></span>
+<a id="ln-101" name="ln-101" href="#ln-101"></a><span class="w">    </span><span class="k">do</span>
+<a id="ln-102" name="ln-102" href="#ln-102"></a><span class="k">        call </span><span class="n">kkt</span><span class="p">%</span><span class="n">factor</span><span class="p">(</span><span class="n">hessian</span><span class="p">,</span><span class="w"> </span><span class="n">jac</span><span class="p">,</span><span class="w"> </span><span class="n">status</span><span class="p">,</span><span class="w"> </span><span class="n">factored</span><span class="p">)</span><span class="w"></span>
+<a id="ln-103" name="ln-103" href="#ln-103"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(.</span><span class="nb">not</span><span class="p">.</span><span class="w"> </span><span class="n">factored</span><span class="p">)</span><span class="w"> </span><span class="k">then</span><span class="w"></span>
+<a id="ln-104" name="ln-104" href="#ln-104"></a><span class="w">            </span><span class="c">! (fall back on the matrix-free tests from here on)</span>
+<a id="ln-105" name="ln-105" href="#ln-105"></a><span class="w">            </span><span class="n">me</span><span class="p">%</span><span class="n">enabled</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"></span>
+<a id="ln-106" name="ln-106" href="#ln-106"></a><span class="w">            </span><span class="k">return</span>
+<a id="ln-107" name="ln-107" href="#ln-107"></a><span class="k">        end if</span>
+<a id="ln-108" name="ln-108" href="#ln-108"></a><span class="k">        if</span><span class="w"> </span><span class="p">(</span><span class="n">first</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="nb">present</span><span class="p">(</span><span class="n">n_negative</span><span class="p">))</span><span class="w"> </span><span class="n">n_negative</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">kkt</span><span class="p">%</span><span class="n">n_negative</span><span class="w"></span>
+<a id="ln-109" name="ln-109" href="#ln-109"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">kkt</span><span class="p">%</span><span class="n">n_negative</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-110" name="ln-110" href="#ln-110"></a><span class="k">            </span><span class="n">ok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">true</span><span class="p">.</span><span class="w"></span>
+<a id="ln-111" name="ln-111" href="#ln-111"></a><span class="w">            </span><span class="k">exit</span>
+<a id="ln-112" name="ln-112" href="#ln-112"></a><span class="k">        end if</span>
+<a id="ln-113" name="ln-113" href="#ln-113"></a><span class="k">        if</span><span class="w"> </span><span class="p">(</span><span class="n">hessian</span><span class="p">%</span><span class="n">shift</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">shift_max</span><span class="p">)</span><span class="w"> </span><span class="k">exit</span>
+<a id="ln-114" name="ln-114" href="#ln-114"></a><span class="k">        call </span><span class="n">me</span><span class="p">%</span><span class="n">raise</span><span class="p">(</span><span class="n">hessian</span><span class="p">)</span><span class="w"></span>
+<a id="ln-115" name="ln-115" href="#ln-115"></a><span class="w">        </span><span class="n">changed</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">true</span><span class="p">.</span><span class="w"></span>
+<a id="ln-116" name="ln-116" href="#ln-116"></a><span class="w">        </span><span class="n">first</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"></span>
+<a id="ln-117" name="ln-117" href="#ln-117"></a><span class="w">    </span><span class="k">end do</span>
+<a id="ln-118" name="ln-118" href="#ln-118"></a><span class="k">    if</span><span class="w"> </span><span class="p">(</span><span class="n">ok</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="n">changed</span><span class="p">)</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">shift_last</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">hessian</span><span class="p">%</span><span class="n">shift</span><span class="w"></span>
+<a id="ln-119" name="ln-119" href="#ln-119"></a>
+<a id="ln-120" name="ln-120" href="#ln-120"></a><span class="w">    </span><span class="k">end subroutine </span><span class="n">inertia_correct</span><span class="w"></span>
+<a id="ln-121" name="ln-121" href="#ln-121"></a><span class="c">!*******************************************************************************</span>
+<a id="ln-122" name="ln-122" href="#ln-122"></a>
+<a id="ln-123" name="ln-123" href="#ln-123"></a><span class="c">!*******************************************************************************</span>
+<a id="ln-124" name="ln-124" href="#ln-124"></a><span class="c">!&gt;</span>
+<a id="ln-125" name="ln-125" href="#ln-125"></a><span class="c">!  increase the Hessian&#39;s shift to the next one to try (see the module</span>
+<a id="ln-126" name="ln-126" href="#ln-126"></a><span class="c">!  documentation): 8 times the current one, and at least `shift_min` times</span>
+<a id="ln-127" name="ln-127" href="#ln-127"></a><span class="c">!  the size of the Hessian, or a third of the last shift that was needed;</span>
+<a id="ln-128" name="ln-128" href="#ln-128"></a><span class="c">!  at most `shift_max` times the size of the Hessian.</span>
+<a id="ln-129" name="ln-129" href="#ln-129"></a>
+<a id="ln-130" name="ln-130" href="#ln-130"></a><span class="w">    </span><span class="k">subroutine </span><span class="n">inertia_raise</span><span class="p">(</span><span class="n">me</span><span class="p">,</span><span class="w"> </span><span class="n">hessian</span><span class="p">)</span><span class="w"></span>
+<a id="ln-131" name="ln-131" href="#ln-131"></a>
+<a id="ln-132" name="ln-132" href="#ln-132"></a><span class="w">    </span><span class="k">class</span><span class="p">(</span><span class="n">sqpopt_inertia_type</span><span class="p">),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">me</span><span class="w"></span>
+<a id="ln-133" name="ln-133" href="#ln-133"></a><span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_hessian_type</span><span class="p">),</span><span class="w">  </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">hessian</span><span class="w"> </span><span class="c">!! the Hessian (its `shift` is updated)</span>
+<a id="ln-134" name="ln-134" href="#ln-134"></a>
+<a id="ln-135" name="ln-135" href="#ln-135"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">shift</span><span class="w"></span>
+<a id="ln-136" name="ln-136" href="#ln-136"></a>
+<a id="ln-137" name="ln-137" href="#ln-137"></a><span class="w">    </span><span class="n">shift</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">hessian</span><span class="p">%</span><span class="n">shift_min</span><span class="o">*</span><span class="n">hessian</span><span class="p">%</span><span class="n">magnitude</span><span class="p">()</span><span class="w"></span>
+<a id="ln-138" name="ln-138" href="#ln-138"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">shift_last</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="p">)</span><span class="w"> </span><span class="n">shift</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="n">shift</span><span class="p">,</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">shift_last</span><span class="o">/</span><span class="mf">3.0_wp</span><span class="p">)</span><span class="w"></span>
+<a id="ln-139" name="ln-139" href="#ln-139"></a><span class="w">    </span><span class="n">shift</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="n">shift</span><span class="p">,</span><span class="w"> </span><span class="mf">8.0_wp</span><span class="o">*</span><span class="n">hessian</span><span class="p">%</span><span class="n">shift</span><span class="p">)</span><span class="w"></span>
+<a id="ln-140" name="ln-140" href="#ln-140"></a><span class="w">    </span><span class="n">hessian</span><span class="p">%</span><span class="n">shift</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">min</span><span class="p">(</span><span class="n">shift</span><span class="p">,</span><span class="w"> </span><span class="n">hessian</span><span class="p">%</span><span class="n">shift_max</span><span class="o">*</span><span class="n">hessian</span><span class="p">%</span><span class="n">magnitude</span><span class="p">())</span><span class="w"></span>
+<a id="ln-141" name="ln-141" href="#ln-141"></a>
+<a id="ln-142" name="ln-142" href="#ln-142"></a><span class="w">    </span><span class="k">end subroutine </span><span class="n">inertia_raise</span><span class="w"></span>
+<a id="ln-143" name="ln-143" href="#ln-143"></a><span class="c">!*******************************************************************************</span>
+<a id="ln-144" name="ln-144" href="#ln-144"></a>
+<a id="ln-145" name="ln-145" href="#ln-145"></a><span class="w">    </span><span class="k">end module </span><span class="n">sqpopt_inertia_module</span><span class="w"></span>
+<a id="ln-146" name="ln-146" href="#ln-146"></a><span class="c">!*******************************************************************************</span>
+</pre></div>
+
+      </section>
+    </div>
+  </div>
+
+      <hr>
+    </div> <!-- /container -->
+    <footer>
+      <div class="container">
+        <div class="row justify-content-between">
+          <div class="col">
+            <p>
+              sqpopt
+ was developed by Jacob Williams<br>              &copy; 2026 
+</p>
+          </div>
+          <div class="col">
+            <p class="text-end">
+              Documentation generated by
+              <a href="https://github.com/Fortran-FOSS-Programmers/ford">FORD</a>
+            </p>
+          </div>
+        </div>
+        <br>
+      </div> <!-- /container -->
+    </footer>
+    <!-- sqpopt theme: the button switches the theme, and remembers it for the guide too -->
+    <script>
+      document.querySelector('.theme-toggle').addEventListener('click', function () {
+        var root = document.documentElement;
+        var next = root.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-bs-theme', next);
+        try { localStorage.setItem('sqpopt-theme', next); } catch (e) {}
+      });
+    </script>
+  </body>
+</html>

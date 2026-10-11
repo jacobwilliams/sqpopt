@@ -1,0 +1,561 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - coverage.info - src/sqpopt_spectral_module.f90</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../index.html" title="Click to go to top-level">top level</a> - <a href="index.html" title="Click to go to directory src">src</a> - sqpopt_spectral_module.f90<span style="font-size: 80%;"> (source / <a href="sqpopt_spectral_module.f90.func-c.html" title="Click to go to function table">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">coverage.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryMed">89.2&nbsp;%</td>
+            <td class="headerCovTableEntry">204</td>
+            <td class="headerCovTableEntry">182</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2026-10-11 01:22:22</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryMed">83.3&nbsp;%</td>
+            <td class="headerCovTableEntry">12</td>
+            <td class="headerCovTableEntry">10</td>
+          </tr>
+                  <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : !*******************************************************************************</span>
+<span id="L2"><span class="lineNum">       2</span>              : !&gt; author: Jacob Williams</span>
+<span id="L3"><span class="lineNum">       3</span>              : !  license: MIT</span>
+<span id="L4"><span class="lineNum">       4</span>              : !</span>
+<span id="L5"><span class="lineNum">       5</span>              : !  The spectral decomposition of the limited-memory Hessian approximations</span>
+<span id="L6"><span class="lineNum">       6</span>              : !  (BFGS and SR1), from their compact representation, without forming an</span>
+<span id="L7"><span class="lineNum">       7</span>              : !  `n x n` matrix (Burdakov, Gratton, Toint, Zikrin 2017; Brust, Burdakov,</span>
+<span id="L8"><span class="lineNum">       8</span>              : !  Erway, Marcia, *Algorithm 1030: SC-SR1*, ACM TOMS 48(4), 2022, section 2.3).</span>
+<span id="L9"><span class="lineNum">       9</span>              : !</span>
+<span id="L10"><span class="lineNum">      10</span>              : !  The matrix is \( B = \theta I + U C U^T \), with \( \theta \) the initial</span>
+<span id="L11"><span class="lineNum">      11</span>              : !  scaling plus the shift, `U` the `n x r` low-rank factor (`r` = `k` for SR1,</span>
+<span id="L12"><span class="lineNum">      12</span>              : !  `2k` for BFGS, for `k` stored pairs) and \( C = \sigma M^{-1} \) the small</span>
+<span id="L13"><span class="lineNum">      13</span>              : !  middle matrix (see [[sqpopt_hessian_module]]). With the eigendecomposition</span>
+<span id="L14"><span class="lineNum">      14</span>              : !  of the Gram matrix \( U^TU = V D V^T \), keeping the `q` eigenvalues that</span>
+<span id="L15"><span class="lineNum">      15</span>              : !  are not negligible, \( U = Q R \) with \( Q = U V D^{-1/2} \) orthonormal</span>
+<span id="L16"><span class="lineNum">      16</span>              : !  (a thin QR factorization, from the stored inner products only) and</span>
+<span id="L17"><span class="lineNum">      17</span>              : !  \( R = D^{1/2} V^T \). Then</span>
+<span id="L18"><span class="lineNum">      18</span>              : !</span>
+<span id="L19"><span class="lineNum">      19</span>              : !  $$ B = \theta I + Q (R C R^T) Q^T, \qquad R C R^T = W \hat\Lambda W^T $$</span>
+<span id="L20"><span class="lineNum">      20</span>              : !</span>
+<span id="L21"><span class="lineNum">      21</span>              : !  so the eigenvalues of `B` are \( \theta + \hat\lambda_i \) (`q` of them),</span>
+<span id="L22"><span class="lineNum">      22</span>              : !  with the eigenvectors \( P = Q W = U (V D^{-1/2} W) \), and \( \theta \)</span>
+<span id="L23"><span class="lineNum">      23</span>              : !  with multiplicity `n - q` (every vector orthogonal to `P`). It costs two</span>
+<span id="L24"><span class="lineNum">      24</span>              : !  symmetric eigenproblems of order at most `r` (see [[sqpopt_eigen_module]])</span>
+<span id="L25"><span class="lineNum">      25</span>              : !  and no operation on vectors of size `n`. The eigenvectors are never</span>
+<span id="L26"><span class="lineNum">      26</span>              : !  formed: only the `r x q` matrix \( V D^{-1/2} W \) is kept, and products</span>
+<span id="L27"><span class="lineNum">      27</span>              : !  with `P` are products with `U` (`O(nr)` each), so a trust-region step</span>
+<span id="L28"><span class="lineNum">      28</span>              : !  costs about `4nr` operations, as many as an L-BFGS product.</span>
+<span id="L29"><span class="lineNum">      29</span>              : !</span>
+<span id="L30"><span class="lineNum">      30</span>              : !  Two uses (see [[sqpopt_iterate_module]] and [[sqpopt_qp_solver_module]]):</span>
+<span id="L31"><span class="lineNum">      31</span>              : !  the smallest eigenvalue, to shift an indefinite SR1 matrix to a positive</span>
+<span id="L32"><span class="lineNum">      32</span>              : !  definite one before a QP (`hessian%convexify`), and the minimizer of the</span>
+<span id="L33"><span class="lineNum">      33</span>              : !  QP's objective within the step cap, an L2 trust-region subproblem solved</span>
+<span id="L34"><span class="lineNum">      34</span>              : !  in closed form in the eigenvector basis (the unconstrained step of the</span>
+<span id="L35"><span class="lineNum">      35</span>              : !  SR1 matrix).</span>
+<span id="L36"><span class="lineNum">      36</span>              : </span>
+<span id="L37"><span class="lineNum">      37</span>              :     module sqpopt_spectral_module</span>
+<span id="L38"><span class="lineNum">      38</span>              : </span>
+<span id="L39"><span class="lineNum">      39</span>              :     use sqpopt_kinds,          only: wp =&gt; sqpopt_module_wp</span>
+<span id="L40"><span class="lineNum">      40</span>              :     use sqpopt_hessian_module, only: sqpopt_hessian_type</span>
+<span id="L41"><span class="lineNum">      41</span>              :     use sqpopt_eigen_module,   only: symmetric_eigen, sqpopt_eigen_ok</span>
+<span id="L42"><span class="lineNum">      42</span>              : </span>
+<span id="L43"><span class="lineNum">      43</span>              :     implicit none</span>
+<span id="L44"><span class="lineNum">      44</span>              : </span>
+<span id="L45"><span class="lineNum">      45</span>              :     private</span>
+<span id="L46"><span class="lineNum">      46</span>              : </span>
+<span id="L47"><span class="lineNum">      47</span>              :     ! statuses:</span>
+<span id="L48"><span class="lineNum">      48</span>              :     integer, parameter, public :: sqpopt_spectrum_ok            = 0 !! success</span>
+<span id="L49"><span class="lineNum">      49</span>              :     integer, parameter, public :: sqpopt_spectrum_not_available = 1 !! not a limited-memory matrix (exact mode)</span>
+<span id="L50"><span class="lineNum">      50</span>              :     integer, parameter, public :: sqpopt_spectrum_failed        = 2 !! an eigenproblem didn't converge (or LAPACK was</span>
+<span id="L51"><span class="lineNum">      51</span>              :                                                                     !! asked for without it)</span>
+<span id="L52"><span class="lineNum">      52</span>              :     integer, parameter, public :: sqpopt_spectrum_no_vectors    = 3 !! the eigenvectors weren't computed</span>
+<span id="L53"><span class="lineNum">      53</span>              : </span>
+<span id="L54"><span class="lineNum">      54</span>              :     real(wp), parameter :: gram_tol = 1.0e-12_wp !! eigenvalues of \( U^TU \) below this times the size of the vectors</span>
+<span id="L55"><span class="lineNum">      55</span>              :                                                  !! that `U` is formed from (see [[hessian_low_rank_scale]]) are</span>
+<span id="L56"><span class="lineNum">      56</span>              :                                                  !! dropped: directions in which `U`'s columns are dependent, or only</span>
+<span id="L57"><span class="lineNum">      57</span>              :                                                  !! rounding error</span>
+<span id="L58"><span class="lineNum">      58</span>              : </span>
+<span id="L59"><span class="lineNum">      59</span>              :     type, public :: sqpopt_spectrum_type</span>
+<span id="L60"><span class="lineNum">      60</span>              :         !! the spectral decomposition of a limited-memory Hessian (see the</span>
+<span id="L61"><span class="lineNum">      61</span>              :         !! module documentation).</span>
+<span id="L62"><span class="lineNum">      62</span>              :         integer  :: n = 0           !! order of the matrix</span>
+<span id="L63"><span class="lineNum">      63</span>              :         integer  :: q = 0           !! number of the eigenvalues in `lambda` (the rank of the low-rank part)</span>
+<span id="L64"><span class="lineNum">      64</span>              :         real(wp) :: theta = 0.0_wp  !! the eigenvalue of multiplicity `n - q` (the scaling plus the shift)</span>
+<span id="L65"><span class="lineNum">      65</span>              :         real(wp), dimension(:),   allocatable :: lambda !! the other eigenvalues, ascending `dimension(q)`</span>
+<span id="L66"><span class="lineNum">      66</span>              :         real(wp), dimension(:,:), allocatable :: coef   !! their eigenvectors are \( P = U \) `coef`, `U` the low-rank</span>
+<span id="L67"><span class="lineNum">      67</span>              :                                                         !! factor of the Hessian it was computed for (if computed)</span>
+<span id="L68"><span class="lineNum">      68</span>              :                                                         !! `dimension(r,q)`</span>
+<span id="L69"><span class="lineNum">      69</span>              :         logical  :: has_vectors = .false. !! whether `coef` was computed</span>
+<span id="L70"><span class="lineNum">      70</span>              : </span>
+<span id="L71"><span class="lineNum">      71</span>              :         contains</span>
+<span id="L72"><span class="lineNum">      72</span>              : </span>
+<span id="L73"><span class="lineNum">      73</span>              :         procedure, public :: compute           =&gt; spectrum_compute</span>
+<span id="L74"><span class="lineNum">      74</span>              :         procedure, public :: lambda_min        =&gt; spectrum_lambda_min</span>
+<span id="L75"><span class="lineNum">      75</span>              :         procedure, public :: lambda_max        =&gt; spectrum_lambda_max</span>
+<span id="L76"><span class="lineNum">      76</span>              :         procedure, public :: eigenvector       =&gt; spectrum_eigenvector</span>
+<span id="L77"><span class="lineNum">      77</span>              :         procedure, public :: trust_region_step =&gt; spectrum_trust_region_step</span>
+<span id="L78"><span class="lineNum">      78</span>              : </span>
+<span id="L79"><span class="lineNum">      79</span>              :     end type sqpopt_spectrum_type</span>
+<span id="L80"><span class="lineNum">      80</span>              : </span>
+<span id="L81"><span class="lineNum">      81</span>              :     contains</span>
+<span id="L82"><span class="lineNum">      82</span>              : !*******************************************************************************</span>
+<span id="L83"><span class="lineNum">      83</span>              : </span>
+<span id="L84"><span class="lineNum">      84</span>              : !*******************************************************************************</span>
+<span id="L85"><span class="lineNum">      85</span>              : !&gt;</span>
+<span id="L86"><span class="lineNum">      86</span>              : !  the spectral decomposition of the limited-memory matrix `hessian` (with</span>
+<span id="L87"><span class="lineNum">      87</span>              : !  its current shift), and, with `vectors`, the coefficients of the</span>
+<span id="L88"><span class="lineNum">      88</span>              : !  eigenvectors of the `q` eigenvalues that are not `theta` (see the module</span>
+<span id="L89"><span class="lineNum">      89</span>              : !  documentation). The products with the eigenvectors use `hessian`, which</span>
+<span id="L90"><span class="lineNum">      90</span>              : !  must not change in between.</span>
+<span id="L91"><span class="lineNum">      91</span>              : </span>
+<span id="L92"><span class="lineNum">      92</span> <span class="tlaGNC">         549 :     subroutine spectrum_compute(me, hessian, istat, vectors)</span></span>
+<span id="L93"><span class="lineNum">      93</span>              : </span>
+<span id="L94"><span class="lineNum">      94</span>              :     class(sqpopt_spectrum_type), intent(inout) :: me</span>
+<span id="L95"><span class="lineNum">      95</span>              :     type(sqpopt_hessian_type),   intent(inout) :: hessian !! the Hessian approximation</span>
+<span id="L96"><span class="lineNum">      96</span>              :     integer,                     intent(out)   :: istat   !! `sqpopt_spectrum_ok`, or another status (see the</span>
+<span id="L97"><span class="lineNum">      97</span>              :                                                           !! module's constants)</span>
+<span id="L98"><span class="lineNum">      98</span>              :     logical, optional,           intent(in)    :: vectors !! also the eigenvectors (default `.false.`)</span>
+<span id="L99"><span class="lineNum">      99</span>              : </span>
+<span id="L100"><span class="lineNum">     100</span> <span class="tlaGNC">         549 :     real(wp), dimension(:,:), allocatable :: gram, c, t1, rmat, k, rc</span></span>
+<span id="L101"><span class="lineNum">     101</span> <span class="tlaGNC">         549 :     real(wp), dimension(:),   allocatable :: d, khat</span></span>
+<span id="L102"><span class="lineNum">     102</span> <span class="tlaGNC">         549 :     integer, dimension(:), allocatable :: keep</span></span>
+<span id="L103"><span class="lineNum">     103</span>              :     integer  :: r, j, i, q, eig_stat</span>
+<span id="L104"><span class="lineNum">     104</span>              :     real(wp) :: dtol</span>
+<span id="L105"><span class="lineNum">     105</span>              :     logical  :: want_vectors</span>
+<span id="L106"><span class="lineNum">     106</span>              : </span>
+<span id="L107"><span class="lineNum">     107</span> <span class="tlaGNC">         549 :     want_vectors = .false.</span></span>
+<span id="L108"><span class="lineNum">     108</span> <span class="tlaGNC">         549 :     if (present(vectors)) want_vectors = vectors</span></span>
+<span id="L109"><span class="lineNum">     109</span> <span class="tlaGNC">         549 :     me%has_vectors = .false.</span></span>
+<span id="L110"><span class="lineNum">     110</span> <span class="tlaGNC">         549 :     me%q = 0</span></span>
+<span id="L111"><span class="lineNum">     111</span> <span class="tlaGNC">         549 :     if (allocated(me%lambda)) deallocate(me%lambda)</span></span>
+<span id="L112"><span class="lineNum">     112</span> <span class="tlaGNC">         549 :     if (allocated(me%coef)) deallocate(me%coef)</span></span>
+<span id="L113"><span class="lineNum">     113</span> <span class="tlaGNC">         549 :     if (hessian%exact) then</span></span>
+<span id="L114"><span class="lineNum">     114</span> <span class="tlaGNC">           1 :         istat = sqpopt_spectrum_not_available</span></span>
+<span id="L115"><span class="lineNum">     115</span> <span class="tlaGNC">           1 :         return</span></span>
+<span id="L116"><span class="lineNum">     116</span>              :     end if</span>
+<span id="L117"><span class="lineNum">     117</span> <span class="tlaGNC">         548 :     istat = sqpopt_spectrum_ok</span></span>
+<span id="L118"><span class="lineNum">     118</span> <span class="tlaGNC">         548 :     me%n = hessian%n</span></span>
+<span id="L119"><span class="lineNum">     119</span> <span class="tlaGNC">         548 :     me%theta = 1.0_wp/hessian%gamma + hessian%shift</span></span>
+<span id="L120"><span class="lineNum">     120</span> <span class="tlaGNC">         548 :     r = hessian%low_rank_size()</span></span>
+<span id="L121"><span class="lineNum">     121</span> <span class="tlaGNC">         548 :     allocate(me%lambda(0))</span></span>
+<span id="L122"><span class="lineNum">     122</span> <span class="tlaGNC">         548 :     if (r == 0) then</span></span>
+<span id="L123"><span class="lineNum">     123</span> <span class="tlaGNC">         100 :         call no_low_rank_part()</span></span>
+<span id="L124"><span class="lineNum">     124</span> <span class="tlaGNC">         100 :         return</span></span>
+<span id="L125"><span class="lineNum">     125</span>              :     end if</span>
+<span id="L126"><span class="lineNum">     126</span>              : </span>
+<span id="L127"><span class="lineNum">     127</span>              :     ! the Gram matrix U'U = V D V' (the thin QR factorization of U):</span>
+<span id="L128"><span class="lineNum">     128</span> <span class="tlaGNC">         448 :     allocate(gram(r,r), d(r))</span></span>
+<span id="L129"><span class="lineNum">     129</span> <span class="tlaGNC">         448 :     call hessian%low_rank_gram(gram)</span></span>
+<span id="L130"><span class="lineNum">     130</span> <span class="tlaGNC">         448 :     call symmetric_eigen(gram, d, eig_stat, hessian%eigen_solver)</span></span>
+<span id="L131"><span class="lineNum">     131</span> <span class="tlaGNC">         448 :     if (eig_stat /= sqpopt_eigen_ok) then</span></span>
+<span id="L132"><span class="lineNum">     132</span> <span class="tlaUNC">           0 :         istat = sqpopt_spectrum_failed</span></span>
+<span id="L133"><span class="lineNum">     133</span> <span class="tlaUNC">           0 :         return</span></span>
+<span id="L134"><span class="lineNum">     134</span>              :     end if</span>
+<span id="L135"><span class="lineNum">     135</span>              :     ! (the eigenvalues are ascending: keep the significant ones, at most n,</span>
+<span id="L136"><span class="lineNum">     136</span>              :     ! the largest if there are more, which only round-off could give)</span>
+<span id="L137"><span class="lineNum">     137</span> <span class="tlaGNC">         448 :     allocate(keep(r))</span></span>
+<span id="L138"><span class="lineNum">     138</span> <span class="tlaGNC">         448 :     dtol = gram_tol*max(d(r), hessian%low_rank_scale())</span></span>
+<span id="L139"><span class="lineNum">     139</span> <span class="tlaGNC">         448 :     q = 0</span></span>
+<span id="L140"><span class="lineNum">     140</span> <span class="tlaGNC">        1908 :     do j = r, 1, -1</span></span>
+<span id="L141"><span class="lineNum">     141</span> <span class="tlaGNC">        1694 :         if (q == me%n) exit</span></span>
+<span id="L142"><span class="lineNum">     142</span> <span class="tlaGNC">        1645 :         if (.not. (d(j) &gt; dtol .and. d(j) &gt; 0.0_wp)) exit</span></span>
+<span id="L143"><span class="lineNum">     143</span> <span class="tlaGNC">        1460 :         q = q + 1</span></span>
+<span id="L144"><span class="lineNum">     144</span> <span class="tlaGNC">        1674 :         keep(q) = j</span></span>
+<span id="L145"><span class="lineNum">     145</span>              :     end do</span>
+<span id="L146"><span class="lineNum">     146</span> <span class="tlaGNC">         448 :     if (q == 0) then</span></span>
+<span id="L147"><span class="lineNum">     147</span> <span class="tlaGNC">          27 :         call no_low_rank_part()</span></span>
+<span id="L148"><span class="lineNum">     148</span> <span class="tlaGNC">          27 :         return</span></span>
+<span id="L149"><span class="lineNum">     149</span>              :     end if</span>
+<span id="L150"><span class="lineNum">     150</span>              : </span>
+<span id="L151"><span class="lineNum">     151</span>              :     ! T1 = V D^{-1/2} (so Q = U T1), and R = D^{1/2} V':</span>
+<span id="L152"><span class="lineNum">     152</span> <span class="tlaGNC">         421 :     allocate(t1(r,q), rmat(q,r))</span></span>
+<span id="L153"><span class="lineNum">     153</span> <span class="tlaGNC">        1881 :     do j = 1, q</span></span>
+<span id="L154"><span class="lineNum">     154</span> <span class="tlaGNC">       13335 :         t1(:,j)   = gram(:,keep(j))/sqrt(d(keep(j)))</span></span>
+<span id="L155"><span class="lineNum">     155</span> <span class="tlaGNC">       13756 :         rmat(j,:) = gram(:,keep(j))*sqrt(d(keep(j)))</span></span>
+<span id="L156"><span class="lineNum">     156</span>              :     end do</span>
+<span id="L157"><span class="lineNum">     157</span>              : </span>
+<span id="L158"><span class="lineNum">     158</span>              :     ! K = R C R' = W Lambda W':</span>
+<span id="L159"><span class="lineNum">     159</span> <span class="tlaGNC">         421 :     allocate(c(r,r), rc(q,r), k(q,q), khat(q))</span></span>
+<span id="L160"><span class="lineNum">     160</span> <span class="tlaGNC">         421 :     call hessian%low_rank_middle_inverse(c)</span></span>
+<span id="L161"><span class="lineNum">     161</span> <span class="tlaGNC">        2623 :     do i = 1, r</span></span>
+<span id="L162"><span class="lineNum">     162</span> <span class="tlaGNC">       14498 :         do j = 1, q</span></span>
+<span id="L163"><span class="lineNum">     163</span> <span class="tlaGNC">      149172 :             rc(j,i) = dot_product(rmat(j,:), c(:,i))</span></span>
+<span id="L164"><span class="lineNum">     164</span>              :         end do</span>
+<span id="L165"><span class="lineNum">     165</span>              :     end do</span>
+<span id="L166"><span class="lineNum">     166</span> <span class="tlaGNC">        1881 :     do i = 1, q</span></span>
+<span id="L167"><span class="lineNum">     167</span> <span class="tlaGNC">        7589 :         do j = 1, i</span></span>
+<span id="L168"><span class="lineNum">     168</span> <span class="tlaGNC">       67695 :             k(i,j) = dot_product(rc(i,:), rmat(j,:))</span></span>
+<span id="L169"><span class="lineNum">     169</span> <span class="tlaGNC">        7168 :             k(j,i) = k(i,j)</span></span>
+<span id="L170"><span class="lineNum">     170</span>              :         end do</span>
+<span id="L171"><span class="lineNum">     171</span>              :     end do</span>
+<span id="L172"><span class="lineNum">     172</span> <span class="tlaGNC">         421 :     call symmetric_eigen(k, khat, eig_stat, hessian%eigen_solver, vectors=want_vectors)</span></span>
+<span id="L173"><span class="lineNum">     173</span> <span class="tlaGNC">         421 :     if (eig_stat /= sqpopt_eigen_ok) then</span></span>
+<span id="L174"><span class="lineNum">     174</span> <span class="tlaUNC">           0 :         istat = sqpopt_spectrum_failed</span></span>
+<span id="L175"><span class="lineNum">     175</span> <span class="tlaUNC">           0 :         return</span></span>
+<span id="L176"><span class="lineNum">     176</span>              :     end if</span>
+<span id="L177"><span class="lineNum">     177</span> <span class="tlaGNC">         421 :     deallocate(me%lambda)</span></span>
+<span id="L178"><span class="lineNum">     178</span> <span class="tlaGNC">         421 :     allocate(me%lambda(q))</span></span>
+<span id="L179"><span class="lineNum">     179</span> <span class="tlaGNC">        2302 :     me%lambda = me%theta + khat</span></span>
+<span id="L180"><span class="lineNum">     180</span> <span class="tlaGNC">         421 :     me%q = q</span></span>
+<span id="L181"><span class="lineNum">     181</span>              : </span>
+<span id="L182"><span class="lineNum">     182</span> <span class="tlaGNC">        1839 :     if (want_vectors) then</span></span>
+<span id="L183"><span class="lineNum">     183</span>              :         ! P = Q W = U (T1 W):</span>
+<span id="L184"><span class="lineNum">     184</span> <span class="tlaGNC">         356 :         allocate(me%coef(r,q))</span></span>
+<span id="L185"><span class="lineNum">     185</span> <span class="tlaGNC">        1751 :         do i = 1, q</span></span>
+<span id="L186"><span class="lineNum">     186</span> <span class="tlaGNC">       13381 :             do j = 1, r</span></span>
+<span id="L187"><span class="lineNum">     187</span> <span class="tlaGNC">      124879 :                 me%coef(j,i) = dot_product(t1(j,:), k(:,i))</span></span>
+<span id="L188"><span class="lineNum">     188</span>              :             end do</span>
+<span id="L189"><span class="lineNum">     189</span>              :         end do</span>
+<span id="L190"><span class="lineNum">     190</span> <span class="tlaGNC">         356 :         me%has_vectors = .true.</span></span>
+<span id="L191"><span class="lineNum">     191</span>              :     end if</span>
+<span id="L192"><span class="lineNum">     192</span>              : </span>
+<span id="L193"><span class="lineNum">     193</span>              :     contains</span>
+<span id="L194"><span class="lineNum">     194</span>              : </span>
+<span id="L195"><span class="lineNum">     195</span> <span class="tlaGNC">         127 :         subroutine no_low_rank_part()</span></span>
+<span id="L196"><span class="lineNum">     196</span>              :         !! the matrix is \( \theta I \): no eigenvalues besides \( \theta \), and no eigenvectors</span>
+<span id="L197"><span class="lineNum">     197</span> <span class="tlaGNC">         127 :         if (want_vectors) then</span></span>
+<span id="L198"><span class="lineNum">     198</span> <span class="tlaGNC">         117 :             allocate(me%coef(0, 0))</span></span>
+<span id="L199"><span class="lineNum">     199</span> <span class="tlaGNC">         117 :             me%has_vectors = .true.</span></span>
+<span id="L200"><span class="lineNum">     200</span>              :         end if</span>
+<span id="L201"><span class="lineNum">     201</span> <span class="tlaGNC">         127 :         end subroutine no_low_rank_part</span></span>
+<span id="L202"><span class="lineNum">     202</span>              : </span>
+<span id="L203"><span class="lineNum">     203</span>              :     end subroutine spectrum_compute</span>
+<span id="L204"><span class="lineNum">     204</span>              : !*******************************************************************************</span>
+<span id="L205"><span class="lineNum">     205</span>              : </span>
+<span id="L206"><span class="lineNum">     206</span>              : !*******************************************************************************</span>
+<span id="L207"><span class="lineNum">     207</span>              : !&gt;</span>
+<span id="L208"><span class="lineNum">     208</span>              : !  the smallest eigenvalue (of all `n`).</span>
+<span id="L209"><span class="lineNum">     209</span>              : </span>
+<span id="L210"><span class="lineNum">     210</span> <span class="tlaGNC">         739 :     pure real(wp) function spectrum_lambda_min(me) result(lmin)</span></span>
+<span id="L211"><span class="lineNum">     211</span>              : </span>
+<span id="L212"><span class="lineNum">     212</span>              :     class(sqpopt_spectrum_type), intent(in) :: me</span>
+<span id="L213"><span class="lineNum">     213</span>              : </span>
+<span id="L214"><span class="lineNum">     214</span> <span class="tlaGNC">         739 :     lmin = me%theta</span></span>
+<span id="L215"><span class="lineNum">     215</span> <span class="tlaGNC">         739 :     if (me%q &gt; 0) then</span></span>
+<span id="L216"><span class="lineNum">     216</span> <span class="tlaGNC">         535 :         if (me%q &lt; me%n) then</span></span>
+<span id="L217"><span class="lineNum">     217</span> <span class="tlaGNC">         455 :             lmin = min(me%lambda(1), me%theta)</span></span>
+<span id="L218"><span class="lineNum">     218</span>              :         else</span>
+<span id="L219"><span class="lineNum">     219</span> <span class="tlaGNC">          80 :             lmin = me%lambda(1)</span></span>
+<span id="L220"><span class="lineNum">     220</span>              :         end if</span>
+<span id="L221"><span class="lineNum">     221</span>              :     end if</span>
+<span id="L222"><span class="lineNum">     222</span>              : </span>
+<span id="L223"><span class="lineNum">     223</span> <span class="tlaGNC">         739 :     end function spectrum_lambda_min</span></span>
+<span id="L224"><span class="lineNum">     224</span>              : !*******************************************************************************</span>
+<span id="L225"><span class="lineNum">     225</span>              : </span>
+<span id="L226"><span class="lineNum">     226</span>              : !*******************************************************************************</span>
+<span id="L227"><span class="lineNum">     227</span>              : !&gt;</span>
+<span id="L228"><span class="lineNum">     228</span>              : !  the largest eigenvalue (of all `n`).</span>
+<span id="L229"><span class="lineNum">     229</span>              : </span>
+<span id="L230"><span class="lineNum">     230</span> <span class="tlaGNC">         371 :     pure real(wp) function spectrum_lambda_max(me) result(lmax)</span></span>
+<span id="L231"><span class="lineNum">     231</span>              : </span>
+<span id="L232"><span class="lineNum">     232</span>              :     class(sqpopt_spectrum_type), intent(in) :: me</span>
+<span id="L233"><span class="lineNum">     233</span>              : </span>
+<span id="L234"><span class="lineNum">     234</span> <span class="tlaGNC">         371 :     lmax = me%theta</span></span>
+<span id="L235"><span class="lineNum">     235</span> <span class="tlaGNC">         371 :     if (me%q &gt; 0) then</span></span>
+<span id="L236"><span class="lineNum">     236</span> <span class="tlaGNC">         254 :         if (me%q &lt; me%n) then</span></span>
+<span id="L237"><span class="lineNum">     237</span> <span class="tlaGNC">         198 :             lmax = max(me%lambda(me%q), me%theta)</span></span>
+<span id="L238"><span class="lineNum">     238</span>              :         else</span>
+<span id="L239"><span class="lineNum">     239</span> <span class="tlaGNC">          56 :             lmax = me%lambda(me%q)</span></span>
+<span id="L240"><span class="lineNum">     240</span>              :         end if</span>
+<span id="L241"><span class="lineNum">     241</span>              :     end if</span>
+<span id="L242"><span class="lineNum">     242</span>              : </span>
+<span id="L243"><span class="lineNum">     243</span> <span class="tlaGNC">         371 :     end function spectrum_lambda_max</span></span>
+<span id="L244"><span class="lineNum">     244</span>              : !*******************************************************************************</span>
+<span id="L245"><span class="lineNum">     245</span>              : </span>
+<span id="L246"><span class="lineNum">     246</span>              : !*******************************************************************************</span>
+<span id="L247"><span class="lineNum">     247</span>              : !&gt;</span>
+<span id="L248"><span class="lineNum">     248</span>              : !  the eigenvector of `lambda(j)`, \( U \) `coef(:,j)` (`O(nr)`), with the</span>
+<span id="L249"><span class="lineNum">     249</span>              : !  Hessian the decomposition was computed for.</span>
+<span id="L250"><span class="lineNum">     250</span>              : </span>
+<span id="L251"><span class="lineNum">     251</span> <span class="tlaGNC">         292 :     subroutine spectrum_eigenvector(me, hessian, j, v)</span></span>
+<span id="L252"><span class="lineNum">     252</span>              : </span>
+<span id="L253"><span class="lineNum">     253</span>              :     class(sqpopt_spectrum_type), intent(in)  :: me</span>
+<span id="L254"><span class="lineNum">     254</span>              :     type(sqpopt_hessian_type),   intent(in)  :: hessian !! the Hessian the decomposition was computed for</span>
+<span id="L255"><span class="lineNum">     255</span>              :     integer,                     intent(in)  :: j       !! which (`1..q`)</span>
+<span id="L256"><span class="lineNum">     256</span>              :     real(wp), dimension(:),      intent(out) :: v       !! the eigenvector `dimension(n)`</span>
+<span id="L257"><span class="lineNum">     257</span>              : </span>
+<span id="L258"><span class="lineNum">     258</span> <span class="tlaGNC">         292 :     call hessian%low_rank_multiply(me%coef(:,j), v)</span></span>
+<span id="L259"><span class="lineNum">     259</span>              : </span>
+<span id="L260"><span class="lineNum">     260</span> <span class="tlaGNC">         292 :     end subroutine spectrum_eigenvector</span></span>
+<span id="L261"><span class="lineNum">     261</span>              : !*******************************************************************************</span>
+<span id="L262"><span class="lineNum">     262</span>              : </span>
+<span id="L263"><span class="lineNum">     263</span>              : !*******************************************************************************</span>
+<span id="L264"><span class="lineNum">     264</span>              : !&gt;</span>
+<span id="L265"><span class="lineNum">     265</span>              : !  the minimizer of \( g^Tp + \frac12 p^TBp \) subject to</span>
+<span id="L266"><span class="lineNum">     266</span>              : !  \( \lVert p \rVert_2 \le \Delta \) (the L2 trust-region subproblem), from</span>
+<span id="L267"><span class="lineNum">     267</span>              : !  the spectral decomposition (with its eigenvectors). In the eigenvector</span>
+<span id="L268"><span class="lineNum">     268</span>              : !  basis the problem is separable: with \( a = P^Tg \) and \( g_\perp \) the</span>
+<span id="L269"><span class="lineNum">     269</span>              : !  part of `g` orthogonal to `P`,</span>
+<span id="L270"><span class="lineNum">     270</span>              : !</span>
+<span id="L271"><span class="lineNum">     271</span>              : !  $$ p(\mu) = -P\,\mathrm{diag}\Big(\frac{1}{\lambda_i + \mu}\Big)\,a</span>
+<span id="L272"><span class="lineNum">     272</span>              : !     - \frac{g_\perp}{\theta + \mu} $$</span>
+<span id="L273"><span class="lineNum">     273</span>              : !</span>
+<span id="L274"><span class="lineNum">     274</span>              : !  and the solution is \( p(0) \) if `B` is positive definite and</span>
+<span id="L275"><span class="lineNum">     275</span>              : !  \( \lVert p(0) \rVert \le \Delta \), else \( p(\mu) \) with</span>
+<span id="L276"><span class="lineNum">     276</span>              : !  \( \mu &gt; \max(0, -\lambda_{\min}) \) and \( \lVert p(\mu) \rVert = \Delta \)</span>
+<span id="L277"><span class="lineNum">     277</span>              : !  (a root of the secular equation \( 1/\lVert p(\mu) \rVert = 1/\Delta \),</span>
+<span id="L278"><span class="lineNum">     278</span>              : !  found by Newton's method, safeguarded by bisection), or, in the &quot;hard</span>
+<span id="L279"><span class="lineNum">     279</span>              : !  case&quot; (`g` orthogonal to the eigenspace of \( \lambda_{\min} \le 0 \), and</span>
+<span id="L280"><span class="lineNum">     280</span>              : !  \( \lVert p(-\lambda_{\min}) \rVert &lt; \Delta \)), \( p(-\lambda_{\min}) \)</span>
+<span id="L281"><span class="lineNum">     281</span>              : !  plus a multiple of an eigenvector of \( \lambda_{\min} \) that brings it</span>
+<span id="L282"><span class="lineNum">     282</span>              : !  to the boundary (Moré and Sorensen 1983).</span>
+<span id="L283"><span class="lineNum">     283</span>              : </span>
+<span id="L284"><span class="lineNum">     284</span> <span class="tlaGNC">         311 :     subroutine spectrum_trust_region_step(me, hessian, g, delta, p, istat, mu)</span></span>
+<span id="L285"><span class="lineNum">     285</span>              : </span>
+<span id="L286"><span class="lineNum">     286</span>              :     class(sqpopt_spectrum_type), intent(in)  :: me</span>
+<span id="L287"><span class="lineNum">     287</span>              :     type(sqpopt_hessian_type),   intent(in)  :: hessian !! the Hessian the decomposition was computed for (for the</span>
+<span id="L288"><span class="lineNum">     288</span>              :                                                        !! products with its eigenvectors)</span>
+<span id="L289"><span class="lineNum">     289</span>              :     real(wp), dimension(:),      intent(in)  :: g     !! the gradient `dimension(n)`</span>
+<span id="L290"><span class="lineNum">     290</span>              :     real(wp),                    intent(in)  :: delta !! the radius \( \Delta &gt; 0 \)</span>
+<span id="L291"><span class="lineNum">     291</span>              :     real(wp), dimension(:),      intent(out) :: p     !! the step `dimension(n)`</span>
+<span id="L292"><span class="lineNum">     292</span>              :     integer,                     intent(out) :: istat !! `sqpopt_spectrum_ok` or `sqpopt_spectrum_no_vectors`</span>
+<span id="L293"><span class="lineNum">     293</span>              :     real(wp), optional,          intent(out) :: mu    !! the multiplier \( \mu \) of the constraint</span>
+<span id="L294"><span class="lineNum">     294</span>              : </span>
+<span id="L295"><span class="lineNum">     295</span>              :     real(wp), parameter :: rtol = 1.0e-10_wp !! relative accuracy of \( \lVert p \rVert = \Delta \)</span>
+<span id="L296"><span class="lineNum">     296</span>              :     integer,  parameter :: max_iter = 100</span>
+<span id="L297"><span class="lineNum">     297</span> <span class="tlaGNC">         311 :     real(wp), dimension(:), allocatable :: a, gperp, z, w, cw, e</span></span>
+<span id="L298"><span class="lineNum">     298</span>              :     real(wp) :: gp2, lmin, sig, lo, hi, nrm, dnrm, tol, eps, tau, phi, dphi</span>
+<span id="L299"><span class="lineNum">     299</span>              :     logical  :: has_perp, hard</span>
+<span id="L300"><span class="lineNum">     300</span>              :     integer  :: i, it, n, q, m, r</span>
+<span id="L301"><span class="lineNum">     301</span>              : </span>
+<span id="L302"><span class="lineNum">     302</span> <span class="tlaGNC">         311 :     n = me%n</span></span>
+<span id="L303"><span class="lineNum">     303</span> <span class="tlaGNC">         311 :     q = me%q</span></span>
+<span id="L304"><span class="lineNum">     304</span> <span class="tlaGNC">      107677 :     p = 0.0_wp</span></span>
+<span id="L305"><span class="lineNum">     305</span> <span class="tlaGNC">         311 :     if (present(mu)) mu = 0.0_wp</span></span>
+<span id="L306"><span class="lineNum">     306</span> <span class="tlaGNC">         311 :     if (.not. me%has_vectors) then</span></span>
+<span id="L307"><span class="lineNum">     307</span> <span class="tlaUNC">           0 :         istat = sqpopt_spectrum_no_vectors</span></span>
+<span id="L308"><span class="lineNum">     308</span> <span class="tlaUNC">           0 :         return</span></span>
+<span id="L309"><span class="lineNum">     309</span>              :     end if</span>
+<span id="L310"><span class="lineNum">     310</span> <span class="tlaGNC">         311 :     istat = sqpopt_spectrum_ok</span></span>
+<span id="L311"><span class="lineNum">     311</span> <span class="tlaGNC">         311 :     has_perp = q &lt; n</span></span>
+<span id="L312"><span class="lineNum">     312</span>              : </span>
+<span id="L313"><span class="lineNum">     313</span>              :     ! the gradient in the eigenvector basis, a = P'g = coef' (U'g), and the</span>
+<span id="L314"><span class="lineNum">     314</span>              :     ! rest of it, gperp = g - P a:</span>
+<span id="L315"><span class="lineNum">     315</span> <span class="tlaGNC">         311 :     r = size(me%coef, 1)</span></span>
+<span id="L316"><span class="lineNum">     316</span> <span class="tlaGNC">         311 :     allocate(a(q), gperp(n), w(r), cw(r), z(n))</span></span>
+<span id="L317"><span class="lineNum">     317</span> <span class="tlaGNC">         311 :     if (r &gt; 0) call hessian%low_rank_multiply_transpose(g, w)</span></span>
+<span id="L318"><span class="lineNum">     318</span> <span class="tlaGNC">         917 :     do i = 1, q</span></span>
+<span id="L319"><span class="lineNum">     319</span> <span class="tlaGNC">        5075 :         a(i) = dot_product(me%coef(:,i), w)</span></span>
+<span id="L320"><span class="lineNum">     320</span>              :     end do</span>
+<span id="L321"><span class="lineNum">     321</span> <span class="tlaGNC">      107988 :     gperp = g</span></span>
+<span id="L322"><span class="lineNum">     322</span> <span class="tlaGNC">         311 :     if (q &gt; 0) then</span></span>
+<span id="L323"><span class="lineNum">     323</span> <span class="tlaGNC">         204 :         call coef_times(a, cw)</span></span>
+<span id="L324"><span class="lineNum">     324</span> <span class="tlaGNC">         204 :         call hessian%low_rank_multiply(cw, z)</span></span>
+<span id="L325"><span class="lineNum">     325</span> <span class="tlaGNC">       69015 :         gperp = gperp - z</span></span>
+<span id="L326"><span class="lineNum">     326</span>              :     end if</span>
+<span id="L327"><span class="lineNum">     327</span> <span class="tlaGNC">         311 :     gp2 = 0.0_wp</span></span>
+<span id="L328"><span class="lineNum">     328</span> <span class="tlaGNC">      107483 :     if (has_perp) gp2 = dot_product(gperp, gperp)</span></span>
+<span id="L329"><span class="lineNum">     329</span> <span class="tlaGNC">         311 :     lmin = me%lambda_min()</span></span>
+<span id="L330"><span class="lineNum">     330</span> <span class="tlaGNC">         311 :     eps = epsilon(1.0_wp)*max(1.0_wp, abs(me%lambda_max()), abs(lmin))</span></span>
+<span id="L331"><span class="lineNum">     331</span> <span class="tlaGNC">      107677 :     tol = sqrt(epsilon(1.0_wp))*max(norm2(g), tiny(1.0_wp))</span></span>
+<span id="L332"><span class="lineNum">     332</span>              : </span>
+<span id="L333"><span class="lineNum">     333</span>              :     ! the interior solution:</span>
+<span id="L334"><span class="lineNum">     334</span> <span class="tlaGNC">         311 :     if (lmin &gt; eps) then</span></span>
+<span id="L335"><span class="lineNum">     335</span> <span class="tlaGNC">         260 :         if (norm_p(0.0_wp) &lt;= delta) then</span></span>
+<span id="L336"><span class="lineNum">     336</span> <span class="tlaGNC">          95 :             call form_p(0.0_wp)</span></span>
+<span id="L337"><span class="lineNum">     337</span> <span class="tlaGNC">          95 :             return</span></span>
+<span id="L338"><span class="lineNum">     338</span>              :         end if</span>
+<span id="L339"><span class="lineNum">     339</span>              :     end if</span>
+<span id="L340"><span class="lineNum">     340</span>              : </span>
+<span id="L341"><span class="lineNum">     341</span>              :     ! the hard case: g (nearly) orthogonal to the eigenspace of lambda_min</span>
+<span id="L342"><span class="lineNum">     342</span> <span class="tlaGNC">         216 :     lo = max(0.0_wp, -lmin)</span></span>
+<span id="L343"><span class="lineNum">     343</span> <span class="tlaGNC">         216 :     hard = lmin &lt;= eps</span></span>
+<span id="L344"><span class="lineNum">     344</span> <span class="tlaGNC">         216 :     if (hard) then</span></span>
+<span id="L345"><span class="lineNum">     345</span> <span class="tlaGNC">         286 :         do i = 1, q</span></span>
+<span id="L346"><span class="lineNum">     346</span> <span class="tlaGNC">         286 :             if (me%lambda(i) &lt;= lmin + eps .and. abs(a(i)) &gt; tol) hard = .false.</span></span>
+<span id="L347"><span class="lineNum">     347</span>              :         end do</span>
+<span id="L348"><span class="lineNum">     348</span> <span class="tlaGNC">          51 :         if (has_perp .and. me%theta &lt;= lmin + eps .and. sqrt(gp2) &gt; tol) hard = .false.</span></span>
+<span id="L349"><span class="lineNum">     349</span>              :     end if</span>
+<span id="L350"><span class="lineNum">     350</span> <span class="tlaGNC">         216 :     if (hard) then</span></span>
+<span id="L351"><span class="lineNum">     351</span> <span class="tlaGNC">           4 :         nrm = norm_p(lo, exclude=.true.)</span></span>
+<span id="L352"><span class="lineNum">     352</span> <span class="tlaGNC">           4 :         if (nrm &lt;= delta) then</span></span>
+<span id="L353"><span class="lineNum">     353</span> <span class="tlaGNC">           4 :             call form_p(lo, exclude=.true.)</span></span>
+<span id="L354"><span class="lineNum">     354</span>              :             ! (to the boundary along an eigenvector of lambda_min)</span>
+<span id="L355"><span class="lineNum">     355</span> <span class="tlaGNC">           4 :             if (q &gt; 0 .and. (.not. has_perp .or. me%lambda(1) &lt;= me%theta)) then</span></span>
+<span id="L356"><span class="lineNum">     356</span> <span class="tlaGNC">           4 :                 call hessian%low_rank_multiply(me%coef(:,1), z)</span></span>
+<span id="L357"><span class="lineNum">     357</span>              :             else</span>
+<span id="L358"><span class="lineNum">     358</span>              :                 ! (a unit vector orthogonal to P: a coordinate vector with P's part</span>
+<span id="L359"><span class="lineNum">     359</span>              :                 ! taken out; since the squared norms of P's rows add up to q &lt; n,</span>
+<span id="L360"><span class="lineNum">     360</span>              :                 ! one of the first q+1 is at least partly outside P's span)</span>
+<span id="L361"><span class="lineNum">     361</span> <span class="tlaUNC">           0 :                 allocate(e(n))</span></span>
+<span id="L362"><span class="lineNum">     362</span> <span class="tlaUNC">           0 :                 do m = 1, min(q+1, n)</span></span>
+<span id="L363"><span class="lineNum">     363</span> <span class="tlaUNC">           0 :                     e = 0.0_wp</span></span>
+<span id="L364"><span class="lineNum">     364</span> <span class="tlaUNC">           0 :                     e(m) = 1.0_wp</span></span>
+<span id="L365"><span class="lineNum">     365</span> <span class="tlaUNC">           0 :                     z = e</span></span>
+<span id="L366"><span class="lineNum">     366</span> <span class="tlaUNC">           0 :                     if (q &gt; 0) then</span></span>
+<span id="L367"><span class="lineNum">     367</span> <span class="tlaUNC">           0 :                         call hessian%low_rank_multiply_transpose(e, w)</span></span>
+<span id="L368"><span class="lineNum">     368</span> <span class="tlaUNC">           0 :                         do i = 1, q</span></span>
+<span id="L369"><span class="lineNum">     369</span> <span class="tlaUNC">           0 :                             a(i) = dot_product(me%coef(:,i), w)</span></span>
+<span id="L370"><span class="lineNum">     370</span>              :                         end do</span>
+<span id="L371"><span class="lineNum">     371</span> <span class="tlaUNC">           0 :                         call coef_times(a, cw)</span></span>
+<span id="L372"><span class="lineNum">     372</span> <span class="tlaUNC">           0 :                         call hessian%low_rank_multiply(cw, e)</span></span>
+<span id="L373"><span class="lineNum">     373</span> <span class="tlaUNC">           0 :                         z = z - e</span></span>
+<span id="L374"><span class="lineNum">     374</span>              :                     end if</span>
+<span id="L375"><span class="lineNum">     375</span> <span class="tlaUNC">           0 :                     if (norm2(z) &gt;= 0.5_wp*sqrt(1.0_wp - real(q, wp)/real(n, wp))) exit</span></span>
+<span id="L376"><span class="lineNum">     376</span>              :                 end do</span>
+<span id="L377"><span class="lineNum">     377</span> <span class="tlaUNC">           0 :                 z = z/norm2(z)</span></span>
+<span id="L378"><span class="lineNum">     378</span>              :             end if</span>
+<span id="L379"><span class="lineNum">     379</span> <span class="tlaGNC">          12 :             tau = sqrt(max(delta**2 - norm2(p)**2, 0.0_wp))</span></span>
+<span id="L380"><span class="lineNum">     380</span> <span class="tlaGNC">          12 :             if (dot_product(g, z) &gt; 0.0_wp) tau = -tau</span></span>
+<span id="L381"><span class="lineNum">     381</span> <span class="tlaGNC">          12 :             p = p + tau*z</span></span>
+<span id="L382"><span class="lineNum">     382</span> <span class="tlaGNC">           4 :             if (present(mu)) mu = lo</span></span>
+<span id="L383"><span class="lineNum">     383</span> <span class="tlaGNC">           4 :             return</span></span>
+<span id="L384"><span class="lineNum">     384</span>              :         end if</span>
+<span id="L385"><span class="lineNum">     385</span>              :     end if</span>
+<span id="L386"><span class="lineNum">     386</span>              : </span>
+<span id="L387"><span class="lineNum">     387</span>              :     ! the root of 1/||p(mu)|| = 1/delta on (lo, hi]: ||p(mu)|| &gt; delta near lo,</span>
+<span id="L388"><span class="lineNum">     388</span>              :     ! and &lt;= delta at hi = lo + ||g||/delta (where every lambda_i + mu &gt;= ||g||/delta)</span>
+<span id="L389"><span class="lineNum">     389</span> <span class="tlaGNC">       98234 :     hi = max(lo, 0.0_wp) + max(norm2(g)/delta, tiny(1.0_wp))</span></span>
+<span id="L390"><span class="lineNum">     390</span> <span class="tlaGNC">         613 :     if (lmin &lt; 0.0_wp) hi = -lmin + norm2(g)/delta</span></span>
+<span id="L391"><span class="lineNum">     391</span> <span class="tlaGNC">         212 :     sig = hi</span></span>
+<span id="L392"><span class="lineNum">     392</span> <span class="tlaGNC">         606 :     do it = 1, max_iter</span></span>
+<span id="L393"><span class="lineNum">     393</span> <span class="tlaGNC">         606 :         nrm = norm_p(sig)</span></span>
+<span id="L394"><span class="lineNum">     394</span> <span class="tlaGNC">         606 :         if (abs(nrm - delta) &lt;= rtol*delta) exit</span></span>
+<span id="L395"><span class="lineNum">     395</span> <span class="tlaGNC">         394 :         if (nrm &gt; delta) then</span></span>
+<span id="L396"><span class="lineNum">     396</span> <span class="tlaGNC">         169 :             lo = sig</span></span>
+<span id="L397"><span class="lineNum">     397</span>              :         else</span>
+<span id="L398"><span class="lineNum">     398</span> <span class="tlaGNC">         225 :             hi = sig</span></span>
+<span id="L399"><span class="lineNum">     399</span>              :         end if</span>
+<span id="L400"><span class="lineNum">     400</span>              :         ! Newton on phi(mu) = 1/||p|| - 1/delta: phi' = (sum c_i^2/(l_i+mu)^3)/||p||^3</span>
+<span id="L401"><span class="lineNum">     401</span> <span class="tlaGNC">         394 :         phi  = 1.0_wp/nrm - 1.0_wp/delta</span></span>
+<span id="L402"><span class="lineNum">     402</span> <span class="tlaGNC">         394 :         dnrm = dnorm_p(sig)</span></span>
+<span id="L403"><span class="lineNum">     403</span> <span class="tlaGNC">         394 :         dphi = dnrm/nrm**3</span></span>
+<span id="L404"><span class="lineNum">     404</span> <span class="tlaGNC">         394 :         if (dphi &gt; 0.0_wp) then</span></span>
+<span id="L405"><span class="lineNum">     405</span> <span class="tlaGNC">         394 :             sig = sig - phi/dphi</span></span>
+<span id="L406"><span class="lineNum">     406</span>              :         else</span>
+<span id="L407"><span class="lineNum">     407</span> <span class="tlaUNC">           0 :             sig = 0.5_wp*(lo + hi)</span></span>
+<span id="L408"><span class="lineNum">     408</span>              :         end if</span>
+<span id="L409"><span class="lineNum">     409</span> <span class="tlaGNC">         394 :         if (.not. (sig &gt; lo .and. sig &lt; hi)) sig = 0.5_wp*(lo + hi)</span></span>
+<span id="L410"><span class="lineNum">     410</span>              :     end do</span>
+<span id="L411"><span class="lineNum">     411</span> <span class="tlaGNC">         212 :     call form_p(sig)</span></span>
+<span id="L412"><span class="lineNum">     412</span> <span class="tlaGNC">         523 :     if (present(mu)) mu = sig</span></span>
+<span id="L413"><span class="lineNum">     413</span>              : </span>
+<span id="L414"><span class="lineNum">     414</span>              :     contains</span>
+<span id="L415"><span class="lineNum">     415</span>              : </span>
+<span id="L416"><span class="lineNum">     416</span> <span class="tlaGNC">         870 :         real(wp) function norm_p(s, exclude)</span></span>
+<span id="L417"><span class="lineNum">     417</span>              :         !! \( \lVert p(s) \rVert \) (with `exclude`, without the eigenspace of \( \lambda_{\min} \))</span>
+<span id="L418"><span class="lineNum">     418</span>              :         real(wp),          intent(in) :: s       !! the multiplier \( \mu \)</span>
+<span id="L419"><span class="lineNum">     419</span>              :         logical, optional, intent(in) :: exclude !! leave out the components of \( \lambda_{\min} \)</span>
+<span id="L420"><span class="lineNum">     420</span>              :         real(wp) :: t</span>
+<span id="L421"><span class="lineNum">     421</span>              :         integer :: j</span>
+<span id="L422"><span class="lineNum">     422</span>              :         logical :: ex</span>
+<span id="L423"><span class="lineNum">     423</span> <span class="tlaGNC">         870 :         ex = .false.</span></span>
+<span id="L424"><span class="lineNum">     424</span> <span class="tlaGNC">         870 :         if (present(exclude)) ex = exclude</span></span>
+<span id="L425"><span class="lineNum">     425</span> <span class="tlaGNC">         870 :         t = 0.0_wp</span></span>
+<span id="L426"><span class="lineNum">     426</span> <span class="tlaGNC">        3141 :         do j = 1, q</span></span>
+<span id="L427"><span class="lineNum">     427</span> <span class="tlaGNC">        2271 :             if (ex .and. me%lambda(j) &lt;= lmin + eps) cycle</span></span>
+<span id="L428"><span class="lineNum">     428</span> <span class="tlaGNC">        3137 :             t = t + (a(j)/(me%lambda(j) + s))**2</span></span>
+<span id="L429"><span class="lineNum">     429</span>              :         end do</span>
+<span id="L430"><span class="lineNum">     430</span> <span class="tlaGNC">         870 :         if (has_perp .and. .not. (ex .and. me%theta &lt;= lmin + eps)) t = t + gp2/(me%theta + s)**2</span></span>
+<span id="L431"><span class="lineNum">     431</span> <span class="tlaGNC">         870 :         norm_p = sqrt(t)</span></span>
+<span id="L432"><span class="lineNum">     432</span> <span class="tlaGNC">         870 :         end function norm_p</span></span>
+<span id="L433"><span class="lineNum">     433</span>              : </span>
+<span id="L434"><span class="lineNum">     434</span> <span class="tlaGNC">         394 :         real(wp) function dnorm_p(s)</span></span>
+<span id="L435"><span class="lineNum">     435</span>              :         !! \( \sum_i c_i^2/(\lambda_i + s)^3 \), so that \( d\lVert p \rVert/ds = -\) this \( /\lVert p \rVert \)</span>
+<span id="L436"><span class="lineNum">     436</span>              :         real(wp), intent(in) :: s !! the multiplier \( \mu \)</span>
+<span id="L437"><span class="lineNum">     437</span>              :         integer :: j</span>
+<span id="L438"><span class="lineNum">     438</span> <span class="tlaGNC">         394 :         dnorm_p = 0.0_wp</span></span>
+<span id="L439"><span class="lineNum">     439</span> <span class="tlaGNC">        1810 :         do j = 1, q</span></span>
+<span id="L440"><span class="lineNum">     440</span> <span class="tlaGNC">        1810 :             dnorm_p = dnorm_p + a(j)**2/(me%lambda(j) + s)**3</span></span>
+<span id="L441"><span class="lineNum">     441</span>              :         end do</span>
+<span id="L442"><span class="lineNum">     442</span> <span class="tlaGNC">         394 :         if (has_perp) dnorm_p = dnorm_p + gp2/(me%theta + s)**3</span></span>
+<span id="L443"><span class="lineNum">     443</span> <span class="tlaGNC">         394 :         end function dnorm_p</span></span>
+<span id="L444"><span class="lineNum">     444</span>              : </span>
+<span id="L445"><span class="lineNum">     445</span> <span class="tlaGNC">         311 :         subroutine form_p(s, exclude)</span></span>
+<span id="L446"><span class="lineNum">     446</span>              :         !! the step \( p(s) \) (with `exclude`, without the eigenspace of \( \lambda_{\min} \))</span>
+<span id="L447"><span class="lineNum">     447</span>              :         real(wp),          intent(in) :: s       !! the multiplier \( \mu \)</span>
+<span id="L448"><span class="lineNum">     448</span>              :         logical, optional, intent(in) :: exclude !! leave out the components of \( \lambda_{\min} \)</span>
+<span id="L449"><span class="lineNum">     449</span> <span class="tlaGNC">         311 :         real(wp), dimension(:), allocatable :: b</span></span>
+<span id="L450"><span class="lineNum">     450</span>              :         integer :: j</span>
+<span id="L451"><span class="lineNum">     451</span>              :         logical :: ex</span>
+<span id="L452"><span class="lineNum">     452</span> <span class="tlaGNC">         311 :         ex = .false.</span></span>
+<span id="L453"><span class="lineNum">     453</span> <span class="tlaGNC">         311 :         if (present(exclude)) ex = exclude</span></span>
+<span id="L454"><span class="lineNum">     454</span> <span class="tlaGNC">      107677 :         p = 0.0_wp</span></span>
+<span id="L455"><span class="lineNum">     455</span> <span class="tlaGNC">         311 :         if (q &gt; 0) then</span></span>
+<span id="L456"><span class="lineNum">     456</span>              :             ! p = -P b = -U (coef b), b_j = a_j/(lambda_j + s)</span>
+<span id="L457"><span class="lineNum">     457</span> <span class="tlaGNC">         204 :             allocate(b(q))</span></span>
+<span id="L458"><span class="lineNum">     458</span> <span class="tlaGNC">         810 :             do j = 1, q</span></span>
+<span id="L459"><span class="lineNum">     459</span> <span class="tlaGNC">         606 :                 b(j) = 0.0_wp</span></span>
+<span id="L460"><span class="lineNum">     460</span> <span class="tlaGNC">         606 :                 if (ex .and. me%lambda(j) &lt;= lmin + eps) cycle</span></span>
+<span id="L461"><span class="lineNum">     461</span> <span class="tlaGNC">         806 :                 b(j) = a(j)/(me%lambda(j) + s)</span></span>
+<span id="L462"><span class="lineNum">     462</span>              :             end do</span>
+<span id="L463"><span class="lineNum">     463</span> <span class="tlaGNC">         204 :             call coef_times(b, cw)</span></span>
+<span id="L464"><span class="lineNum">     464</span> <span class="tlaGNC">         204 :             call hessian%low_rank_multiply(cw, p)</span></span>
+<span id="L465"><span class="lineNum">     465</span> <span class="tlaGNC">       68811 :             p = -p</span></span>
+<span id="L466"><span class="lineNum">     466</span>              :         end if</span>
+<span id="L467"><span class="lineNum">     467</span> <span class="tlaGNC">      107483 :         if (has_perp .and. .not. (ex .and. me%theta &lt;= lmin + eps)) p = p - gperp/(me%theta + s)</span></span>
+<span id="L468"><span class="lineNum">     468</span> <span class="tlaGNC">         311 :         end subroutine form_p</span></span>
+<span id="L469"><span class="lineNum">     469</span>              : </span>
+<span id="L470"><span class="lineNum">     470</span> <span class="tlaGNC">         408 :         subroutine coef_times(b, cb)</span></span>
+<span id="L471"><span class="lineNum">     471</span>              :         !! `cb` = `coef` times `b`</span>
+<span id="L472"><span class="lineNum">     472</span>              :         real(wp), dimension(:), intent(in)  :: b  !! the vector `dimension(q)`</span>
+<span id="L473"><span class="lineNum">     473</span>              :         real(wp), dimension(:), intent(out) :: cb !! the product `dimension(r)`</span>
+<span id="L474"><span class="lineNum">     474</span>              :         integer :: j</span>
+<span id="L475"><span class="lineNum">     475</span> <span class="tlaGNC">        2378 :         cb = 0.0_wp</span></span>
+<span id="L476"><span class="lineNum">     476</span> <span class="tlaGNC">        1620 :         do j = 1, q</span></span>
+<span id="L477"><span class="lineNum">     477</span> <span class="tlaGNC">        9936 :             cb = cb + me%coef(:,j)*b(j)</span></span>
+<span id="L478"><span class="lineNum">     478</span>              :         end do</span>
+<span id="L479"><span class="lineNum">     479</span> <span class="tlaGNC">         408 :         end subroutine coef_times</span></span>
+<span id="L480"><span class="lineNum">     480</span>              : </span>
+<span id="L481"><span class="lineNum">     481</span>              :     end subroutine spectrum_trust_region_step</span>
+<span id="L482"><span class="lineNum">     482</span>              : !*******************************************************************************</span>
+<span id="L483"><span class="lineNum">     483</span>              : </span>
+<span id="L484"><span class="lineNum">     484</span> <span class="tlaUNC">           0 :     end module sqpopt_spectral_module</span></span>
+<span id="L485"><span class="lineNum">     485</span>              : !*******************************************************************************</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com/linux-test-project/lcov" target="_parent">LCOV version 2.5-0</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>
