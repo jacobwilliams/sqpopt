@@ -8,7 +8,8 @@ program test_nlls
     !!   Gauss-Newton Hessian. (Given as equality constraints to the solver
     !!   itself, such a problem ends as infeasible at best: see
     !!   `test_overdetermined`.)
-    !! * Brown's badly scaled problem (a zero-residual one, in 2 variables).
+    !! * Brown's badly scaled problem (a zero-residual one, in 2 variables):
+    !!   must end with `sqpopt_success` at `(1e6, 2e-6)`, to a relative 1e-8.
     !! * a fit with a bound and a constraint: a line `x1 + x2*t` through
     !!   four points, with `x2 <= 0.5` and `x1 + x2 = 1`, and user data.
     !! * a second `solve` gives the same result as the first, and invalid
@@ -60,11 +61,15 @@ program test_nlls
 
     call solve(p_brown, .false., x, ss, istat, iter, n_fc)
     if (istat /= sqpopt_success) error stop 'test_nlls FAILED: Brown''s problem should converge'
-    if (ss > 1.0e-10_wp) error stop 'test_nlls FAILED: Brown''s problem, the residuals should be zero'
+    ! (the solution, `(1e6, 2e-6)`, to a relative 1e-8: the sum of squares isn't scale-free, and where the
+    ! iterates end within the tolerances depends on the rounding, e.g. on fused multiply-adds at -O3)
+    if (maxval(abs(x/[1.0e6_wp, 2.0e-6_wp] - 1.0_wp)) > 1.0e-8_wp) error stop 'test_nlls FAILED: Brown''s problem, wrong solution'
 
     call solve(p_brown, .true., x, ss, istat, iter, n_fc)
     if (istat /= sqpopt_success) error stop 'test_nlls FAILED: Brown''s problem (Gauss-Newton) should converge'
-    if (ss > 1.0e-10_wp) error stop 'test_nlls FAILED: Brown''s problem (Gauss-Newton), the residuals should be zero'
+    if (maxval(abs(x/[1.0e6_wp, 2.0e-6_wp] - 1.0_wp)) > 1.0e-8_wp) then
+        error stop 'test_nlls FAILED: Brown''s problem (Gauss-Newton), wrong solution'
+    end if
 
     call test_line()
     call test_invalid()
