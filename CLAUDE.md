@@ -15,7 +15,7 @@ How this library is developed, and what has to be kept in sync when anything cha
 | `ford/` | The API docs' light/dark theme: `templates/base.html` (a copy of FORD's, with a theme button like the guide's, sharing its `localStorage` key) and `user.css` (the guide's dark palette for Bootstrap, and fixes for FORD's hard-coded colours), set in `ford.md` (`html_template_dir`, `css`). When FORD is upgraded in `pixi.lock`, re-copy `base.html` from FORD and redo its changes (marked "sqpopt theme"). |
 | `python/` | The Python bindings (`sqpopt/`: a scipy-like `minimize`, whose extension f2py builds from the Fortran shim and signature file in `sqpopt/fortran/`, and `least_squares`, which is written in Python on top of `minimize`), a Qt options dialog (`sqpopt_options/schema.py` describes every option), and their tests. |
 | `tools/` | `hs_performance_table.sh` regenerates the Performance page's HS table and the data of its results of every problem. `hs_compare.sh` runs one HS problem with both SQPOPT and SLSQP. `stack_check.sh` lists the library's automatic arrays (there must be none) and array temporaries (see the ground rules). `cutest_benchmark.py` (`pixi run cutest setup|list|run|report`) runs SQPOPT, SLSQP, and scipy's trust-constr on the CUTEst problems through PyCUTEst and the Python bindings; it needs the CUTEst library, the SIF decoder, and the problem files in `cutest/` (not in the repository: `setup` downloads them, about 4 GB), so it is a developer's benchmark, not a test. `run` solves several problems at once (`--jobs`; use `--jobs=1` for times that will be written down), and `--no-overdetermined` leaves out the problems with more constraints than variables, for quick runs (the Performance page's numbers are of the whole set). `rosenbrock_disk_figure.py` redraws the figure of the Performance page's first example from the iterates that `test_rosenbrock_disk` writes with `--path=FILE` (run both if a change alters that solve's path). |
-| `plan/` | Design documents. `plan/ROADMAP.md` is the current roadmap and backlog. |
+| `plan/` | Design documents. `plan/ROADMAP.md` is the current roadmap and backlog. `plan/REQUIREMENTS.md` is the software requirements specification: what the code does now, one numbered "shall" per behavior, each with its verification method and its trace to the code and the test. |
 
 ## Ground rules
 
@@ -64,6 +64,7 @@ Before calling a change done, go through the items that apply.
 2. **Tests.** Add or extend a test in `test/` for new behavior (a new `test/test_<feature>.f90` is picked up automatically). Run the full `pixi run fpm test`, and report failures faithfully.
 3. **Lint** with `pixi run fortitude check`.
 4. **User guide** (`web/index.html`). Update any text, table, or code snippet that describes what changed. See the specific cases below.
+5. **Requirements** (`plan/REQUIREMENTS.md`). If a behavior it states changed, update that requirement (its text, verification method, and trace); add a requirement, with the next free ID in its area, for a new behavior; and mark a removed behavior's requirement as deleted rather than reuse its ID. A requirement marked **T** must name a test that checks it: when a new test covers a requirement marked **I**, change it to **T**. Update its baseline commit and the known limitations (Appendix B) when they change.
 
 ### New or changed option (a field of `sqpopt_options_type` or of a component type)
 - Add the field, with its default and a `!!` doc, to the type.
@@ -71,6 +72,7 @@ Before calling a change done, go through the items that apply.
 - Add it to `print_header` if it affects the method or tolerances shown in the log.
 - Add it to the Python schema (`python/sqpopt_options/schema.py`): an `_o(...)` entry in the right section, with the same default and limits. For an enum-like option, add a `Choice` tuple of the integer values, and add that tuple to `ALL_CHOICES`. `python/tests/test_schema.py` fails if a Fortran field and the schema disagree.
 - Add a row to the guide's options table for that type, and add or update the prose section that explains the feature.
+- Add or update its row in `plan/REQUIREMENTS.md` (Table A.2, or Table A.3 for a component's setting), with its default and valid values.
 - If a component is added or moved, update the guide's "How configuration works" section and diagram, and the Python layout.
 
 - Rebuild the Python bindings (`pixi run build-python`). The option setter is generated from the schema, and `minimize` refuses to run with a stale extension.
@@ -88,6 +90,7 @@ Before calling a change done, go through the items that apply.
 - If a component returns it (a QP solver, the line search, …), follow it through every caller. A QP status goes through `solve_qp_subproblem` to `sqpopt_iterate`, and also to the trust region and the restoration phase, which solve QPs themselves. Add the code to the docstring of each routine that can return it, and to `qp_status_text` in `sqpopt_log_module.f90` if a QP solve can return it.
 - Check every `select case` and comparison on status codes in `src/` and in the tests (`grep sqpopt_<an existing code>` finds them), including the flags in `print_iteration`.
 - Update the guide's Status codes table (the row's class is `ok`, `warn`, or `bad`) and its grouping sentence, and mention the code where the guide describes the feature that returns it.
+- Add it to Table A.1 of `plan/REQUIREMENTS.md`, and add or update the requirement that says when it is returned.
 - Add a test that produces the code, and checks both `istat` and `results%istat`.
 - Python: `minimize` passes the code and its message through (`status`, `message`), and `success` is `status <= 2`, so nothing changes unless the code is a new kind of success. Rebuild the bindings and run `pixi run test-python`. If a component type gained a state field to carry the code, list it as internal state in `python/tests/test_schema.py` (the test fails on any field that is neither an option nor listed there).
 - The README doesn't list the codes. The HS results data (`web/js/hs_results_data.js`) stores status messages, so regenerate it if a message that appears there is reworded.
