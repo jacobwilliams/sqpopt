@@ -215,7 +215,7 @@ pixi run run-mumps --example benchmark_large --profile release -- --scale=10 --n
 | | |
 |---|---|
 | `coverage.sh [--mumps]` | runs the tests with `--coverage` and makes an lcov HTML report in `coverage/html` (dark-mode aware). With `--mumps` (what CI uses), the build with MUMPS is tested, so the report covers the code that uses it |
-| `pixi run fortitude check` | lints the Fortran sources with [Fortitude](https://fortitude.readthedocs.io) (configured in `fortitude.toml`; also run by the VS Code extension) |
+| `pixi run fortitude check` | lints the Fortran sources with [Fortitude](https://fortitude.readthedocs.io) (configured in `fortitude.toml`; also run by the VS Code extension, and by CI's `Lint` job) |
 | `tools/hs_performance_table.sh --mumps` | runs the HS suite in every configuration of the Performance page's table (`web/performance.html`) and prints the table rows. It also regenerates the data of that page's results of every problem (`web/js/hs_results_data.js`, `web/js/hs_slsqp_data.js`). Run it whenever a change affects the HS results. (`--mumps` builds with MUMPS, for the rows of the options that need it; without it those rows are left out.) |
 | `tools/rosenbrock_disk_figure.py` | redraws the figure of the Performance page's first example, from the iterates that `test_rosenbrock_disk` writes with `--path=FILE` (the script's header has both commands) |
 | `tools/hs_compare.sh N [options]` | runs HS problem `N` with SQPOPT and SLSQP, printing both solvers' iterations, for investigating a difference |
