@@ -1,0 +1,1734 @@
+<!-- -*- mode: jinja2 -*- -->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- sqpopt theme: set before the page is drawn; the guide's choice (the same
+         localStorage key, on the same site), or else the system's -->
+    <script>
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('sqpopt-theme'); } catch (e) {}
+        if (t !== 'dark' && t !== 'light') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-bs-theme', t);
+      })();
+    </script>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta name="description" content="Modern Fortran SQP OPTimizer">
+    <meta name="author" content="Jacob Williams" >
+    <link rel="icon" href="../favicon.png">
+
+    <title>sqpopt_qp_direct_module &ndash; sqpopt</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <!-- Font Awesome -->
+    <link href="../css/fontawesome.min.css" rel="stylesheet">
+    <link href="../css/brands.min.css" rel="stylesheet">
+    <link href="../css/regular.min.css" rel="stylesheet">
+    <link href="../css/solid.min.css" rel="stylesheet">
+    <link href="../css/v4-font-face.min.css" rel="stylesheet">
+    <link href="../css/v4-shims.min.css" rel="stylesheet">
+    <!-- MathJax -->
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        TeX: { equationNumbers: { autoNumber: "AMS" } }
+      });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@2.7.9/MathJax.js?config=TeX-AMS-MML_HTMLorMML" async
+            integrity="sha256-DViIOMYdwlM/axqoGDPeUyf0urLoHMN4QACBKyB58Uw=" crossorigin="anonymous"></script>
+    <!-- Other scripts and stylesheets -->
+    <link href="../css/local.css" rel="stylesheet">
+    <link href="../css/pygments.css" rel="stylesheet">
+      <link href="../css/user.css" rel="stylesheet">
+    <script src="../js/svg-pan-zoom.min.js"></script>
+  </head>
+
+  <body>
+
+    <!-- Fixed navbar -->
+    <div class="container-fluid mb-sm-4 mb-xl-2">
+      <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+          <a class="navbar-brand" href="../index.html">sqpopt </a>
+          <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbar"
+                  aria-expanded="false" aria-controls="navbar" aria-label="Toggle navigation">
+                  <span class="navbar-toggler-icon">
+          </button>
+
+          <div id="navbar" class="navbar-collapse collapse">
+            <ul class="navbar-nav">
+                  <li class="nav-item">
+                    <a class="nav-link" href="../lists/files.html">Source Files</a>
+                  </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/modules.html">Modules</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/procedures.html">Procedures</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/absint.html">Abstract Interfaces</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/types.html">Derived Types</a>
+                </li>
+            </ul>
+              <div class="d-flex align-items-end flex-grow-1">
+                <form action="../search.html" role="search" class="ms-auto">
+                  <input type="text" class="form-control" aria-label="Search" placeholder="Search" name="q" id="tipue_search_input" autocomplete="off" required>
+                </form>
+              </div>
+            <!-- sqpopt theme: the light/dark button -->
+            <button type="button" class="btn nav-link theme-toggle ms-lg-3" aria-label="Toggle dark mode" title="Toggle dark mode">
+              <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg>
+              <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div><!--/.nav-collapse -->
+        </div>
+      </nav>
+    </div>
+
+    <div class="container">
+  <div class="row">
+    <h1>sqpopt_qp_direct_module
+      <small>Module</small>
+      
+    </h1>
+      <div class="container p-2 mb-4 bg-light border rounded-3">
+    <div class="row align-items-center justify-content-between" id="info-bar">
+      <div class="col">
+        <ul class="list-inline" style="margin-bottom:0px;display:inline">
+            <li class="list-inline-item" id="meta-author"><i class="fa fa-pencil"></i> Jacob Williams</li>
+            <li class="list-inline-item" id="meta-license"><i class="fa fa-legal"></i> MIT</li>
+
+            <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
+              <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
+                 title=" 1.8% of total for modules and submodules.">199 statements</a>
+            </li>
+
+            <li class="list-inline-item" id="source-file">
+              <i class="fa fa-code"></i>
+              <a href="../src/sqpopt_qp_direct_module.f90"> Source File</a>
+            </li>
+        </ul>
+      </div>
+      <div class="col">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb justify-content-end mb-0">
+                <li class="breadcrumb-item"><a href='../sourcefile/sqpopt_qp_direct_module.f90.html'>sqpopt_qp_direct_module.f90</a></li>
+            <li class="breadcrumb-item active" aria-current="page">sqpopt_qp_direct_module</li>
+          </ol>
+        </nav>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Enable Bootstrap tooltips
+    (function () {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+      const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+    })();
+  </script>
+
+  </div>
+
+  <div class="row">
+    <div class="col-md-3">
+        <div id="sidebar">
+      <h3>Contents</h3>
+  
+      <div class="card mb-4">
+      <a data-bs-toggle="collapse" href="#vars-0"
+         aria-expanded="false" aria-controls="vars-0">
+         <h4 class="card-header bg-primary text-white">Variables</h4>
+      </a>
+      <div id="vars-0" class="collapse">
+        <div class="list-group list-group-flush">
+            <a class="list-group-item" href="../module/sqpopt_qp_direct_module.html#variable-stationarity_tol">stationarity_tol</a>
+            <a class="list-group-item" href="../module/sqpopt_qp_direct_module.html#variable-reg_factor">reg_factor</a>
+            <a class="list-group-item" href="../module/sqpopt_qp_direct_module.html#variable-reg_factor_fine">reg_factor_fine</a>
+            <a class="list-group-item" href="../module/sqpopt_qp_direct_module.html#variable-sqpopt_direct_solved">sqpopt_direct_solved</a>
+            <a class="list-group-item" href="../module/sqpopt_qp_direct_module.html#variable-sqpopt_direct_nonconvex">sqpopt_direct_nonconvex</a>
+            <a class="list-group-item" href="../module/sqpopt_qp_direct_module.html#variable-sqpopt_direct_singular">sqpopt_direct_singular</a>
+            <a class="list-group-item" href="../module/sqpopt_qp_direct_module.html#variable-sqpopt_direct_max_changes">sqpopt_direct_max_changes</a>
+            <a class="list-group-item" href="../module/sqpopt_qp_direct_module.html#variable-sqpopt_direct_failed">sqpopt_direct_failed</a>
+            <a class="list-group-item" href="../module/sqpopt_qp_direct_module.html#variable-sqpopt_direct_inaccurate">sqpopt_direct_inaccurate</a>
+        </div>
+      </div>
+    </div>
+
+  
+  
+  
+  
+  
+  
+  
+  
+  
+      <div class="card mb-4">
+      <a data-bs-toggle="collapse" href="#funcs-0"
+         aria-expanded="false" aria-controls="funcs-0">
+         <h4 class="card-header bg-primary text-white">Functions</h4>
+      </a>
+      <div id="funcs-0" class="collapse">
+        <div class="list-group list-group-flush">
+            <a class="list-group-item" href="../module/sqpopt_qp_direct_module.html#proc-direct_outcome_text">direct_outcome_text</a>
+        </div>
+      </div>
+    </div>
+
+      <div class="card mb-4">
+      <a data-bs-toggle="collapse" href="#subs-0"
+         aria-expanded="false" aria-controls="subs-0">
+         <h4 class="card-header bg-primary text-white">Subroutines</h4>
+      </a>
+      <div id="subs-0" class="collapse">
+        <div class="list-group list-group-flush">
+            <a class="list-group-item" href="../module/sqpopt_qp_direct_module.html#proc-direct_qp_step">direct_qp_step</a>
+        </div>
+      </div>
+    </div>
+
+  
+  
+  
+  
+  
+  
+  
+
+
+  </div>
+
+    </div>
+
+    <div class="col-md-9" id='text'>
+      <p>A direct solution of the QP subproblem (<code>options%direct_qp</code>), by sparse
+factorizations of the KKT matrix of its working set (see
+<a href="../module/sqpopt_kkt_module.html">sqpopt_kkt_module</a>; MUMPS or QDLDL, see <code>options%linear_solver</code>).</p>
+<p>For a given working set (the general rows and variable bounds held at
+a bound), the QP is an equality-constrained one, and its solution is one
+linear solve:</p>
+<p>
+<script type="math/tex; mode=display"> \begin{bmatrix} H & J_a^T \\ J_a & 0 \end{bmatrix}
+   \begin{bmatrix} p \\ -\lambda \end{bmatrix} =
+   \begin{bmatrix} -g \\ b_a - c_a \end{bmatrix} </script>
+</p>
+<p>with the variables at a bound of the working set fixed there. That step
+solves the whole QP if it is <em>feasible</em> (it satisfies the rows and bounds
+outside the working set) and <em>optimal</em> (the multipliers of the working
+set's inequalities have the right signs), and the face is convex (no
+negative curvature, which the factorization tells).</p>
+<p><a href="../proc/direct_qp_step.html">direct_qp_step</a> starts from the working set that the QP solver would
+start from: near a solution of the nonlinear problem, that is already
+the right one, and the QP costs one factorization and one solve. If the
+step isn't feasible and optimal, the working set is changed as in a
+<em>primal-dual active-set method</em> (Hintermüller, Ito &amp; Kunisch, 2002):
+every row and bound the step violates is added, every one whose
+multiplier has the wrong sign is dropped, and the new face is factored
+and solved. After a few changes without success, it gives up, and the
+caller solves the QP with its active-set solver instead (see
+<a href="../proc/solve_qp_subproblem.html">solve_qp_subproblem</a>). So the direct method only ever replaces a QP
+solve by a solution that satisfies the QP's optimality conditions.</p>
+<p>Adding every violated bound at once can leave a row of the working set
+with no free variable, or otherwise dependent on the others: the KKT
+matrix is then singular. Such a face is factored again with a small
+regularization (<script type="math/tex"> -\epsilon I </script> in the rows' block, see
+<a href="../module/sqpopt_kkt_module.html">sqpopt_kkt_module</a>), which satisfies the dependent rows only in a
+heavily weighted least-squares sense. That gives them large multipliers,
+so the bounds that over-determine them are dropped at the next change.
+A step is only accepted if it satisfies the working set's rows, so a
+regularized face is accepted only if its rows were consistent. A
+regularized solve leaves each row short by <script type="math/tex"> \epsilon </script> times its
+multiplier, so if that is all that is wrong with the step, the face is
+solved once more with a much smaller <script type="math/tex"> \epsilon </script>. (That matters
+when the solver finds a matrix singular that isn't: near the solution of
+a chain of 100,000 circle constraints, the first regularization left the
+rows <code>7e-8</code> short, and the method gave up on a QP it had solved.) A face
+that is still singular (a direction of zero curvature) ends the method.</p>
+<p>A face with negative curvature has no minimizer. With inertia control
+(see <a href="../module/sqpopt_inertia_module.html">sqpopt_inertia_module</a>), the Hessian's shift is raised until the
+face is convex, and the method continues from there with the shifted
+Hessian (the shift only ever increases, so this can't cycle). Without
+it, the method gives up at such a face.</p>
+<p>The factorization can't be updated when the working set changes: every
+change is a new factorization. That is cheap next to the active-set
+solvers on large problems (their iterations each solve with the reduced
+Hessian), but it is why this isn't used for a QP that needs many
+changes, such as the first one from an infeasible starting point.</p>
+<br>          <div class="card mb-4">
+      <h3 class="card-header card-title bg-light">Uses</h3>
+      <div class="card-body">
+        <ul class="list-group list-group-flush">
+            <li class="list-group-item">
+              <ul class="list-inline">
+                  <li class="list-inline-item"><a href='sqpopt_types_module.html'>sqpopt_types_module</a></li>
+                  <li class="list-inline-item"><a href='sqpopt_linalg_module.html'>sqpopt_linalg_module</a></li>
+                  <li class="list-inline-item"><a href='sqpopt_inertia_module.html'>sqpopt_inertia_module</a></li>
+                  <li class="list-inline-item"><a href='sqpopt_kinds.html'>sqpopt_kinds</a></li>
+                  <li class="list-inline-item"><a href='sqpopt_kkt_module.html'>sqpopt_kkt_module</a></li>
+                  <li class="list-inline-item"><a href='sqpopt_hessian_module.html'>sqpopt_hessian_module</a></li>
+              </ul>
+            </li>
+            <li class="list-group-item">
+              <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: module~~sqpopt_qp_direct_module~~UsesGraph Pages: 1 -->
+<svg id="modulesqpopt_qp_direct_moduleUsesGraph" width="641pt" height="229pt"
+ viewBox="0.00 0.00 641.00 229.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph" class="graph" transform="scale(0.412303 0.412303) rotate(0) translate(4 552.57)">
+<title>module~~sqpopt_qp_direct_module~~UsesGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-552.57 1550.68,-552.57 1550.68,4 -4,4"/>
+<!-- module~sqpopt_qp_direct_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_node1" class="node">
+<title>module~sqpopt_qp_direct_module</title>
+<polygon fill="none" stroke="black" points="1546.68,-260.27 1399.41,-260.27 1399.41,-236 1546.68,-236 1546.68,-260.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1473.04" y="-244.53" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_qp_direct_module</text>
+</g>
+<!-- module~sqpopt_hessian_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_node2" class="node">
+<title>module~sqpopt_hessian_module</title>
+<g id="a_module~~sqpopt_qp_direct_module~~UsesGraph_node2"><a xlink:href="../module/sqpopt_hessian_module.html" xlink:title="sqpopt_hessian_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="807.22,-504.27 668.2,-504.27 668.2,-480 807.22,-480 807.22,-504.27"/>
+<text xml:space="preserve" text-anchor="middle" x="737.71" y="-488.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_qp_direct_module&#45;&gt;module~sqpopt_hessian_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge1" class="edge">
+<title>module~sqpopt_qp_direct_module&#45;&gt;module~sqpopt_hessian_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1460.76,-260.48C1408.27,-316.43 1180.7,-543.13 948.98,-532.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M946.98,-532.13C891.08,-535.22 828.11,-520.53 786.19,-508.09"/>
+<polygon fill="#000000" stroke="#000000" points="787.25,-504.75 776.66,-505.18 785.2,-511.45 787.25,-504.75"/>
+</g>
+<!-- module~sqpopt_inertia_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_node3" class="node">
+<title>module~sqpopt_inertia_module</title>
+<g id="a_module~~sqpopt_qp_direct_module~~UsesGraph_node3"><a xlink:href="../module/sqpopt_inertia_module.html" xlink:title="sqpopt_inertia_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="1363.41,-260.27 1230.39,-260.27 1230.39,-236 1363.41,-236 1363.41,-260.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1296.9" y="-244.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_inertia_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_qp_direct_module&#45;&gt;module~sqpopt_inertia_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge2" class="edge">
+<title>module~sqpopt_qp_direct_module&#45;&gt;module~sqpopt_inertia_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1398.95,-248.13C1391.13,-248.13 1383.16,-248.13 1375.3,-248.13"/>
+<polygon fill="#000000" stroke="#000000" points="1375.39,-244.64 1365.39,-248.14 1375.39,-251.64 1375.39,-244.64"/>
+</g>
+<!-- module~sqpopt_kinds -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_node4" class="node">
+<title>module~sqpopt_kinds</title>
+<g id="a_module~~sqpopt_qp_direct_module~~UsesGraph_node4"><a xlink:href="../module/sqpopt_kinds.html" xlink:title="sqpopt_kinds">
+<polygon fill="#337ab7" stroke="#337ab7" points="209.79,-384.27 129.27,-384.27 129.27,-360 209.79,-360 209.79,-384.27"/>
+<text xml:space="preserve" text-anchor="middle" x="169.53" y="-368.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_kinds</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_qp_direct_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge3" class="edge">
+<title>module~sqpopt_qp_direct_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M946.98,-532.13C854.56,-537.23 831,-524.99 738.71,-532.13"/>
+</g>
+<!-- module~sqpopt_kkt_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_node5" class="node">
+<title>module~sqpopt_kkt_module</title>
+<g id="a_module~~sqpopt_qp_direct_module~~UsesGraph_node5"><a xlink:href="../module/sqpopt_kkt_module.html" xlink:title="sqpopt_kkt_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="1194.39,-260.27 1080.12,-260.27 1080.12,-236 1194.39,-236 1194.39,-260.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1137.25" y="-244.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_kkt_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_qp_direct_module&#45;&gt;module~sqpopt_kkt_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge4" class="edge">
+<title>module~sqpopt_qp_direct_module&#45;&gt;module~sqpopt_kkt_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1295.9,-170.13C1242.66,-165.4 1188.52,-203.62 1159.6,-228.25"/>
+<polygon fill="#000000" stroke="#000000" points="1157.47,-225.47 1152.27,-234.7 1162.09,-230.73 1157.47,-225.47"/>
+</g>
+<!-- module~sqpopt_linalg_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_node6" class="node">
+<title>module~sqpopt_linalg_module</title>
+<g id="a_module~~sqpopt_qp_direct_module~~UsesGraph_node6"><a xlink:href="../module/sqpopt_linalg_module.html" xlink:title="sqpopt_linalg_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="801.6,-104.27 673.83,-104.27 673.83,-80 801.6,-80 801.6,-104.27"/>
+<text xml:space="preserve" text-anchor="middle" x="737.71" y="-88.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_linalg_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_qp_direct_module&#45;&gt;module~sqpopt_linalg_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge5" class="edge">
+<title>module~sqpopt_qp_direct_module&#45;&gt;module~sqpopt_linalg_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1454.84,-235.72C1424.77,-215.13 1359.94,-175.65 1297.9,-170.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1295.9,-170.13C1142.32,-156.49 1102.52,-184.25 948.98,-170.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M946.98,-170.13C884.55,-164.45 874.72,-139.71 815.85,-118.13 806.89,-114.85 797.28,-111.49 788,-108.32"/>
+<polygon fill="#000000" stroke="#000000" points="789.33,-105.07 778.74,-105.19 787.09,-111.71 789.33,-105.07"/>
+</g>
+<!-- module~sqpopt_types_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_node7" class="node">
+<title>module~sqpopt_types_module</title>
+<g id="a_module~~sqpopt_qp_direct_module~~UsesGraph_node7"><a xlink:href="../module/sqpopt_types_module.html" xlink:title="sqpopt_types_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="604.45,-184.27 477.43,-184.27 477.43,-160 604.45,-160 604.45,-184.27"/>
+<text xml:space="preserve" text-anchor="middle" x="540.94" y="-168.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_types_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_qp_direct_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge6" class="edge">
+<title>module~sqpopt_qp_direct_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M946.98,-170.13C854.8,-161.74 831.21,-173.83 738.71,-170.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M736.71,-170.13C696.93,-168.54 652.53,-168.84 616.19,-169.62"/>
+<polygon fill="#000000" stroke="#000000" points="616.11,-166.12 606.2,-169.86 616.28,-173.12 616.11,-166.12"/>
+</g>
+<!-- module~sqpopt_hessian_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge10" class="edge">
+<title>module~sqpopt_hessian_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M539.94,-493.13C448.68,-487.29 420.88,-543.71 335.05,-512.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M333.05,-512.13C295.8,-498.43 278.22,-516.01 245.79,-493.13 211.3,-468.8 189.35,-423.15 178.55,-395.41"/>
+<polygon fill="#000000" stroke="#000000" points="181.88,-394.32 175.12,-386.15 175.31,-396.75 181.88,-394.32"/>
+</g>
+<!-- module~sqpopt_dense_linalg_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_node12" class="node">
+<title>module~sqpopt_dense_linalg_module</title>
+<g id="a_module~~sqpopt_qp_direct_module~~UsesGraph_node12"><a xlink:href="../module/sqpopt_dense_linalg_module.html" xlink:title="sqpopt_dense_linalg_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="623.58,-424.27 458.31,-424.27 458.31,-400 623.58,-400 623.58,-424.27"/>
+<text xml:space="preserve" text-anchor="middle" x="540.94" y="-408.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_dense_linalg_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_hessian_module&#45;&gt;module~sqpopt_dense_linalg_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge7" class="edge">
+<title>module~sqpopt_hessian_module&#45;&gt;module~sqpopt_dense_linalg_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M696.79,-479.57C684.74,-475.53 671.53,-470.88 659.58,-466.13 631.63,-455.05 600.76,-440.8 577.66,-429.72"/>
+<polygon fill="#000000" stroke="#000000" points="579.2,-426.58 568.67,-425.38 576.16,-432.88 579.2,-426.58"/>
+</g>
+<!-- module~sqpopt_dense_product_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_node13" class="node">
+<title>module~sqpopt_dense_product_module</title>
+<g id="a_module~~sqpopt_qp_direct_module~~UsesGraph_node13"><a xlink:href="../module/sqpopt_dense_product_module.html" xlink:title="sqpopt_dense_product_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="422.31,-424.27 245.79,-424.27 245.79,-400 422.31,-400 422.31,-424.27"/>
+<text xml:space="preserve" text-anchor="middle" x="334.05" y="-408.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_dense_product_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_hessian_module&#45;&gt;module~sqpopt_dense_product_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge8" class="edge">
+<title>module~sqpopt_hessian_module&#45;&gt;module~sqpopt_dense_product_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M668.14,-494.79C630.79,-495.66 583.79,-495.81 541.94,-493.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M539.94,-493.13C501.81,-490.69 493.99,-479.82 458.31,-466.13 442.14,-459.93 403.34,-442.8 373.56,-429.48"/>
+<polygon fill="#000000" stroke="#000000" points="374.99,-426.28 364.44,-425.39 372.13,-432.67 374.99,-426.28"/>
+</g>
+<!-- module~sqpopt_eigen_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_node14" class="node">
+<title>module~sqpopt_eigen_module</title>
+<g id="a_module~~sqpopt_qp_direct_module~~UsesGraph_node14"><a xlink:href="../module/sqpopt_eigen_module.html" xlink:title="sqpopt_eigen_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="398.31,-484.27 269.79,-484.27 269.79,-460 398.31,-460 398.31,-484.27"/>
+<text xml:space="preserve" text-anchor="middle" x="334.05" y="-468.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_eigen_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_hessian_module&#45;&gt;module~sqpopt_eigen_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge9" class="edge">
+<title>module~sqpopt_hessian_module&#45;&gt;module~sqpopt_eigen_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M539.94,-493.13C496.75,-490.37 448.59,-485.52 409.82,-481.18"/>
+<polygon fill="#000000" stroke="#000000" points="410.46,-477.73 400.13,-480.09 409.67,-484.69 410.46,-477.73"/>
+</g>
+<!-- module~sqpopt_inertia_module&#45;&gt;module~sqpopt_hessian_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge11" class="edge">
+<title>module~sqpopt_inertia_module&#45;&gt;module~sqpopt_hessian_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1287.12,-260.61C1251.47,-309.7 1111.64,-487.19 948.98,-494.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M946.98,-494.13C905.58,-504.91 857.96,-505.3 818.71,-502.6"/>
+<polygon fill="#000000" stroke="#000000" points="819.1,-499.12 808.86,-501.83 818.56,-506.09 819.1,-499.12"/>
+</g>
+<!-- module~sqpopt_inertia_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge12" class="edge">
+<title>module~sqpopt_inertia_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M946.98,-494.13C901.45,-505.98 785.72,-530.14 738.71,-532.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M736.71,-532.13C558.14,-539.73 502.8,-573.85 335.05,-512.13"/>
+</g>
+<!-- module~sqpopt_inertia_module&#45;&gt;module~sqpopt_kkt_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge13" class="edge">
+<title>module~sqpopt_inertia_module&#45;&gt;module~sqpopt_kkt_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1229.96,-248.13C1221.93,-248.13 1213.72,-248.13 1205.67,-248.13"/>
+<polygon fill="#000000" stroke="#000000" points="1205.94,-244.64 1195.94,-248.14 1205.94,-251.64 1205.94,-244.64"/>
+</g>
+<!-- module~sqpopt_inertia_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge14" class="edge">
+<title>module~sqpopt_inertia_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1241.33,-235.52C1226.2,-232.39 1209.71,-229.3 1194.39,-227.13 1086.07,-211.8 1057.28,-223.62 948.98,-208.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M946.98,-208.13C854.11,-193.07 832.73,-173.9 738.71,-170.13"/>
+</g>
+<!-- iso_fortran_env -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_node9" class="node">
+<title>iso_fortran_env</title>
+<g id="a_module~~sqpopt_qp_direct_module~~UsesGraph_node9"><a xlink:href="http://fortranwiki.org/fortran/show/iso_fortran_env" xlink:title="iso_fortran_env">
+<polygon fill="#337ab7" stroke="#337ab7" points="93.27,-264.27 0,-264.27 0,-240 93.27,-240 93.27,-264.27"/>
+<text xml:space="preserve" text-anchor="middle" x="46.63" y="-248.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">iso_fortran_env</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_kinds&#45;&gt;iso_fortran_env -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge15" class="edge">
+<title>module~sqpopt_kinds&#45;&gt;iso_fortran_env</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M156.05,-359.74C135.32,-339.18 93.61,-297.77 68.4,-272.75"/>
+<polygon fill="#000000" stroke="#000000" points="70.87,-270.26 61.3,-265.7 65.94,-275.23 70.87,-270.26"/>
+</g>
+<!-- module~sqpopt_kkt_module&#45;&gt;module~sqpopt_hessian_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge17" class="edge">
+<title>module~sqpopt_kkt_module&#45;&gt;module~sqpopt_hessian_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M946.98,-452.13C924.63,-463.18 867.63,-473.73 818.9,-481.23"/>
+<polygon fill="#000000" stroke="#000000" points="818.54,-477.74 809.18,-482.69 819.59,-484.66 818.54,-477.74"/>
+</g>
+<!-- module~sqpopt_kkt_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge18" class="edge">
+<title>module~sqpopt_kkt_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M736.71,-452.13C612.85,-445.86 569.16,-488.77 458.31,-433.13 436.34,-422.11 443.42,-403.74 422.31,-391.13 388.23,-370.79 374.57,-368.46 335.05,-372.13"/>
+</g>
+<!-- module~sqpopt_kkt_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge20" class="edge">
+<title>module~sqpopt_kkt_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1086.51,-235.57C1048.97,-226.56 996.05,-214.86 948.98,-208.13"/>
+</g>
+<!-- module~sqpopt_kkt_module&#45;&gt;module~sqpopt_dense_linalg_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge16" class="edge">
+<title>module~sqpopt_kkt_module&#45;&gt;module~sqpopt_dense_linalg_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1129.36,-260.66C1108.18,-297.76 1039.93,-407.21 948.98,-452.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M946.98,-452.13C863.99,-493.13 831.16,-456.82 738.71,-452.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M736.71,-452.13C688.24,-449.68 634.25,-437.85 595.43,-427.69"/>
+<polygon fill="#000000" stroke="#000000" points="596.43,-424.33 585.86,-425.13 594.62,-431.09 596.43,-424.33"/>
+</g>
+<!-- module~sqpopt_symmetric_solver_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_node15" class="node">
+<title>module~sqpopt_symmetric_solver_module</title>
+<g id="a_module~~sqpopt_qp_direct_module~~UsesGraph_node15"><a xlink:href="../module/sqpopt_symmetric_solver_module.html" xlink:title="sqpopt_symmetric_solver_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="1044.12,-260.27 851.85,-260.27 851.85,-236 1044.12,-236 1044.12,-260.27"/>
+<text xml:space="preserve" text-anchor="middle" x="947.98" y="-244.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_symmetric_solver_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_kkt_module&#45;&gt;module~sqpopt_symmetric_solver_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge19" class="edge">
+<title>module~sqpopt_kkt_module&#45;&gt;module~sqpopt_symmetric_solver_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1079.81,-248.13C1072.11,-248.13 1064.01,-248.13 1055.77,-248.13"/>
+<polygon fill="#000000" stroke="#000000" points="1055.99,-244.64 1045.99,-248.14 1055.99,-251.64 1055.99,-244.64"/>
+</g>
+<!-- module~sqpopt_linalg_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge23" class="edge">
+<title>module~sqpopt_linalg_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M673.39,-91.03C555.86,-90.28 310.07,-95.18 245.79,-147.13 183.44,-197.54 172.39,-301.38 170.68,-348.25"/>
+<polygon fill="#000000" stroke="#000000" points="167.19,-348.03 170.45,-358.11 174.18,-348.19 167.19,-348.03"/>
+</g>
+<!-- module~sqpopt_linalg_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge24" class="edge">
+<title>module~sqpopt_linalg_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M706.28,-104.63C673.08,-118.27 619.74,-140.18 582.88,-155.32"/>
+<polygon fill="#000000" stroke="#000000" points="581.81,-151.98 573.88,-159.02 584.46,-158.45 581.81,-151.98"/>
+</g>
+<!-- lusol -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_node10" class="node">
+<title>lusol</title>
+<g id="a_module~~sqpopt_qp_direct_module~~UsesGraph_node10"><a xlink:href="https://github.com/jacobwilliams/lusol" xlink:title="lusol">
+<polygon fill="#337ab7" stroke="#337ab7" points="567.94,-66.27 513.94,-66.27 513.94,-42 567.94,-42 567.94,-66.27"/>
+<text xml:space="preserve" text-anchor="middle" x="540.94" y="-50.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">lusol</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_linalg_module&#45;&gt;lusol -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge21" class="edge">
+<title>module~sqpopt_linalg_module&#45;&gt;lusol</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M673.48,-79.8C642.32,-73.72 605.83,-66.6 579.19,-61.4"/>
+<polygon fill="#000000" stroke="#000000" points="580.04,-58 569.55,-59.52 578.7,-64.87 580.04,-58"/>
+</g>
+<!-- lusol_precision -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_node11" class="node">
+<title>lusol_precision</title>
+<g id="a_module~~sqpopt_qp_direct_module~~UsesGraph_node11"><a xlink:href="https://github.com/jacobwilliams/lusol" xlink:title="lusol_precision">
+<polygon fill="#337ab7" stroke="#337ab7" points="585.7,-24.27 496.18,-24.27 496.18,0 585.7,0 585.7,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="540.94" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">lusol_precision</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_linalg_module&#45;&gt;lusol_precision -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge22" class="edge">
+<title>module~sqpopt_linalg_module&#45;&gt;lusol_precision</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M716.12,-79.55C693.94,-66.45 657.29,-46.07 623.58,-33.13 615.13,-29.89 606,-26.99 597,-24.46"/>
+<polygon fill="#000000" stroke="#000000" points="598.19,-21.15 587.62,-21.94 596.37,-27.91 598.19,-21.15"/>
+</g>
+<!-- module~sqpopt_types_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge26" class="edge">
+<title>module~sqpopt_types_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M483.79,-159.5C419.93,-148.54 315.52,-141.29 245.79,-191.13 193.72,-228.36 177.53,-308.6 172.61,-348.54"/>
+<polygon fill="#000000" stroke="#000000" points="169.16,-347.95 171.56,-358.27 176.12,-348.7 169.16,-347.95"/>
+</g>
+<!-- ieee_arithmetic -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_node8" class="node">
+<title>ieee_arithmetic</title>
+<g id="a_module~~sqpopt_qp_direct_module~~UsesGraph_node8"><a xlink:href="http://fortranwiki.org/fortran/show/ieee_arithmetic" xlink:title="ieee_arithmetic">
+<polygon fill="#337ab7" stroke="#337ab7" points="381.43,-224.27 286.66,-224.27 286.66,-200 381.43,-200 381.43,-224.27"/>
+<text xml:space="preserve" text-anchor="middle" x="334.05" y="-208.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">ieee_arithmetic</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_types_module&#45;&gt;ieee_arithmetic -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge25" class="edge">
+<title>module~sqpopt_types_module&#45;&gt;ieee_arithmetic</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M477.08,-184.41C450.33,-189.63 419.33,-195.68 393.13,-200.8"/>
+<polygon fill="#000000" stroke="#000000" points="392.48,-197.36 383.33,-202.71 393.82,-204.23 392.48,-197.36"/>
+</g>
+<!-- module~sqpopt_dense_linalg_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge28" class="edge">
+<title>module~sqpopt_dense_linalg_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M492.42,-399.6C441.79,-386.83 364.9,-369.28 335.05,-372.13"/>
+</g>
+<!-- module~sqpopt_dense_linalg_module&#45;&gt;module~sqpopt_dense_product_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge27" class="edge">
+<title>module~sqpopt_dense_linalg_module&#45;&gt;module~sqpopt_dense_product_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M458.08,-412.13C450.13,-412.13 442,-412.13 433.9,-412.13"/>
+<polygon fill="#000000" stroke="#000000" points="434.01,-408.64 424.01,-412.14 434.01,-415.64 434.01,-408.64"/>
+</g>
+<!-- module~sqpopt_dense_product_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge29" class="edge">
+<title>module~sqpopt_dense_product_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M282.07,-399.59C262.7,-394.82 240.64,-389.39 221.28,-384.63"/>
+<polygon fill="#000000" stroke="#000000" points="222.26,-381.26 211.71,-382.27 220.58,-388.06 222.26,-381.26"/>
+</g>
+<!-- module~sqpopt_eigen_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge30" class="edge">
+<title>module~sqpopt_eigen_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M299.7,-459.63C282.99,-452.78 262.76,-443.56 245.79,-433.13 226.44,-421.25 206.58,-404.94 192.11,-392.18"/>
+<polygon fill="#000000" stroke="#000000" points="194.76,-389.85 184.99,-385.77 190.08,-395.06 194.76,-389.85"/>
+</g>
+<!-- module~sqpopt_symmetric_solver_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge33" class="edge">
+<title>module~sqpopt_symmetric_solver_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M736.71,-208.13C650.91,-196.52 624.95,-187.5 541.94,-212.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M539.94,-212.13C504.23,-222.74 490.25,-211.96 458.31,-231.13 386.94,-273.97 417.93,-364.43 335.05,-372.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M333.05,-372.13C295.77,-375.6 253.47,-375.48 221.37,-374.55"/>
+<polygon fill="#000000" stroke="#000000" points="221.66,-371.06 211.55,-374.23 221.43,-378.05 221.66,-371.06"/>
+</g>
+<!-- module~sqpopt_symmetric_solver_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge37" class="edge">
+<title>module~sqpopt_symmetric_solver_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M890.69,-235.58C848.94,-226.69 790.53,-215.15 738.71,-208.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M736.71,-208.13C695.49,-202.55 649.73,-194.21 612.93,-186.96"/>
+<polygon fill="#000000" stroke="#000000" points="613.78,-183.56 603.29,-185.04 612.42,-190.42 613.78,-183.56"/>
+</g>
+<!-- module~sqpopt_symmetric_solver_module&#45;&gt;iso_fortran_env -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge31" class="edge">
+<title>module~sqpopt_symmetric_solver_module&#45;&gt;iso_fortran_env</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M927.4,-235.53C907.98,-222.89 877.49,-202.7 851.85,-184.13 835.43,-172.25 834.72,-163.54 815.85,-156.13 702.11,-111.46 664.15,-132.13 541.94,-132.13 541.94,-132.13 541.94,-132.13 333.05,-132.13 230.21,-132.13 121.67,-199.16 73.39,-233.02"/>
+<polygon fill="#000000" stroke="#000000" points="71.63,-229.98 65.53,-238.64 75.7,-235.68 71.63,-229.98"/>
+</g>
+<!-- module~sqpopt_dense_ldl_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_node16" class="node">
+<title>module~sqpopt_dense_ldl_module</title>
+<g id="a_module~~sqpopt_qp_direct_module~~UsesGraph_node16"><a xlink:href="../module/sqpopt_dense_ldl_module.html" xlink:title="sqpopt_dense_ldl_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="812.1,-260.27 663.33,-260.27 663.33,-236 812.1,-236 812.1,-260.27"/>
+<text xml:space="preserve" text-anchor="middle" x="737.71" y="-244.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_dense_ldl_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_symmetric_solver_module&#45;&gt;module~sqpopt_dense_ldl_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge32" class="edge">
+<title>module~sqpopt_symmetric_solver_module&#45;&gt;module~sqpopt_dense_ldl_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M851.38,-248.13C842.21,-248.13 832.95,-248.13 823.89,-248.13"/>
+<polygon fill="#000000" stroke="#000000" points="824.05,-244.64 814.05,-248.14 824.05,-251.64 824.05,-244.64"/>
+</g>
+<!-- module~sqpopt_mumps_ldl_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_node17" class="node">
+<title>module~sqpopt_mumps_ldl_module</title>
+<g id="a_module~~sqpopt_qp_direct_module~~UsesGraph_node17"><a xlink:href="../module/sqpopt_mumps_ldl_module.html" xlink:title="sqpopt_mumps_ldl_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="815.85,-382.27 659.58,-382.27 659.58,-358 815.85,-358 815.85,-382.27"/>
+<text xml:space="preserve" text-anchor="middle" x="737.71" y="-366.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_mumps_ldl_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_symmetric_solver_module&#45;&gt;module~sqpopt_mumps_ldl_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge34" class="edge">
+<title>module~sqpopt_symmetric_solver_module&#45;&gt;module~sqpopt_mumps_ldl_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M934.38,-260.64C912.28,-281.9 864.23,-325.1 815.85,-349.13 812.56,-350.77 809.12,-352.29 805.6,-353.71"/>
+<polygon fill="#000000" stroke="#000000" points="804.48,-350.39 796.29,-357.12 806.89,-356.96 804.48,-350.39"/>
+</g>
+<!-- module~sqpopt_qdldl_ldl_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_node18" class="node">
+<title>module~sqpopt_qdldl_ldl_module</title>
+<g id="a_module~~sqpopt_qp_direct_module~~UsesGraph_node18"><a xlink:href="../module/sqpopt_qdldl_ldl_module.html" xlink:title="sqpopt_qdldl_ldl_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="809.1,-340.27 666.33,-340.27 666.33,-316 809.1,-316 809.1,-340.27"/>
+<text xml:space="preserve" text-anchor="middle" x="737.71" y="-324.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qdldl_ldl_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_symmetric_solver_module&#45;&gt;module~sqpopt_qdldl_ldl_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge35" class="edge">
+<title>module~sqpopt_symmetric_solver_module&#45;&gt;module~sqpopt_qdldl_ldl_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M918.03,-260.7C891.61,-272.01 851.36,-288.85 815.85,-302.13 807.1,-305.41 797.72,-308.72 788.63,-311.84"/>
+<polygon fill="#000000" stroke="#000000" points="787.52,-308.52 779.17,-315.05 789.76,-315.15 787.52,-308.52"/>
+</g>
+<!-- module~sqpopt_sparse_ldl_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_node19" class="node">
+<title>module~sqpopt_sparse_ldl_module</title>
+<g id="a_module~~sqpopt_qp_direct_module~~UsesGraph_node19"><a xlink:href="../module/sqpopt_sparse_ldl_module.html" xlink:title="sqpopt_sparse_ldl_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="616.83,-264.27 465.06,-264.27 465.06,-240 616.83,-240 616.83,-264.27"/>
+<text xml:space="preserve" text-anchor="middle" x="540.94" y="-248.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_sparse_ldl_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_symmetric_solver_module&#45;&gt;module~sqpopt_sparse_ldl_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge36" class="edge">
+<title>module~sqpopt_symmetric_solver_module&#45;&gt;module~sqpopt_sparse_ldl_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M881.19,-260.77C860.38,-264.2 837.23,-267.43 815.85,-269.13 746.62,-274.64 728.85,-274.11 659.58,-269.13 649.45,-268.41 638.87,-267.33 628.39,-266.07"/>
+<polygon fill="#000000" stroke="#000000" points="628.94,-262.61 618.58,-264.82 628.06,-269.55 628.94,-262.61"/>
+</g>
+<!-- module~sqpopt_dense_ldl_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge39" class="edge">
+<title>module~sqpopt_dense_ldl_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M693.74,-235.5C645.31,-222.1 569.72,-203.89 541.94,-212.13"/>
+</g>
+<!-- module~sqpopt_dense_ldl_module&#45;&gt;module~sqpopt_types_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge41" class="edge">
+<title>module~sqpopt_dense_ldl_module&#45;&gt;module~sqpopt_types_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M692.67,-235.51C681.63,-231.75 669.98,-227.24 659.58,-222.13 642.32,-213.66 640.91,-206.47 623.58,-198.13 616.03,-194.51 607.85,-191.21 599.68,-188.29"/>
+<polygon fill="#000000" stroke="#000000" points="601.04,-185.05 590.44,-185.14 598.78,-191.68 601.04,-185.05"/>
+</g>
+<!-- module~sqpopt_dense_ldl_module&#45;&gt;module~sqpopt_dense_linalg_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge38" class="edge">
+<title>module~sqpopt_dense_ldl_module&#45;&gt;module~sqpopt_dense_linalg_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M717.57,-260.73C701.27,-271.92 677.68,-289.23 659.58,-307.13 641.12,-325.39 642.28,-335.13 623.58,-353.13 607.93,-368.2 588.25,-382.53 572.13,-393.3"/>
+<polygon fill="#000000" stroke="#000000" points="570.34,-390.29 563.89,-398.69 574.17,-396.15 570.34,-390.29"/>
+</g>
+<!-- module~sqpopt_dense_ldl_module&#45;&gt;module~sqpopt_sparse_ldl_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge40" class="edge">
+<title>module~sqpopt_dense_ldl_module&#45;&gt;module~sqpopt_sparse_ldl_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M663.08,-249.65C651.85,-249.88 640.17,-250.12 628.69,-250.35"/>
+<polygon fill="#000000" stroke="#000000" points="628.74,-246.85 618.82,-250.56 628.89,-253.85 628.74,-246.85"/>
+</g>
+<!-- module~sqpopt_mumps_ldl_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge42" class="edge">
+<title>module~sqpopt_mumps_ldl_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M659.13,-366.38C578.08,-363.42 447.33,-361.38 335.05,-372.13"/>
+</g>
+<!-- module~sqpopt_mumps_ldl_module&#45;&gt;module~sqpopt_sparse_ldl_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge43" class="edge">
+<title>module~sqpopt_mumps_ldl_module&#45;&gt;module~sqpopt_sparse_ldl_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M677.22,-357.54C671.06,-355.19 665.06,-352.41 659.58,-349.13 639.62,-337.19 641.08,-326.46 623.58,-311.13 607.02,-296.64 587.01,-282.13 570.94,-271.13"/>
+<polygon fill="#000000" stroke="#000000" points="573.02,-268.31 562.77,-265.61 569.1,-274.11 573.02,-268.31"/>
+</g>
+<!-- module~sqpopt_qdldl_ldl_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge44" class="edge">
+<title>module~sqpopt_qdldl_ldl_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M665.99,-315.85C651.98,-313.89 637.35,-312.16 623.58,-311.13 550.33,-305.66 529.83,-294.41 458.31,-311.13 398.79,-325.06 395.88,-366.13 335.05,-372.13"/>
+</g>
+<!-- module~sqpopt_qdldl_ldl_module&#45;&gt;module~sqpopt_sparse_ldl_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge45" class="edge">
+<title>module~sqpopt_qdldl_ldl_module&#45;&gt;module~sqpopt_sparse_ldl_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M692.67,-315.51C681.63,-311.75 669.98,-307.24 659.58,-302.13 642.32,-293.66 640.91,-286.47 623.58,-278.13 616.03,-274.51 607.85,-271.21 599.68,-268.29"/>
+<polygon fill="#000000" stroke="#000000" points="601.04,-265.05 590.44,-265.14 598.78,-271.68 601.04,-265.05"/>
+</g>
+<!-- qdldl_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_node20" class="node">
+<title>qdldl_module</title>
+<polygon fill="#337ab7" stroke="#337ab7" points="582.7,-344.27 499.18,-344.27 499.18,-320 582.7,-320 582.7,-344.27"/>
+<text xml:space="preserve" text-anchor="middle" x="540.94" y="-328.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">qdldl_module</text>
+</g>
+<!-- module~sqpopt_qdldl_ldl_module&#45;&gt;qdldl_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge46" class="edge">
+<title>module~sqpopt_qdldl_ldl_module&#45;&gt;qdldl_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M665.85,-329.59C642.24,-330.08 616.39,-330.61 594.44,-331.06"/>
+<polygon fill="#000000" stroke="#000000" points="594.45,-327.56 584.53,-331.26 594.6,-334.55 594.45,-327.56"/>
+</g>
+<!-- module~sqpopt_sparse_ldl_module&#45;&gt;module~sqpopt_kinds -->
+<g id="module~~sqpopt_qp_direct_module~~UsesGraph_edge47" class="edge">
+<title>module~sqpopt_sparse_ldl_module&#45;&gt;module~sqpopt_kinds</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M490.92,-264.74C479.9,-268.39 468.47,-272.85 458.31,-278.13 397.2,-309.94 403.63,-365.57 335.05,-372.13"/>
+</g>
+</g>
+</svg>
+</div>                <script>
+                  var panmodulesqpopt_qp_direct_moduleUsesGraph = svgPanZoom('#modulesqpopt_qp_direct_moduleUsesGraph',
+                    {zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true,}
+                  );
+                </script>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#UsesGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="UsesGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="511pt" height="32pt"
+ viewBox="0.00 0.00 511.00 32.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 506.88,-28.27 506.88,4 -4,4"/>
+<!-- Module -->
+<g id="node1" class="node">
+<title>Module</title>
+<polygon fill="#337ab7" stroke="#337ab7" points="54,-24.27 0,-24.27 0,0 54,0 54,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="27" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Module</text>
+</g>
+<!-- Submodule -->
+<g id="node2" class="node">
+<title>Submodule</title>
+<polygon fill="#5bc0de" stroke="#5bc0de" points="144.13,-24.27 71.87,-24.27 71.87,0 144.13,0 144.13,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="108" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Submodule</text>
+</g>
+<!-- Subroutine -->
+<g id="node3" class="node">
+<title>Subroutine</title>
+<polygon fill="#d9534f" stroke="#d9534f" points="231.63,-24.27 162.37,-24.27 162.37,0 231.63,0 231.63,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="197" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Subroutine</text>
+</g>
+<!-- Function -->
+<g id="node4" class="node">
+<title>Function</title>
+<polygon fill="#d94e8f" stroke="#d94e8f" points="306.26,-24.27 249.74,-24.27 249.74,0 306.26,0 306.26,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="278" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Function</text>
+</g>
+<!-- Program -->
+<g id="node5" class="node">
+<title>Program</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="381.26,-24.27 324.74,-24.27 324.74,0 381.26,0 381.26,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="353" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Program</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node6" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="502.88,-24.27 399.12,-24.27 399.12,0 502.88,0 502.88,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="451" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a submodule to the (sub)module which it is
+descended from. Dashed arrows point from a module or program unit to 
+modules which it uses.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+            </li>
+        </ul>
+      </div>
+    </div>
+
+          <div class="card">
+      <h3 class="card-header card-title bg-light">Used by</h3>
+      <div class="card-body">
+        <ul class="list-group list-group-flush">
+            <li class="list-group-item">
+              <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: module~~sqpopt_qp_direct_module~~UsedByGraph Pages: 1 -->
+<svg id="modulesqpopt_qp_direct_moduleUsedByGraph" width="641pt" height="121pt"
+ viewBox="0.00 0.00 641.00 121.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph" class="graph" transform="scale(0.472832 0.472832) rotate(0) translate(4 251.55)">
+<title>module~~sqpopt_qp_direct_module~~UsedByGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-251.55 1351.66,-251.55 1351.66,4 -4,4"/>
+<!-- module~sqpopt_qp_direct_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_node1" class="node">
+<title>module~sqpopt_qp_direct_module</title>
+<polygon fill="none" stroke="black" points="147.27,-84.27 0,-84.27 0,-60 147.27,-60 147.27,-84.27"/>
+<text xml:space="preserve" text-anchor="middle" x="73.64" y="-68.54" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_qp_direct_module</text>
+</g>
+<!-- module~sqpopt_iterate_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_node2" class="node">
+<title>module~sqpopt_iterate_module</title>
+<g id="a_module~~sqpopt_qp_direct_module~~UsedByGraph_node2"><a xlink:href="../module/sqpopt_iterate_module.html" xlink:title="sqpopt_iterate_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="1065.87,-104.27 932.1,-104.27 932.1,-80 1065.87,-80 1065.87,-104.27"/>
+<text xml:space="preserve" text-anchor="middle" x="998.99" y="-88.54" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_iterate_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_iterate_module&#45;&gt;module~sqpopt_qp_direct_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_edge1" class="edge">
+<title>module~sqpopt_iterate_module&#45;&gt;module~sqpopt_qp_direct_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M931.64,-86.44C897.09,-84.73 854.25,-84.56 816.34,-90.14"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M814.34,-90.14C733.64,-102.01 712.38,-89.99 630.82,-90.14"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M628.82,-90.14C582.29,-90.22 571.44,-79.86 525.06,-76.14 373.62,-63.99 335.19,-70.44 183.27,-71.14 175.45,-71.17 167.31,-71.22 159.17,-71.28"/>
+<polygon fill="#000000" stroke="#000000" points="159.16,-67.78 149.19,-71.36 159.22,-74.78 159.16,-67.78"/>
+</g>
+<!-- module~sqpopt_qp_solver_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_node3" class="node">
+<title>module~sqpopt_qp_solver_module</title>
+<g id="a_module~~sqpopt_qp_direct_module~~UsedByGraph_node3"><a xlink:href="../module/sqpopt_qp_solver_module.html" xlink:title="sqpopt_qp_solver_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="332.79,-104.27 183.27,-104.27 183.27,-80 332.79,-80 332.79,-104.27"/>
+<text xml:space="preserve" text-anchor="middle" x="258.03" y="-88.54" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qp_solver_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_iterate_module&#45;&gt;module~sqpopt_qp_solver_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_edge5" class="edge">
+<title>module~sqpopt_iterate_module&#45;&gt;module~sqpopt_qp_solver_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M628.82,-90.14C548.42,-90.28 528.19,-85.55 447.93,-90.14"/>
+</g>
+<!-- module~sqpopt_diagnostics_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_node4" class="node">
+<title>module~sqpopt_diagnostics_module</title>
+<g id="a_module~~sqpopt_qp_direct_module~~UsedByGraph_node4"><a xlink:href="../module/sqpopt_diagnostics_module.html" xlink:title="sqpopt_diagnostics_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="894.6,-180.27 736.08,-180.27 736.08,-156 894.6,-156 894.6,-180.27"/>
+<text xml:space="preserve" text-anchor="middle" x="815.34" y="-164.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_diagnostics_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_iterate_module&#45;&gt;module~sqpopt_diagnostics_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_edge11" class="edge">
+<title>module~sqpopt_iterate_module&#45;&gt;module~sqpopt_diagnostics_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M967.99,-104.68C937.62,-117.39 890.46,-137.12 856.8,-151.21"/>
+<polygon fill="#000000" stroke="#000000" points="855.65,-147.89 847.78,-154.98 858.35,-154.35 855.65,-147.89"/>
+</g>
+<!-- module~sqpopt_options_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_node7" class="node">
+<title>module~sqpopt_options_module</title>
+<g id="a_module~~sqpopt_qp_direct_module~~UsedByGraph_node7"><a xlink:href="../module/sqpopt_options_module.html" xlink:title="sqpopt_options_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="698.58,-218.27 561.06,-218.27 561.06,-194 698.58,-194 698.58,-218.27"/>
+<text xml:space="preserve" text-anchor="middle" x="629.82" y="-202.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_options_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_iterate_module&#45;&gt;module~sqpopt_options_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_edge15" class="edge">
+<title>module~sqpopt_iterate_module&#45;&gt;module~sqpopt_options_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M814.34,-90.14C745.83,-100.21 681.13,-155.57 650.06,-186.03"/>
+<polygon fill="#000000" stroke="#000000" points="647.86,-183.27 643.28,-192.83 652.82,-188.22 647.86,-183.27"/>
+</g>
+<!-- module~sqpopt_restoration_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_node8" class="node">
+<title>module~sqpopt_restoration_module</title>
+<g id="a_module~~sqpopt_qp_direct_module~~UsedByGraph_node8"><a xlink:href="../module/sqpopt_restoration_module.html" xlink:title="sqpopt_restoration_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="525.06,-142.27 368.79,-142.27 368.79,-118 525.06,-118 525.06,-142.27"/>
+<text xml:space="preserve" text-anchor="middle" x="446.93" y="-126.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_restoration_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_iterate_module&#45;&gt;module~sqpopt_restoration_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_edge18" class="edge">
+<title>module~sqpopt_iterate_module&#45;&gt;module~sqpopt_restoration_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M628.82,-90.14C582.18,-90.22 530.34,-103.04 494.16,-114.14"/>
+<polygon fill="#000000" stroke="#000000" points="493.38,-110.72 484.89,-117.06 495.48,-117.39 493.38,-110.72"/>
+</g>
+<!-- module~sqpopt_trust_region_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_node9" class="node">
+<title>module~sqpopt_trust_region_module</title>
+<g id="a_module~~sqpopt_qp_direct_module~~UsedByGraph_node9"><a xlink:href="../module/sqpopt_trust_region_module.html" xlink:title="sqpopt_trust_region_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="896.1,-24.27 734.58,-24.27 734.58,0 896.1,0 896.1,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="815.34" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_trust_region_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_iterate_module&#45;&gt;module~sqpopt_trust_region_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_edge21" class="edge">
+<title>module~sqpopt_iterate_module&#45;&gt;module~sqpopt_trust_region_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M964.98,-79.56C954.42,-75.42 942.72,-70.7 932.1,-66.14 905.02,-54.49 874.84,-40.37 852.09,-29.5"/>
+<polygon fill="#000000" stroke="#000000" points="853.78,-26.42 843.25,-25.25 850.75,-32.73 853.78,-26.42"/>
+</g>
+<!-- module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_qp_direct_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_edge2" class="edge">
+<title>module~sqpopt_qp_solver_module&#45;&gt;module~sqpopt_qp_direct_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M182.84,-84C174.93,-83.13 166.85,-82.25 158.83,-81.37"/>
+<polygon fill="#000000" stroke="#000000" points="159.4,-77.91 149.08,-80.3 158.64,-84.87 159.4,-77.91"/>
+</g>
+<!-- module~sqpopt_diagnostics_module&#45;&gt;module~sqpopt_qp_solver_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_edge4" class="edge">
+<title>module~sqpopt_diagnostics_module&#45;&gt;module~sqpopt_qp_solver_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M735.67,-171.05C685.56,-173.49 619.32,-177.8 561.06,-185.13 510.32,-191.52 497.19,-219.85 447.93,-206.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M445.93,-206.13C380.55,-187.1 315.14,-138.88 281.77,-111.64"/>
+<polygon fill="#000000" stroke="#000000" points="284.33,-109.21 274.39,-105.52 279.86,-114.6 284.33,-109.21"/>
+</g>
+<!-- module~sqpopt_diagnostics_module&#45;&gt;module~sqpopt_options_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_edge14" class="edge">
+<title>module~sqpopt_diagnostics_module&#45;&gt;module~sqpopt_options_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M753.49,-180.74C737.22,-184.1 719.5,-187.77 702.7,-191.25"/>
+<polygon fill="#000000" stroke="#000000" points="702.39,-187.74 693.31,-193.2 703.81,-194.6 702.39,-187.74"/>
+</g>
+<!-- module~sqpopt_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_node5" class="node">
+<title>module~sqpopt_module</title>
+<g id="a_module~~sqpopt_qp_direct_module~~UsedByGraph_node5"><a xlink:href="../module/sqpopt_module.html" xlink:title="sqpopt_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="1195.14,-104.27 1101.87,-104.27 1101.87,-80 1195.14,-80 1195.14,-104.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1148.51" y="-88.54" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_iterate_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_edge3" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_iterate_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1101.64,-92.14C1093.9,-92.14 1085.69,-92.14 1077.41,-92.14"/>
+<polygon fill="#000000" stroke="#000000" points="1077.64,-88.64 1067.64,-92.14 1077.64,-95.64 1077.64,-88.64"/>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_qp_solver_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_edge6" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_qp_solver_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M997.99,-52.13C806.82,-16.37 754.77,-58.85 561.06,-76.14 510.59,-80.64 498.51,-87.25 447.93,-90.14"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M445.93,-90.14C412.86,-91.34 376.48,-91.9 344.67,-92.14"/>
+<polygon fill="#000000" stroke="#000000" points="344.67,-88.64 334.69,-92.21 344.71,-95.64 344.67,-88.64"/>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_diagnostics_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_edge12" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_diagnostics_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M997.99,-168.13C968.62,-175.17 935.8,-176.94 906.23,-176.4"/>
+<polygon fill="#000000" stroke="#000000" points="906.67,-172.92 896.58,-176.13 906.48,-179.91 906.67,-172.92"/>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_options_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_edge16" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_options_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M997.99,-168.13C953.02,-178.91 941.92,-182.98 896.1,-189.13 833.99,-197.48 763.14,-201.76 710.29,-203.93"/>
+<polygon fill="#000000" stroke="#000000" points="710.32,-200.43 700.47,-204.32 710.6,-207.42 710.32,-200.43"/>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_restoration_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_edge19" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_restoration_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1130.47,-104.59C1104.1,-122.99 1051.11,-156.49 999.99,-168.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M997.99,-168.13C952.91,-178.41 942,-152.7 896.1,-147.13 772.12,-132.11 627.57,-129.24 536.89,-129.19"/>
+<polygon fill="#000000" stroke="#000000" points="537.07,-125.69 527.07,-129.2 537.07,-132.69 537.07,-125.69"/>
+</g>
+<!-- module~sqpopt_module&#45;&gt;module~sqpopt_trust_region_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_edge22" class="edge">
+<title>module~sqpopt_module&#45;&gt;module~sqpopt_trust_region_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1107.83,-79.53C1078.36,-70.61 1037.02,-59.06 999.99,-52.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M997.99,-52.13C958.75,-44.79 915.05,-35.22 880.34,-27.27"/>
+<polygon fill="#000000" stroke="#000000" points="881.42,-23.93 870.89,-25.1 879.85,-30.75 881.42,-23.93"/>
+</g>
+<!-- module~sqpopt_nlls_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_node6" class="node">
+<title>module~sqpopt_nlls_module</title>
+<g id="a_module~~sqpopt_qp_direct_module~~UsedByGraph_node6"><a xlink:href="../module/sqpopt_nlls_module.html" xlink:title="sqpopt_nlls_module">
+<polygon fill="#337ab7" stroke="#337ab7" points="1347.66,-104.27 1231.14,-104.27 1231.14,-80 1347.66,-80 1347.66,-104.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1289.4" y="-88.54" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_nlls_module</text>
+</a>
+</g>
+</g>
+<!-- module~sqpopt_nlls_module&#45;&gt;module~sqpopt_qp_solver_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_edge7" class="edge">
+<title>module~sqpopt_nlls_module&#45;&gt;module~sqpopt_qp_solver_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M814.34,-246.13C650.55,-248.93 605.21,-251.93 447.93,-206.13"/>
+</g>
+<!-- module~sqpopt_nlls_module&#45;&gt;module~sqpopt_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_edge13" class="edge">
+<title>module~sqpopt_nlls_module&#45;&gt;module~sqpopt_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1230.7,-92.14C1222.79,-92.14 1214.67,-92.14 1206.76,-92.14"/>
+<polygon fill="#000000" stroke="#000000" points="1206.9,-88.64 1196.9,-92.14 1206.9,-95.64 1206.9,-88.64"/>
+</g>
+<!-- module~sqpopt_nlls_module&#45;&gt;module~sqpopt_options_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_edge17" class="edge">
+<title>module~sqpopt_nlls_module&#45;&gt;module~sqpopt_options_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1268.44,-104.54C1204.73,-142.84 999.69,-255.99 816.34,-246.13"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M814.34,-246.13C766.47,-246.95 713.15,-233.68 676.37,-222.2"/>
+<polygon fill="#000000" stroke="#000000" points="677.55,-218.9 666.96,-219.18 675.41,-225.57 677.55,-218.9"/>
+</g>
+<!-- module~sqpopt_nlls_module&#45;&gt;module~sqpopt_trust_region_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_edge23" class="edge">
+<title>module~sqpopt_nlls_module&#45;&gt;module~sqpopt_trust_region_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1244.43,-79.61C1199.81,-67.34 1128.55,-48.96 1065.87,-38.13 1013.82,-29.15 955.08,-22.84 907.68,-18.69"/>
+<polygon fill="#000000" stroke="#000000" points="908.27,-15.23 898.01,-17.86 907.68,-22.21 908.27,-15.23"/>
+</g>
+<!-- module~sqpopt_options_module&#45;&gt;module~sqpopt_qp_solver_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_edge8" class="edge">
+<title>module~sqpopt_options_module&#45;&gt;module~sqpopt_qp_solver_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M560.64,-214.69C526.25,-216.87 484.23,-216.24 447.93,-206.13"/>
+</g>
+<!-- module~sqpopt_options_module&#45;&gt;module~sqpopt_restoration_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_edge20" class="edge">
+<title>module~sqpopt_options_module&#45;&gt;module~sqpopt_restoration_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M598.95,-193.59C568.71,-180.88 521.74,-161.15 488.21,-147.06"/>
+<polygon fill="#000000" stroke="#000000" points="489.81,-143.94 479.24,-143.29 487.1,-150.39 489.81,-143.94"/>
+</g>
+<!-- module~sqpopt_restoration_module&#45;&gt;module~sqpopt_qp_solver_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_edge9" class="edge">
+<title>module~sqpopt_restoration_module&#45;&gt;module~sqpopt_qp_solver_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M383.95,-117.53C367.39,-114.17 349.34,-110.5 332.23,-107.02"/>
+<polygon fill="#000000" stroke="#000000" points="333.13,-103.63 322.64,-105.07 331.74,-110.49 333.13,-103.63"/>
+</g>
+<!-- module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_qp_solver_module -->
+<g id="module~~sqpopt_qp_direct_module~~UsedByGraph_edge10" class="edge">
+<title>module~sqpopt_trust_region_module&#45;&gt;module~sqpopt_qp_solver_module</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M734.3,-18.81C684.37,-23.36 618.84,-30.02 561.06,-38.13 482.72,-49.14 393.63,-65.55 332.63,-77.39"/>
+<polygon fill="#000000" stroke="#000000" points="332.21,-73.91 323.06,-79.26 333.55,-80.78 332.21,-73.91"/>
+</g>
+</g>
+</svg>
+</div>                <script>
+                  var panmodulesqpopt_qp_direct_moduleUsedByGraph = svgPanZoom('#modulesqpopt_qp_direct_moduleUsedByGraph',
+                    {zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true,}
+                  );
+                </script>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#UsedByGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="UsedByGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="511pt" height="32pt"
+ viewBox="0.00 0.00 511.00 32.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 506.88,-28.27 506.88,4 -4,4"/>
+<!-- Module -->
+<g id="node1" class="node">
+<title>Module</title>
+<polygon fill="#337ab7" stroke="#337ab7" points="54,-24.27 0,-24.27 0,0 54,0 54,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="27" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Module</text>
+</g>
+<!-- Submodule -->
+<g id="node2" class="node">
+<title>Submodule</title>
+<polygon fill="#5bc0de" stroke="#5bc0de" points="144.13,-24.27 71.87,-24.27 71.87,0 144.13,0 144.13,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="108" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Submodule</text>
+</g>
+<!-- Subroutine -->
+<g id="node3" class="node">
+<title>Subroutine</title>
+<polygon fill="#d9534f" stroke="#d9534f" points="231.63,-24.27 162.37,-24.27 162.37,0 231.63,0 231.63,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="197" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Subroutine</text>
+</g>
+<!-- Function -->
+<g id="node4" class="node">
+<title>Function</title>
+<polygon fill="#d94e8f" stroke="#d94e8f" points="306.26,-24.27 249.74,-24.27 249.74,0 306.26,0 306.26,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="278" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Function</text>
+</g>
+<!-- Program -->
+<g id="node5" class="node">
+<title>Program</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="381.26,-24.27 324.74,-24.27 324.74,0 381.26,0 381.26,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="353" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Program</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node6" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="502.88,-24.27 399.12,-24.27 399.12,0 502.88,0 502.88,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="451" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a submodule to the (sub)module which it is
+descended from. Dashed arrows point from a module or program unit to 
+modules which it uses.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+            </li>
+        </ul>
+      </div>
+    </div>
+
+      <br>
+
+
+        <section>
+          <h2>Variables</h2>
+            <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Visibility</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+<th></th><th scope="col">Initial</th>        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-stationarity_tol"></span>
+              real(kind=wp),
+            </td>
+              <td>private,</td>
+            <td>
+parameter               
+            </td>
+            <td>::</td>
+            <td><strong>stationarity_tol</strong></td>
+<td> =</td>
+                <td>1.0e-8_wp</td>
+            <td>
+                <p>tolerance on the stationarity residual of a solve, in
+the free variables, relative to the terms that it is
+the difference of (the gradient, and the Hessian times
+the step)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-reg_factor"></span>
+              real(kind=wp),
+            </td>
+              <td>private,</td>
+            <td>
+parameter               
+            </td>
+            <td>::</td>
+            <td><strong>reg_factor</strong></td>
+<td> =</td>
+                <td>1.0e-8_wp</td>
+            <td>
+                <p>the regularization of a singular face, relative to the square
+of the largest element of the face's part of the Jacobian (the
+working set's rows, in the variables that are not fixed)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-reg_factor_fine"></span>
+              real(kind=wp),
+            </td>
+              <td>private,</td>
+            <td>
+parameter               
+            </td>
+            <td>::</td>
+            <td><strong>reg_factor_fine</strong></td>
+<td> =</td>
+                <td>1.0e-11_wp</td>
+            <td>
+                <p>the smaller one, tried if the step of a regularized face
+only fails to satisfy the working set's rows: a regularized
+solve leaves each row short by the regularization times its
+multiplier</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-sqpopt_direct_solved"></span>
+              integer,
+            </td>
+              <td>public,</td>
+            <td>
+parameter               
+            </td>
+            <td>::</td>
+            <td><strong>sqpopt_direct_solved</strong></td>
+<td> =</td>
+                <td>0</td>
+            <td>
+                <p>it found the QP's solution</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-sqpopt_direct_nonconvex"></span>
+              integer,
+            </td>
+              <td>public,</td>
+            <td>
+parameter               
+            </td>
+            <td>::</td>
+            <td><strong>sqpopt_direct_nonconvex</strong></td>
+<td> =</td>
+                <td>1</td>
+            <td>
+                <p>a face had negative curvature</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-sqpopt_direct_singular"></span>
+              integer,
+            </td>
+              <td>public,</td>
+            <td>
+parameter               
+            </td>
+            <td>::</td>
+            <td><strong>sqpopt_direct_singular</strong></td>
+<td> =</td>
+                <td>2</td>
+            <td>
+                <p>a face had no unique minimizer, or
+inconsistent rows</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-sqpopt_direct_max_changes"></span>
+              integer,
+            </td>
+              <td>public,</td>
+            <td>
+parameter               
+            </td>
+            <td>::</td>
+            <td><strong>sqpopt_direct_max_changes</strong></td>
+<td> =</td>
+                <td>3</td>
+            <td>
+                <p>too many changes of the working set</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-sqpopt_direct_failed"></span>
+              integer,
+            </td>
+              <td>public,</td>
+            <td>
+parameter               
+            </td>
+            <td>::</td>
+            <td><strong>sqpopt_direct_failed</strong></td>
+<td> =</td>
+                <td>4</td>
+            <td>
+                <p>a factorization or a solve failed</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-sqpopt_direct_inaccurate"></span>
+              integer,
+            </td>
+              <td>public,</td>
+            <td>
+parameter               
+            </td>
+            <td>::</td>
+            <td><strong>sqpopt_direct_inaccurate</strong></td>
+<td> =</td>
+                <td>5</td>
+            <td>
+                <p>a solve was too inaccurate</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+        </section>
+        <br>
+
+
+
+
+
+        <section>
+          <h2>Functions</h2>
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-direct_outcome_text"></span> <h3>public pure function <a href='../proc/direct_outcome_text.html'>direct_outcome_text</a>(outcome) result(text)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>a short description of how <a href="../proc/direct_qp_step.html">direct_qp_step</a> ended, for the detailed log.</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-outcome~2"></span>
+              integer,
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>outcome</strong></td>
+            <td>
+<p>a <code>sqpopt_direct_*</code> constant</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+    <h4>
+    Return Value
+    <small>character(len=:), allocatable</small>
+    </h4>
+    
+
+    </div>
+  </div>
+
+        </section>
+        <br>
+
+        <section>
+          <h2>Subroutines</h2>
+              <div class="card">
+    <div class="card-header codesum"><span class="anchor" id="proc-direct_qp_step"></span> <h3>public  subroutine <a href='../proc/direct_qp_step.html'>direct_qp_step</a>(kkt, hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, max_changes, tol, status, p, lambda, n_changes, outcome, inertia)  
+</h3></div>
+    <div class="card-body">
+          
+  <p>try to solve the QP subproblem directly (see the module documentation),
+starting from the working set <code>status</code>. If it succeeds
+(<code>outcome = sqpopt_direct_solved</code>), <code>p</code> and <code>lambda</code> are the QP's
+solution and <code>status</code> its working set. Otherwise they are not to be
+used, <code>status</code> is unchanged, and <code>outcome</code> says why it gave up (see the
+<code>sqpopt_direct_*</code> constants).</p>
+
+  <h4>Arguments</h4>
+      <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-kkt"></span>
+              type(<a href='../type/sqpopt_kkt_type.html'>sqpopt_kkt_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>kkt</strong></td>
+            <td>
+<p>the KKT matrix (see <a href="../module/sqpopt_kkt_module.html">sqpopt_kkt_module</a>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-hessian"></span>
+              type(<a href='../type/sqpopt_hessian_type.html'>sqpopt_hessian_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>hessian</strong></td>
+            <td>
+<p>the Hessian (exact, with its shift, or quasi-Newton)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-jac~3"></span>
+              type(<a href='../type/sqpopt_sparse_matrix.html'>sqpopt_sparse_matrix</a>),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>jac</strong></td>
+            <td>
+<p>sparse constraint Jacobian, <code>dimension(m,n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x~2"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x</strong></td>
+            <td>
+<p>current point <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-g~3"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>g</strong></td>
+            <td>
+<p>objective gradient <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c~5"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c</strong></td>
+            <td>
+<p>current constraint values <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x_lb"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x_lb</strong></td>
+            <td>
+<p>variable lower bounds <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-x_ub"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>x_ub</strong></td>
+            <td>
+<p>variable upper bounds <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_lb~5"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_lb</strong></td>
+            <td>
+<p>constraint lower bounds <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-c_ub~5"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>c_ub</strong></td>
+            <td>
+<p>constraint upper bounds <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-max_changes"></span>
+              integer,
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>max_changes</strong></td>
+            <td>
+<p>maximum number of changes of the working set</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-tol~5"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>tol</strong></td>
+            <td>
+<p>relative tolerance for a violated row or bound, and for
+the sign of a multiplier</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-status"></span>
+              integer,
+            </td>
+<td>intent(inout),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>status</strong></td>
+            <td>
+<p>the working set: the side (<code>-1</code> lower, <code>+1</code> upper, <code>0</code>
+not in it) of each general row, then of each variable
+bound <code>dimension(m+n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-p~5"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>p</strong></td>
+            <td>
+<p>the step <code>dimension(n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-lambda~5"></span>
+              real(kind=wp),
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>lambda</strong></td>
+            <td>
+<p>the constraint multipliers <code>dimension(m)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-n_changes"></span>
+              integer,
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>n_changes</strong></td>
+            <td>
+<p>number of changes of the working set that were made</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-outcome"></span>
+              integer,
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>outcome</strong></td>
+            <td>
+<p>how it ended (a <code>sqpopt_direct_*</code> constant)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-inertia"></span>
+              type(<a href='../type/sqpopt_inertia_type.html'>sqpopt_inertia_type</a>),
+            </td>
+<td>intent(inout),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>inertia</strong></td>
+            <td>
+<p>the inertia control, to raise the Hessian's shift
+at a nonconvex face (used if <code>inertia%enabled</code>)</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+
+    </div>
+  </div>
+
+        </section>
+        <br>
+
+
+
+    </div>
+  </div>
+
+      <hr>
+    </div> <!-- /container -->
+    <footer>
+      <div class="container">
+        <div class="row justify-content-between">
+          <div class="col">
+            <p>
+              sqpopt
+ was developed by Jacob Williams<br>              &copy; 2026 
+</p>
+          </div>
+          <div class="col">
+            <p class="text-end">
+              Documentation generated by
+              <a href="https://github.com/Fortran-FOSS-Programmers/ford">FORD</a>
+            </p>
+          </div>
+        </div>
+        <br>
+      </div> <!-- /container -->
+    </footer>
+    <!-- sqpopt theme: the button switches the theme, and remembers it for the guide too -->
+    <script>
+      document.querySelector('.theme-toggle').addEventListener('click', function () {
+        var root = document.documentElement;
+        var next = root.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-bs-theme', next);
+        try { localStorage.setItem('sqpopt-theme', next); } catch (e) {}
+      });
+    </script>
+  </body>
+</html>

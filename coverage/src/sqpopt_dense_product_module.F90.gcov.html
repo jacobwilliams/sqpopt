@@ -1,0 +1,292 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - coverage.info - src/sqpopt_dense_product_module.F90</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../index.html" title="Click to go to top-level">top level</a> - <a href="index.html" title="Click to go to directory src">src</a> - sqpopt_dense_product_module.F90<span style="font-size: 80%;"> (source / <a href="sqpopt_dense_product_module.F90.func-c.html" title="Click to go to function table">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">coverage.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
+            <td class="headerCovTableEntry">47</td>
+            <td class="headerCovTableEntry">47</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2026-10-16 01:47:09</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
+            <td class="headerCovTableEntry">2</td>
+            <td class="headerCovTableEntry">2</td>
+          </tr>
+                  <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : !*******************************************************************************</span>
+<span id="L2"><span class="lineNum">       2</span>              : !&gt; author: Jacob Williams</span>
+<span id="L3"><span class="lineNum">       3</span>              : !  license: MIT</span>
+<span id="L4"><span class="lineNum">       4</span>              : !</span>
+<span id="L5"><span class="lineNum">       5</span>              : !  Dense matrix-vector and matrix-matrix products, in the caller's arrays:</span>
+<span id="L6"><span class="lineNum">       6</span>              : !  the library's replacement for the `matmul` intrinsic, which it doesn't</span>
+<span id="L7"><span class="lineNum">       7</span>              : !  use. An expression with `matmul` (nested, or with a `transpose`, or as an</span>
+<span id="L8"><span class="lineNum">       8</span>              : !  actual argument) needs an array temporary for its result, and some</span>
+<span id="L9"><span class="lineNum">       9</span>              : !  compilers put those on the stack (the Intel compilers by default,</span>
+<span id="L10"><span class="lineNum">      10</span>              : !  gfortran with `-fstack-arrays` or `-Ofast`), which a moderately large</span>
+<span id="L11"><span class="lineNum">      11</span>              : !  matrix then overflows (Windows's default stack is 1 MB, the size of a</span>
+<span id="L12"><span class="lineNum">      12</span>              : !  350 by 350 matrix). These routines form nothing: the result goes into</span>
+<span id="L13"><span class="lineNum">      13</span>              : !  an array the caller has allocated, and `op(A)` is never formed.</span>
+<span id="L14"><span class="lineNum">      14</span>              : !</span>
+<span id="L15"><span class="lineNum">      15</span>              : !  The products are explicit loops (column-oriented, the order of the</span>
+<span id="L16"><span class="lineNum">      16</span>              : !  arrays' storage), in any real kind; in a library built with LAPACK (the</span>
+<span id="L17"><span class="lineNum">      17</span>              : !  `HAS_LAPACK` preprocessor directive, in double precision, which links</span>
+<span id="L18"><span class="lineNum">      18</span>              : !  BLAS too), BLAS's `DGEMV` and `DGEMM` instead, whenever the arrays are</span>
+<span id="L19"><span class="lineNum">      19</span>              : !  contiguous (a section that isn't, e.g. the leading rows of a matrix,</span>
+<span id="L20"><span class="lineNum">      20</span>              : !  uses the loops, since BLAS would need it copied). The two builds'</span>
+<span id="L21"><span class="lineNum">      21</span>              : !  products then differ in rounding, and so can their iterates.</span>
+<span id="L22"><span class="lineNum">      22</span>              : </span>
+<span id="L23"><span class="lineNum">      23</span>              :     module sqpopt_dense_product_module</span>
+<span id="L24"><span class="lineNum">      24</span>              : </span>
+<span id="L25"><span class="lineNum">      25</span>              :     use sqpopt_kinds, only: wp =&gt; sqpopt_module_wp</span>
+<span id="L26"><span class="lineNum">      26</span>              : </span>
+<span id="L27"><span class="lineNum">      27</span>              :     implicit none</span>
+<span id="L28"><span class="lineNum">      28</span>              : </span>
+<span id="L29"><span class="lineNum">      29</span>              :     private</span>
+<span id="L30"><span class="lineNum">      30</span>              : </span>
+<span id="L31"><span class="lineNum">      31</span>              : #ifdef HAS_LAPACK</span>
+<span id="L32"><span class="lineNum">      32</span>              : #if defined(REAL32) || defined(REAL128)</span>
+<span id="L33"><span class="lineNum">      33</span>              : #error &quot;HAS_LAPACK needs the default (double precision) real kind: don't define REAL32 or REAL128 with it&quot;</span>
+<span id="L34"><span class="lineNum">      34</span>              : #endif</span>
+<span id="L35"><span class="lineNum">      35</span>              :     interface</span>
+<span id="L36"><span class="lineNum">      36</span>              :         ! (declared `pure`: they change nothing but `y` and `c`)</span>
+<span id="L37"><span class="lineNum">      37</span>              :         pure subroutine dgemv(trans, m, n, alpha, a, lda, x, incx, beta, y, incy)</span>
+<span id="L38"><span class="lineNum">      38</span>              :             !! BLAS: \( y \leftarrow \alpha \, op(A) x + \beta y \)</span>
+<span id="L39"><span class="lineNum">      39</span>              :             import :: wp</span>
+<span id="L40"><span class="lineNum">      40</span>              :             implicit none</span>
+<span id="L41"><span class="lineNum">      41</span>              :             character, intent(in)    :: trans    !! `'N'`: \( op(A)=A \), `'T'`: \( op(A)=A^T \)</span>
+<span id="L42"><span class="lineNum">      42</span>              :             integer,   intent(in)    :: m        !! number of rows of `a`</span>
+<span id="L43"><span class="lineNum">      43</span>              :             integer,   intent(in)    :: n        !! number of columns of `a`</span>
+<span id="L44"><span class="lineNum">      44</span>              :             real(wp),  intent(in)    :: alpha    !! the product's factor</span>
+<span id="L45"><span class="lineNum">      45</span>              :             integer,   intent(in)    :: lda      !! leading dimension of `a`</span>
+<span id="L46"><span class="lineNum">      46</span>              :             real(wp),  intent(in)    :: a(lda,*) !! the matrix</span>
+<span id="L47"><span class="lineNum">      47</span>              :             real(wp),  intent(in)    :: x(*)     !! the vector</span>
+<span id="L48"><span class="lineNum">      48</span>              :             integer,   intent(in)    :: incx     !! the stride of `x`</span>
+<span id="L49"><span class="lineNum">      49</span>              :             real(wp),  intent(in)    :: beta     !! the factor of `y` (`0`: `y` isn't read)</span>
+<span id="L50"><span class="lineNum">      50</span>              :             real(wp),  intent(inout) :: y(*)     !! the result</span>
+<span id="L51"><span class="lineNum">      51</span>              :             integer,   intent(in)    :: incy     !! the stride of `y`</span>
+<span id="L52"><span class="lineNum">      52</span>              :         end subroutine dgemv</span>
+<span id="L53"><span class="lineNum">      53</span>              :         pure subroutine dgemm(transa, transb, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc)</span>
+<span id="L54"><span class="lineNum">      54</span>              :             !! BLAS: \( C \leftarrow \alpha \, op(A) \, op(B) + \beta C \)</span>
+<span id="L55"><span class="lineNum">      55</span>              :             import :: wp</span>
+<span id="L56"><span class="lineNum">      56</span>              :             implicit none</span>
+<span id="L57"><span class="lineNum">      57</span>              :             character, intent(in)    :: transa   !! `'N'`: \( op(A)=A \), `'T'`: \( op(A)=A^T \)</span>
+<span id="L58"><span class="lineNum">      58</span>              :             character, intent(in)    :: transb   !! the same for `b`</span>
+<span id="L59"><span class="lineNum">      59</span>              :             integer,   intent(in)    :: m        !! number of rows of `c`</span>
+<span id="L60"><span class="lineNum">      60</span>              :             integer,   intent(in)    :: n        !! number of columns of `c`</span>
+<span id="L61"><span class="lineNum">      61</span>              :             integer,   intent(in)    :: k        !! the inner dimension</span>
+<span id="L62"><span class="lineNum">      62</span>              :             real(wp),  intent(in)    :: alpha    !! the product's factor</span>
+<span id="L63"><span class="lineNum">      63</span>              :             integer,   intent(in)    :: lda      !! leading dimension of `a`</span>
+<span id="L64"><span class="lineNum">      64</span>              :             real(wp),  intent(in)    :: a(lda,*) !! the first matrix</span>
+<span id="L65"><span class="lineNum">      65</span>              :             integer,   intent(in)    :: ldb      !! leading dimension of `b`</span>
+<span id="L66"><span class="lineNum">      66</span>              :             real(wp),  intent(in)    :: b(ldb,*) !! the second matrix</span>
+<span id="L67"><span class="lineNum">      67</span>              :             real(wp),  intent(in)    :: beta     !! the factor of `c` (`0`: `c` isn't read)</span>
+<span id="L68"><span class="lineNum">      68</span>              :             integer,   intent(in)    :: ldc      !! leading dimension of `c`</span>
+<span id="L69"><span class="lineNum">      69</span>              :             real(wp),  intent(inout) :: c(ldc,*) !! the result</span>
+<span id="L70"><span class="lineNum">      70</span>              :         end subroutine dgemm</span>
+<span id="L71"><span class="lineNum">      71</span>              :     end interface</span>
+<span id="L72"><span class="lineNum">      72</span>              : #endif</span>
+<span id="L73"><span class="lineNum">      73</span>              : </span>
+<span id="L74"><span class="lineNum">      74</span>              :     public :: dense_matvec</span>
+<span id="L75"><span class="lineNum">      75</span>              :     public :: dense_matmul</span>
+<span id="L76"><span class="lineNum">      76</span>              : </span>
+<span id="L77"><span class="lineNum">      77</span>              :     contains</span>
+<span id="L78"><span class="lineNum">      78</span>              : !*******************************************************************************</span>
+<span id="L79"><span class="lineNum">      79</span>              : </span>
+<span id="L80"><span class="lineNum">      80</span>              : !*******************************************************************************</span>
+<span id="L81"><span class="lineNum">      81</span>              : !&gt;</span>
+<span id="L82"><span class="lineNum">      82</span>              : !  \( y \leftarrow \alpha \, op(A) x + \beta y \), with \( op(A) = A \) or,</span>
+<span id="L83"><span class="lineNum">      83</span>              : !  with `trans`, \( A^T \) (not formed). `y` must not overlap `a` or `x`.</span>
+<span id="L84"><span class="lineNum">      84</span>              : !  With `beta = 0` (the default) `y` is only written, so it may hold</span>
+<span id="L85"><span class="lineNum">      85</span>              : !  anything (even NaNs) on entry.</span>
+<span id="L86"><span class="lineNum">      86</span>              : </span>
+<span id="L87"><span class="lineNum">      87</span> <span class="tlaGNC">      157267 :     pure subroutine dense_matvec(a, x, y, trans, alpha, beta)</span></span>
+<span id="L88"><span class="lineNum">      88</span>              : </span>
+<span id="L89"><span class="lineNum">      89</span>              :     real(wp), dimension(:,:), intent(in)    :: a     !! the matrix `dimension(m,n)`</span>
+<span id="L90"><span class="lineNum">      90</span>              :     real(wp), dimension(:),   intent(in)    :: x     !! the vector `dimension(n)` (`dimension(m)` with `trans`)</span>
+<span id="L91"><span class="lineNum">      91</span>              :     real(wp), dimension(:),   intent(inout) :: y     !! the result `dimension(m)` (`dimension(n)` with `trans`)</span>
+<span id="L92"><span class="lineNum">      92</span>              :     logical,  optional,       intent(in)    :: trans !! whether to multiply by \( A^T \) (default `.false.`)</span>
+<span id="L93"><span class="lineNum">      93</span>              :     real(wp), optional,       intent(in)    :: alpha !! the product's factor (default `1`)</span>
+<span id="L94"><span class="lineNum">      94</span>              :     real(wp), optional,       intent(in)    :: beta  !! the factor of `y` on entry (default `0`)</span>
+<span id="L95"><span class="lineNum">      95</span>              : </span>
+<span id="L96"><span class="lineNum">      96</span>              :     real(wp) :: al, be</span>
+<span id="L97"><span class="lineNum">      97</span>              :     logical :: tr</span>
+<span id="L98"><span class="lineNum">      98</span>              :     integer :: j</span>
+<span id="L99"><span class="lineNum">      99</span>              : </span>
+<span id="L100"><span class="lineNum">     100</span> <span class="tlaGNC">      157267 :     tr = .false.</span></span>
+<span id="L101"><span class="lineNum">     101</span> <span class="tlaGNC">      157267 :     if (present(trans)) tr = trans</span></span>
+<span id="L102"><span class="lineNum">     102</span> <span class="tlaGNC">      157267 :     al = 1.0_wp</span></span>
+<span id="L103"><span class="lineNum">     103</span> <span class="tlaGNC">      157267 :     if (present(alpha)) al = alpha</span></span>
+<span id="L104"><span class="lineNum">     104</span> <span class="tlaGNC">      157267 :     be = 0.0_wp</span></span>
+<span id="L105"><span class="lineNum">     105</span> <span class="tlaGNC">      157267 :     if (present(beta)) be = beta</span></span>
+<span id="L106"><span class="lineNum">     106</span>              : </span>
+<span id="L107"><span class="lineNum">     107</span> <span class="tlaGNC">      157267 :     if (size(y) == 0) return</span></span>
+<span id="L108"><span class="lineNum">     108</span>              : </span>
+<span id="L109"><span class="lineNum">     109</span>              : #ifdef HAS_LAPACK</span>
+<span id="L110"><span class="lineNum">     110</span>              :     if (size(a) &gt; 0 .and. is_contiguous(a) .and. is_contiguous(x) .and. is_contiguous(y)) then</span>
+<span id="L111"><span class="lineNum">     111</span>              :         call dgemv(merge('T', 'N', tr), size(a,1), size(a,2), al, a, size(a,1), x, 1, be, y, 1)</span>
+<span id="L112"><span class="lineNum">     112</span>              :         return</span>
+<span id="L113"><span class="lineNum">     113</span>              :     end if</span>
+<span id="L114"><span class="lineNum">     114</span>              : #endif</span>
+<span id="L115"><span class="lineNum">     115</span>              : </span>
+<span id="L116"><span class="lineNum">     116</span> <span class="tlaGNC">      156786 :     if (tr) then</span></span>
+<span id="L117"><span class="lineNum">     117</span> <span class="tlaGNC">      399788 :         do j = 1, size(y)</span></span>
+<span id="L118"><span class="lineNum">     118</span> <span class="tlaGNC">      399788 :             if (be == 0.0_wp) then</span></span>
+<span id="L119"><span class="lineNum">     119</span> <span class="tlaGNC">    18927835 :                 y(j) = al*dot_product(a(:,j), x)</span></span>
+<span id="L120"><span class="lineNum">     120</span>              :             else</span>
+<span id="L121"><span class="lineNum">     121</span> <span class="tlaGNC">        6192 :                 y(j) = al*dot_product(a(:,j), x) + be*y(j)</span></span>
+<span id="L122"><span class="lineNum">     122</span>              :             end if</span>
+<span id="L123"><span class="lineNum">     123</span>              :         end do</span>
+<span id="L124"><span class="lineNum">     124</span>              :     else</span>
+<span id="L125"><span class="lineNum">     125</span> <span class="tlaGNC">      103919 :         if (be == 0.0_wp) then</span></span>
+<span id="L126"><span class="lineNum">     126</span> <span class="tlaGNC">     1334147 :             y = 0.0_wp</span></span>
+<span id="L127"><span class="lineNum">     127</span> <span class="tlaGNC">          60 :         else if (be /= 1.0_wp) then</span></span>
+<span id="L128"><span class="lineNum">     128</span> <span class="tlaGNC">         470 :             y = be*y</span></span>
+<span id="L129"><span class="lineNum">     129</span>              :         end if</span>
+<span id="L130"><span class="lineNum">     130</span> <span class="tlaGNC">      930607 :         do j = 1, size(x)</span></span>
+<span id="L131"><span class="lineNum">     131</span> <span class="tlaGNC">    49110640 :             y = y + (al*x(j))*a(:,j)</span></span>
+<span id="L132"><span class="lineNum">     132</span>              :         end do</span>
+<span id="L133"><span class="lineNum">     133</span>              :     end if</span>
+<span id="L134"><span class="lineNum">     134</span>              : </span>
+<span id="L135"><span class="lineNum">     135</span>              :     end subroutine dense_matvec</span>
+<span id="L136"><span class="lineNum">     136</span>              : !*******************************************************************************</span>
+<span id="L137"><span class="lineNum">     137</span>              : </span>
+<span id="L138"><span class="lineNum">     138</span>              : !*******************************************************************************</span>
+<span id="L139"><span class="lineNum">     139</span>              : !&gt;</span>
+<span id="L140"><span class="lineNum">     140</span>              : !  \( C \leftarrow \alpha \, op(A) \, op(B) + \beta C \), with</span>
+<span id="L141"><span class="lineNum">     141</span>              : !  \( op(A) = A \) or, with `trans_a`, \( A^T \) (not formed), and the same</span>
+<span id="L142"><span class="lineNum">     142</span>              : !  for `b`. `c` must not overlap `a` or `b`. With `beta = 0` (the default)</span>
+<span id="L143"><span class="lineNum">     143</span>              : !  `c` is only written, so it may hold anything (even NaNs) on entry.</span>
+<span id="L144"><span class="lineNum">     144</span>              : </span>
+<span id="L145"><span class="lineNum">     145</span> <span class="tlaGNC">       38186 :     pure subroutine dense_matmul(a, b, c, trans_a, trans_b, alpha, beta)</span></span>
+<span id="L146"><span class="lineNum">     146</span>              : </span>
+<span id="L147"><span class="lineNum">     147</span>              :     real(wp), dimension(:,:), intent(in)    :: a       !! the first matrix: `dimension(m,k)` (`dimension(k,m)`</span>
+<span id="L148"><span class="lineNum">     148</span>              :                                                        !! with `trans_a`)</span>
+<span id="L149"><span class="lineNum">     149</span>              :     real(wp), dimension(:,:), intent(in)    :: b       !! the second matrix: `dimension(k,n)` (`dimension(n,k)`</span>
+<span id="L150"><span class="lineNum">     150</span>              :                                                        !! with `trans_b`)</span>
+<span id="L151"><span class="lineNum">     151</span>              :     real(wp), dimension(:,:), intent(inout) :: c       !! the result `dimension(m,n)`</span>
+<span id="L152"><span class="lineNum">     152</span>              :     logical,  optional,       intent(in)    :: trans_a !! whether to use \( A^T \) (default `.false.`)</span>
+<span id="L153"><span class="lineNum">     153</span>              :     logical,  optional,       intent(in)    :: trans_b !! whether to use \( B^T \) (default `.false.`)</span>
+<span id="L154"><span class="lineNum">     154</span>              :     real(wp), optional,       intent(in)    :: alpha   !! the product's factor (default `1`)</span>
+<span id="L155"><span class="lineNum">     155</span>              :     real(wp), optional,       intent(in)    :: beta    !! the factor of `c` on entry (default `0`)</span>
+<span id="L156"><span class="lineNum">     156</span>              : </span>
+<span id="L157"><span class="lineNum">     157</span>              :     real(wp) :: al, be</span>
+<span id="L158"><span class="lineNum">     158</span>              :     logical :: ta, tb</span>
+<span id="L159"><span class="lineNum">     159</span>              :     integer :: i, j, l, m, n, k</span>
+<span id="L160"><span class="lineNum">     160</span>              : </span>
+<span id="L161"><span class="lineNum">     161</span> <span class="tlaGNC">       38186 :     ta = .false.</span></span>
+<span id="L162"><span class="lineNum">     162</span> <span class="tlaGNC">       38186 :     if (present(trans_a)) ta = trans_a</span></span>
+<span id="L163"><span class="lineNum">     163</span> <span class="tlaGNC">       38186 :     tb = .false.</span></span>
+<span id="L164"><span class="lineNum">     164</span> <span class="tlaGNC">       38186 :     if (present(trans_b)) tb = trans_b</span></span>
+<span id="L165"><span class="lineNum">     165</span> <span class="tlaGNC">       38186 :     al = 1.0_wp</span></span>
+<span id="L166"><span class="lineNum">     166</span> <span class="tlaGNC">       38186 :     if (present(alpha)) al = alpha</span></span>
+<span id="L167"><span class="lineNum">     167</span> <span class="tlaGNC">       38186 :     be = 0.0_wp</span></span>
+<span id="L168"><span class="lineNum">     168</span> <span class="tlaGNC">       38186 :     if (present(beta)) be = beta</span></span>
+<span id="L169"><span class="lineNum">     169</span>              : </span>
+<span id="L170"><span class="lineNum">     170</span> <span class="tlaGNC">       38186 :     m = size(c,1)</span></span>
+<span id="L171"><span class="lineNum">     171</span> <span class="tlaGNC">       38186 :     n = size(c,2)</span></span>
+<span id="L172"><span class="lineNum">     172</span> <span class="tlaGNC">       38186 :     k = merge(size(a,1), size(a,2), ta)</span></span>
+<span id="L173"><span class="lineNum">     173</span> <span class="tlaGNC">       38186 :     if (m == 0 .or. n == 0) return</span></span>
+<span id="L174"><span class="lineNum">     174</span>              : </span>
+<span id="L175"><span class="lineNum">     175</span>              : #ifdef HAS_LAPACK</span>
+<span id="L176"><span class="lineNum">     176</span>              :     if (k &gt; 0 .and. is_contiguous(a) .and. is_contiguous(b) .and. is_contiguous(c)) then</span>
+<span id="L177"><span class="lineNum">     177</span>              :         call dgemm(merge('T', 'N', ta), merge('T', 'N', tb), m, n, k, al, a, size(a,1), b, size(b,1), &amp;</span>
+<span id="L178"><span class="lineNum">     178</span>              :                    be, c, size(c,1))</span>
+<span id="L179"><span class="lineNum">     179</span>              :         return</span>
+<span id="L180"><span class="lineNum">     180</span>              :     end if</span>
+<span id="L181"><span class="lineNum">     181</span>              : #endif</span>
+<span id="L182"><span class="lineNum">     182</span>              : </span>
+<span id="L183"><span class="lineNum">     183</span> <span class="tlaGNC">       37646 :     if (be == 0.0_wp) then</span></span>
+<span id="L184"><span class="lineNum">     184</span> <span class="tlaGNC">    34811404 :         c = 0.0_wp</span></span>
+<span id="L185"><span class="lineNum">     185</span> <span class="tlaGNC">         640 :     else if (be /= 1.0_wp) then</span></span>
+<span id="L186"><span class="lineNum">     186</span> <span class="tlaGNC">       40740 :         c = be*c</span></span>
+<span id="L187"><span class="lineNum">     187</span>              :     end if</span>
+<span id="L188"><span class="lineNum">     188</span> <span class="tlaGNC">       37646 :     if (ta) then</span></span>
+<span id="L189"><span class="lineNum">     189</span>              :         ! (each element a dot product of two columns, or of a column and a row)</span>
+<span id="L190"><span class="lineNum">     190</span> <span class="tlaGNC">      128316 :         do j = 1, n</span></span>
+<span id="L191"><span class="lineNum">     191</span> <span class="tlaGNC">     9369349 :             do i = 1, m</span></span>
+<span id="L192"><span class="lineNum">     192</span> <span class="tlaGNC">     9356268 :                 if (tb) then</span></span>
+<span id="L193"><span class="lineNum">     193</span> <span class="tlaGNC">      266256 :                     c(i,j) = c(i,j) + al*dot_product(a(:,i), b(j,:))</span></span>
+<span id="L194"><span class="lineNum">     194</span>              :                 else</span>
+<span id="L195"><span class="lineNum">     195</span> <span class="tlaGNC">  1865823138 :                     c(i,j) = c(i,j) + al*dot_product(a(:,i), b(:,j))</span></span>
+<span id="L196"><span class="lineNum">     196</span>              :                 end if</span>
+<span id="L197"><span class="lineNum">     197</span>              :             end do</span>
+<span id="L198"><span class="lineNum">     198</span>              :         end do</span>
+<span id="L199"><span class="lineNum">     199</span>              :     else</span>
+<span id="L200"><span class="lineNum">     200</span>              :         ! (each column a combination of the columns of `a`)</span>
+<span id="L201"><span class="lineNum">     201</span> <span class="tlaGNC">      212172 :         do j = 1, n</span></span>
+<span id="L202"><span class="lineNum">     202</span> <span class="tlaGNC">    15205747 :             do l = 1, k</span></span>
+<span id="L203"><span class="lineNum">     203</span> <span class="tlaGNC">    15205747 :                 if (tb) then</span></span>
+<span id="L204"><span class="lineNum">     204</span> <span class="tlaGNC">    56314851 :                     c(:,j) = c(:,j) + (al*b(j,l))*a(:,l)</span></span>
+<span id="L205"><span class="lineNum">     205</span>              :                 else</span>
+<span id="L206"><span class="lineNum">     206</span> <span class="tlaGNC">  3092609689 :                     c(:,j) = c(:,j) + (al*b(l,j))*a(:,l)</span></span>
+<span id="L207"><span class="lineNum">     207</span>              :                 end if</span>
+<span id="L208"><span class="lineNum">     208</span>              :             end do</span>
+<span id="L209"><span class="lineNum">     209</span>              :         end do</span>
+<span id="L210"><span class="lineNum">     210</span>              :     end if</span>
+<span id="L211"><span class="lineNum">     211</span>              : </span>
+<span id="L212"><span class="lineNum">     212</span>              :     end subroutine dense_matmul</span>
+<span id="L213"><span class="lineNum">     213</span>              : !*******************************************************************************</span>
+<span id="L214"><span class="lineNum">     214</span>              : </span>
+<span id="L215"><span class="lineNum">     215</span>              :     end module sqpopt_dense_product_module</span>
+<span id="L216"><span class="lineNum">     216</span>              : !*******************************************************************************</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com/linux-test-project/lcov" target="_parent">LCOV version 2.5-0</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>
