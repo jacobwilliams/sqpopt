@@ -3,8 +3,8 @@ program test_dense_product
     !! Tests of the dense products ([[sqpopt_dense_product_module]]), the
     !! library's replacement for `matmul`, against `matmul` itself: in the
     !! default build they are explicit loops, and in the build with LAPACK
-    !! BLAS's `DGEMV` and `DGEMM` for the larger products of contiguous
-    !! arrays (here the orders 33 and 600), and the loops otherwise.
+    !! BLAS's `DGEMV` and `DGEMM` (for contiguous arrays) or the loops (for
+    !! sections that aren't).
     !!
     !! * `dense_matvec`, with and without the transpose, and `dense_matmul`
     !!   with each combination of transposes, on random rectangular matrices

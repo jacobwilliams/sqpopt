@@ -2360,6 +2360,38 @@ which is now double precision only.
   - **Not done** (ideas): the condition number of the L-BFGS matrix from
     `lambda_min`/`lambda_max`, to flag nearly singular Hessians before
     DAQP (F31, check 3).
+- **F34: two ways the iteration can end, or crawl, far from a solution**
+  *(idea, not started; found 2026-10-15)*. Both showed up while removing
+  `matmul` (BLAS's rounding changed the paths); neither is fixed.
+  1. *No recovery from a quasi-Newton pair of large curvature.* On Brown's
+     badly scaled problem through `sqpopt_nlls_type` (`test_nlls`, L-BFGS,
+     the build with LAPACK and BLAS, debug profile), an elastic QP re-solve
+     (iteration 16, `alpha = 2e-3`) leaves a pair whose curvature makes the
+     next steps tiny (`|step|` 5e-5, 9e-5, 5e-4, 2e-3: growing about 5
+     times an iteration as the matrix recovers) at a KKT error of 41 (`ktol`
+     1e-6). The stalled-progress test (`ftol`/`xtol`, `stall_iter`) holds
+     during that recovery (`f` is 3e11 and `x_1` is 2e5, so the relative
+     changes are below 1e-8) and stops the solve with `sqpopt_stalled` at a
+     sum of squares of 6.8e11. `test_nlls` now sets `ftol = 0` for that
+     solve. Ideas: skip or damp the pair of a step cut short by the line
+     search or the elastic re-solve, or reset the Hessian when the step
+     collapses while the KKT error is large.
+  2. *A crawl the stalled-progress test misses.* TP74 with
+     `--hessian=sr1 --inertia`: after iteration 44 every step has the same
+     length, 3.7e-5, with `alpha = 1`, the objective falling by about 1e-6
+     an iteration, and the KKT error fixed at 1.6e-2; the relative change of
+     the variables is just above `xtol`, so only the short steps right after
+     each Hessian reset satisfy the test, and the solve ends there (iteration
+     42) by luck.
+  *Tried and rejected:* restarting the count of stalled iterations when a
+  step is more than twice the previous one. It fixes (1) (and TP369 with
+  SR1 + inertia, local to solved), leaves the default, `--direct`, and
+  `--direct-ls` HS results unchanged, and adds 1 to 6 `fc` with the exact
+  Hessian, but TP74 then runs to `max_iter` (1,000 iterations instead of
+  42): the steps after each of its resets grow 3 times an iteration too, so
+  a recovery and a dead end look the same while they grow. Measuring the
+  variables' change componentwise (`max |dx_i|/max(1,|x_i|)`) doesn't fix
+  (1): the variables moving there are the large ones.
 
 ## 6. Testing and infrastructure
 

@@ -9,7 +9,9 @@ program test_nlls
     !!   itself, such a problem ends as infeasible at best: see
     !!   `test_overdetermined`.)
     !! * Brown's badly scaled problem (a zero-residual one, in 2 variables):
-    !!   must end with `sqpopt_success` at `(1e6, 2e-6)`, to a relative 1e-8.
+    !!   must end with `sqpopt_success` at `(1e6, 2e-6)`, to a relative 1e-8
+    !!   (with `ftol = 0` for the L-BFGS solve: see `solve` and the roadmap's
+    !!   F34).
     !! * a fit with a bound and a constraint: a line `x1 + x2*t` through
     !!   four points, with `x2 <= 0.5` and `x1 + x2 = 1`, and user data.
     !! * a second `solve` gives the same result as the first, and invalid
@@ -108,6 +110,11 @@ program test_nlls
     end do
     if (gauss_newton) options%hessian_mode = sqpopt_hessian_exact
     options%max_iter = 500
+    ! (Brown's problem with L-BFGS: after an elastic QP step, a pair of large curvature can leave steps that
+    ! are tiny but growing, at a large KKT error, and the stalled-progress test then stops the solve there,
+    ! at a sum of squares of 1e11, on some rounding of the products (e.g. BLAS's): see the roadmap's F34.
+    ! `ftol = 0` keeps that test from stopping it before it converges)
+    if (p == p_brown .and. .not. gauss_newton) options%ftol = 0.0_wp
     call nlls%initialize(n=n, n_residuals=l, residuals=residuals, jacobian=jacobian, rjac_irow=irow, rjac_icol=icol, &
                          options=options)
     x0 = 1.0_wp

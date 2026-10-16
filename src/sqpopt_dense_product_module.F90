@@ -15,18 +15,10 @@
 !  The products are explicit loops (column-oriented, the order of the
 !  arrays' storage), in any real kind; in a library built with LAPACK (the
 !  `HAS_LAPACK` preprocessor directive, in double precision, which links
-!  BLAS too), BLAS's `DGEMV` and `DGEMM` instead, where they are faster:
-!  for \( A^T x \) with at least `blas_min_matvec` elements in `A`, and
-!  for a matrix product of at least `blas_min_matmul` multiplications, when
-!  the arrays are contiguous (a section that isn't, e.g. the leading rows
-!  of a matrix, uses the loops, since BLAS would need it copied). With
-!  OpenBLAS (one thread, on an Apple M-series processor) \( Ax \) was
-!  faster with the loops at every order from 4 to 512 (by 1.3 to 2 times),
-!  \( A^T x \) with BLAS from about 32 (6 times at 512), and \( A^T B \)
-!  with BLAS from about 8 (65 times at 512). Below those sizes the two
-!  builds' products are the same, so the small problems' results are too
-!  (BLAS's are only different in rounding, but a badly scaled problem can
-!  follow a different path).
+!  BLAS too), BLAS's `DGEMV` and `DGEMM` instead, whenever the arrays are
+!  contiguous (a section that isn't, e.g. the leading rows of a matrix,
+!  uses the loops, since BLAS would need it copied). The two builds'
+!  products then differ in rounding, and so can their iterates.
 
     module sqpopt_dense_product_module
 
@@ -77,9 +69,6 @@
             real(wp),  intent(inout) :: c(ldc,*) !! the result
         end subroutine dgemm
     end interface
-    integer, parameter :: blas_min_matvec = 32*32  !! the fewest elements of `A` for which \( A^T x \) uses `DGEMV`
-    real(wp), parameter :: blas_min_matmul = 8.0_wp**3 !! the fewest multiplications (`m*n*k`) for which a matrix
-                                                       !! product uses `DGEMM`
 #endif
 
     public :: dense_matvec
@@ -118,8 +107,8 @@
     if (size(y) == 0) return
 
 #ifdef HAS_LAPACK
-    if (tr .and. size(a) >= blas_min_matvec .and. is_contiguous(a) .and. is_contiguous(x) .and. is_contiguous(y)) then
-        call dgemv('T', size(a,1), size(a,2), al, a, size(a,1), x, 1, be, y, 1)
+    if (size(a) > 0 .and. is_contiguous(a) .and. is_contiguous(x) .and. is_contiguous(y)) then
+        call dgemv(merge('T', 'N', tr), size(a,1), size(a,2), al, a, size(a,1), x, 1, be, y, 1)
         return
     end if
 #endif
@@ -184,7 +173,7 @@
     if (m == 0 .or. n == 0) return
 
 #ifdef HAS_LAPACK
-    if (real(m,wp)*n*k >= blas_min_matmul .and. is_contiguous(a) .and. is_contiguous(b) .and. is_contiguous(c)) then
+    if (k > 0 .and. is_contiguous(a) .and. is_contiguous(b) .and. is_contiguous(c)) then
         call dgemm(merge('T', 'N', ta), merge('T', 'N', tb), m, n, k, al, a, size(a,1), b, size(b,1), &
                    be, c, size(c,1))
         return
