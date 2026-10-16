@@ -2,6 +2,25 @@ name: CI
 on: [push]
 jobs:
 
+  # the Fortran linter (fortitude, configured in fortitude.toml: src/, example/,
+  # and the Python bindings' Fortran), from the same pixi environment
+  Lint:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v7.0.1
+
+    - name: Setup pixi environment
+      uses: prefix-dev/setup-pixi@v0.10.2
+      with:
+        pixi-version: v0.80.0
+        locked: true
+        cache: true
+        cache-write: false   # (the Build job writes the cache)
+
+    - name: Lint the Fortran code
+      run: pixi run fortitude check
+
   Build:
     runs-on: ${{ matrix.os }}
     permissions:

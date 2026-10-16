@@ -78,6 +78,7 @@
     use sqpopt_hessian_module,     only: sqpopt_hessian_type
     use sqpopt_dense_linalg_module, only: dense_null_space, dense_modified_cholesky, dense_solve_cholesky, &
                                           dense_cholesky_curvature
+    use sqpopt_dense_product_module, only: dense_matvec, dense_matmul
 
     implicit none
 
@@ -205,8 +206,8 @@
     allocate(row_lb(m), row_ub(m))
     row_lb = c_lb - c
     row_ub = c_ub - c
-    allocate(s_sign(m), slack_row(m), s0(m))
-    jp0 = matmul(jd, p0)
+    allocate(s_sign(m), slack_row(m), s0(m), jp0(m))
+    call dense_matvec(jd, p0, jp0)
     nv = 0
     do i = 1, m
         s_sign(i) = 0.0_wp
@@ -271,7 +272,7 @@
     gext(n+1:nt) = rho
 
     ! ---- feasible starting point: p0, with the slacks just large enough ----
-    allocate(u(nt), hu_g(nt))
+    allocate(u(nt), hu_g(nt), rg(nt), dvec(nt))
     u(1:n)    = p0
     u(n+1:nt) = s0
 
@@ -304,20 +305,25 @@
 
         else
 
-            rg = matmul(transpose(z), hu_g)
+            ! (the reduced gradient is `rg(1:n_z)`)
+            call dense_matvec(z, hu_g, rg(1:n_z), trans=.true.)
             block
-                real(wp), dimension(:,:), allocatable :: zthz, l_fac
+                real(wp), dimension(:,:), allocatable :: zthz, l_fac, zp, hz
                 real(wp), dimension(:), allocatable :: dz, dcurv
-                allocate(zthz(n_z,n_z), l_fac(n_z,n_z), dz(n_z), dcurv(n_z))
-                zthz = matmul(transpose(z(1:n,:)), matmul(h, z(1:n,:)))
+                allocate(zthz(n_z,n_z), l_fac(n_z,n_z), dz(n_z), dcurv(n_z), zp(n,n_z), hz(n,n_z))
+                ! (the rows of `z` for the variables, contiguous for the products)
+                zp = z(1:n,:)
+                call dense_matmul(h, zp, hz)
+                call dense_matmul(zp, hz, zthz, trans_a=.true.)
                 call dense_cholesky_curvature(zthz, n_z, l_fac, pd, dcurv)
                 if (pd) then
-                    if (norm2(rg) <= me%opt_tol*scale) then
+                    if (norm2(rg(1:n_z)) <= me%opt_tol*scale) then
                         at_face_optimum = .true.
                     else
                         ! Newton step to the minimizer on this face:
-                        call dense_solve_cholesky(l_fac, n_z, -rg, dz)
-                        dvec = matmul(z, dz)
+                        call dense_solve_cholesky(l_fac, n_z, rg(1:n_z), dz)
+                        dz = -dz
+                        call dense_matvec(z, dz, dvec)
                         alpha_cap = 1.0_wp
                     end if
                 else
@@ -326,14 +332,15 @@
                     ! (Negative curvature in the variables -- not just zero
                     ! curvature, e.g. along an elastic slack -- is reported.)
                     block
-                        real(wp), dimension(:), allocatable :: dp
-                        allocate(dp(n))
-                        dp = matmul(z(1:n,:), dcurv)
-                        if (dot_product(dp, matmul(h, dp)) < &
+                        real(wp), dimension(:), allocatable :: dp, hdp
+                        allocate(dp(n), hdp(n))
+                        call dense_matvec(zp, dcurv, dp)
+                        call dense_matvec(h, dp, hdp)
+                        if (dot_product(dp, hdp) < &
                             -1.0e-8_wp*max(1.0_wp, maxval(abs(h)))*dot_product(dp, dp)) me%negative_curvature = .true.
                     end block
-                    if (dot_product(rg, dcurv) > 0.0_wp) dcurv = -dcurv
-                    dvec = matmul(z, dcurv)
+                    if (dot_product(rg(1:n_z), dcurv) > 0.0_wp) dcurv = -dcurv
+                    call dense_matvec(z, dcurv, dvec)
                     alpha_cap = huge(1.0_wp)
                 end if
             end block
@@ -367,16 +374,20 @@
             if (n_active > 0) then
                 block
                     real(wp), dimension(:,:), allocatable :: gram, l_fac
-                    real(wp), dimension(:), allocatable :: coeff_local, correction
-                    allocate(gram(n_active,n_active), l_fac(n_active,n_active), coeff_local(n_active), correction(n_active))
-                    gram = matmul(ja, transpose(ja))
+                    real(wp), dimension(:), allocatable :: coeff_local, correction, ja_r, resid
+                    allocate(gram(n_active,n_active), l_fac(n_active,n_active), coeff_local(n_active), &
+                             correction(n_active), ja_r(n_active), resid(nt))
+                    call dense_matmul(ja, ja, gram, trans_b=.true.)
                     call dense_modified_cholesky(gram, n_active, l_fac)
-                    call dense_solve_cholesky(l_fac, n_active, matmul(ja, hu_g), coeff_local)
+                    call dense_matvec(ja, hu_g, ja_r)
+                    call dense_solve_cholesky(l_fac, n_active, ja_r, coeff_local)
                     ! one step of iterative refinement (the normal equations square
                     ! the condition number of `ja`, which costs accuracy when rows
-                    ! are nearly dependent):
-                    call dense_solve_cholesky(l_fac, n_active, &
-                                              matmul(ja, hu_g - matmul(transpose(ja), coeff_local)), correction)
+                    ! are nearly dependent): the residual `H*u+g - ja^T*coeff`
+                    call dense_matvec(ja, coeff_local, resid, trans=.true.)
+                    resid = hu_g - resid
+                    call dense_matvec(ja, resid, ja_r)
+                    call dense_solve_cholesky(l_fac, n_active, ja_r, correction)
                     coeff_local = coeff_local + correction
                     coeff     = coeff_local
                     coeff_idx = orig_idx
@@ -540,7 +551,7 @@
                 y(j) = (bsel(j) - dot_product(t(j,1:j-1), y(1:j-1)))/t(j,j)
             end do
             p0 = 0.0_wp
-            if (nb > 0) p0 = matmul(qb(:,1:nb), y(1:nb))
+            if (nb > 0) call dense_matvec(qb(:,1:nb), y(1:nb), p0)
             ! add any violated variable bounds to the guess, and try again:
             added = .false.
             do kk = 1, n
@@ -561,7 +572,8 @@
         !! the gradient of the (elastic) QP objective at `v`: `H*v_p + g`, then `rho` for each slack
         real(wp), dimension(:), intent(in)  :: v  !! the unknowns: the step, then the elastic slacks `dimension(nt)`
         real(wp), dimension(:), intent(out) :: gr !! the gradient `dimension(nt)`
-        gr(1:n)    = matmul(h, v(1:n)) + g
+        call dense_matvec(h, v(1:n), gr(1:n))
+        gr(1:n)    = gr(1:n) + g
         gr(n+1:nt) = rho
         end subroutine gradient
 
@@ -606,12 +618,12 @@
         !! already added (modified Gram-Schmidt, with reorthogonalization). If
         !! its matrix can't be allocated, `alloc_stat` is nonzero.
         real(wp), dimension(:,:), allocatable :: qb
-        real(wp), dimension(:), allocatable :: r
+        real(wp), dimension(:), allocatable :: r, qr, w
         real(wp) :: val
-        integer :: kk, pass, nb, side
+        integer :: kk, pass, nb, side, jj
         allocate(qb(nt, min(mtot,nt)), stat=alloc_stat)
         if (alloc_stat /= 0) return
-        allocate(r(nt))
+        allocate(r(nt), qr(min(mtot,nt)), w(nt))
         nb = 0
         do pass = 1, 2
             do kk = 1, mtot
@@ -628,8 +640,12 @@
                 end if
                 r = arows(kk,:)
                 if (nb > 0) then
-                    r = r - matmul(qb(:,1:nb), matmul(r, qb(:,1:nb)))
-                    r = r - matmul(qb(:,1:nb), matmul(r, qb(:,1:nb)))
+                    ! (r <- r - qb*(qb^T*r), twice)
+                    do jj = 1, 2
+                        call dense_matvec(qb(:,1:nb), r, qr(1:nb), trans=.true.)
+                        call dense_matvec(qb(:,1:nb), qr(1:nb), w)
+                        r = r - w
+                    end do
                 end if
                 if (norm2(r) > 1.0e-10_wp*norm2(arows(kk,:))) then
                     nb = nb + 1

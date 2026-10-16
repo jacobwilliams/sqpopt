@@ -108,9 +108,13 @@ The dense backend (`src/sqpopt_dense_ldl_module.F90`) can factor with
 LAPACK's `DSYTRF`/`DSYTRS` (Bunch–Kaufman LDLᵀ, which gives the inertia)
 instead of its own LU: `options%linear_solver = sqpopt_linear_solver_lapack`.
 That needs the `HAS_LAPACK` preprocessor directive, and linking with LAPACK
-and BLAS (double precision only); it is the only code that refers to
-LAPACK. Without it, `sqpopt_has_lapack` is false and only that choice is
-rejected as invalid input. It is the same factorization as the built-in
+and BLAS (double precision only). Without it, `sqpopt_has_lapack` is false
+and only that choice is rejected as invalid input. The same build also uses
+LAPACK's `DSYEV` for the eigensolver's default (`sqpopt_eigen_module`), and
+BLAS's `DGEMV` and `DGEMM` for the dense matrix products
+(`sqpopt_dense_product_module`, which otherwise uses its own loops; the
+library doesn't use `matmul`, whose temporaries some compilers put on the
+stack). It is the same factorization as the built-in
 one (SQPOPT's own Bunch–Kaufman code, in `sqpopt_dense_linalg_module`), so
 the results differ only by rounding; LAPACK's blocked code is up to 2.4 times faster
 near the dense limit (an order of 2,000). Every test must pass in this
@@ -211,7 +215,7 @@ pixi run run-mumps --example benchmark_large --profile release -- --scale=10 --n
 | | |
 |---|---|
 | `coverage.sh [--mumps]` | runs the tests with `--coverage` and makes an lcov HTML report in `coverage/html` (dark-mode aware). With `--mumps` (what CI uses), the build with MUMPS is tested, so the report covers the code that uses it |
-| `pixi run fortitude check` | lints the Fortran sources with [Fortitude](https://fortitude.readthedocs.io) (configured in `fortitude.toml`; also run by the VS Code extension) |
+| `pixi run fortitude check` | lints the Fortran sources with [Fortitude](https://fortitude.readthedocs.io) (configured in `fortitude.toml`; also run by the VS Code extension, and by CI's `Lint` job) |
 | `tools/hs_performance_table.sh --mumps` | runs the HS suite in every configuration of the Performance page's table (`web/performance.html`) and prints the table rows. It also regenerates the data of that page's results of every problem (`web/js/hs_results_data.js`, `web/js/hs_slsqp_data.js`). Run it whenever a change affects the HS results. (`--mumps` builds with MUMPS, for the rows of the options that need it; without it those rows are left out.) |
 | `tools/rosenbrock_disk_figure.py` | redraws the figure of the Performance page's first example, from the iterates that `test_rosenbrock_disk` writes with `--path=FILE` (the script's header has both commands) |
 | `tools/hs_compare.sh N [options]` | runs HS problem `N` with SQPOPT and SLSQP, printing both solvers' iterations, for investigating a difference |
@@ -252,6 +256,7 @@ architecture ([PLAN.md](plan/PLAN.md)), the backlog
 | `sqpopt_types_module` | status codes, the sparse matrix and results types, and small utilities |
 | `sqpopt_hessian_module` | the limited-memory BFGS/SR1 approximations, and the exact Hessian |
 | `sqpopt_spectral_module` | the eigenvalues and eigenvectors of the limited-memory matrices, from their compact representation (to convexify SR1, and its unconstrained step) |
+| `sqpopt_dense_product_module` | the dense matrix-vector and matrix-matrix products, into the caller's arrays (the library's replacement for `matmul`; BLAS's `DGEMV`/`DGEMM` in a build with `HAS_LAPACK`) |
 | `sqpopt_eigen_module` | the symmetric eigensolvers of those small matrices (QL, Jacobi, and LAPACK's `DSYEV` in a build with `HAS_LAPACK`) |
 | `sqpopt_symmetric_solver_module` | the sparse symmetric indefinite solver: chooses a backend (`options%linear_solver`), and refines the solves |
 | `sqpopt_sparse_ldl_module` | the abstract interface of a sparse LDLᵀ backend |
@@ -299,7 +304,7 @@ Fetched and built by fpm:
 Optional, from the pixi environment (see "Sparse factorizations" and "LAPACK"):
 
 - [MUMPS](https://mumps-solver.org): sparse symmetric indefinite factorization (inertia control, the direct QP method, and direct least-squares solves)
-- [LAPACK](https://www.netlib.org/lapack/) and BLAS: the dense Bunch–Kaufman LDLᵀ factorization `DSYTRF`, for the dense linear solver `sqpopt_linear_solver_lapack`
+- [LAPACK](https://www.netlib.org/lapack/) and BLAS: the dense Bunch–Kaufman LDLᵀ factorization `DSYTRF`, for the dense linear solver `sqpopt_linear_solver_lapack`; and, in that build, `DSYEV` for the eigensolver and `DGEMV`/`DGEMM` for the dense products
 
 ## License
 
