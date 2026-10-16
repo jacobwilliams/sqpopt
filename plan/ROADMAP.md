@@ -2020,6 +2020,12 @@ which is now double precision only.
      QPOPT and SNOPT do) instead of refactored in `O(n^3)`. Related to F17
      (the same for the sparse QP's reduced Hessian).
   If the dense QP becomes much faster, re-measure `auto_dense_max_n`.
+  *The products' part of step 3 done (2026-10-15), for another reason:*
+  `matmul` overflowed the stack on Windows (its temporaries), so the library
+  no longer uses it; every product goes through `dense_matvec`/`dense_matmul`
+  (`sqpopt_dense_product_module`), which are loops, or `DGEMV`/`DGEMM` in
+  the build with LAPACK. So step 2 no longer applies (no `matmul` to send
+  to BLAS), and the LAPACK build's HS times measure the `DGEMM` share.
   *Alternative to steps 3 and 4:* a Fortran port of DAQP (a dual
   active-set solver for dense convex QPs that updates its LDLᵀ factors as
   the working set changes), as a separate fpm package: see

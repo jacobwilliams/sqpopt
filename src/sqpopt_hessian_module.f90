@@ -62,6 +62,7 @@
 
     use sqpopt_kinds, only: wp => sqpopt_module_wp
     use sqpopt_dense_linalg_module, only: lu_factor => dense_lu_factor, lu_solve => dense_lu_solve
+    use sqpopt_dense_product_module, only: dense_matmul
     use sqpopt_eigen_module, only: sqpopt_eigen_auto
 
     implicit none
@@ -443,7 +444,7 @@
     real(wp), dimension(:), intent(out) :: d   !! the diagonal `dimension(n)`
 
     integer :: i, k, c, nk, j
-    real(wp) :: theta
+    real(wp) :: theta, sgn
     real(wp), dimension(:,:), allocatable :: psi, minv, pm
 
     if (me%exact) then
@@ -466,7 +467,7 @@
     end if
 
     nk = merge(k, 2*k, me%use_sr1)
-    allocate(psi(me%n, nk), minv(nk, nk))
+    allocate(psi(me%n, nk), minv(nk, nk), pm(me%n, nk))
     do i = 1, k
         c = pair_col(me, i)
         if (me%use_sr1) then
@@ -481,8 +482,17 @@
         minv(j,j) = 1.0_wp
         call lu_solve(me%mid_lu, me%mid_piv, minv(:,j))
     end do
-    pm = matmul(psi, minv)
-    me%diag = theta + merge(1.0_wp, -1.0_wp, me%use_sr1)*sum(psi*pm, dim=2)
+    call dense_matmul(psi, minv, pm)
+    if (allocated(me%diag)) then
+        if (size(me%diag) /= me%n) deallocate(me%diag)
+    end if
+    if (.not. allocated(me%diag)) allocate(me%diag(me%n))
+    ! (the row sums of `psi*pm`, a column at a time)
+    me%diag = theta
+    sgn = merge(1.0_wp, -1.0_wp, me%use_sr1)
+    do j = 1, nk
+        me%diag = me%diag + sgn*psi(:,j)*pm(:,j)
+    end do
     me%diag_valid = .true.
     d = me%diag + me%shift
 

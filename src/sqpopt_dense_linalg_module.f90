@@ -11,11 +11,13 @@
 !  sparse solver ([[sqpopt_dense_ldl_module]]). Not linked to any
 !  external dependency: classic, textbook Householder QR and modified
 !  Cholesky, small enough to validate directly against known small
-!  matrices.
+!  matrices. (Its products are [[sqpopt_dense_product_module]]'s, which
+!  uses BLAS in a library built with LAPACK.)
 
     module sqpopt_dense_linalg_module
 
     use sqpopt_kinds, only: wp => sqpopt_module_wp
+    use sqpopt_dense_product_module, only: dense_matvec
 
     implicit none
 
@@ -540,7 +542,7 @@
         if (vnorm <= 0.0_wp) cycle
         v(k+1:n) = v(k+1:n)/vnorm
         ! B <- (I - 2vv^T) B (I - 2vv^T) on the trailing block:
-        p(k+1:n) = matmul(b(k+1:n,k+1:n), v(k+1:n))
+        call dense_matvec(b(k+1:n,k+1:n), v(k+1:n), p(k+1:n))
         w(k+1:n) = p(k+1:n) - dot_product(v(k+1:n), p(k+1:n))*v(k+1:n)
         do i = k+1, n
             b(k+1:n,i) = b(k+1:n,i) - 2.0_wp*(v(k+1:n)*w(i) + w(k+1:n)*v(i))

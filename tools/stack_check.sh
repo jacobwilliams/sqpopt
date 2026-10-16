@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 #
 # List what the library could put on the stack: its local arrays with
-# explicit bounds that aren't constants (automatic arrays), and the array
-# temporaries the compiler creates for its expressions (gfortran's
-# -Warray-temporaries). Some compilers and flags (gfortran -fstack-arrays or
+# explicit bounds that aren't constants (automatic arrays), its uses of the
+# `matmul` intrinsic (whose result is a temporary unless the compiler can
+# write it straight into the left-hand side), and the array temporaries the
+# compiler creates for its expressions (gfortran's -Warray-temporaries). Some compilers and flags (gfortran -fstack-arrays or
 # -Ofast, the Intel compilers without -heap-arrays) put both on the stack,
 # which a large problem then overflows; the library's rule is to have neither
 # sized by the problem (see CLAUDE.md, "Ground rules").
@@ -12,7 +13,9 @@
 #
 #    pixi run tools/stack_check.sh
 #
-# The automatic arrays must be none: the script fails if there is one. The
+# The automatic arrays and the uses of `matmul` must be none: the script
+# fails if there is one (the products are `dense_matvec` and `dense_matmul`
+# of `sqpopt_dense_product_module`, into the caller's arrays). The
 # temporaries are listed for review. The ones left are small, or are not on
 # the stack: a one-element constructor (`[f]`), the filter's entries, the
 # reduced Hessian of at most `dense_max_ns` superbasics, the low-rank update
@@ -53,6 +56,21 @@ for path in sorted(glob.glob('src/*.[fF]90')):
                 continue   # (deferred shape)
             if all(w.isdigit() or w.lower() in constants for w in re.findall(r'\w+', d)):
                 continue   # (constant bounds)
+            found += 1
+            print(f'  {path}:{i}: {line.strip()[:110]}')
+print(f'  {found} found')
+sys.exit(1 if found else 0)
+PYTHON
+
+echo
+echo "uses of matmul in src/:"
+python3 - <<'PYTHON'
+import glob, re, sys
+found = 0
+for path in sorted(glob.glob('src/*.[fF]90')):
+    for i, line in enumerate(open(path).read().split('\n'), 1):
+        code = re.sub(r"'[^']*'|\"[^\"]*\"", '', line).split('!')[0]   # (not in strings or comments)
+        if re.search(r'\bmatmul\s*\(', code, re.I):
             found += 1
             print(f'  {path}:{i}: {line.strip()[:110]}')
 print(f'  {found} found')
