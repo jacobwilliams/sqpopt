@@ -1,0 +1,1005 @@
+<!-- -*- mode: jinja2 -*- -->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- sqpopt theme: set before the page is drawn; the guide's choice (the same
+         localStorage key, on the same site), or else the system's -->
+    <script>
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('sqpopt-theme'); } catch (e) {}
+        if (t !== 'dark' && t !== 'light') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-bs-theme', t);
+      })();
+    </script>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta name="description" content="Modern Fortran SQP OPTimizer">
+    <meta name="author" content="Jacob Williams" >
+    <link rel="icon" href="../favicon.png">
+
+    <title>sqpopt_merit_module.f90 &ndash; sqpopt</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <!-- Font Awesome -->
+    <link href="../css/fontawesome.min.css" rel="stylesheet">
+    <link href="../css/brands.min.css" rel="stylesheet">
+    <link href="../css/regular.min.css" rel="stylesheet">
+    <link href="../css/solid.min.css" rel="stylesheet">
+    <link href="../css/v4-font-face.min.css" rel="stylesheet">
+    <link href="../css/v4-shims.min.css" rel="stylesheet">
+    <!-- MathJax -->
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        TeX: { equationNumbers: { autoNumber: "AMS" } }
+      });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@2.7.9/MathJax.js?config=TeX-AMS-MML_HTMLorMML" async
+            integrity="sha256-DViIOMYdwlM/axqoGDPeUyf0urLoHMN4QACBKyB58Uw=" crossorigin="anonymous"></script>
+    <!-- Other scripts and stylesheets -->
+    <link href="../css/local.css" rel="stylesheet">
+    <link href="../css/pygments.css" rel="stylesheet">
+      <link href="../css/user.css" rel="stylesheet">
+    <script src="../js/svg-pan-zoom.min.js"></script>
+  </head>
+
+  <body>
+
+    <!-- Fixed navbar -->
+    <div class="container-fluid mb-sm-4 mb-xl-2">
+      <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+          <a class="navbar-brand" href="../index.html">sqpopt </a>
+          <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbar"
+                  aria-expanded="false" aria-controls="navbar" aria-label="Toggle navigation">
+                  <span class="navbar-toggler-icon">
+          </button>
+
+          <div id="navbar" class="navbar-collapse collapse">
+            <ul class="navbar-nav">
+                  <li class="nav-item">
+                    <a class="nav-link" href="../lists/files.html">Source Files</a>
+                  </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/modules.html">Modules</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/procedures.html">Procedures</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/absint.html">Abstract Interfaces</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/types.html">Derived Types</a>
+                </li>
+            </ul>
+              <div class="d-flex align-items-end flex-grow-1">
+                <form action="../search.html" role="search" class="ms-auto">
+                  <input type="text" class="form-control" aria-label="Search" placeholder="Search" name="q" id="tipue_search_input" autocomplete="off" required>
+                </form>
+              </div>
+            <!-- sqpopt theme: the light/dark button -->
+            <button type="button" class="btn nav-link theme-toggle ms-lg-3" aria-label="Toggle dark mode" title="Toggle dark mode">
+              <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg>
+              <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div><!--/.nav-collapse -->
+        </div>
+      </nav>
+    </div>
+
+    <div class="container">
+  <div class="row">
+    <h1>sqpopt_merit_module.f90
+      <small>Source File</small>
+      
+    </h1>
+      <div class="container p-2 mb-4 bg-light border rounded-3">
+    <div class="row align-items-center justify-content-between" id="info-bar">
+      <div class="col">
+        <ul class="list-inline" style="margin-bottom:0px;display:inline">
+
+            <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
+              <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
+                 title=" 1.6% of total for source files.">176 statements</a>
+            </li>
+
+            <li class="list-inline-item" id="source-file">
+              <i class="fa fa-code"></i>
+              <a href="../src/sqpopt_merit_module.f90"> Source File</a>
+            </li>
+        </ul>
+      </div>
+      <div class="col">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb justify-content-end mb-0">
+            <li class="breadcrumb-item active" aria-current="page">sqpopt_merit_module.f90</li>
+          </ol>
+        </nav>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Enable Bootstrap tooltips
+    (function () {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+      const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+    })();
+  </script>
+
+  </div>
+  <div class="row">
+    <div class="col-md-3 hidden-xs hidden-sm visible-md visible-lg">
+        <div id="sidebar">
+      <h3>Contents</h3>
+  
+  
+  
+  
+  
+      <div class="card mb-4">
+      <a data-bs-toggle="collapse" href="#mods-0"
+         aria-expanded="false" aria-controls="mods-0">
+         <h4 class="card-header bg-primary text-white">Modules</h4>
+      </a>
+      <div id="mods-0" class="collapse">
+        <div class="list-group list-group-flush">
+            <a class="list-group-item" href="../module/sqpopt_merit_module.html">sqpopt_merit_module</a>
+        </div>
+      </div>
+    </div>
+
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+    <div class="card card-primary">
+      <div class="card-header text-left"><h3 class="card-title">Source Code</h3></div>
+      <div class="list-group">
+        <a class="list-group-item" href="../sourcefile/sqpopt_merit_module.f90.html#src">sqpopt_merit_module.f90</a>
+      </div>
+    </div>
+
+
+  </div>
+
+    </div>
+    <div class="col-md-9" id='text'>
+      
+      <br>
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">This file depends on</h3>
+          </div>
+          <div class="card-body">
+            <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: sourcefile~~sqpopt_merit_module.f90~~EfferentGraph Pages: 1 -->
+<svg id="sourcefilesqpopt_merit_modulef90EfferentGraph" width="641pt" height="72pt"
+ viewBox="0.00 0.00 641.00 72.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="sourcefile~~sqpopt_merit_module.f90~~EfferentGraph" class="graph" transform="scale(0.968893 0.968893) rotate(0) translate(4 70.13)">
+<title>sourcefile~~sqpopt_merit_module.f90~~EfferentGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-70.13 657.58,-70.13 657.58,4 -4,4"/>
+<!-- sourcefile~sqpopt_merit_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~EfferentGraph_node1" class="node">
+<title>sourcefile~sqpopt_merit_module.f90</title>
+<polygon fill="none" stroke="black" points="653.58,-37.84 506.31,-37.84 506.31,-13.57 653.58,-13.57 653.58,-37.84"/>
+<text xml:space="preserve" text-anchor="middle" x="579.94" y="-22.1" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_merit_module.f90</text>
+</g>
+<!-- sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~EfferentGraph_node2" class="node">
+<title>sourcefile~sqpopt_kinds.f90</title>
+<g id="a_sourcefile~~sqpopt_merit_module.f90~~EfferentGraph_node2"><a xlink:href="../sourcefile/sqpopt_kinds.f90.html" xlink:title="sqpopt_kinds.F90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="103.02,-57.84 0,-57.84 0,-33.57 103.02,-33.57 103.02,-57.84"/>
+<text xml:space="preserve" text-anchor="middle" x="51.51" y="-42.1" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_kinds.F90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_merit_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~EfferentGraph_edge1" class="edge">
+<title>sourcefile~sqpopt_merit_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M520.52,-38.3C504.32,-41.44 486.69,-44.52 470.31,-46.7 356.93,-61.81 328.03,-66.56 213.65,-65.7"/>
+</g>
+<!-- sourcefile~sqpopt_linalg_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~EfferentGraph_node3" class="node">
+<title>sourcefile~sqpopt_linalg_module.f90</title>
+<g id="a_sourcefile~~sqpopt_merit_module.f90~~EfferentGraph_node3"><a xlink:href="../sourcefile/sqpopt_linalg_module.f90.html" xlink:title="sqpopt_linalg_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="470.31,-37.84 322.29,-37.84 322.29,-13.57 470.31,-13.57 470.31,-37.84"/>
+<text xml:space="preserve" text-anchor="middle" x="396.3" y="-22.1" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_linalg_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_merit_module.f90&#45;&gt;sourcefile~sqpopt_linalg_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~EfferentGraph_edge2" class="edge">
+<title>sourcefile~sqpopt_merit_module.f90&#45;&gt;sourcefile~sqpopt_linalg_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M505.85,-25.7C497.94,-25.7 489.85,-25.7 481.82,-25.7"/>
+<polygon fill="#000000" stroke="#000000" points="482.06,-22.2 472.06,-25.7 482.06,-29.2 482.06,-22.2"/>
+</g>
+<!-- sourcefile~sqpopt_types_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~EfferentGraph_node4" class="node">
+<title>sourcefile~sqpopt_types_module.f90</title>
+<g id="a_sourcefile~~sqpopt_merit_module.f90~~EfferentGraph_node4"><a xlink:href="../sourcefile/sqpopt_types_module.f90.html" xlink:title="sqpopt_types_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="286.29,-37.84 139.02,-37.84 139.02,-13.57 286.29,-13.57 286.29,-37.84"/>
+<text xml:space="preserve" text-anchor="middle" x="212.65" y="-22.1" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_types_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_merit_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~EfferentGraph_edge3" class="edge">
+<title>sourcefile~sqpopt_merit_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M524.53,-13.08C507.29,-9.64 488.09,-6.41 470.31,-4.7 404.82,1.57 387.78,1.57 322.29,-4.7 308.26,-6.05 293.34,-8.35 279.21,-10.94"/>
+<polygon fill="#000000" stroke="#000000" points="278.72,-7.47 269.55,-12.79 280.03,-14.35 278.72,-7.47"/>
+</g>
+<!-- sourcefile~sqpopt_linalg_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~EfferentGraph_edge4" class="edge">
+<title>sourcefile~sqpopt_linalg_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M360.3,-38.3C324.08,-50.17 265.64,-66.09 213.65,-65.7"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M211.65,-65.7C179.45,-65.46 143.87,-61.36 114.53,-56.93"/>
+<polygon fill="#000000" stroke="#000000" points="115.11,-53.48 104.69,-55.39 114.03,-60.39 115.11,-53.48"/>
+</g>
+<!-- sourcefile~sqpopt_linalg_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~EfferentGraph_edge5" class="edge">
+<title>sourcefile~sqpopt_linalg_module.f90&#45;&gt;sourcefile~sqpopt_types_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M321.94,-25.7C314.04,-25.7 305.96,-25.7 297.95,-25.7"/>
+<polygon fill="#000000" stroke="#000000" points="298.21,-22.2 288.21,-25.7 298.21,-29.2 298.21,-22.2"/>
+</g>
+<!-- sourcefile~sqpopt_types_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~EfferentGraph_edge6" class="edge">
+<title>sourcefile~sqpopt_types_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M138.6,-34.88C130.59,-35.89 122.48,-36.91 114.62,-37.9"/>
+<polygon fill="#000000" stroke="#000000" points="114.29,-34.41 104.81,-39.13 115.17,-41.36 114.29,-34.41"/>
+</g>
+</g>
+</svg>
+</div>                <script>
+                  var pansourcefilesqpopt_merit_modulef90EfferentGraph = svgPanZoom('#sourcefilesqpopt_merit_modulef90EfferentGraph',
+                    {zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true,}
+                  );
+                </script>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#EfferentGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="EfferentGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="200pt" height="32pt"
+ viewBox="0.00 0.00 200.00 32.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 195.52,-28.27 195.52,4 -4,4"/>
+<!-- Source File -->
+<g id="node1" class="node">
+<title>Source File</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="69.27,-24.27 0,-24.27 0,0 69.27,0 69.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="34.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Source File</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node2" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="191.52,-24.27 87.75,-24.27 87.75,0 191.52,0 191.52,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="139.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a file to a file which it depends on. A file
+is dependent upon another if the latter must be compiled before the former
+can be.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Files dependent on this one</h3>
+          </div>
+          <div class="card-body">
+            <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: sourcefile~~sqpopt_merit_module.f90~~AfferentGraph Pages: 1 -->
+<svg id="sourcefilesqpopt_merit_modulef90AfferentGraph" width="641pt" height="111pt"
+ viewBox="0.00 0.00 641.00 111.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph" class="graph" transform="scale(0.426364 0.426364) rotate(0) translate(4 257.44)">
+<title>sourcefile~~sqpopt_merit_module.f90~~AfferentGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-257.44 1499.41,-257.44 1499.41,4 -4,4"/>
+<!-- sourcefile~sqpopt_merit_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_node1" class="node">
+<title>sourcefile~sqpopt_merit_module.f90</title>
+<polygon fill="none" stroke="black" points="147.27,-93.09 0,-93.09 0,-68.82 147.27,-68.82 147.27,-93.09"/>
+<text xml:space="preserve" text-anchor="middle" x="73.64" y="-77.35" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_merit_module.f90</text>
+</g>
+<!-- sourcefile~sqpopt_linesearch_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_node2" class="node">
+<title>sourcefile~sqpopt_linesearch_module.f90</title>
+<g id="a_sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_node2"><a xlink:href="../sourcefile/sqpopt_linesearch_module.f90.html" xlink:title="sqpopt_linesearch_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="356.79,-93.09 183.27,-93.09 183.27,-68.82 356.79,-68.82 356.79,-93.09"/>
+<text xml:space="preserve" text-anchor="middle" x="270.03" y="-77.35" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_linesearch_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_linesearch_module.f90&#45;&gt;sourcefile~sqpopt_merit_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_edge1" class="edge">
+<title>sourcefile~sqpopt_linesearch_module.f90&#45;&gt;sourcefile~sqpopt_merit_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M182.92,-80.95C175,-80.95 166.99,-80.95 159.09,-80.95"/>
+<polygon fill="#000000" stroke="#000000" points="159.13,-77.45 149.13,-80.95 159.13,-84.45 159.13,-77.45"/>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_node3" class="node">
+<title>sourcefile~sqpopt_iterate_module.f90</title>
+<g id="a_sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_node3"><a xlink:href="../sourcefile/sqpopt_iterate_module.f90.html" xlink:title="sqpopt_iterate_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1170.87,-93.09 1016.85,-93.09 1016.85,-68.82 1170.87,-68.82 1170.87,-93.09"/>
+<text xml:space="preserve" text-anchor="middle" x="1093.86" y="-77.35" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_iterate_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_linesearch_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_edge2" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_linesearch_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1016.48,-77.59C978.65,-76.78 932.32,-77.07 890.97,-80.95"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M888.97,-80.95C798.8,-89.42 775.65,-85.39 685.2,-80.95"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M683.2,-80.95C592.16,-76.48 573.11,-36.89 482.05,-40.95"/>
+</g>
+<!-- sourcefile~sqpopt_options_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_node6" class="node">
+<title>sourcefile~sqpopt_options_module.f90</title>
+<g id="a_sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_node6"><a xlink:href="../sourcefile/sqpopt_options_module.f90.html" xlink:title="sqpopt_options_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="763.08,-171.09 605.31,-171.09 605.31,-146.82 763.08,-146.82 763.08,-171.09"/>
+<text xml:space="preserve" text-anchor="middle" x="684.2" y="-155.35" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_options_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_edge11" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M888.97,-80.95C824.23,-87.03 754.69,-120.03 715.89,-141.11"/>
+<polygon fill="#000000" stroke="#000000" points="714.63,-137.81 707.58,-145.72 718.02,-143.93 714.63,-137.81"/>
+</g>
+<!-- sourcefile~sqpopt_restoration_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_node7" class="node">
+<title>sourcefile~sqpopt_restoration_module.f90</title>
+<g id="a_sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_node7"><a xlink:href="../sourcefile/sqpopt_restoration_module.f90.html" xlink:title="sqpopt_restoration_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="569.31,-93.09 392.79,-93.09 392.79,-68.82 569.31,-68.82 569.31,-93.09"/>
+<text xml:space="preserve" text-anchor="middle" x="481.05" y="-77.35" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_restoration_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_restoration_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_edge14" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_restoration_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M683.2,-80.95C649.97,-79.32 613.61,-78.9 581.06,-79.02"/>
+<polygon fill="#000000" stroke="#000000" points="581.21,-75.52 571.23,-79.08 581.25,-82.52 581.21,-75.52"/>
+</g>
+<!-- sourcefile~sqpopt_trust_region_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_node8" class="node">
+<title>sourcefile~sqpopt_trust_region_module.f90</title>
+<g id="a_sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_node8"><a xlink:href="../sourcefile/sqpopt_trust_region_module.f90.html" xlink:title="sqpopt_trust_region_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="980.85,-53.09 799.08,-53.09 799.08,-28.82 980.85,-28.82 980.85,-53.09"/>
+<text xml:space="preserve" text-anchor="middle" x="889.97" y="-37.35" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_trust_region_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_trust_region_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_edge17" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_trust_region_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1029.26,-68.35C1009.07,-64.35 986.57,-59.89 965.68,-55.75"/>
+<polygon fill="#000000" stroke="#000000" points="966.57,-52.36 956.08,-53.85 965.21,-59.23 966.57,-52.36"/>
+</g>
+<!-- sourcefile~sqpopt_diagnostics_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_node9" class="node">
+<title>sourcefile~sqpopt_diagnostics_module.f90</title>
+<g id="a_sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_node9"><a xlink:href="../sourcefile/sqpopt_diagnostics_module.f90.html" xlink:title="sqpopt_diagnostics_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="979.35,-171.09 800.58,-171.09 800.58,-146.82 979.35,-146.82 979.35,-171.09"/>
+<text xml:space="preserve" text-anchor="middle" x="889.97" y="-155.35" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_diagnostics_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_diagnostics_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_edge20" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_diagnostics_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1060.42,-93.48C1026.23,-106.69 972.19,-127.57 934.35,-142.19"/>
+<polygon fill="#000000" stroke="#000000" points="933.14,-138.91 925.07,-145.78 935.66,-145.44 933.14,-138.91"/>
+</g>
+<!-- sourcefile~sqpopt_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_node4" class="node">
+<title>sourcefile~sqpopt_module.f90</title>
+<g id="a_sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_node4"><a xlink:href="../sourcefile/sqpopt_module.f90.html" xlink:title="sqpopt_module.F90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1322.64,-93.09 1206.87,-93.09 1206.87,-68.82 1322.64,-68.82 1322.64,-93.09"/>
+<text xml:space="preserve" text-anchor="middle" x="1264.76" y="-77.35" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_module.F90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_linesearch_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_edge3" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_linesearch_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1247.77,-68.34C1230.11,-55.23 1200.26,-35.46 1170.87,-26.95 1012.12,18.99 963.66,-4.9 799.08,-19.95 747.82,-24.64 736.6,-38.46 685.2,-40.95"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M683.2,-40.95C593.86,-44.25 571.36,-36.97 482.05,-40.95"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M480.05,-40.95C427.64,-43.29 369.07,-55.34 327.3,-65.61"/>
+<polygon fill="#000000" stroke="#000000" points="326.56,-62.18 317.72,-68.01 328.27,-68.97 326.56,-62.18"/>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_iterate_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_edge8" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_iterate_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1206.57,-80.95C1198.83,-80.95 1190.75,-80.95 1182.63,-80.95"/>
+<polygon fill="#000000" stroke="#000000" points="1182.66,-77.45 1172.66,-80.95 1182.66,-84.45 1182.66,-77.45"/>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_edge12" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1092.86,-158.95C964.95,-186.76 929.44,-191.87 799.08,-179.95 784.24,-178.6 768.45,-176.26 753.5,-173.64"/>
+<polygon fill="#000000" stroke="#000000" points="754.22,-170.21 743.75,-171.85 752.96,-177.1 754.22,-170.21"/>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_restoration_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_edge15" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_restoration_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1244.51,-93.48C1214.2,-112.36 1152.78,-147.15 1094.86,-158.95"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1092.86,-158.95C1043.23,-169.07 1030.93,-145.5 980.85,-137.95 975.93,-137.21 724.54,-108.56 580.59,-92.17"/>
+<polygon fill="#000000" stroke="#000000" points="581.4,-88.74 571.06,-91.08 580.6,-95.69 581.4,-88.74"/>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_trust_region_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_edge18" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_trust_region_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1227.08,-68.35C1193.23,-57.67 1141.34,-43.66 1094.86,-40.95"/>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_diagnostics_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_edge21" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_diagnostics_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1092.86,-158.95C1060.23,-166.05 1023.93,-167.86 991.2,-167.34"/>
+<polygon fill="#000000" stroke="#000000" points="991.38,-163.85 981.3,-167.1 991.21,-170.84 991.38,-163.85"/>
+</g>
+<!-- sourcefile~sqpopt_nlls_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_node5" class="node">
+<title>sourcefile~sqpopt_nlls_module.f90</title>
+<g id="a_sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_node5"><a xlink:href="../sourcefile/sqpopt_nlls_module.f90.html" xlink:title="sqpopt_nlls_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1495.41,-93.09 1358.64,-93.09 1358.64,-68.82 1495.41,-68.82 1495.41,-93.09"/>
+<text xml:space="preserve" text-anchor="middle" x="1427.03" y="-77.35" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_nlls_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_linesearch_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_edge4" class="edge">
+<title>sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_linesearch_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M888.97,-236.95C708.27,-229.38 658.4,-277.03 482.05,-236.95"/>
+</g>
+<!-- sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_edge9" class="edge">
+<title>sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1358.52,-80.95C1350.59,-80.95 1342.49,-80.95 1334.54,-80.95"/>
+<polygon fill="#000000" stroke="#000000" points="1334.55,-77.45 1324.55,-80.95 1334.55,-84.45 1334.55,-77.45"/>
+</g>
+<!-- sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_edge13" class="edge">
+<title>sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1404.69,-93.45C1333.61,-133.72 1097.61,-256.36 890.97,-236.95"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M888.97,-236.95C823.3,-234.2 753.05,-199.35 714.59,-177.18"/>
+<polygon fill="#000000" stroke="#000000" points="716.76,-174.4 706.37,-172.34 713.21,-180.43 716.76,-174.4"/>
+</g>
+<!-- sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_trust_region_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_edge19" class="edge">
+<title>sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_trust_region_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1370.16,-68.36C1354.82,-65.24 1338.14,-62.17 1322.64,-59.95 1222.07,-45.59 1196.27,-46.87 1094.86,-40.95"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1092.86,-40.95C1060.27,-38.46 1024.63,-37.78 992.49,-37.93"/>
+<polygon fill="#000000" stroke="#000000" points="992.77,-34.42 982.79,-38 992.82,-41.42 992.77,-34.42"/>
+</g>
+<!-- sourcefile~sqpopt_options_module.f90&#45;&gt;sourcefile~sqpopt_linesearch_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_edge5" class="edge">
+<title>sourcefile~sqpopt_options_module.f90&#45;&gt;sourcefile~sqpopt_linesearch_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M668.53,-171.29C635.96,-197.17 554.73,-253.47 482.05,-236.95"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M480.05,-236.95C395.38,-217.71 320.28,-139.77 287.92,-101.86"/>
+<polygon fill="#000000" stroke="#000000" points="290.7,-99.73 281.6,-94.31 285.33,-104.22 290.7,-99.73"/>
+</g>
+<!-- sourcefile~sqpopt_options_module.f90&#45;&gt;sourcefile~sqpopt_restoration_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_edge16" class="edge">
+<title>sourcefile~sqpopt_options_module.f90&#45;&gt;sourcefile~sqpopt_restoration_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M643.76,-146.44C631.38,-142.34 617.71,-137.63 605.31,-132.95 576.67,-122.15 544.84,-108.68 520.7,-98.16"/>
+<polygon fill="#000000" stroke="#000000" points="522.15,-94.97 511.58,-94.16 519.34,-101.38 522.15,-94.97"/>
+</g>
+<!-- sourcefile~sqpopt_restoration_module.f90&#45;&gt;sourcefile~sqpopt_linesearch_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_edge6" class="edge">
+<title>sourcefile~sqpopt_restoration_module.f90&#45;&gt;sourcefile~sqpopt_linesearch_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M392.32,-80.95C384.51,-80.95 376.57,-80.95 368.69,-80.95"/>
+<polygon fill="#000000" stroke="#000000" points="368.71,-77.45 358.71,-80.95 368.71,-84.45 368.71,-77.45"/>
+</g>
+<!-- sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_linesearch_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_edge7" class="edge">
+<title>sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_linesearch_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M798.64,-39.07C763.24,-38.83 722.3,-39.15 685.2,-40.95"/>
+</g>
+<!-- sourcefile~sqpopt_diagnostics_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90 -->
+<g id="sourcefile~~sqpopt_merit_module.f90~~AfferentGraph_edge10" class="edge">
+<title>sourcefile~sqpopt_diagnostics_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M800.18,-158.95C791.78,-158.95 783.25,-158.95 774.84,-158.95"/>
+<polygon fill="#000000" stroke="#000000" points="774.97,-155.45 764.97,-158.95 774.97,-162.45 774.97,-155.45"/>
+</g>
+</g>
+</svg>
+</div>                <script>
+                  var pansourcefilesqpopt_merit_modulef90AfferentGraph = svgPanZoom('#sourcefilesqpopt_merit_modulef90AfferentGraph',
+                    {zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true,}
+                  );
+                </script>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#AfferentGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="AfferentGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="200pt" height="32pt"
+ viewBox="0.00 0.00 200.00 32.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 195.52,-28.27 195.52,4 -4,4"/>
+<!-- Source File -->
+<g id="node1" class="node">
+<title>Source File</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="69.27,-24.27 0,-24.27 0,0 69.27,0 69.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="34.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Source File</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node2" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="191.52,-24.27 87.75,-24.27 87.75,0 191.52,0 191.52,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="139.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a file to a file which it depends on. A file
+is dependent upon another if the latter must be compiled before the former
+can be.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+          </div>
+        </div>
+<br>
+      <section>
+        <h2><span class="anchor" id="src"></span>Source Code</h2>
+        <div class="hl codehilite"><pre><span></span><a id="ln-1" name="ln-1" href="#ln-1"></a><span class="c">!*******************************************************************************</span>
+<a id="ln-2" name="ln-2" href="#ln-2"></a><span class="c">!&gt; author: Jacob Williams</span>
+<a id="ln-3" name="ln-3" href="#ln-3"></a><span class="c">!  license: MIT</span>
+<a id="ln-4" name="ln-4" href="#ln-4"></a><span class="c">!</span>
+<a id="ln-5" name="ln-5" href="#ln-5"></a><span class="c">!  The merit functions, and their penalty parameter, used by the</span>
+<a id="ln-6" name="ln-6" href="#ln-6"></a><span class="c">!  merit-function line searches (`armijo`, `exact`, and `watchdog`, see</span>
+<a id="ln-7" name="ln-7" href="#ln-7"></a><span class="c">!  [[sqpopt_linesearch_module]]) and by the trust region&#39;s merit-ratio</span>
+<a id="ln-8" name="ln-8" href="#ln-8"></a><span class="c">!  test (see [[sqpopt_trust_region_module]]).</span>
+<a id="ln-9" name="ln-9" href="#ln-9"></a><span class="c">!</span>
+<a id="ln-10" name="ln-10" href="#ln-10"></a><span class="c">!  Two merit functions are available (`sqpopt_merit_type%mode`, set from</span>
+<a id="ln-11" name="ln-11" href="#ln-11"></a><span class="c">!  `options%merit_mode`):</span>
+<a id="ln-12" name="ln-12" href="#ln-12"></a><span class="c">!</span>
+<a id="ln-13" name="ln-13" href="#ln-13"></a><span class="c">!  * `sqpopt_merit_l1` (**default**) -- the standard non-smooth \( \ell_1 \)</span>
+<a id="ln-14" name="ln-14" href="#ln-14"></a><span class="c">!    exact penalty function (as in `slsqp`).</span>
+<a id="ln-15" name="ln-15" href="#ln-15"></a><span class="c">!  * `sqpopt_merit_augmented_lagrangian` -- a smooth augmented Lagrangian</span>
+<a id="ln-16" name="ln-16" href="#ln-16"></a><span class="c">!    merit function (Gill, Murray, Saunders &amp; Wright, *&quot;Some Theoretical</span>
+<a id="ln-17" name="ln-17" href="#ln-17"></a><span class="c">!    Properties of an Augmented Lagrangian Merit Function&quot;*, SOL 86-6R --</span>
+<a id="ln-18" name="ln-18" href="#ln-18"></a><span class="c">!    the merit function used in NPSOL/NPSQP and, in spirit, SNOPT). Unlike</span>
+<a id="ln-19" name="ln-19" href="#ln-19"></a><span class="c">!    the \( \ell_1 \) function, it is twice continuously differentiable,</span>
+<a id="ln-20" name="ln-20" href="#ln-20"></a><span class="c">!    which is the reason SNOPT-family solvers do not need a second-order</span>
+<a id="ln-21" name="ln-21" href="#ln-21"></a><span class="c">!    correction (see [[sqpopt_soc_module]]) to avoid the Maratos effect.</span>
+<a id="ln-22" name="ln-22" href="#ln-22"></a><span class="c">!</span>
+<a id="ln-23" name="ln-23" href="#ln-23"></a><span class="c">!  Their penalty parameter is updated by one of two rules</span>
+<a id="ln-24" name="ln-24" href="#ln-24"></a><span class="c">!  (`penalty_update`, set from `options%penalty_update`, see</span>
+<a id="ln-25" name="ln-25" href="#ln-25"></a><span class="c">!  [[update_penalty_parameter]]): `sqpopt_penalty_multipliers`</span>
+<a id="ln-26" name="ln-26" href="#ln-26"></a><span class="c">!  (**default**; keeps it above the multiplier estimates, never</span>
+<a id="ln-27" name="ln-27" href="#ln-27"></a><span class="c">!  decreasing) or `sqpopt_penalty_model` (each merit&#39;s own principled</span>
+<a id="ln-28" name="ln-28" href="#ln-28"></a><span class="c">!  rule: Byrd-Nocedal model reduction for \( \ell_1 \), and for the</span>
+<a id="ln-29" name="ln-29" href="#ln-29"></a><span class="c">!  augmented Lagrangian the Gill-Murray-Saunders-Wright rule, with a joint</span>
+<a id="ln-30" name="ln-30" href="#ln-30"></a><span class="c">!  step in the variables, multipliers, and slacks, and a penalty that can</span>
+<a id="ln-31" name="ln-31" href="#ln-31"></a><span class="c">!  decrease).</span>
+<a id="ln-32" name="ln-32" href="#ln-32"></a>
+<a id="ln-33" name="ln-33" href="#ln-33"></a><span class="w">    </span><span class="k">module </span><span class="n">sqpopt_merit_module</span><span class="w"></span>
+<a id="ln-34" name="ln-34" href="#ln-34"></a>
+<a id="ln-35" name="ln-35" href="#ln-35"></a><span class="w">    </span><span class="k">use </span><span class="n">sqpopt_kinds</span><span class="p">,</span><span class="w">          </span><span class="k">only</span><span class="p">:</span><span class="w"> </span><span class="n">wp</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">sqpopt_module_wp</span><span class="w"></span>
+<a id="ln-36" name="ln-36" href="#ln-36"></a><span class="w">    </span><span class="k">use </span><span class="n">sqpopt_types_module</span><span class="p">,</span><span class="w">   </span><span class="k">only</span><span class="p">:</span><span class="w"> </span><span class="n">sqpopt_sparse_matrix</span><span class="p">,</span><span class="w"> </span><span class="n">l1_violation</span><span class="w"></span>
+<a id="ln-37" name="ln-37" href="#ln-37"></a><span class="w">    </span><span class="k">use </span><span class="n">sqpopt_linalg_module</span><span class="p">,</span><span class="w">  </span><span class="k">only</span><span class="p">:</span><span class="w"> </span><span class="n">sparse_matvec</span><span class="p">,</span><span class="w"> </span><span class="n">sparse_matvec_transpose</span><span class="w"></span>
+<a id="ln-38" name="ln-38" href="#ln-38"></a>
+<a id="ln-39" name="ln-39" href="#ln-39"></a><span class="w">    </span><span class="k">implicit none</span>
+<a id="ln-40" name="ln-40" href="#ln-40"></a>
+<a id="ln-41" name="ln-41" href="#ln-41"></a><span class="k">    private</span>
+<a id="ln-42" name="ln-42" href="#ln-42"></a>
+<a id="ln-43" name="ln-43" href="#ln-43"></a><span class="k">    </span><span class="kt">integer</span><span class="p">,</span><span class="w"> </span><span class="k">parameter</span><span class="p">,</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">sqpopt_merit_l1</span><span class="w">                   </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w">  </span><span class="c">!! non-smooth \( \ell_1 \) exact penalty merit function (default)</span>
+<a id="ln-44" name="ln-44" href="#ln-44"></a><span class="w">    </span><span class="kt">integer</span><span class="p">,</span><span class="w"> </span><span class="k">parameter</span><span class="p">,</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">sqpopt_merit_augmented_lagrangian</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="w">  </span><span class="c">!! smooth augmented Lagrangian merit function (NPSOL/SNOPT-style)</span>
+<a id="ln-45" name="ln-45" href="#ln-45"></a>
+<a id="ln-46" name="ln-46" href="#ln-46"></a><span class="w">    </span><span class="kt">integer</span><span class="p">,</span><span class="w"> </span><span class="k">parameter</span><span class="p">,</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">sqpopt_penalty_multipliers</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w">  </span><span class="c">!! (default) penalty kept above the multipliers,</span>
+<a id="ln-47" name="ln-47" href="#ln-47"></a><span class="w">                                                                  </span><span class="c">!! \( \mu \ge \lVert\lambda\rVert_\infty + 1 \); never decreases</span>
+<a id="ln-48" name="ln-48" href="#ln-48"></a><span class="w">    </span><span class="kt">integer</span><span class="p">,</span><span class="w"> </span><span class="k">parameter</span><span class="p">,</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">sqpopt_penalty_model</span><span class="w">       </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="w">  </span><span class="c">!! each merit function&#39;s own principled rule (see</span>
+<a id="ln-49" name="ln-49" href="#ln-49"></a><span class="w">                                                                  </span><span class="c">!! [[update_penalty_parameter]]): Byrd-Nocedal</span>
+<a id="ln-50" name="ln-50" href="#ln-50"></a><span class="w">                                                                  </span><span class="c">!! model reduction (`sqpopt_merit_l1`), or</span>
+<a id="ln-51" name="ln-51" href="#ln-51"></a><span class="w">                                                                  </span><span class="c">!! Gill-Murray-Saunders-Wright (`sqpopt_merit_augmented_lagrangian`)</span>
+<a id="ln-52" name="ln-52" href="#ln-52"></a>
+<a id="ln-53" name="ln-53" href="#ln-53"></a><span class="w">    </span><span class="k">type</span><span class="p">,</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">sqpopt_merit_type</span><span class="w"></span>
+<a id="ln-54" name="ln-54" href="#ln-54"></a><span class="w">        </span><span class="c">!! options and state of the merit function (the `merit` component of</span>
+<a id="ln-55" name="ln-55" href="#ln-55"></a><span class="w">        </span><span class="c">!! [[sqpopt_linesearch_type]]).</span>
+<a id="ln-56" name="ln-56" href="#ln-56"></a>
+<a id="ln-57" name="ln-57" href="#ln-57"></a><span class="w">        </span><span class="kt">integer</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">mode</span><span class="w">           </span><span class="o">=</span><span class="w"> </span><span class="n">sqpopt_merit_l1</span><span class="w">            </span><span class="c">!! merit function to use (set from `options%merit_mode`)</span>
+<a id="ln-58" name="ln-58" href="#ln-58"></a><span class="w">        </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">penalty</span><span class="w">        </span><span class="o">=</span><span class="w"> </span><span class="mf">1.0_wp</span><span class="w">                     </span><span class="c">!! current penalty parameter (called \( \mu \) for</span>
+<a id="ln-59" name="ln-59" href="#ln-59"></a><span class="w">                                                                 </span><span class="c">!! `sqpopt_merit_l1`, \( \rho \) for</span>
+<a id="ln-60" name="ln-60" href="#ln-60"></a><span class="w">                                                                 </span><span class="c">!! `sqpopt_merit_augmented_lagrangian`)</span>
+<a id="ln-61" name="ln-61" href="#ln-61"></a><span class="w">        </span><span class="kt">integer</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">penalty_update</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">sqpopt_penalty_multipliers</span><span class="w"> </span><span class="c">!! how the penalty parameter is updated (see the</span>
+<a id="ln-62" name="ln-62" href="#ln-62"></a><span class="w">                                                                 </span><span class="c">!! `sqpopt_penalty_*` constants; set from</span>
+<a id="ln-63" name="ln-63" href="#ln-63"></a><span class="w">                                                                 </span><span class="c">!! `options%penalty_update`)</span>
+<a id="ln-64" name="ln-64" href="#ln-64"></a><span class="w">        </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">penalty_rho</span><span class="w">    </span><span class="o">=</span><span class="w"> </span><span class="mf">0.1_wp</span><span class="w">                     </span><span class="c">!! `sqpopt_penalty_model` with `sqpopt_merit_l1`: the</span>
+<a id="ln-65" name="ln-65" href="#ln-65"></a><span class="w">                                                                 </span><span class="c">!! fraction \( \rho \) of the linearized violation</span>
+<a id="ln-66" name="ln-66" href="#ln-66"></a><span class="w">                                                                 </span><span class="c">!! reduction the penalty must credit (Nocedal &amp; Wright</span>
+<a id="ln-67" name="ln-67" href="#ln-67"></a><span class="w">                                                                 </span><span class="c">!! eq. 18.36), \( 0 &lt; \rho &lt; 1 \)</span>
+<a id="ln-68" name="ln-68" href="#ln-68"></a>
+<a id="ln-69" name="ln-69" href="#ln-69"></a><span class="w">        </span><span class="c">! internal state for `sqpopt_penalty_model` with `sqpopt_merit_augmented_lagrangian` (not user</span>
+<a id="ln-70" name="ln-70" href="#ln-70"></a><span class="w">        </span><span class="c">! options): the joint step in the multipliers, and the floor limiting how often the penalty decreases</span>
+<a id="ln-71" name="ln-71" href="#ln-71"></a><span class="w">        </span><span class="kt">logical</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">joint_active</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w">  </span><span class="c">!! whether the merit&#39;s multipliers move along the step (see</span>
+<a id="ln-72" name="ln-72" href="#ln-72"></a><span class="w">                                             </span><span class="c">!! [[update_penalty_parameter]])</span>
+<a id="ln-73" name="ln-73" href="#ln-73"></a><span class="w">        </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">allocatable</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">lambda0</span><span class="w"> </span><span class="c">!! the multipliers at the start of the step `dimension(m)`</span>
+<a id="ln-74" name="ln-74" href="#ln-74"></a><span class="w">        </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">allocatable</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">s0</span><span class="w">      </span><span class="c">!! the slacks at the start of the step `dimension(m)`</span>
+<a id="ln-75" name="ln-75" href="#ln-75"></a><span class="w">        </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">allocatable</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">q</span><span class="w">       </span><span class="c">!! the slacks&#39; change per unit step `dimension(m)`</span>
+<a id="ln-76" name="ln-76" href="#ln-76"></a><span class="w">        </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">penalty_floor</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">1.0e-2_wp</span><span class="w"> </span><span class="c">!! the penalty can only decrease above this, which doubles each time</span>
+<a id="ln-77" name="ln-77" href="#ln-77"></a>
+<a id="ln-78" name="ln-78" href="#ln-78"></a><span class="w">        </span><span class="k">contains</span>
+<a id="ln-79" name="ln-79" href="#ln-79"></a>
+<a id="ln-80" name="ln-80" href="#ln-80"></a><span class="k">        procedure</span><span class="p">,</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">eval</span><span class="w">                   </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">eval_merit_function</span><span class="w"></span>
+<a id="ln-81" name="ln-81" href="#ln-81"></a><span class="w">        </span><span class="k">procedure</span><span class="p">,</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">directional_derivative</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">merit_directional_derivative</span><span class="w"></span>
+<a id="ln-82" name="ln-82" href="#ln-82"></a><span class="w">        </span><span class="k">procedure</span><span class="p">,</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">update_penalty</span><span class="w">         </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">update_penalty_parameter</span><span class="w"></span>
+<a id="ln-83" name="ln-83" href="#ln-83"></a>
+<a id="ln-84" name="ln-84" href="#ln-84"></a><span class="w">    </span><span class="k">end type </span><span class="n">sqpopt_merit_type</span><span class="w"></span>
+<a id="ln-85" name="ln-85" href="#ln-85"></a>
+<a id="ln-86" name="ln-86" href="#ln-86"></a><span class="w">    </span><span class="k">contains</span><span class="w"></span>
+<a id="ln-87" name="ln-87" href="#ln-87"></a><span class="c">!*******************************************************************************</span>
+<a id="ln-88" name="ln-88" href="#ln-88"></a>
+<a id="ln-89" name="ln-89" href="#ln-89"></a><span class="c">!*******************************************************************************</span>
+<a id="ln-90" name="ln-90" href="#ln-90"></a><span class="c">!&gt;</span>
+<a id="ln-91" name="ln-91" href="#ln-91"></a><span class="c">!  evaluate the merit function used to measure progress, dispatching on</span>
+<a id="ln-92" name="ln-92" href="#ln-92"></a><span class="c">!  `me%mode`:</span>
+<a id="ln-93" name="ln-93" href="#ln-93"></a><span class="c">!</span>
+<a id="ln-94" name="ln-94" href="#ln-94"></a><span class="c">!  * `sqpopt_merit_l1`:</span>
+<a id="ln-95" name="ln-95" href="#ln-95"></a><span class="c">!    $$ \phi(x) = f(x) + \mu \lVert \max(c_l - c(x), 0, c(x) - c_u) \rVert_1 $$</span>
+<a id="ln-96" name="ln-96" href="#ln-96"></a><span class="c">!  * `sqpopt_merit_augmented_lagrangian`:</span>
+<a id="ln-97" name="ln-97" href="#ln-97"></a><span class="c">!    $$ \phi(x,\lambda,\rho) = f(x) - \lambda^T\!\left(c(x)-s\right) + \tfrac{1}{2}\rho \lVert c(x)-s \rVert_2^2 $$</span>
+<a id="ln-98" name="ln-98" href="#ln-98"></a><span class="c">!    where the slack `s` is the closed-form minimizer of \( \phi \) subject</span>
+<a id="ln-99" name="ln-99" href="#ln-99"></a><span class="c">!    to \( c_l \le s \le c_u \) (see [[augmented_lagrangian_slacks]]).</span>
+<a id="ln-100" name="ln-100" href="#ln-100"></a><span class="c">!    With the joint step (`joint_active`), the multipliers and the slacks</span>
+<a id="ln-101" name="ln-101" href="#ln-101"></a><span class="c">!    are those at step length `alpha` along it, \( \lambda_0 +</span>
+<a id="ln-102" name="ln-102" href="#ln-102"></a><span class="c">!    \alpha(\lambda - \lambda_0) \) and \( s_0 + \alpha q \) (`alpha=0` if</span>
+<a id="ln-103" name="ln-103" href="#ln-103"></a><span class="c">!    absent), instead of the slacks&#39; closed-form minimizer (see</span>
+<a id="ln-104" name="ln-104" href="#ln-104"></a><span class="c">!    [[update_penalty_parameter]]).</span>
+<a id="ln-105" name="ln-105" href="#ln-105"></a>
+<a id="ln-106" name="ln-106" href="#ln-106"></a><span class="w">    </span><span class="k">subroutine </span><span class="n">eval_merit_function</span><span class="p">(</span><span class="n">me</span><span class="p">,</span><span class="w"> </span><span class="n">f</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">c_lb</span><span class="p">,</span><span class="w"> </span><span class="n">c_ub</span><span class="p">,</span><span class="w"> </span><span class="n">lambda</span><span class="p">,</span><span class="w"> </span><span class="n">phi</span><span class="p">,</span><span class="w"> </span><span class="n">alpha</span><span class="p">)</span><span class="w"></span>
+<a id="ln-107" name="ln-107" href="#ln-107"></a>
+<a id="ln-108" name="ln-108" href="#ln-108"></a><span class="w">    </span><span class="k">class</span><span class="p">(</span><span class="n">sqpopt_merit_type</span><span class="p">),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">me</span><span class="w"></span>
+<a id="ln-109" name="ln-109" href="#ln-109"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">                </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">f</span><span class="w">      </span><span class="c">!! objective function value</span>
+<a id="ln-110" name="ln-110" href="#ln-110"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">c</span><span class="w">      </span><span class="c">!! constraint values `dimension(m)`</span>
+<a id="ln-111" name="ln-111" href="#ln-111"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">c_lb</span><span class="w">   </span><span class="c">!! constraint lower bounds `dimension(m)`</span>
+<a id="ln-112" name="ln-112" href="#ln-112"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">c_ub</span><span class="w">   </span><span class="c">!! constraint upper bounds `dimension(m)`</span>
+<a id="ln-113" name="ln-113" href="#ln-113"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">lambda</span><span class="w"> </span><span class="c">!! Lagrange multiplier estimate `dimension(m)`</span>
+<a id="ln-114" name="ln-114" href="#ln-114"></a><span class="w">                                                  </span><span class="c">!! (only used by `sqpopt_merit_augmented_lagrangian`)</span>
+<a id="ln-115" name="ln-115" href="#ln-115"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">                </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">phi</span><span class="w">    </span><span class="c">!! value of the merit function</span>
+<a id="ln-116" name="ln-116" href="#ln-116"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">optional</span><span class="p">,</span><span class="w">      </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">alpha</span><span class="w">  </span><span class="c">!! step length along the joint step (see above)</span>
+<a id="ln-117" name="ln-117" href="#ln-117"></a>
+<a id="ln-118" name="ln-118" href="#ln-118"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">allocatable</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">,</span><span class="w"> </span><span class="n">lam</span><span class="w"></span>
+<a id="ln-119" name="ln-119" href="#ln-119"></a>
+<a id="ln-120" name="ln-120" href="#ln-120"></a><span class="w">    </span><span class="k">allocate</span><span class="p">(</span><span class="n">s</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)),</span><span class="w"> </span><span class="n">r</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)),</span><span class="w"> </span><span class="n">lam</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)))</span><span class="w"></span>
+<a id="ln-121" name="ln-121" href="#ln-121"></a>
+<a id="ln-122" name="ln-122" href="#ln-122"></a><span class="w">    </span><span class="k">select case</span><span class="w"> </span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">mode</span><span class="p">)</span><span class="w"></span>
+<a id="ln-123" name="ln-123" href="#ln-123"></a><span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="p">(</span><span class="n">sqpopt_merit_augmented_lagrangian</span><span class="p">)</span><span class="w"></span>
+<a id="ln-124" name="ln-124" href="#ln-124"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">joint_active</span><span class="p">)</span><span class="w"> </span><span class="k">then</span><span class="w"></span>
+<a id="ln-125" name="ln-125" href="#ln-125"></a><span class="w">            </span><span class="c">! (the multipliers and the slacks both move along the step)</span>
+<a id="ln-126" name="ln-126" href="#ln-126"></a><span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">present</span><span class="p">(</span><span class="n">alpha</span><span class="p">))</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-127" name="ln-127" href="#ln-127"></a><span class="k">                </span><span class="n">lam</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">lambda0</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">alpha</span><span class="o">*</span><span class="p">(</span><span class="n">lambda</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">lambda0</span><span class="p">)</span><span class="w"></span>
+<a id="ln-128" name="ln-128" href="#ln-128"></a><span class="w">                </span><span class="n">s</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">s0</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">alpha</span><span class="o">*</span><span class="n">me</span><span class="p">%</span><span class="n">q</span><span class="w"></span>
+<a id="ln-129" name="ln-129" href="#ln-129"></a><span class="w">            </span><span class="k">else</span>
+<a id="ln-130" name="ln-130" href="#ln-130"></a><span class="k">                </span><span class="n">lam</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">lambda0</span><span class="w"></span>
+<a id="ln-131" name="ln-131" href="#ln-131"></a><span class="w">                </span><span class="n">s</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">s0</span><span class="w"></span>
+<a id="ln-132" name="ln-132" href="#ln-132"></a><span class="w">            </span><span class="k">end if</span>
+<a id="ln-133" name="ln-133" href="#ln-133"></a><span class="k">        else</span>
+<a id="ln-134" name="ln-134" href="#ln-134"></a><span class="k">            </span><span class="n">lam</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">lambda</span><span class="w"></span>
+<a id="ln-135" name="ln-135" href="#ln-135"></a><span class="w">            </span><span class="k">call </span><span class="n">augmented_lagrangian_slacks</span><span class="p">(</span><span class="n">me</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">c_lb</span><span class="p">,</span><span class="w"> </span><span class="n">c_ub</span><span class="p">,</span><span class="w"> </span><span class="n">lam</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="p">)</span><span class="w"></span>
+<a id="ln-136" name="ln-136" href="#ln-136"></a><span class="w">        </span><span class="k">end if</span>
+<a id="ln-137" name="ln-137" href="#ln-137"></a><span class="k">        </span><span class="n">r</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">s</span><span class="w"></span>
+<a id="ln-138" name="ln-138" href="#ln-138"></a><span class="w">        </span><span class="n">phi</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">f</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nb">dot_product</span><span class="p">(</span><span class="n">lam</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mf">0.5_wp</span><span class="o">*</span><span class="n">me</span><span class="p">%</span><span class="n">penalty</span><span class="o">*</span><span class="nb">dot_product</span><span class="p">(</span><span class="n">r</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">)</span><span class="w"></span>
+<a id="ln-139" name="ln-139" href="#ln-139"></a><span class="w">    </span><span class="k">case </span><span class="n">default</span><span class="w"></span>
+<a id="ln-140" name="ln-140" href="#ln-140"></a><span class="w">        </span><span class="n">phi</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">f</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">penalty</span><span class="o">*</span><span class="nb">sum</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">c_lb</span><span class="o">-</span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="n">c</span><span class="o">-</span><span class="n">c_ub</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="p">))</span><span class="w"></span>
+<a id="ln-141" name="ln-141" href="#ln-141"></a><span class="w">    </span><span class="k">end select</span>
+<a id="ln-142" name="ln-142" href="#ln-142"></a>
+<a id="ln-143" name="ln-143" href="#ln-143"></a><span class="k">    end subroutine </span><span class="n">eval_merit_function</span><span class="w"></span>
+<a id="ln-144" name="ln-144" href="#ln-144"></a><span class="c">!*******************************************************************************</span>
+<a id="ln-145" name="ln-145" href="#ln-145"></a><span class="c">!*******************************************************************************</span>
+<a id="ln-146" name="ln-146" href="#ln-146"></a><span class="c">!&gt;</span>
+<a id="ln-147" name="ln-147" href="#ln-147"></a><span class="c">!  the closed-form slack `s` that minimizes the augmented Lagrangian merit</span>
+<a id="ln-148" name="ln-148" href="#ln-148"></a><span class="c">!  function subject to \( c_l \le s \le c_u \): this generalizes the</span>
+<a id="ln-149" name="ln-149" href="#ln-149"></a><span class="c">!  non-negative slack \( s_i=\max(0,c_i-\lambda_i/\rho) \) of the original</span>
+<a id="ln-150" name="ln-150" href="#ln-150"></a><span class="c">!  (single-sided) formulation to `sqpopt`&#39;s two-sided constraint bounds</span>
+<a id="ln-151" name="ln-151" href="#ln-151"></a><span class="c">!  (equality rows, where `c_lb=c_ub`, are handled automatically since `s`</span>
+<a id="ln-152" name="ln-152" href="#ln-152"></a><span class="c">!  is then clipped to that single value regardless of \( \lambda,\rho \)).</span>
+<a id="ln-153" name="ln-153" href="#ln-153"></a>
+<a id="ln-154" name="ln-154" href="#ln-154"></a><span class="w">    </span><span class="k">subroutine </span><span class="n">augmented_lagrangian_slacks</span><span class="p">(</span><span class="n">me</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">c_lb</span><span class="p">,</span><span class="w"> </span><span class="n">c_ub</span><span class="p">,</span><span class="w"> </span><span class="n">lambda</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="p">)</span><span class="w"></span>
+<a id="ln-155" name="ln-155" href="#ln-155"></a>
+<a id="ln-156" name="ln-156" href="#ln-156"></a><span class="w">    </span><span class="k">class</span><span class="p">(</span><span class="n">sqpopt_merit_type</span><span class="p">),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">me</span><span class="w"></span>
+<a id="ln-157" name="ln-157" href="#ln-157"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="c">!! constraint values at `x` `dimension(m)`</span>
+<a id="ln-158" name="ln-158" href="#ln-158"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">c_lb</span><span class="w"> </span><span class="c">!! lower bounds on the constraints `dimension(m)`</span>
+<a id="ln-159" name="ln-159" href="#ln-159"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">c_ub</span><span class="w"> </span><span class="c">!! upper bounds on the constraints `dimension(m)`</span>
+<a id="ln-160" name="ln-160" href="#ln-160"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">lambda</span><span class="w"> </span><span class="c">!! Lagrange multipliers for the constraints `dimension(m)`</span>
+<a id="ln-161" name="ln-161" href="#ln-161"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="c">!! closed-form slack that minimizes the augmented Lagrangian merit function</span>
+<a id="ln-162" name="ln-162" href="#ln-162"></a>
+<a id="ln-163" name="ln-163" href="#ln-163"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">penalty</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-164" name="ln-164" href="#ln-164"></a><span class="k">        </span><span class="n">s</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">min</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">c_lb</span><span class="p">),</span><span class="w"> </span><span class="n">c_ub</span><span class="p">)</span><span class="w"></span>
+<a id="ln-165" name="ln-165" href="#ln-165"></a><span class="w">    </span><span class="k">else</span>
+<a id="ln-166" name="ln-166" href="#ln-166"></a><span class="k">        </span><span class="n">s</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">min</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">c</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">lambda</span><span class="o">/</span><span class="n">me</span><span class="p">%</span><span class="n">penalty</span><span class="p">,</span><span class="w"> </span><span class="n">c_lb</span><span class="p">),</span><span class="w"> </span><span class="n">c_ub</span><span class="p">)</span><span class="w"></span>
+<a id="ln-167" name="ln-167" href="#ln-167"></a><span class="w">    </span><span class="k">end if</span>
+<a id="ln-168" name="ln-168" href="#ln-168"></a>
+<a id="ln-169" name="ln-169" href="#ln-169"></a><span class="k">    end subroutine </span><span class="n">augmented_lagrangian_slacks</span><span class="w"></span>
+<a id="ln-170" name="ln-170" href="#ln-170"></a><span class="c">!*******************************************************************************</span>
+<a id="ln-171" name="ln-171" href="#ln-171"></a><span class="c">!*******************************************************************************</span>
+<a id="ln-172" name="ln-172" href="#ln-172"></a><span class="c">!&gt;</span>
+<a id="ln-173" name="ln-173" href="#ln-173"></a><span class="c">!  the (approximate) directional derivative \( D(\phi;p) \) of the merit</span>
+<a id="ln-174" name="ln-174" href="#ln-174"></a><span class="c">!  function along `p`, used by the Armijo sufficient-decrease test and by</span>
+<a id="ln-175" name="ln-175" href="#ln-175"></a><span class="c">!  the descent-direction safeguard in [[sqpopt_iterate_module]]. Dispatches</span>
+<a id="ln-176" name="ln-176" href="#ln-176"></a><span class="c">!  on `me%mode`:</span>
+<a id="ln-177" name="ln-177" href="#ln-177"></a><span class="c">!</span>
+<a id="ln-178" name="ln-178" href="#ln-178"></a><span class="c">!  * `sqpopt_merit_l1`: \( D(\phi;p) = g^Tp + \mu \, D(\lVert \text{viol}(c + \alpha Jp)</span>
+<a id="ln-179" name="ln-179" href="#ln-179"></a><span class="c">!    \rVert_1; \alpha=0^+) \), the exact one-sided derivative of the</span>
+<a id="ln-180" name="ln-180" href="#ln-180"></a><span class="c">!    linearized violation. For a step that satisfies the linearized</span>
+<a id="ln-181" name="ln-181" href="#ln-181"></a><span class="c">!    constraints this is the usual \( g^Tp - \mu \lVert \text{viol}(x)</span>
+<a id="ln-182" name="ln-182" href="#ln-182"></a><span class="c">!    \rVert_1 \); for one that doesn&#39;t (e.g. shortened by the step-length</span>
+<a id="ln-183" name="ln-183" href="#ln-183"></a><span class="c">!    cap, or an elastic step), that formula would overstate the decrease,</span>
+<a id="ln-184" name="ln-184" href="#ln-184"></a><span class="c">!    so that no step length could pass the sufficient-decrease test.</span>
+<a id="ln-185" name="ln-185" href="#ln-185"></a><span class="c">!  * `sqpopt_merit_augmented_lagrangian`: \( D(\phi;p) = (g - J^T\lambda +</span>
+<a id="ln-186" name="ln-186" href="#ln-186"></a><span class="c">!    \rho J^T(c-s))^Tp \), holding \( \lambda \) and `s` fixed at their</span>
+<a id="ln-187" name="ln-187" href="#ln-187"></a><span class="c">!    current values; with the joint step (`joint_active`, see</span>
+<a id="ln-188" name="ln-188" href="#ln-188"></a><span class="c">!    [[update_penalty_parameter]]), where \( r = c-s \) changes by</span>
+<a id="ln-189" name="ln-189" href="#ln-189"></a><span class="c">!    \( d = Jp - q \) and \( \lambda \) by \( \xi \) per unit step, it is</span>
+<a id="ln-190" name="ln-190" href="#ln-190"></a><span class="c">!    \( g^Tp - \xi^Tr_0 - \lambda_0^Td + \rho\, r_0^Td \).</span>
+<a id="ln-191" name="ln-191" href="#ln-191"></a>
+<a id="ln-192" name="ln-192" href="#ln-192"></a><span class="w">    </span><span class="k">subroutine </span><span class="n">merit_directional_derivative</span><span class="p">(</span><span class="n">me</span><span class="p">,</span><span class="w"> </span><span class="n">jac</span><span class="p">,</span><span class="w"> </span><span class="n">g</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">c_lb</span><span class="p">,</span><span class="w"> </span><span class="n">c_ub</span><span class="p">,</span><span class="w"> </span><span class="n">lambda</span><span class="p">,</span><span class="w"> </span><span class="n">dphi0</span><span class="p">)</span><span class="w"></span>
+<a id="ln-193" name="ln-193" href="#ln-193"></a>
+<a id="ln-194" name="ln-194" href="#ln-194"></a><span class="w">    </span><span class="k">class</span><span class="p">(</span><span class="n">sqpopt_merit_type</span><span class="p">),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">me</span><span class="w"></span>
+<a id="ln-195" name="ln-195" href="#ln-195"></a><span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_sparse_matrix</span><span class="p">),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">jac</span><span class="w">  </span><span class="c">!! constraint Jacobian at `x`, `dimension(m,n)`</span>
+<a id="ln-196" name="ln-196" href="#ln-196"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">g</span><span class="w">        </span><span class="c">!! objective gradient at `x` `dimension(n)`</span>
+<a id="ln-197" name="ln-197" href="#ln-197"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">p</span><span class="w">        </span><span class="c">!! search direction `dimension(n)`</span>
+<a id="ln-198" name="ln-198" href="#ln-198"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">c</span><span class="w">        </span><span class="c">!! constraint values at `x` `dimension(m)`</span>
+<a id="ln-199" name="ln-199" href="#ln-199"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">c_lb</span><span class="w">     </span><span class="c">!! lower bounds on the constraints `dimension(m)`</span>
+<a id="ln-200" name="ln-200" href="#ln-200"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">c_ub</span><span class="w">     </span><span class="c">!! upper bounds on the constraints `dimension(m)`</span>
+<a id="ln-201" name="ln-201" href="#ln-201"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">lambda</span><span class="w">   </span><span class="c">!! Lagrange multipliers for the constraints `dimension(m)`</span>
+<a id="ln-202" name="ln-202" href="#ln-202"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">dphi0</span><span class="w"> </span><span class="c">!! directional derivative of the merit function along `p`</span>
+<a id="ln-203" name="ln-203" href="#ln-203"></a>
+<a id="ln-204" name="ln-204" href="#ln-204"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">allocatable</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="c">!! slack variables for the augmented Lagrangian</span>
+<a id="ln-205" name="ln-205" href="#ln-205"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">allocatable</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">jtlam</span><span class="p">,</span><span class="w"> </span><span class="n">jtr</span><span class="w"></span>
+<a id="ln-206" name="ln-206" href="#ln-206"></a>
+<a id="ln-207" name="ln-207" href="#ln-207"></a><span class="w">    </span><span class="k">allocate</span><span class="p">(</span><span class="n">s</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)),</span><span class="w"> </span><span class="n">jtlam</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">g</span><span class="p">)),</span><span class="w"> </span><span class="n">jtr</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">g</span><span class="p">)))</span><span class="w"></span>
+<a id="ln-208" name="ln-208" href="#ln-208"></a>
+<a id="ln-209" name="ln-209" href="#ln-209"></a><span class="w">    </span><span class="k">select case</span><span class="w"> </span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">mode</span><span class="p">)</span><span class="w"></span>
+<a id="ln-210" name="ln-210" href="#ln-210"></a><span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="p">(</span><span class="n">sqpopt_merit_augmented_lagrangian</span><span class="p">)</span><span class="w"></span>
+<a id="ln-211" name="ln-211" href="#ln-211"></a><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">joint_active</span><span class="p">)</span><span class="w"> </span><span class="k">then</span><span class="w"></span>
+<a id="ln-212" name="ln-212" href="#ln-212"></a><span class="w">            </span><span class="c">! (the multipliers and the slacks move too: by `xi = lambda - lambda0`</span>
+<a id="ln-213" name="ln-213" href="#ln-213"></a><span class="w">            </span><span class="c">! and `q` per unit step, so `r = c-s` changes by `d = Jp - q`)</span>
+<a id="ln-214" name="ln-214" href="#ln-214"></a><span class="w">            </span><span class="k">block</span>
+<a id="ln-215" name="ln-215" href="#ln-215"></a><span class="k">                </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">allocatable</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">jp</span><span class="p">,</span><span class="w"> </span><span class="n">d</span><span class="w"></span>
+<a id="ln-216" name="ln-216" href="#ln-216"></a><span class="w">                </span><span class="k">allocate</span><span class="p">(</span><span class="n">jp</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)),</span><span class="w"> </span><span class="n">d</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)))</span><span class="w"></span>
+<a id="ln-217" name="ln-217" href="#ln-217"></a><span class="w">                </span><span class="k">call </span><span class="n">sparse_matvec</span><span class="p">(</span><span class="n">jac</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">jp</span><span class="p">)</span><span class="w"></span>
+<a id="ln-218" name="ln-218" href="#ln-218"></a><span class="w">                </span><span class="n">d</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">jp</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">q</span><span class="w"></span>
+<a id="ln-219" name="ln-219" href="#ln-219"></a><span class="w">                </span><span class="n">s</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">s0</span><span class="w">     </span><span class="c">! (= r0)</span>
+<a id="ln-220" name="ln-220" href="#ln-220"></a><span class="w">                </span><span class="n">dphi0</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">dot_product</span><span class="p">(</span><span class="n">g</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nb">dot_product</span><span class="p">(</span><span class="n">lambda</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">lambda0</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nb">dot_product</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">lambda0</span><span class="p">,</span><span class="w"> </span><span class="n">d</span><span class="p">)</span><span class="w"> </span><span class="p">&amp;</span><span class="w"></span>
+<a id="ln-221" name="ln-221" href="#ln-221"></a><span class="w">                        </span><span class="o">+</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">penalty</span><span class="o">*</span><span class="nb">dot_product</span><span class="p">(</span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="n">d</span><span class="p">)</span><span class="w"></span>
+<a id="ln-222" name="ln-222" href="#ln-222"></a><span class="w">            </span><span class="k">end block</span>
+<a id="ln-223" name="ln-223" href="#ln-223"></a><span class="k">        else</span>
+<a id="ln-224" name="ln-224" href="#ln-224"></a><span class="k">            call </span><span class="n">augmented_lagrangian_slacks</span><span class="p">(</span><span class="n">me</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">c_lb</span><span class="p">,</span><span class="w"> </span><span class="n">c_ub</span><span class="p">,</span><span class="w"> </span><span class="n">lambda</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="p">)</span><span class="w"></span>
+<a id="ln-225" name="ln-225" href="#ln-225"></a><span class="w">            </span><span class="k">call </span><span class="n">sparse_matvec_transpose</span><span class="p">(</span><span class="n">jac</span><span class="p">,</span><span class="w"> </span><span class="n">lambda</span><span class="p">,</span><span class="w"> </span><span class="n">jtlam</span><span class="p">)</span><span class="w"></span>
+<a id="ln-226" name="ln-226" href="#ln-226"></a><span class="w">            </span><span class="n">s</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">s</span><span class="w">   </span><span class="c">! (= r)</span>
+<a id="ln-227" name="ln-227" href="#ln-227"></a><span class="w">            </span><span class="k">call </span><span class="n">sparse_matvec_transpose</span><span class="p">(</span><span class="n">jac</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="n">jtr</span><span class="p">)</span><span class="w"></span>
+<a id="ln-228" name="ln-228" href="#ln-228"></a><span class="w">            </span><span class="n">dphi0</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">dot_product</span><span class="p">(</span><span class="n">g</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">jtlam</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">penalty</span><span class="o">*</span><span class="n">jtr</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">)</span><span class="w"></span>
+<a id="ln-229" name="ln-229" href="#ln-229"></a><span class="w">        </span><span class="k">end if</span>
+<a id="ln-230" name="ln-230" href="#ln-230"></a><span class="k">    case </span><span class="n">default</span><span class="w"></span>
+<a id="ln-231" name="ln-231" href="#ln-231"></a><span class="w">        </span><span class="k">block</span>
+<a id="ln-232" name="ln-232" href="#ln-232"></a><span class="k">            </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">allocatable</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">jp</span><span class="w"></span>
+<a id="ln-233" name="ln-233" href="#ln-233"></a><span class="w">            </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">rate</span><span class="w"></span>
+<a id="ln-234" name="ln-234" href="#ln-234"></a><span class="w">            </span><span class="kt">integer</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">i</span><span class="w"></span>
+<a id="ln-235" name="ln-235" href="#ln-235"></a><span class="w">            </span><span class="k">allocate</span><span class="p">(</span><span class="n">jp</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)))</span><span class="w"></span>
+<a id="ln-236" name="ln-236" href="#ln-236"></a><span class="w">            </span><span class="k">call </span><span class="n">sparse_matvec</span><span class="p">(</span><span class="n">jac</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">jp</span><span class="p">)</span><span class="w"></span>
+<a id="ln-237" name="ln-237" href="#ln-237"></a><span class="w">            </span><span class="n">rate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="w"></span>
+<a id="ln-238" name="ln-238" href="#ln-238"></a><span class="w">            </span><span class="k">do </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="w"></span>
+<a id="ln-239" name="ln-239" href="#ln-239"></a><span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">c</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">c_lb</span><span class="p">(</span><span class="n">i</span><span class="p">))</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-240" name="ln-240" href="#ln-240"></a><span class="k">                    </span><span class="n">rate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rate</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">jp</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"></span>
+<a id="ln-241" name="ln-241" href="#ln-241"></a><span class="w">                </span><span class="k">else if</span><span class="w"> </span><span class="p">(</span><span class="n">c</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="n">c_ub</span><span class="p">(</span><span class="n">i</span><span class="p">))</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-242" name="ln-242" href="#ln-242"></a><span class="k">                    </span><span class="n">rate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rate</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">jp</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"></span>
+<a id="ln-243" name="ln-243" href="#ln-243"></a><span class="w">                </span><span class="k">else if</span><span class="w"> </span><span class="p">(</span><span class="n">c</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">c_lb</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="n">jp</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-244" name="ln-244" href="#ln-244"></a><span class="k">                    </span><span class="n">rate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rate</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">jp</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"></span>
+<a id="ln-245" name="ln-245" href="#ln-245"></a><span class="w">                </span><span class="k">else if</span><span class="w"> </span><span class="p">(</span><span class="n">c</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="n">c_ub</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="n">jp</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-246" name="ln-246" href="#ln-246"></a><span class="k">                    </span><span class="n">rate</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">rate</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">jp</span><span class="p">(</span><span class="n">i</span><span class="p">)</span><span class="w"></span>
+<a id="ln-247" name="ln-247" href="#ln-247"></a><span class="w">                </span><span class="k">end if</span>
+<a id="ln-248" name="ln-248" href="#ln-248"></a><span class="k">            end do</span>
+<a id="ln-249" name="ln-249" href="#ln-249"></a><span class="k">            </span><span class="n">dphi0</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">dot_product</span><span class="p">(</span><span class="n">g</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">penalty</span><span class="o">*</span><span class="n">rate</span><span class="w"></span>
+<a id="ln-250" name="ln-250" href="#ln-250"></a><span class="w">        </span><span class="k">end block</span>
+<a id="ln-251" name="ln-251" href="#ln-251"></a><span class="k">    end select</span>
+<a id="ln-252" name="ln-252" href="#ln-252"></a>
+<a id="ln-253" name="ln-253" href="#ln-253"></a><span class="k">    end subroutine </span><span class="n">merit_directional_derivative</span><span class="w"></span>
+<a id="ln-254" name="ln-254" href="#ln-254"></a><span class="c">!*******************************************************************************</span>
+<a id="ln-255" name="ln-255" href="#ln-255"></a><span class="c">!*******************************************************************************</span>
+<a id="ln-256" name="ln-256" href="#ln-256"></a><span class="c">!&gt;</span>
+<a id="ln-257" name="ln-257" href="#ln-257"></a><span class="c">!  update the merit function&#39;s penalty parameter after the QP solve, for</span>
+<a id="ln-258" name="ln-258" href="#ln-258"></a><span class="c">!  the step `p` (with \( p^THp \) = `php`), according to `penalty_update`:</span>
+<a id="ln-259" name="ln-259" href="#ln-259"></a><span class="c">!</span>
+<a id="ln-260" name="ln-260" href="#ln-260"></a><span class="c">!  * `sqpopt_penalty_multipliers`: \( \mu \ge \lVert\lambda_{QP}\rVert_\infty + 1 \)</span>
+<a id="ln-261" name="ln-261" href="#ln-261"></a><span class="c">!    (Han/Powell, as in `slsqp`), which never decreases. Simple, but at a</span>
+<a id="ln-262" name="ln-262" href="#ln-262"></a><span class="c">!    degenerate point, where the multipliers are huge, the penalty becomes</span>
+<a id="ln-263" name="ln-263" href="#ln-263"></a><span class="c">!    huge too, and the line search then only accepts tiny steps.</span>
+<a id="ln-264" name="ln-264" href="#ln-264"></a><span class="c">!  * `sqpopt_penalty_model`, with `sqpopt_merit_l1`: Byrd-Nocedal&#39;s</span>
+<a id="ln-265" name="ln-265" href="#ln-265"></a><span class="c">!    model-reduction rule (Nocedal &amp; Wright, *Numerical Optimization*,</span>
+<a id="ln-266" name="ln-266" href="#ln-266"></a><span class="c">!    eq. 18.36): the penalty only increases if the step&#39;s predicted merit</span>
+<a id="ln-267" name="ln-267" href="#ln-267"></a><span class="c">!    reduction would not credit at least a fraction `penalty_rho` of the</span>
+<a id="ln-268" name="ln-268" href="#ln-268"></a><span class="c">!    linearized violation reduction \( \Delta v = v(c) - v(c+Jp) \):</span>
+<a id="ln-269" name="ln-269" href="#ln-269"></a><span class="c">!    $$ \mu \ge \frac{g^Tp + \tfrac12 \max(p^THp, 0)}{(1-\rho)\,\Delta v} $$</span>
+<a id="ln-270" name="ln-270" href="#ln-270"></a><span class="c">!    This depends on the step itself rather than on the multiplier</span>
+<a id="ln-271" name="ln-271" href="#ln-271"></a><span class="c">!    estimates, so it stays moderate at degenerate points.</span>
+<a id="ln-272" name="ln-272" href="#ln-272"></a><span class="c">!  * `sqpopt_penalty_model`, with `sqpopt_merit_augmented_lagrangian`:</span>
+<a id="ln-273" name="ln-273" href="#ln-273"></a><span class="c">!    Gill, Murray, Saunders &amp; Wright (SOL 86-6R; NPSOL). The line search</span>
+<a id="ln-274" name="ln-274" href="#ln-274"></a><span class="c">!    moves the multipliers and the slacks too (`joint_active`): from the</span>
+<a id="ln-275" name="ln-275" href="#ln-275"></a><span class="c">!    current \( \lambda_0 \) toward the QP&#39;s \( \lambda_{QP} \)</span>
+<a id="ln-276" name="ln-276" href="#ln-276"></a><span class="c">!    (\( \xi = \lambda_{QP}-\lambda_0 \)), and from the merit&#39;s minimizer</span>
+<a id="ln-277" name="ln-277" href="#ln-277"></a><span class="c">!    \( s_0 \) toward the QP&#39;s linearized constraint values</span>
+<a id="ln-278" name="ln-278" href="#ln-278"></a><span class="c">!    (\( q = \text{clip}(c+Jp) - s_0 \)). The penalty is set so that the</span>
+<a id="ln-279" name="ln-279" href="#ln-279"></a><span class="c">!    merit&#39;s slope is at most \( -\tfrac12 p^THp \): with</span>
+<a id="ln-280" name="ln-280" href="#ln-280"></a><span class="c">!    \( r = c-s_0 \) and \( d = Jp-q \) (\( = -r \) for a consistent QP),</span>
+<a id="ln-281" name="ln-281" href="#ln-281"></a><span class="c">!    the slope is \( A + \rho B \), \( A = g^Tp - \xi^Tr - \lambda_0^Td \),</span>
+<a id="ln-282" name="ln-282" href="#ln-282"></a><span class="c">!    \( B = r^Td \), so (if \( B&lt;0 \)) \( \hat\rho = (A + \tfrac12</span>
+<a id="ln-283" name="ln-283" href="#ln-283"></a><span class="c">!    p^THp)/(-B) \). If \( \rho &lt; \hat\rho \), \( \rho \) increases to</span>
+<a id="ln-284" name="ln-284" href="#ln-284"></a><span class="c">!    \( \max(\hat\rho, 2\rho) \); if \( \rho &gt; 4\max(\hat\rho, \rho_f) \), it</span>
+<a id="ln-285" name="ln-285" href="#ln-285"></a><span class="c">!    *decreases* to \( \max(\hat\rho, \rho_f, \sqrt{\rho\max(\hat\rho,\rho_f)}) \),</span>
+<a id="ln-286" name="ln-286" href="#ln-286"></a><span class="c">!    where the floor \( \rho_f \) doubles after each decrease, so that it</span>
+<a id="ln-287" name="ln-287" href="#ln-287"></a><span class="c">!    can only decrease finitely often (as the theory requires).</span>
+<a id="ln-288" name="ln-288" href="#ln-288"></a>
+<a id="ln-289" name="ln-289" href="#ln-289"></a><span class="w">    </span><span class="k">subroutine </span><span class="n">update_penalty_parameter</span><span class="p">(</span><span class="n">me</span><span class="p">,</span><span class="w"> </span><span class="n">jac</span><span class="p">,</span><span class="w"> </span><span class="n">g</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">php</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">c_lb</span><span class="p">,</span><span class="w"> </span><span class="n">c_ub</span><span class="p">,</span><span class="w"> </span><span class="n">lambda</span><span class="p">,</span><span class="w"> </span><span class="n">lambda_qp</span><span class="p">)</span><span class="w"></span>
+<a id="ln-290" name="ln-290" href="#ln-290"></a>
+<a id="ln-291" name="ln-291" href="#ln-291"></a><span class="w">    </span><span class="k">class</span><span class="p">(</span><span class="n">sqpopt_merit_type</span><span class="p">),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">me</span><span class="w"></span>
+<a id="ln-292" name="ln-292" href="#ln-292"></a><span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_sparse_matrix</span><span class="p">),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">jac</span><span class="w">       </span><span class="c">!! constraint Jacobian at `x`, `dimension(m,n)`</span>
+<a id="ln-293" name="ln-293" href="#ln-293"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">     </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">g</span><span class="w">         </span><span class="c">!! objective gradient at `x` `dimension(n)`</span>
+<a id="ln-294" name="ln-294" href="#ln-294"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">     </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">p</span><span class="w">         </span><span class="c">!! the step `dimension(n)`</span>
+<a id="ln-295" name="ln-295" href="#ln-295"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">                   </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">php</span><span class="w">       </span><span class="c">!! \( p^THp \)</span>
+<a id="ln-296" name="ln-296" href="#ln-296"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">     </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">c</span><span class="w">         </span><span class="c">!! constraint values at `x` `dimension(m)`</span>
+<a id="ln-297" name="ln-297" href="#ln-297"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">     </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">c_lb</span><span class="w">      </span><span class="c">!! constraint lower bounds `dimension(m)`</span>
+<a id="ln-298" name="ln-298" href="#ln-298"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">     </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">c_ub</span><span class="w">      </span><span class="c">!! constraint upper bounds `dimension(m)`</span>
+<a id="ln-299" name="ln-299" href="#ln-299"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">     </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">lambda</span><span class="w">    </span><span class="c">!! the current multipliers `dimension(m)`</span>
+<a id="ln-300" name="ln-300" href="#ln-300"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">     </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">lambda_qp</span><span class="w"> </span><span class="c">!! the QP&#39;s multipliers `dimension(m)`</span>
+<a id="ln-301" name="ln-301" href="#ln-301"></a>
+<a id="ln-302" name="ln-302" href="#ln-302"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">allocatable</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">jp</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="w"></span>
+<a id="ln-303" name="ln-303" href="#ln-303"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">dv</span><span class="p">,</span><span class="w"> </span><span class="n">req</span><span class="p">,</span><span class="w"> </span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">,</span><span class="w"> </span><span class="n">rho_hat</span><span class="p">,</span><span class="w"> </span><span class="k">target</span>
+<a id="ln-304" name="ln-304" href="#ln-304"></a>
+<a id="ln-305" name="ln-305" href="#ln-305"></a><span class="k">    allocate</span><span class="p">(</span><span class="n">jp</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)),</span><span class="w"> </span><span class="n">s</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)),</span><span class="w"> </span><span class="n">r</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)))</span><span class="w"></span>
+<a id="ln-306" name="ln-306" href="#ln-306"></a>
+<a id="ln-307" name="ln-307" href="#ln-307"></a><span class="w">    </span><span class="n">me</span><span class="p">%</span><span class="n">joint_active</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"></span>
+<a id="ln-308" name="ln-308" href="#ln-308"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">return</span>
+<a id="ln-309" name="ln-309" href="#ln-309"></a>
+<a id="ln-310" name="ln-310" href="#ln-310"></a><span class="k">    select case</span><span class="w"> </span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">penalty_update</span><span class="p">)</span><span class="w"></span>
+<a id="ln-311" name="ln-311" href="#ln-311"></a>
+<a id="ln-312" name="ln-312" href="#ln-312"></a><span class="w">    </span><span class="k">case</span><span class="w"> </span><span class="p">(</span><span class="n">sqpopt_penalty_model</span><span class="p">)</span><span class="w"></span>
+<a id="ln-313" name="ln-313" href="#ln-313"></a>
+<a id="ln-314" name="ln-314" href="#ln-314"></a><span class="w">        </span><span class="k">call </span><span class="n">sparse_matvec</span><span class="p">(</span><span class="n">jac</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">jp</span><span class="p">)</span><span class="w"></span>
+<a id="ln-315" name="ln-315" href="#ln-315"></a>
+<a id="ln-316" name="ln-316" href="#ln-316"></a><span class="w">        </span><span class="k">select case</span><span class="w"> </span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">mode</span><span class="p">)</span><span class="w"></span>
+<a id="ln-317" name="ln-317" href="#ln-317"></a>
+<a id="ln-318" name="ln-318" href="#ln-318"></a><span class="w">        </span><span class="k">case</span><span class="w"> </span><span class="p">(</span><span class="n">sqpopt_merit_augmented_lagrangian</span><span class="p">)</span><span class="w"></span>
+<a id="ln-319" name="ln-319" href="#ln-319"></a><span class="w">            </span><span class="c">! the joint step: the slacks start at the merit&#39;s minimizer (resetting</span>
+<a id="ln-320" name="ln-320" href="#ln-320"></a><span class="w">            </span><span class="c">! them can only decrease the merit) and move toward the QP&#39;s</span>
+<a id="ln-321" name="ln-321" href="#ln-321"></a><span class="w">            </span><span class="c">! linearized constraint values, so that `r = c-s` decreases like</span>
+<a id="ln-322" name="ln-322" href="#ln-322"></a><span class="w">            </span><span class="c">! the violation (`d = Jp - q = -r0` if the QP is consistent):</span>
+<a id="ln-323" name="ln-323" href="#ln-323"></a><span class="w">            </span><span class="n">me</span><span class="p">%</span><span class="n">joint_active</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">true</span><span class="p">.</span><span class="w"></span>
+<a id="ln-324" name="ln-324" href="#ln-324"></a><span class="w">            </span><span class="n">me</span><span class="p">%</span><span class="n">lambda0</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">lambda</span><span class="w"></span>
+<a id="ln-325" name="ln-325" href="#ln-325"></a><span class="w">            </span><span class="k">call </span><span class="n">augmented_lagrangian_slacks</span><span class="p">(</span><span class="n">me</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">c_lb</span><span class="p">,</span><span class="w"> </span><span class="n">c_ub</span><span class="p">,</span><span class="w"> </span><span class="n">lambda</span><span class="p">,</span><span class="w"> </span><span class="n">s</span><span class="p">)</span><span class="w"></span>
+<a id="ln-326" name="ln-326" href="#ln-326"></a><span class="w">            </span><span class="n">me</span><span class="p">%</span><span class="n">s0</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="w"></span>
+<a id="ln-327" name="ln-327" href="#ln-327"></a><span class="w">            </span><span class="n">me</span><span class="p">%</span><span class="n">q</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="nb">min</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">c</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">jp</span><span class="p">,</span><span class="w"> </span><span class="n">c_lb</span><span class="p">),</span><span class="w"> </span><span class="n">c_ub</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">s</span><span class="w"></span>
+<a id="ln-328" name="ln-328" href="#ln-328"></a><span class="w">            </span><span class="n">r</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">s</span><span class="w"></span>
+<a id="ln-329" name="ln-329" href="#ln-329"></a><span class="w">            </span><span class="n">a</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">dot_product</span><span class="p">(</span><span class="n">g</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nb">dot_product</span><span class="p">(</span><span class="n">lambda_qp</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">lambda</span><span class="p">,</span><span class="w"> </span><span class="n">r</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="nb">dot_product</span><span class="p">(</span><span class="n">lambda</span><span class="p">,</span><span class="w"> </span><span class="n">jp</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">q</span><span class="p">)</span><span class="w"></span>
+<a id="ln-330" name="ln-330" href="#ln-330"></a><span class="w">            </span><span class="n">b</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">dot_product</span><span class="p">(</span><span class="n">r</span><span class="p">,</span><span class="w"> </span><span class="n">jp</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">q</span><span class="p">)</span><span class="w"></span>
+<a id="ln-331" name="ln-331" href="#ln-331"></a><span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">b</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="o">-</span><span class="nb">tiny</span><span class="p">(</span><span class="mf">1.0_wp</span><span class="p">))</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-332" name="ln-332" href="#ln-332"></a><span class="k">                </span><span class="n">rho_hat</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">a</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mf">0.5_wp</span><span class="o">*</span><span class="nb">max</span><span class="p">(</span><span class="n">php</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="p">))</span><span class="o">/</span><span class="p">(</span><span class="o">-</span><span class="n">b</span><span class="p">)</span><span class="w"></span>
+<a id="ln-333" name="ln-333" href="#ln-333"></a><span class="w">                </span><span class="k">target</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="n">rho_hat</span><span class="p">,</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">penalty_floor</span><span class="p">)</span><span class="w"></span>
+<a id="ln-334" name="ln-334" href="#ln-334"></a><span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">penalty</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">rho_hat</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-335" name="ln-335" href="#ln-335"></a><span class="k">                    </span><span class="n">me</span><span class="p">%</span><span class="n">penalty</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="n">rho_hat</span><span class="p">,</span><span class="w"> </span><span class="mf">2.0_wp</span><span class="o">*</span><span class="n">me</span><span class="p">%</span><span class="n">penalty</span><span class="p">)</span><span class="w"></span>
+<a id="ln-336" name="ln-336" href="#ln-336"></a><span class="w">                </span><span class="k">else if</span><span class="w"> </span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">penalty</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">4.0_wp</span><span class="o">*</span><span class="k">target</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-337" name="ln-337" href="#ln-337"></a><span class="k">                    </span><span class="n">me</span><span class="p">%</span><span class="n">penalty</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="k">target</span><span class="p">,</span><span class="w"> </span><span class="nb">sqrt</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">penalty</span><span class="o">*</span><span class="k">target</span><span class="p">))</span><span class="w"></span>
+<a id="ln-338" name="ln-338" href="#ln-338"></a><span class="w">                    </span><span class="n">me</span><span class="p">%</span><span class="n">penalty_floor</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">2.0_wp</span><span class="o">*</span><span class="n">me</span><span class="p">%</span><span class="n">penalty_floor</span><span class="w"></span>
+<a id="ln-339" name="ln-339" href="#ln-339"></a><span class="w">                </span><span class="k">end if</span>
+<a id="ln-340" name="ln-340" href="#ln-340"></a><span class="k">            end if</span>
+<a id="ln-341" name="ln-341" href="#ln-341"></a>
+<a id="ln-342" name="ln-342" href="#ln-342"></a><span class="k">        case </span><span class="n">default</span><span class="w">   </span><span class="c">! (l1)</span>
+<a id="ln-343" name="ln-343" href="#ln-343"></a><span class="w">            </span><span class="n">r</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="n">c</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">jp</span><span class="w">   </span><span class="c">! (the linearized constraints)</span>
+<a id="ln-344" name="ln-344" href="#ln-344"></a><span class="w">            </span><span class="n">dv</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">l1_violation</span><span class="p">(</span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">c_lb</span><span class="p">,</span><span class="w"> </span><span class="n">c_ub</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">l1_violation</span><span class="p">(</span><span class="n">r</span><span class="p">,</span><span class="w"> </span><span class="n">c_lb</span><span class="p">,</span><span class="w"> </span><span class="n">c_ub</span><span class="p">)</span><span class="w"></span>
+<a id="ln-345" name="ln-345" href="#ln-345"></a><span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">dv</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-346" name="ln-346" href="#ln-346"></a><span class="k">                </span><span class="n">req</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="nb">dot_product</span><span class="p">(</span><span class="n">g</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mf">0.5_wp</span><span class="o">*</span><span class="nb">max</span><span class="p">(</span><span class="n">php</span><span class="p">,</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="p">))</span><span class="o">/</span><span class="p">((</span><span class="mf">1.0_wp</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">penalty_rho</span><span class="p">)</span><span class="o">*</span><span class="n">dv</span><span class="p">)</span><span class="w"></span>
+<a id="ln-347" name="ln-347" href="#ln-347"></a><span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">penalty</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">req</span><span class="p">)</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">penalty</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">1.1_wp</span><span class="o">*</span><span class="n">req</span><span class="w"></span>
+<a id="ln-348" name="ln-348" href="#ln-348"></a><span class="w">            </span><span class="k">end if</span>
+<a id="ln-349" name="ln-349" href="#ln-349"></a>
+<a id="ln-350" name="ln-350" href="#ln-350"></a><span class="k">        end select</span>
+<a id="ln-351" name="ln-351" href="#ln-351"></a>
+<a id="ln-352" name="ln-352" href="#ln-352"></a><span class="k">    case </span><span class="n">default</span><span class="w">   </span><span class="c">! (sqpopt_penalty_multipliers)</span>
+<a id="ln-353" name="ln-353" href="#ln-353"></a><span class="w">        </span><span class="n">me</span><span class="p">%</span><span class="n">penalty</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">max</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">penalty</span><span class="p">,</span><span class="w"> </span><span class="nb">maxval</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">lambda_qp</span><span class="p">))</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mf">1.0_wp</span><span class="p">)</span><span class="w"></span>
+<a id="ln-354" name="ln-354" href="#ln-354"></a><span class="w">    </span><span class="k">end select</span>
+<a id="ln-355" name="ln-355" href="#ln-355"></a>
+<a id="ln-356" name="ln-356" href="#ln-356"></a><span class="k">    end subroutine </span><span class="n">update_penalty_parameter</span><span class="w"></span>
+<a id="ln-357" name="ln-357" href="#ln-357"></a><span class="c">!*******************************************************************************</span>
+<a id="ln-358" name="ln-358" href="#ln-358"></a>
+<a id="ln-359" name="ln-359" href="#ln-359"></a><span class="w">    </span><span class="k">end module </span><span class="n">sqpopt_merit_module</span><span class="w"></span>
+<a id="ln-360" name="ln-360" href="#ln-360"></a><span class="c">!*******************************************************************************</span>
+</pre></div>
+
+      </section>
+    </div>
+  </div>
+
+      <hr>
+    </div> <!-- /container -->
+    <footer>
+      <div class="container">
+        <div class="row justify-content-between">
+          <div class="col">
+            <p>
+              sqpopt
+ was developed by Jacob Williams<br>              &copy; 2026 
+</p>
+          </div>
+          <div class="col">
+            <p class="text-end">
+              Documentation generated by
+              <a href="https://github.com/Fortran-FOSS-Programmers/ford">FORD</a>
+            </p>
+          </div>
+        </div>
+        <br>
+      </div> <!-- /container -->
+    </footer>
+    <!-- sqpopt theme: the button switches the theme, and remembers it for the guide too -->
+    <script>
+      document.querySelector('.theme-toggle').addEventListener('click', function () {
+        var root = document.documentElement;
+        var next = root.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-bs-theme', next);
+        try { localStorage.setItem('sqpopt-theme', next); } catch (e) {}
+      });
+    </script>
+  </body>
+</html>
