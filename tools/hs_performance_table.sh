@@ -15,12 +15,15 @@
 #    pixi run tools/hs_performance_table.sh [--markdown] [--mumps]
 #
 # The rows of the options that factor matrices (options%inertia_control and
-# options%direct_qp) use the default sparse solver, QDLDL, and are repeated
+# options%direct_qp) use the default sparse solver, QDLDL (with its fallback
+# on the dense solver, options%linear_solver_fallback), and are repeated
 # with the dense solver (options%linear_solver = dense, which always works on
-# these small problems). With --mumps, the library is built with MUMPS too
-# (the HAS_MUMPS preprocessor directive, which needs the sequential MUMPS
-# library of the pixi environment), and the table gets the same rows with
-# MUMPS, for comparison. The other rows don't depend on the sparse solver.
+# these small problems). With --mumps, a library built with MUMPS too (the
+# HAS_MUMPS preprocessor directive, which needs the sequential MUMPS library
+# of the pixi environment) runs the same rows with MUMPS, for comparison.
+# Only those rows: in that build QDLDL would fall back on MUMPS, so every
+# other row is run in the default build, as users get it. The other rows
+# don't depend on the sparse solver.
 #
 # Each run takes about a second (release build). The per-run Markdown
 # reports are left in a temporary directory, printed at the end.
@@ -90,11 +93,16 @@ outdir=$(mktemp -d)
 # thousands separators (1234567 -> 1,234,567)
 commas() { awk -v n="$1" 'BEGIN { s = ""; while (length(n) > 3) { s = "," substr(n, length(n)-2) s; n = substr(n, 1, length(n)-3) }; print n s }'; }
 
-# run the suite with the given options; prints "solved local failed nf"
+# run the suite with the given options (in the build with MUMPS for the MUMPS
+# rows, else in the default build); prints "solved local failed nf"
 run() {
     local report=$1; shift
     local line
-    line=$($FPM test test_hs_suite --profile release ${fpm_flags[@]+"${fpm_flags[@]}"} -- "$report" "$@" 2>&1 \
+    local flags=()
+    if [[ " $* " == *" --linear-solver=mumps "* ]]; then
+        flags=(${fpm_flags[@]+"${fpm_flags[@]}"})
+    fi
+    line=$($FPM test test_hs_suite --profile release ${flags[@]+"${flags[@]}"} -- "$report" "$@" 2>&1 \
            | grep -a '^summary:' || true)
     if [[ -z "$line" ]]; then
         echo "error: no summary from test_hs_suite $*" >&2
@@ -103,10 +111,16 @@ run() {
     echo "$line" | sed -E 's/summary: solved=([0-9]+) local=([0-9]+) failed=([0-9]+) nf=([0-9]+) ng=([0-9]+)/\1 \2 \3 \4/'
 }
 
-# build first, so that the build output doesn't mix with the table
-if ! build_log=$($FPM build --profile release --tests ${fpm_flags[@]+"${fpm_flags[@]}"} 2>&1); then
+# build first (both builds, with --mumps), so that the build output doesn't mix with the table
+if ! build_log=$($FPM build --profile release --tests 2>&1); then
     echo "$build_log" >&2
     exit 1
+fi
+if [[ $mumps == 1 ]]; then
+    if ! build_log=$($FPM build --profile release --tests "${fpm_flags[@]}" 2>&1); then
+        echo "$build_log" >&2
+        exit 1
+    fi
 fi
 
 if [[ $format == markdown ]]; then
@@ -142,7 +156,7 @@ echo
 echo "footnote: Armijo / l1 / multipliers with interpolation: solved=$solved local=$local failed=$failed nf=$(commas "$nf")"
 
 # the SLSQP comparison of the results page
-slsqp=$($FPM test test_hs_slsqp --profile release ${fpm_flags[@]+"${fpm_flags[@]}"} -- --web-data=web/js/hs_slsqp_data.js 2>&1 \
+slsqp=$($FPM test test_hs_slsqp --profile release -- --web-data=web/js/hs_slsqp_data.js 2>&1 \
         | grep -a '^summary:' || true)
 if [[ -z "$slsqp" ]]; then
     echo "error: no summary from test_hs_slsqp" >&2

@@ -911,7 +911,12 @@
         end if
         shift0    = hessian%shift
         n_factor0 = kkt%solver%n_factor
-        call inertia%correct(kkt, hessian, jac, status, shifted, ok, n_negative)
+        if (predicted) then
+            call inertia%correct(kkt, hessian, jac, status, shifted, ok, n_negative)
+        else
+            ! (the QP's step, for the curvature test where the inertia isn't used)
+            call inertia%correct(kkt, hessian, jac, status, shifted, ok, n_negative, step=p)
+        end if
         if (shifted) info%hess_reset = .true.
         if (.not. lg%on(sqpopt_log_detail)) return
         if (.not. inertia%enabled) then

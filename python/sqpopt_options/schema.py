@@ -180,6 +180,12 @@ LINEAR_SOLVERS = (
     Choice(3, 'dense (pivoting, exact inertia; for small problems)', 'sqpopt_linear_solver_dense'),
     Choice(4, 'dense with LAPACK DSYTRF (for small problems; a build with LAPACK)', 'sqpopt_linear_solver_lapack'),
 )
+INERTIA_TESTS = (
+    Choice(1, 'the inertia of the KKT matrix', 'sqpopt_inertia_test_count'),
+    Choice(2, 'the curvature of the QP step where the linear solver can\'t tell the inertia',
+           'sqpopt_inertia_test_unknown'),
+    Choice(3, 'always the curvature of the QP step (inertia-free)', 'sqpopt_inertia_test_curvature'),
+)
 PRINT_LEVELS = (
     Choice(0, 'none'),
     Choice(1, 'iteration log and summary'),
@@ -204,7 +210,8 @@ EIGEN_SOLVERS = (
 )
 
 ALL_CHOICES = (HESSIAN_MODES, QP_MODES, LINESEARCH_MODES, MERIT_MODES, PENALTY_UPDATES,
-               RESTORATION_MODES, NULL_SPACE_METHODS, DERIVATIVE_ACCURACIES, LINEAR_SOLVERS, EIGEN_SOLVERS)
+               RESTORATION_MODES, NULL_SPACE_METHODS, DERIVATIVE_ACCURACIES, LINEAR_SOLVERS, EIGEN_SOLVERS,
+               INERTIA_TESTS)
 
 
 def _o(path: str, kind: str, default: Any, doc: str, **kw) -> Option:
@@ -504,8 +511,17 @@ TOPICS: tuple[Topic, ...] = (
                'inertia of the KKT matrix of the QP\'s working set, by a sparse LDLᵀ factorization (see '
                'linear_solver): the smallest shift tried that leaves no negative curvature. Without it, the exact '
                'Hessian is shifted tenfold whenever a QP finds negative curvature, and SR1 is not corrected at '
-               'all. With the exact Hessian, MUMPS is the better solver: QDLDL, which doesn\'t pivot, can\'t tell '
-               'the inertia when the Hessian has zeros on its diagonal, and then shifts it more than needed.'),
+               'all. With the exact Hessian, QDLDL, which doesn\'t pivot, can\'t tell the inertia when the '
+               'Hessian has zeros on its diagonal: it then falls back on a solver that pivots '
+               '(linear_solver_fallback).'),
+            _o('options%inertia_test', 'int', 1,
+               'How negative curvature is decided. By the inertia of the KKT matrix (the default); or by the '
+               'inertia-free test of Chiang and Zavala (as in HiOp): the QP is solved, and the shift raised only '
+               'if its step p has too little curvature, pᵀ(H + δI)p < κ pᵀp, either where the linear solver '
+               'can\'t tell the inertia or always. On the HS problems with the exact Hessian, always testing the '
+               'curvature solved the most problems (277, against 273) but with 34% more evaluations, and it was '
+               'worse with direct_qp and with SR1.',
+               choices=INERTIA_TESTS),
         ), relevance=_inertia_used),
         Section('Exact Hessian', (
             _positive('hessian%shift_min', 1e-4,
@@ -535,9 +551,10 @@ TOPICS: tuple[Topic, ...] = (
                'QDLDL (the default) is always available, single-threaded, without pivoting, and with very little '
                'overhead: on banded and chained problems its factorizations took 7 to 30 times less time than '
                'MUMPS\'s, with the same results, and it is exact for the least-squares systems and the '
-               'quasi-Newton Hessians. Choose MUMPS (a library built with it) for the exact Hessian with '
-               'inertia_control (QDLDL can\'t tell the inertia of a Hessian with zeros on its diagonal, and '
-               'shifts it more than needed: about 45% more evaluations on the HS problems), and for problems '
+               'quasi-Newton Hessians. With the exact Hessian, QDLDL can\'t tell the inertia of a Hessian with '
+               'zeros on its diagonal, and falls back on a solver that pivots (linear_solver_fallback). Choose '
+               'MUMPS (a library built with it) for large problems with the exact Hessian and inertia_control, '
+               'and for problems '
                'coupled in two or three dimensions, whose factors are dense (MUMPS refactored 3-D grid matrices '
                '9 to 34 times faster, and can use threads). Dense (opt-in) forms the KKT matrix as a dense array, of '
                'order n+m, so it is for small problems only (above n+m = 2,000 it is invalid input): there, with the exact '
@@ -545,6 +562,12 @@ TOPICS: tuple[Topic, ...] = (
                'HAS_LAPACK) does the same factorization with DSYTRF: the same algorithm (results differ only by rounding), and up to 2.4 times faster '
                'near the size limit.',
                choices=LINEAR_SOLVERS),
+            _o('options%linear_solver_fallback', 'bool', True,
+               'With QDLDL: the first time it fails, or can\'t tell the inertia (with the exact Hessian), switch '
+               'for the rest of the solve to a solver that pivots: MUMPS in a library built with it, else, for '
+               'n+m up to 500, LAPACK\'s or the dense solver (which form the KKT matrix as a dense array). On '
+               'the HS problems with the exact Hessian and inertia_control, it gives the dense solver\'s results: '
+               '2 problems fewer failed and 30% fewer evaluations than QDLDL alone.'),
             _o('options%factorization_threads', 'int', 1,
                'Number of OpenMP threads the sparse factorizations use (inertia_control, direct_qp, and '
                'direct_least_squares). 1 uses none; 0 leaves it to the OpenMP environment (OMP_NUM_THREADS, or '

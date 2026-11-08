@@ -47,11 +47,13 @@
     use sqpopt_iterate_module,    only: sqpopt_iterate, sqpopt_evaluate_point
     use sqpopt_log_module,        only: sqpopt_log_type, sqpopt_log_detail, fmt_e, fmt_i, plural
     use sqpopt_inertia_module,    only: sqpopt_inertia_type
-    use sqpopt_kkt_module,        only: sqpopt_kkt_type
+    use sqpopt_kkt_module,        only: sqpopt_kkt_type, sqpopt_inertia_test_count, sqpopt_inertia_test_unknown, &
+                                        sqpopt_inertia_test_curvature
     use sqpopt_least_squares_module,    only: sqpopt_least_squares_type
     use sqpopt_symmetric_solver_module, only: sqpopt_linear_solver_available, sqpopt_linear_solver_name, &
                                               sqpopt_linear_solver_max_order, &
-                                              sqpopt_linear_solver_mumps, sqpopt_linear_solver_lapack
+                                              sqpopt_linear_solver_mumps, sqpopt_linear_solver_lapack, &
+                                              sqpopt_linear_solver_qdldl
     use sqpopt_diagnostics_module,      only: sqpopt_diagnostics_type, sqpopt_diagnostics_write
 
     implicit none
@@ -277,16 +279,19 @@
         if (me%options%inertia_control .or. me%options%direct_qp) then
             call kkt%initialize(me%problem%n, me%problem%m, me%problem%jac_irow, me%problem%jac_icol, started, &
                                 hess_irow=me%problem%hess_irow, hess_icol=me%problem%hess_icol, &
-                                threads=me%options%factorization_threads, solver=me%options%linear_solver)
+                                threads=me%options%factorization_threads, solver=me%options%linear_solver, &
+                                fallback=me%options%linear_solver_fallback)
         end if
         inertia%enabled = me%options%inertia_control .and. kkt%enabled
     else if (me%options%direct_qp .or. (me%options%inertia_control .and. me%options%hessian_mode == sqpopt_hessian_sr1)) then
         ! (a quasi-Newton Hessian has no sparsity pattern: see [[sqpopt_kkt_module]])
         call kkt%initialize(me%problem%n, me%problem%m, me%problem%jac_irow, me%problem%jac_icol, started, &
-                            threads=me%options%factorization_threads, solver=me%options%linear_solver)
+                            threads=me%options%factorization_threads, solver=me%options%linear_solver, &
+                            fallback=me%options%linear_solver_fallback)
         ! (the BFGS matrix is positive definite: only SR1 needs the inertia control)
         inertia%enabled = me%options%inertia_control .and. me%options%hessian_mode == sqpopt_hessian_sr1 .and. kkt%enabled
     end if
+    kkt%inertia_test = me%options%inertia_test
     if (me%options%direct_least_squares .and. me%problem%m > 0) then
         call least_squares%initialize(me%problem%n, me%problem%m, me%problem%jac_irow, me%problem%jac_icol, started, &
                                       threads=me%options%factorization_threads, solver=me%options%linear_solver)
@@ -594,16 +599,16 @@
         case (sqpopt_hessian_exact)
             hess = 'exact Hessian'
             if (inertia%enabled .and. me%qp_solver%direct) then
-                hess = hess//' (inertia control, direct QP)'
+                hess = hess//' ('//inertia_text()//', direct QP)'
             else if (inertia%enabled) then
-                hess = hess//' (inertia control)'
+                hess = hess//' ('//inertia_text()//')'
             else if (me%qp_solver%direct) then
                 hess = hess//' (direct QP)'
             end if
         case (sqpopt_hessian_sr1)
             hess = 'L-SR1 Hessian ('//fmt_i(me%hessian%max_history)//' pairs'
             if (me%hessian%convexify) hess = hess//', convexified'
-            if (inertia%enabled) hess = hess//', inertia control'
+            if (inertia%enabled) hess = hess//', '//inertia_text()
             if (me%qp_solver%direct) hess = hess//', direct QP'
             hess = hess//')'
         case default
@@ -622,6 +627,8 @@
         end if
         if (kkt%enabled .or. least_squares%enabled) then
             str = str//', '//sqpopt_linear_solver_name(me%options%linear_solver)
+            if (me%options%linear_solver == sqpopt_linear_solver_qdldl .and. me%options%linear_solver_fallback .and. &
+                kkt%enabled) str = str//' (with fallback)'
             if (me%options%linear_solver /= sqpopt_linear_solver_mumps) then
                 continue   ! (QDLDL is single-threaded)
             else if (me%options%factorization_threads == 0) then
@@ -631,6 +638,16 @@
             end if
         end if
         end function method_text
+
+        function inertia_text() result(str)
+        !! the inertia control, and its test for negative curvature (`options%inertia_test`)
+        character(len=:), allocatable :: str
+        select case (me%options%inertia_test)
+        case (sqpopt_inertia_test_unknown);   str = 'inertia control, curvature test where the inertia is unknown'
+        case (sqpopt_inertia_test_curvature); str = 'inertia control, curvature test'
+        case default;                         str = 'inertia control'
+        end select
+        end function inertia_text
 
         function constraint_scale_text() result(str)
         !! the range of the constraint scale factors
@@ -1024,6 +1041,10 @@
               ' solver is limited to matrices of order '//fmt_i(sqpopt_linear_solver_max_order(o%linear_solver))// &
               ' (this problem''s are of order n+m = '//fmt_i(me%problem%n + me%problem%m)// &
               '): use sqpopt_linear_solver_qdldl'
+        return
+    end if
+    if (o%inertia_test < sqpopt_inertia_test_count .or. o%inertia_test > sqpopt_inertia_test_curvature) then
+        msg = 'options%inertia_test is not a valid sqpopt_inertia_test_* value'
         return
     end if
     if (o%factorization_threads < 0) then

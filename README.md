@@ -70,8 +70,12 @@ the only source file that refers to MUMPS, and only inside
 `#ifdef HAS_MUMPS`. So the default build still needs nothing but fpm, and
 has all three options, with QDLDL. QDLDL is exact for the least-squares
 systems and the quasi-Newton Hessians, and much faster than MUMPS on banded
-and chained problems. Choose MUMPS for the exact Hessian with inertia
-control, and for problems coupled in two or three dimensions (see the
+and chained problems. With the exact Hessian it can't always tell the
+inertia, and then falls back on a solver that pivots for the rest of the
+solve (`options%linear_solver_fallback`, on by default: MUMPS in a build
+with it, else the dense solver up to `n+m = 500`). Choose MUMPS for large
+problems with the exact Hessian and inertia control, and for problems
+coupled in two or three dimensions (see the
 guide's "Linear solver" section, which compares them;
 `example/sparse_solvers.f90` times the two solvers on grid matrices).
 `options%factorization_threads` sets the number of

@@ -75,6 +75,16 @@
 
     private
 
+    ! how the inertia control decides that a face has negative curvature (`options%inertia_test`):
+    integer, parameter, public :: sqpopt_inertia_test_count = 1 !! (default) from the inertia of \( K \); if the
+                                                                !! solver can't tell it, its null pivots are counted
+                                                                !! as negative curvature (see [[kkt_negatives]])
+    integer, parameter, public :: sqpopt_inertia_test_unknown = 2 !! from the inertia of \( K \) where the solver can
+                                                                  !! tell it, else by the curvature of the QP's step
+                                                                  !! (see [[sqpopt_inertia_module]])
+    integer, parameter, public :: sqpopt_inertia_test_curvature = 3 !! always by the curvature of the QP's step (the
+                                                                    !! inertia-free test of Chiang and Zavala)
+
     type, public :: sqpopt_kkt_type
         !! the KKT matrix of a working set, and its factorization (see the
         !! module documentation). It holds the sparse solver, so it must not
@@ -94,6 +104,11 @@
                                                   !! tell the inertia of \( K \) (if not, `n_negative` counts the
                                                   !! directions it couldn't tell as negative curvature: see
                                                   !! [[kkt_negatives]])
+        integer, public :: inertia_test = sqpopt_inertia_test_count !! how negative curvature is decided
+                                                                    !! (`sqpopt_inertia_test_*`, see above)
+        logical, public :: curvature_needed = .false. !! of the last factorization: whether its inertia wasn't used
+                                                      !! (by `inertia_test`), so that `n_negative` is `0` and the
+                                                      !! curvature of the step must be tested instead
         type(sqpopt_symmetric_solver_type), public :: solver !! the sparse solver (with its counts and its time)
 
         integer :: n = 0   !! number of variables
@@ -140,7 +155,7 @@
 !  false, and the matrix is left disabled, if that solver isn't available
 !  in this build or couldn't be started.
 
-    subroutine kkt_initialize(me, n, m, jac_irow, jac_icol, ok, hess_irow, hess_icol, threads, solver)
+    subroutine kkt_initialize(me, n, m, jac_irow, jac_icol, ok, hess_irow, hess_icol, threads, solver, fallback)
 
     class(sqpopt_kkt_type), intent(inout) :: me
     integer,               intent(in)  :: n         !! number of variables
@@ -153,6 +168,8 @@
     integer,               intent(in), optional :: threads   !! number of OpenMP threads of the sparse solver (see
                                                              !! [[symmetric_solver_initialize]])
     integer,               intent(in), optional :: solver    !! the sparse solver (`sqpopt_linear_solver_*`)
+    logical,               intent(in), optional :: fallback  !! whether QDLDL falls back on a solver that pivots
+                                                             !! (see [[sqpopt_symmetric_solver_module]])
 
     integer :: k, nh
     integer, dimension(:), allocatable :: signs !! the expected sign of each row's pivot (the variables', then the
@@ -183,7 +200,7 @@
     allocate(signs(n + m))
     signs(1:n) = 1
     signs(n+1:) = -1
-    call me%solver%initialize(n + m, irow, icol, ok, threads=threads, solver=solver, signs=signs)
+    call me%solver%initialize(n + m, irow, icol, ok, threads=threads, solver=solver, signs=signs, fallback=fallback)
     if (.not. ok) then
         ! (keep the reason, for the caller)
         oom = me%solver%out_of_memory
@@ -342,6 +359,8 @@
         return
     end if
     me%inertia_known = me%solver%inertia_known
+    me%curvature_needed = me%inertia_test == sqpopt_inertia_test_curvature .or. &
+                          (me%inertia_test == sqpopt_inertia_test_unknown .and. .not. me%inertia_known)
     me%n_negative = max(kkt_negatives(me) - m, 0)
     me%singular   = me%solver%inertia_known .and. me%solver%n_null > 0
     me%current    = .true.
@@ -403,7 +422,7 @@
     t = sm + 0.5_wp*(t + transpose(t))
 
     ! the inertia of K, from those of K0, T, and sigma*M:
-    if (sigma > 0.0_wp) then
+    if (sigma > 0.0_wp .and. .not. me%curvature_needed) then
         call dense_symmetric_inertia(sm, pos_m, n_neg, n_zero)
         call dense_symmetric_inertia(t, pos_t, n_neg, n_zero)
         me%n_negative = max(kkt_negatives(me) + pos_t - pos_m - me%m, 0)
@@ -486,6 +505,7 @@
     me%n_negative = 0
     me%singular   = .false.
     me%inertia_known = .true.
+    me%curvature_needed = .false.
     me%n          = 0
     me%m          = 0
     me%current    = .false.
@@ -505,12 +525,18 @@
 !  negative eigenvalue: the conservative answer, by which the inertia
 !  control shifts the Hessian rather than miss negative curvature, and the
 !  direct QP method treats the face as nonconvex (and the matrix is not
-!  reported singular).
+!  reported singular). If the inertia isn't used (`curvature_needed`, by
+!  `inertia_test`), it is `m`: no negative curvature, which the curvature
+!  test of the QP's step then decides (see [[sqpopt_inertia_module]]).
 
     pure integer function kkt_negatives(me) result(n_neg)
 
     class(sqpopt_kkt_type), intent(in) :: me
 
+    if (me%curvature_needed) then
+        n_neg = me%m
+        return
+    end if
     n_neg = me%solver%n_negative
     if (.not. me%solver%inertia_known) n_neg = n_neg + me%solver%n_null
 

@@ -14,6 +14,7 @@
     use sqpopt_hessian_module,    only: sqpopt_hessian_bfgs
     use sqpopt_problem_module,    only: sqpopt_derivatives_accurate
     use sqpopt_symmetric_solver_module, only: sqpopt_linear_solver_qdldl
+    use sqpopt_kkt_module,        only: sqpopt_inertia_test_count
     use, intrinsic :: iso_fortran_env, only: output_unit
 
     implicit none
@@ -117,9 +118,29 @@
                                                    !! `sqpopt_linear_solver_lapack` (the same dense matrix,
                                                    !! factored by LAPACK's `DSYTRF`: much faster near that limit;
                                                    !! a library built with LAPACK). QDLDL is exact for the least-squares
-                                                   !! systems and the quasi-Newton Hessians; prefer MUMPS for the
-                                                   !! exact Hessian with inertia control, and for problems whose
-                                                   !! factors are dense (see [[sqpopt_symmetric_solver_module]])
+                                                   !! systems and the quasi-Newton Hessians; with the exact Hessian
+                                                   !! it falls back on a solver that pivots where it can't tell the
+                                                   !! inertia (`linear_solver_fallback`). Prefer MUMPS for large
+                                                   !! problems with the exact Hessian and inertia control, and for
+                                                   !! problems whose factors are dense (see
+                                                   !! [[sqpopt_symmetric_solver_module]])
+        logical  :: linear_solver_fallback = .true. !! with QDLDL (`linear_solver`): whether to switch, for the rest
+                                                   !! of the solve, to a solver that pivots the first time QDLDL
+                                                   !! fails or can't tell the inertia (with the exact Hessian): MUMPS
+                                                   !! in a library built with it, else, for a matrix of order `n+m`
+                                                   !! up to 500, LAPACK's or the dense solver (which form the
+                                                   !! matrix as a dense array). On the Hock-Schittkowski problems,
+                                                   !! with the exact Hessian and inertia control, it gives the
+                                                   !! dense solver's results: 2 problems fewer failed and 30% fewer
+                                                   !! evaluations than QDLDL alone (see
+                                                   !! [[sqpopt_symmetric_solver_module]])
+        integer  :: inertia_test = sqpopt_inertia_test_count !! with `inertia_control`: how negative curvature is
+                                                   !! decided: `sqpopt_inertia_test_count` (the default: by the
+                                                   !! inertia of the KKT matrix), `sqpopt_inertia_test_unknown` (by
+                                                   !! the curvature of the QP's step where the linear solver can't
+                                                   !! tell the inertia), or `sqpopt_inertia_test_curvature` (always
+                                                   !! by the step's curvature: the inertia-free test of Chiang and
+                                                   !! Zavala). See [[sqpopt_inertia_module]]
         integer  :: lbfgs_memory      = 0         !! number of `(s,y)` vector pairs retained by the limited-memory
                                                    !! Hessian approximation. `0` (the default) picks it from the problem
                                                    !! size `n`: \( \max(10, \min(n, 100)) \) -- more pairs help the

@@ -8,10 +8,12 @@ program test_inertia
     !!    fpm test test_inertia --flag "-DHAS_MUMPS -I$CONDA_PREFIX/include" --link-flag "-ldmumps_seq"
     !!
     !! It checks the shift that [[inertia_correct]] finds for small matrices
-    !! whose inertia is known, and solves a nonconvex problem with inertia
-    !! control (with the dense and the sparse QP solvers, and with the trust region). Without
-    !! MUMPS, it also checks that asking for MUMPS is rejected as invalid
-    !! input.
+    !! whose inertia is known, and with the curvature test of the QP's step
+    !! (`options%inertia_test`), and solves a nonconvex problem with inertia
+    !! control (with the dense and the sparse QP solvers, and with the trust
+    !! region; with each `inertia_test`; and with QDLDL, without its fallback
+    !! too, `options%linear_solver_fallback`). Without MUMPS, it also checks
+    !! that asking for MUMPS is rejected as invalid input.
 
     use sqpopt_module,           only: sqpopt_type
     use sqpopt_problem_module,   only: sqpopt_problem_type
@@ -21,7 +23,8 @@ program test_inertia
     use sqpopt_symmetric_solver_module, only: sqpopt_has_mumps, sqpopt_linear_solver_mumps, sqpopt_linear_solver_qdldl, &
                                               sqpopt_linear_solver_dense, sqpopt_linear_solver_lapack, &
                                               sqpopt_linear_solver_available, sqpopt_linear_solver_name
-    use sqpopt_kkt_module,       only: sqpopt_kkt_type
+    use sqpopt_kkt_module,       only: sqpopt_kkt_type, sqpopt_inertia_test_count, sqpopt_inertia_test_unknown, &
+                                       sqpopt_inertia_test_curvature
     use sqpopt_qp_solver_module, only: sqpopt_qp_dense, sqpopt_qp_reduced_hessian
     use sqpopt_trust_region_module, only: sqpopt_trust_region_type
     use sqpopt_types_module,     only: sqpopt_success, sqpopt_invalid_input, sqpopt_results_type, sqpopt_sparse_matrix
@@ -46,9 +49,19 @@ program test_inertia
         linear_solver = solver_order(k)
         print '(2A)', 'sparse solver: ', sqpopt_linear_solver_name(linear_solver)
         call test_correction()
+        call test_curvature_test()
         call test_solve('dense QP',     sqpopt_qp_dense,           .false.)
         call test_solve('sparse QP',    sqpopt_qp_reduced_hessian, .false.)
         call test_solve('trust region', sqpopt_qp_dense,           .true.)
+        call test_solve('dense QP, curvature test', sqpopt_qp_dense, .false., inertia_test=sqpopt_inertia_test_curvature)
+        call test_solve('sparse QP, curvature test', sqpopt_qp_reduced_hessian, .false., &
+                        inertia_test=sqpopt_inertia_test_curvature)
+        call test_solve('dense QP, curvature test where unknown', sqpopt_qp_dense, .false., &
+                        inertia_test=sqpopt_inertia_test_unknown)
+        if (linear_solver == sqpopt_linear_solver_qdldl) then
+            call test_solve('dense QP, no fallback', sqpopt_qp_dense, .false., fallback=.false.)
+            call test_solve('sparse QP, no fallback', sqpopt_qp_reduced_hessian, .false., fallback=.false.)
+        end if
     end do
     if (.not. sqpopt_has_mumps) call test_unavailable()
 
@@ -144,7 +157,65 @@ program test_inertia
 
     end subroutine test_correction
 
-    subroutine test_solve(label, qp_mode, use_trust_region)
+    subroutine test_curvature_test()
+    !! the curvature test of the QP's step ([[inertia_correct]] with `step`),
+    !! for `H = diag(1,-1)` and the constraint row `J = [1 0]` outside the
+    !! working set, where the KKT matrix's inertia isn't used
+    !! (`kkt%inertia_test = sqpopt_inertia_test_curvature`)
+
+    type(sqpopt_inertia_type)  :: inertia
+    type(sqpopt_kkt_type)      :: kkt
+    type(sqpopt_hessian_type)  :: h
+    type(sqpopt_sparse_matrix) :: jac
+    logical :: changed, ok
+    integer :: n_negative
+
+    call h%initialize(2, 1)
+    call h%set_exact([1, 2], [1, 2])
+    call h%set_values([1.0_wp, -1.0_wp], decay=.false.)
+    jac%nrows = 1
+    jac%ncols = 2
+    jac%nnz   = 1
+    jac%irow  = [1]
+    jac%icol  = [1]
+    jac%val   = [1.0_wp]
+    call kkt%initialize(2, 1, jac%irow, jac%icol, ok, hess_irow=h%h_irow, hess_icol=h%h_icol, solver=linear_solver)
+    if (.not. (ok .and. kkt%enabled)) error stop 'test_inertia FAILED: the sparse solver could not be started'
+    kkt%inertia_test = sqpopt_inertia_test_curvature
+    inertia%enabled  = .true.
+
+    ! without a step (before the QP solve), the face is taken as convex:
+    call inertia%correct(kkt, h, jac, [0, 0, 0], changed, ok, n_negative)
+    if (.not. ok .or. changed .or. n_negative /= 0 .or. .not. kkt%curvature_needed) then
+        error stop 'test_inertia FAILED: curvature test without a step'
+    end if
+
+    ! a step with positive curvature passes, with no shift:
+    call inertia%correct(kkt, h, jac, [0, 0, 0], changed, ok, n_negative, step=[1.0_wp, 0.0_wp])
+    if (.not. ok .or. changed .or. h%shift /= 0.0_wp) error stop 'test_inertia FAILED: curvature test, positive'
+
+    ! a step with negative curvature raises the shift once (the QP is then re-solved):
+    call inertia%correct(kkt, h, jac, [0, 0, 0], changed, ok, n_negative, step=[0.0_wp, 1.0_wp])
+    print '(A,ES10.2)', 'curvature test: shift = ', h%shift
+    if (.not. (ok .and. changed) .or. n_negative /= 1 .or. .not. h%shift > 0.0_wp) then
+        error stop 'test_inertia FAILED: curvature test, negative'
+    end if
+
+    ! with the default test, the same face is shifted by its inertia, and the step isn't used:
+    call kkt%new_matrices()
+    kkt%inertia_test = sqpopt_inertia_test_count
+    h%shift = 0.0_wp
+    call inertia%correct(kkt, h, jac, [0, 0, 0], changed, ok, n_negative, step=[1.0_wp, 0.0_wp])
+    if (.not. (ok .and. changed) .or. kkt%curvature_needed .or. .not. h%shift > 1.0_wp) then
+        error stop 'test_inertia FAILED: the inertia test with a step'
+    end if
+
+    call kkt%destroy()
+    print '(A)', 'test_inertia [curvature test] PASSED'
+
+    end subroutine test_curvature_test
+
+    subroutine test_solve(label, qp_mode, use_trust_region, inertia_test, fallback)
     !! minimize \( -x_1x_2 \) subject to \( x_1^2 + x_2^2 \le 1 \), \( 0 \le x \le 2 \),
     !! whose Hessian is indefinite (the solution is \( x_1 = x_2 = 1/\sqrt{2} \), `f = -1/2`),
     !! with inertia control, twice (the second solve must repeat the first)
@@ -152,6 +223,8 @@ program test_inertia
     character(len=*), intent(in) :: label            !! the configuration, for the output
     integer,          intent(in) :: qp_mode          !! `options%qp_solver_mode`
     logical,          intent(in) :: use_trust_region !! `trust_region%enabled`
+    integer, optional, intent(in) :: inertia_test    !! `options%inertia_test` (default: its default)
+    logical, optional, intent(in) :: fallback        !! `options%linear_solver_fallback` (default: its default)
 
     type(sqpopt_type)              :: solver
     type(sqpopt_problem_type)      :: problem
@@ -170,6 +243,8 @@ program test_inertia
     options%inertia_control = .true.
     options%qp_solver_mode  = qp_mode
     options%linear_solver   = linear_solver
+    if (present(inertia_test)) options%inertia_test = inertia_test
+    if (present(fallback)) options%linear_solver_fallback = fallback
     trust_region%enabled    = use_trust_region
 
     call solver%initialize(problem=problem, options=options, trust_region=trust_region)

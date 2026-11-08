@@ -125,6 +125,12 @@ program test_input_validation
         call expect_invalid('linear_solver = LAPACK without LAPACK', problem, options, [0.0_wp, 0.0_wp])
     end if
     options = default_options
+    options%inertia_test = 0
+    call expect_invalid('inertia_test = 0', problem, options, [0.0_wp, 0.0_wp])
+    options = default_options
+    options%inertia_test = 4
+    call expect_invalid('inertia_test = 4', problem, options, [0.0_wp, 0.0_wp])
+    options = default_options
     options%linear_solver = 99
     call expect_invalid('linear_solver', problem, options, [0.0_wp, 0.0_wp])
     block

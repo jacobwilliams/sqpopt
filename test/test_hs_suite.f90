@@ -52,7 +52,8 @@ program test_hs_suite
     !!   and Jacobian, see [[hess_fd]], except on the problems that use
     !!   finite-difference first derivatives, which keep BFGS)
     !! * `--inertia` (`options%inertia_control = .true.`, for `--hessian=exact`
-    !!   or `--hessian=sr1`, see [[sqpopt_inertia_module]])
+    !!   or `--hessian=sr1`, see [[sqpopt_inertia_module]]), and
+    !!   `--inertia-test=count|unknown|curvature` (`options%inertia_test`)
     !! * `--direct` (`options%direct_qp = .true.`, with any Hessian) and
     !!   `--direct-ls` (`options%direct_least_squares = .true.`)
     !! * `--convexify` (`hessian%convexify = .true.`: with `--hessian=sr1`,
@@ -62,7 +63,9 @@ program test_hs_suite
     !!   `--no-unconstrained-step` (`qp_solver%unconstrained_step = .false.`)
     !! * `--linear-solver=qdldl|mumps|dense|lapack` (`options%linear_solver`, the sparse
     !!   solver of the three options above: QDLDL by default; `mumps` needs a
-    !!   build with MUMPS)
+    !!   build with MUMPS), and `--no-fallback`
+    !!   (`options%linear_solver_fallback = .false.`: QDLDL without its
+    !!   fallback on a solver that pivots)
     !! * `--trust-region` (`trust_region%enabled = .true.`: the trust-region
     !!   globalization, with the filter or funnel test in those modes, else
     !!   the merit-function ratio test)
@@ -128,6 +131,7 @@ program test_hs_suite
     use sqpopt_symmetric_solver_module, only: sqpopt_linear_solver_mumps, sqpopt_linear_solver_qdldl, &
                                               sqpopt_linear_solver_dense, sqpopt_linear_solver_lapack
     use sqpopt_kinds,          only: wp => sqpopt_module_wp
+    use sqpopt_kkt_module,     only: sqpopt_inertia_test_count, sqpopt_inertia_test_unknown, sqpopt_inertia_test_curvature
 
     implicit none
 
@@ -135,12 +139,12 @@ program test_hs_suite
     real(dp), parameter :: feas_tol = 1.0e-6_dp  !! constraint/bound violation tolerance for "solved"/"local"
 
     !> problems not (yet) solved by `sqpopt` with the default options -- the
-    !! regression baseline (see the program documentation). As of 2026-10-02:
-    !! 281 of the 305 problems solved, 24 local solutions, 0 failures (9,121
-    !! `fc` calls on the solved problems), in a release build. TP109 is
+    !! regression baseline (see the program documentation). As of 2026-11-08:
+    !! 280 of the 305 problems solved, 25 local solutions, 0 failures (9,129
+    !! `fc` calls on the solved problems), in a release build. TP109 has been
     !! solved in a release build but not in a debug build (where it ends at
     !! a local solution), so it stays in the list: the test passes either
-    !! way, and a release run reports it as now solved.
+    !! way, and a release run reports it if it is solved.
     integer, dimension(*), parameter :: known_unsolved = [ &
           2,  16,  25,  33,  38,  54,  55,  57,  59,  87,  97,  98, 105, 109, 213, &
         265, 272, 283, 287, 304, 305, 312, 327, 338, 362 ]
@@ -189,6 +193,8 @@ program test_hs_suite
     integer :: cfg_nonmonotone = 0
     logical :: cfg_trust_region = .false. !! `--trust-region`
     logical :: cfg_inertia      = .false. !! `--inertia`
+    integer :: cfg_inertia_test = 1       !! `--inertia-test=count|unknown|curvature`
+    logical :: cfg_fallback     = .true.  !! `--no-fallback` (`options%linear_solver_fallback`)
     logical :: cfg_direct       = .false. !! `--direct`
     logical :: cfg_direct_ls    = .false. !! `--direct-ls`
     logical :: cfg_convexify    = .false. !! `--convexify`
@@ -315,6 +321,10 @@ program test_hs_suite
         case ('--no-interpolate');      cfg_interpolate = .false.
         case ('--trust-region');        cfg_trust_region = .true.
         case ('--inertia');             cfg_inertia = .true.
+        case ('--inertia-test=count');  cfg_inertia_test = sqpopt_inertia_test_count
+        case ('--inertia-test=unknown'); cfg_inertia_test = sqpopt_inertia_test_unknown
+        case ('--inertia-test=curvature'); cfg_inertia_test = sqpopt_inertia_test_curvature
+        case ('--no-fallback');         cfg_fallback = .false.
         case ('--direct');              cfg_direct = .true.
         case ('--direct-ls');           cfg_direct_ls = .true.
         case ('--convexify');           cfg_convexify = .true.
@@ -443,6 +453,8 @@ program test_hs_suite
     options%diagnostic_level = cfg_diagnostics
     if (cfg_hessian == sqpopt_hessian_exact .and. (ctx%fd_g .or. ctx%fd_jac)) options%hessian_mode = sqpopt_hessian_bfgs
     options%inertia_control = cfg_inertia
+    options%inertia_test    = cfg_inertia_test
+    options%linear_solver_fallback = cfg_fallback
     options%direct_qp       = cfg_direct
     options%direct_least_squares = cfg_direct_ls
     options%linear_solver   = cfg_linear_solver

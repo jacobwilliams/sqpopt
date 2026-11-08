@@ -1127,6 +1127,23 @@ which is now double precision only.
   point only in TP13; not adopted)*; and a
   reverse-communication interface, for hosts that can't be called back.
 
+- **Ideas from HiOp** *(partly done; see
+  [HIOP_COMPARISON.md](HIOP_COMPARISON.md), 2026-11-07)*: HiOp is an
+  interior-point method for HPC (MPI, GPUs), so most of it doesn't apply.
+  *Done (2026-11-08):* the inertia-free curvature test of Chiang and
+  Zavala as an alternative to inertia counting (`options%inertia_test`,
+  off by default: more problems solved with the exact Hessian, but more
+  evaluations, and worse with the direct QP and SR1); and a "safe mode"
+  that switches from QDLDL to a pivoting backend for the rest of the solve
+  when it fails or can't tell the inertia (`options%linear_solver_fallback`,
+  on by default: with the exact Hessian and inertia control, 2 fewer
+  failures and 30% fewer evaluations). Not started: HiOp's alternative choices
+  of the L-BFGS initial scaling (`sᵀy/sᵀs`, `‖y‖/‖s‖`); and
+  least-squares multiplier estimates for the exact Hessian's first
+  iteration and the restoration exit. Further off: weighted (mass-matrix)
+  inner products for discretized function spaces, designed with OPTGRA's
+  variable scaling; and checkpoints of the solver state.
+
 - **F1: a real QP as the default, and a real large-scale QP.** *(Done
   2026-09-26; see "Phase 4 status".)* The
   composite step was removed (2026-09-26; it couldn't survive the B2

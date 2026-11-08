@@ -29,18 +29,21 @@
 !  the same iterations, and QDLDL's factorizations take 7 to 30 times less
 !  time; on the Hock-Schittkowski problems the quasi-Newton Hessians give
 !  the same results with both (QDLDL's faster), but the exact Hessian with
-!  inertia control needs about 45% more evaluations with QDLDL, which can't
-!  tell the inertia of a Hessian with zeros on its diagonal (see
-!  `inertia_known`). On grids (`example/sparse_solvers.f90`), MUMPS
+!  inertia control needs about 45% more evaluations with QDLDL alone, which
+!  can't tell the inertia of a Hessian with zeros on its diagonal (see
+!  `inertia_known`), and the same as the others with its fallback (see
+!  below). On grids (`example/sparse_solvers.f90`), MUMPS
 !  refactors 2 to 10 times faster in 2-D and 9 to 34 times in 3-D, where
 !  the factors have large dense blocks (and its threads help), though its
 !  first factorization, with its analysis, can cost much more (72 s against
 !  4.5 s for a 2-D KKT matrix of order 735,000). So MUMPS is the better
-!  choice for the exact Hessian with inertia control, and for problems
-!  coupled in two or three dimensions that refactor many times. For a small
-!  problem with the exact Hessian and inertia control, the dense backend
-!  gives MUMPS's results (on the Hock-Schittkowski problems, 9,426
-!  evaluations against MUMPS's 9,400 and QDLDL's 13,654) at QDLDL's speed.
+!  choice for large problems with the exact Hessian and inertia control
+!  (QDLDL's fallback, without MUMPS, is only for small ones), and for
+!  problems coupled in two or three dimensions that refactor many times.
+!  For a small problem with the exact Hessian and inertia control, the
+!  dense backend gives MUMPS's results (on the Hock-Schittkowski problems,
+!  9,431 evaluations against MUMPS's 9,407 and QDLDL's 13,563 without its
+!  fallback) at QDLDL's speed, and so does QDLDL with its fallback.
 !
 !  How it is used:
 !
@@ -61,6 +64,23 @@
 !  A singular matrix is not an error: its null pivots are counted
 !  (`n_null`), and a solve then returns one of the solutions of a consistent
 !  system.
+!
+!  **Fallback** (`fallback`, `options%linear_solver_fallback`, as HiOp's
+!  "safe mode"). QDLDL doesn't pivot, so it can fail to factor a
+!  nonsingular matrix, or factor it without telling its inertia (a zero
+!  pivot that isn't a zero eigenvalue, which the exact Hessian's zeros on
+!  its diagonal cause). With `fallback`, the first time that happens the
+!  matrix is factored again by a solver that pivots, which is then kept
+!  for the rest of the solve: MUMPS in a build with it, else (for an order
+!  up to `sqpopt_fallback_max_order`, 500, so that a dense matrix of at
+!  most 4 MB is formed without being asked for) LAPACK in a build with it,
+!  else the dense backend. Without one (a larger matrix, without MUMPS),
+!  QDLDL stays. On the Hock-Schittkowski problems, with the exact Hessian
+!  and inertia control, it gives the dense solver's results (273 solved, 2
+!  failed, 9,431 evaluations, against QDLDL's 273, 4, and 13,563), and
+!  with the direct QP method too (277, 1, and 9,467, against 275, 2, and
+!  13,812); with the quasi-Newton Hessians QDLDL always tells the inertia,
+!  and nothing changes.
 
     module sqpopt_symmetric_solver_module
 
@@ -91,6 +111,10 @@
 
     public :: sqpopt_linear_solver_available, sqpopt_linear_solver_name, sqpopt_linear_solver_max_order
 
+    integer, parameter, public :: sqpopt_fallback_max_order = 500 !! the largest order of matrix for which QDLDL's
+                                                                  !! fallback (without MUMPS) is a dense solver (see
+                                                                  !! the module documentation)
+
     type, public :: sqpopt_symmetric_solver_type
         !! a sparse symmetric indefinite solver for matrices with one sparsity
         !! pattern (see the module documentation). Its backend may hold
@@ -113,7 +137,14 @@
                                                     !! memory (it stays set)
         integer,  public :: backend = 0             !! the solver in use, once initialized (`0`: none)
                                                     !! (`sqpopt_linear_solver_mumps` or `sqpopt_linear_solver_qdldl`)
+        logical,  public :: fallback = .false.      !! whether to switch to a solver that pivots when QDLDL fails
+                                                    !! or can't tell the inertia (see the module documentation)
+        logical,  public :: switched = .false.      !! whether the switch has been tried (it is tried once; `backend`
+                                                    !! says whether it was made)
         integer :: n = 0                            !! order of the matrix
+        integer :: threads = 1                      !! number of OpenMP threads (for the fallback solver)
+        integer, dimension(:), allocatable :: irow  !! the pattern's row indices (kept for the fallback solver)
+        integer, dimension(:), allocatable :: icol  !! the pattern's column indices (kept for the fallback solver)
         class(sqpopt_sparse_ldl_type), allocatable :: ldl !! the backend
 
         contains
@@ -209,8 +240,10 @@
 !  of a block that should be negative definite (the constraints of a KKT
 !  matrix), else `+1` or `0` (see [[delay_negative_rows]]). `ok` is false
 !  if the solver isn't available in this build, or couldn't be started.
+!  `fallback` (default false) is the switch of the module documentation
+!  (the pattern is then kept, for the other solver).
 
-    subroutine symmetric_solver_initialize(me, n, irow, icol, ok, threads, solver, signs)
+    subroutine symmetric_solver_initialize(me, n, irow, icol, ok, threads, solver, signs, fallback)
 
     class(sqpopt_symmetric_solver_type), intent(inout) :: me
     integer,               intent(in)  :: n    !! order of the matrix
@@ -222,6 +255,8 @@
     integer, optional,     intent(in)  :: solver  !! the sparse solver (`sqpopt_linear_solver_*`, default QDLDL)
     integer, dimension(:), optional, intent(in) :: signs !! the expected sign of each row's pivot `dimension(n)`
                                                          !! (see above)
+    logical, optional,     intent(in)  :: fallback !! whether to switch to a solver that pivots if QDLDL fails
+                                                   !! (default `.false.`)
 
     integer :: which, alloc_stat
 
@@ -256,6 +291,12 @@
     me%n       = n
     me%backend = which
     me%ready   = .true.
+    if (present(threads)) me%threads = threads
+    if (present(fallback)) me%fallback = fallback .and. which == sqpopt_linear_solver_qdldl
+    if (me%fallback) then
+        me%irow = irow
+        me%icol = icol
+    end if
 
     end subroutine symmetric_solver_initialize
 !*******************************************************************************
@@ -285,6 +326,9 @@
     call system_clock(t1)
     me%time = me%time + real(t1 - t0, wp)/real(rate, wp)
     if (me%ldl%out_of_memory) me%out_of_memory = .true.
+    if (me%fallback .and. .not. me%switched) then
+        if (.not. ok .or. .not. me%ldl%inertia_known) call switch_solver(me, val, ok)
+    end if
     if (.not. ok) return
     me%factored      = .true.
     me%n_negative    = me%ldl%n_negative
@@ -292,6 +336,66 @@
     me%inertia_known = me%ldl%inertia_known
 
     end subroutine symmetric_solver_factor
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the fallback of the module documentation: start the solver that pivots,
+!  and factor the matrix with the values `val` by it. If that works, it
+!  replaces QDLDL for good (`ok` is then its result); if not, nothing
+!  changes (`ok` is QDLDL's, on entry).
+
+    subroutine switch_solver(me, val, ok)
+
+    class(sqpopt_symmetric_solver_type), intent(inout) :: me
+    real(wp), dimension(:), intent(in)    :: val !! values of the entries `dimension(nnz)`
+    logical,                intent(inout) :: ok  !! whether the matrix is factored
+
+    class(sqpopt_sparse_ldl_type), allocatable :: other
+    integer :: which, alloc_stat
+    logical :: started, factored
+    integer(int64) :: t0, t1, rate
+
+    me%switched = .true.   ! (tried once only)
+    if (sqpopt_has_mumps) then
+        which = sqpopt_linear_solver_mumps
+    else if (me%n > min(sqpopt_fallback_max_order, dense_max_order)) then
+        return
+    else if (sqpopt_has_lapack) then
+        which = sqpopt_linear_solver_lapack
+    else
+        which = sqpopt_linear_solver_dense
+    end if
+    select case (which)
+    case (sqpopt_linear_solver_mumps)
+        allocate(sqpopt_mumps_ldl_type :: other, stat=alloc_stat)
+    case (sqpopt_linear_solver_lapack)
+        allocate(sqpopt_lapack_ldl_type :: other, stat=alloc_stat)
+    case default
+        allocate(sqpopt_dense_ldl_type :: other, stat=alloc_stat)
+    end select
+    if (alloc_stat /= 0) return
+
+    call system_clock(t0, rate)
+    call other%start(me%n, me%irow, me%icol, started, threads=me%threads)
+    factored = .false.
+    if (started) then
+        call other%refactor(val, factored)
+        me%n_factor = me%n_factor + 1
+    end if
+    call system_clock(t1)
+    me%time = me%time + real(t1 - t0, wp)/real(rate, wp)
+    if (.not. factored) then
+        call other%free()
+        return
+    end if
+    call me%ldl%free()
+    deallocate(me%ldl)
+    call move_alloc(other, me%ldl)
+    me%backend = which
+    ok = .true.
+
+    end subroutine switch_solver
 !*******************************************************************************
 
 !*******************************************************************************
@@ -401,7 +505,12 @@
         call me%ldl%free()
         deallocate(me%ldl)
     end if
+    if (allocated(me%irow)) deallocate(me%irow)
+    if (allocated(me%icol)) deallocate(me%icol)
     me%ready         = .false.
+    me%fallback      = .false.
+    me%switched      = .false.
+    me%threads       = 1
     me%factored      = .false.
     me%backend       = 0
     me%n             = 0

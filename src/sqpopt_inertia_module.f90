@@ -23,6 +23,28 @@
 !  and 3 failed, against 274 and 2, with 1% more function evaluations.
 !  Factors of 2, 4, and 16 gave 271 or 272 solved.)
 !
+!  **The curvature test** (`options%inertia_test`, see
+!  [[sqpopt_kkt_module]]). Instead of the inertia, the shift can be decided
+!  by the inertia-free test of Chiang and Zavala (as HiOp's
+!  `fact_acceptor = inertia_free`): the factorization is accepted, and the
+!  QP solved, and the shift is raised only if the QP's step `p` has too
+!  little curvature, \( p^T (H + \delta I) p < \kappa\, p^T p \) (see
+!  [[enough_curvature]]); the QP is then re-solved. With
+!  `sqpopt_inertia_test_curvature` that is always the test; with
+!  `sqpopt_inertia_test_unknown`, only where the linear solver can't tell
+!  the inertia. Before the QP solve, and in the direct QP method, there is
+!  no step to test, and the face is taken as convex. On the
+!  Hock-Schittkowski problems (QDLDL, release build), with the exact
+!  Hessian: always testing the curvature solved the most problems (277, 1
+!  failed, 12,599 evaluations, against the inertia's 273, 2, and 9,431,
+!  with the fallback of [[sqpopt_symmetric_solver_module]]; the same with
+!  MUMPS), but with the direct QP method it was worse (271 and 2 failed,
+!  against 277 and 1), and with SR1 much worse (268 and 6 failed, against
+!  275 and 1). Testing only where the inertia is unknown made no
+!  difference with the fallback (the inertia is then always known), and
+!  without it was 272 solved and 3 failed with 9,508 evaluations. So the
+!  default is the inertia (`sqpopt_inertia_test_count`).
+!
 !  This only decides the shift. The QP subproblems are solved by
 !  [[sqpopt_qp_solver_module]] with the shifted Hessian (see
 !  [[sqpopt_iterate]]), which can reuse the factorization for a direct step
@@ -73,8 +95,14 @@
 !  control isn't enabled, if a factorization failed (inertia control is then
 !  disabled for the rest of the solve), or if the largest shift,
 !  `shift_max`, isn't enough.
+!
+!  Where the KKT matrix's inertia isn't used (`kkt%curvature_needed`, see
+!  the module documentation), `step` is the QP's step for this working set
+!  and the shift on entry: if it has too little curvature, the shift is
+!  raised once (the caller then re-solves the QP, and calls this again
+!  with the new step). Without `step`, the face is taken as convex.
 
-    subroutine inertia_correct(me, kkt, hessian, jac, status, changed, ok, n_negative)
+    subroutine inertia_correct(me, kkt, hessian, jac, status, changed, ok, n_negative, step)
 
     class(sqpopt_inertia_type), intent(inout) :: me
     type(sqpopt_kkt_type),      intent(inout) :: kkt     !! the KKT matrix (see [[sqpopt_kkt_module]])
@@ -87,6 +115,10 @@
     integer, optional,          intent(out)   :: n_negative !! the number of directions of negative curvature
                                                             !! found with the shift on entry (`-1` if nothing
                                                             !! was factored)
+    real(wp), dimension(:), optional, intent(in) :: step !! the QP's step for the working set `status` and the
+                                                         !! shift on entry, for the curvature test (see above;
+                                                         !! only used where `kkt%curvature_needed`)
+                                                         !! `dimension(n)`
 
     real(wp) :: shift_max
     logical  :: first, factored
@@ -107,8 +139,13 @@
         end if
         if (first .and. present(n_negative)) n_negative = kkt%n_negative
         if (kkt%n_negative == 0) then
+            ! (where the inertia isn't used, the step's curvature decides, if
+            ! there is a step for this shift: see the module documentation)
             ok = .true.
-            exit
+            if (.not. (kkt%curvature_needed .and. present(step) .and. first)) exit
+            if (enough_curvature(hessian, step)) exit
+            ok = .false.
+            if (present(n_negative)) n_negative = 1
         end if
         if (hessian%shift >= shift_max) exit
         call me%raise(hessian)
@@ -140,6 +177,30 @@
     hessian%shift = min(shift, hessian%shift_max*hessian%magnitude())
 
     end subroutine inertia_raise
+!*******************************************************************************
+
+!*******************************************************************************
+!>
+!  the curvature test of Chiang and Zavala (as in HiOp): whether the step
+!  `p` has enough curvature along the shifted Hessian,
+!  \( p^T (H + \delta I) p \ge \kappa\, p^T p \), with \( \kappa \) =
+!  `curvature_tol` times the size of the Hessian. A zero step passes.
+
+    function enough_curvature(hessian, p) result(enough)
+
+    type(sqpopt_hessian_type), intent(inout) :: hessian !! the Hessian, with its current shift
+    real(wp), dimension(:),    intent(in)    :: p       !! the step `dimension(n)`
+    logical :: enough
+
+    real(wp), parameter :: curvature_tol = 1.0e-11_wp !! \( \kappa \), relative to the size of the Hessian (HiOp's
+                                                      !! `neg_curv_test_fact`)
+    real(wp), dimension(:), allocatable :: hp
+
+    allocate(hp(size(p)))
+    call hessian%hv_product(p, hp)
+    enough = dot_product(p, hp) >= curvature_tol*hessian%magnitude()*dot_product(p, p)
+
+    end function enough_curvature
 !*******************************************************************************
 
     end module sqpopt_inertia_module

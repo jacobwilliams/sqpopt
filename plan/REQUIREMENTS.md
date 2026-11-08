@@ -4,7 +4,7 @@
 |---|---|
 | **Product** | SQPOPT, a sequential quadratic programming solver for sparse, nonlinearly constrained optimization |
 | **Version** | 0.1.0 (`fpm.toml`) |
-| **Baseline** | commit `ac7eb7c5` (2026-10-15) |
+| **Baseline** | commit `53b81010` (2026-11-08), with the working-tree changes of that date (QDLDL's fallback, FAC-006; the curvature test, HES-009): replace by their commit |
 | **Status** | Derived from the implementation: each requirement states what the code does at the baseline |
 
 ## 1. Introduction
@@ -224,6 +224,7 @@ the solver does not depend on.
 | HES-006 | With `options%inertia_control` and the exact or SR1 Hessian, the shift shall be found from the inertia of the KKT matrix of the QP's working set, by a sparse factorization. It shall not be used with BFGS. | T | `sqpopt_inertia_module`; `test_inertia` |
 | HES-007 | With `hessian%convexify` and SR1, an indefinite matrix shall be shifted by its smallest eigenvalue before each QP, from a spectral decomposition of its compact representation that forms no \( n \times n \) or \( n \times k \) array. | T | `sqpopt_spectral_module`; `test_sr1_convexify`, `test_spectrum` |
 | HES-008 | The small eigenproblems shall be solved by `hessian%eigen_solver`: QL (any precision), Jacobi, or LAPACK's `DSYEV` (LAPACK build only); `sqpopt_eigen_auto` (default) shall select LAPACK where available, else QL. | T | `sqpopt_eigen_module`; `test_spectrum` |
+| HES-009 | With inertia control, `options%inertia_test` shall decide negative curvature: by the inertia of the KKT matrix (`sqpopt_inertia_test_count`, default); where the linear solver cannot tell the inertia (`sqpopt_inertia_test_unknown`), or always (`sqpopt_inertia_test_curvature`), by the curvature of the QP's step instead: the face shall be taken as convex until the QP is solved, and the shift raised, and the QP re-solved, if \( p^T (H + \delta I) p < 10^{-11} \max(1, \max_{ij} |H_{ij}|)\, p^T p \). | T | `sqpopt_inertia_module`, `kkt_negatives`; `test_inertia` |
 
 ### 3.9 Globalization (GLB)
 
@@ -259,10 +260,11 @@ the solver does not depend on.
 | ID | Requirement | V | Trace |
 |---|---|---|---|
 | FAC-001 | The factorization-based options (`inertia_control`, `direct_qp`, `direct_least_squares`) shall use the linear solver of `options%linear_solver`: QDLDL (`sqpopt_linear_solver_qdldl`, default, always available), MUMPS (MUMPS build), SQPOPT's dense \( LDL^T \) (`sqpopt_linear_solver_dense`), or LAPACK's `DSYTRF` (`sqpopt_linear_solver_lapack`, LAPACK build). | T | `sqpopt_symmetric_solver_module`; `test_kkt`, `test_direct`, `test_inertia` |
-| FAC-002 | Each backend shall report the inertia it can determine; QDLDL, which does not pivot, shall report a zero pivot that is not a zero eigenvalue as negative curvature. | T | `sqpopt_qdldl_ldl_module`, `sqpopt_kkt_module`; `test_kkt` |
+| FAC-002 | Each backend shall report the inertia it can determine; QDLDL, which does not pivot, shall report a zero pivot that is not a zero eigenvalue as negative curvature (unless the inertia is not used, HES-009, or the fallback of FAC-006 refactors the matrix). | T | `sqpopt_qdldl_ldl_module`, `sqpopt_kkt_module`; `test_kkt` |
 | FAC-003 | With `options%direct_least_squares`, the Gauss-Newton restoration steps and the second-order corrections shall be computed by a sparse factorization instead of LSQR. | T | `sqpopt_least_squares_module`; `test_direct` |
 | FAC-004 | `options%factorization_threads` shall set the number of OpenMP threads of MUMPS's factorizations (1 by default; 0: the OpenMP environment's setting). | I | `sqpopt_mumps_ldl_module` |
 | FAC-005 | If a sparse solver cannot be started, the solve shall continue without the option that needs it. | I | `sqpopt_solve` |
+| FAC-006 | With QDLDL and `options%linear_solver_fallback` (default on), the first time a factorization of the KKT matrix fails or cannot tell the inertia, the matrix shall be factored again by a solver that pivots, which shall be kept for the rest of the solve: MUMPS in a MUMPS build, else, for an order of at most 500 (`sqpopt_fallback_max_order`), LAPACK's `DSYTRF` in a LAPACK build, else SQPOPT's dense \( LDL^T \). Without such a solver, or if it fails, QDLDL shall be kept. | T | `symmetric_solver_factor`, `switch_solver`; `test_linear_solver_fallback`, `test_inertia` |
 
 ### 3.13 Results (RES)
 
@@ -345,7 +347,7 @@ the solver does not depend on.
 | MEM-002 | The library shall not use the `matmul` intrinsic; dense products shall be computed by `dense_matvec` and `dense_matmul` into arrays allocated by the caller. | D | `sqpopt_dense_product_module`; `tools/stack_check.sh` (fails on a use) |
 | MEM-003 | Outside the dense QP solver and its linear algebra, no array temporary whose size grows with the problem shall be created (array expressions as actual arguments, constructors, or array-valued function results of that size shall be assigned to work arrays first). | I | `tools/stack_check.sh` (lists the temporaries for review) |
 | MEM-004 | Work arrays of a routine called in an inner loop shall be kept between calls (in a type or by the host procedure), so that the call allocates nothing. | I | `src/` |
-| MEM-005 | No dense \( n \times n \) or \( m \times n \) array shall be formed, except in the dense QP solver, the DAQP mode, and the dense linear solvers (`sqpopt_linear_solver_dense`, `sqpopt_linear_solver_lapack`, limited to an order of 2,000). | I | `src/` |
+| MEM-005 | No dense \( n \times n \) or \( m \times n \) array shall be formed, except in the dense QP solver, the DAQP mode, and the dense linear solvers (`sqpopt_linear_solver_dense`, `sqpopt_linear_solver_lapack`, limited to an order of 2,000, and as QDLDL's fallback, FAC-006, to an order of 500). | I | `src/` |
 
 ### 4.2 State and reentrancy (STA)
 
@@ -435,6 +437,8 @@ the solver does not depend on.
 | `direct_least_squares` | `.false.` | |
 | `factorization_threads` | 1 | \( \ge 0 \) |
 | `linear_solver` | `sqpopt_linear_solver_qdldl` | `_qdldl`, `_dense`, `_mumps` (MUMPS build), `_lapack` (LAPACK build); order limit, VAL-007 |
+| `linear_solver_fallback` | `.true.` | (FAC-006) |
+| `inertia_test` | `sqpopt_inertia_test_count` | `sqpopt_inertia_test_count`, `_unknown`, `_curvature` (HES-009) |
 | `lbfgs_memory` | 0 (automatic) | \( \ge 0 \) |
 | `qp_solver_mode` | `sqpopt_qp_auto` | `sqpopt_qp_auto`, `_dense`, `_reduced_hessian`, `_daqp` |
 | `linesearch_mode` | `sqpopt_linesearch_filter` | `_armijo`, `_exact`, `_watchdog`, `_filter`, `_funnel` |
@@ -488,3 +492,6 @@ These are behaviors of the baseline that a future requirement may change (see `p
   problem).
 * A crawl at a constant step length just above `xtol` is not detected as a stall (ROADMAP F34, case 2).
 * 25 HS problems end at a local solution with the default options (PRF-001).
+* Without MUMPS, QDLDL's fallback (FAC-006) is limited to an order of 500, so on a larger problem with the
+  exact Hessian and inertia control, QDLDL counts the zero pivots it cannot resolve as negative curvature,
+  and shifts the Hessian more than needed.
