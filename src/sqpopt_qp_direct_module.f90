@@ -55,6 +55,19 @@
 !  Hessian (the shift only ever increases, so this can't cycle). Without
 !  it, the method gives up at such a face.
 !
+!  Two opt-in settings (both off by default) are for large steps, whose
+!  solves satisfy the working set's rows only to roundoff relative to the
+!  terms of their linearization (\( |J_i| \, |p| \), which can be far larger
+!  than the rows' targets). With `relative`, the rows (those of the working
+!  set, and those a step violates) are tested relative to those terms, as the
+!  stationarity residual already is. With `accept_inexact`, a face whose step
+!  is optimal and feasible but doesn't satisfy its rows to the tolerance is
+!  accepted as the QP's (inexact) solution, instead of handing the QP to the
+!  active-set solver: the next SQP iteration corrects the step's error, and on
+!  large equality-constrained problems the active-set solver can be very slow.
+!  (A 20-year halo orbit problem, with 31,367 variables and 26,880 equality
+!  rows, had faces whose rows were met only to `1e-5` for steps of size 1.)
+!
 !  The factorization can't be updated when the working set changes: every
 !  change is a new factorization. That is cheap next to the active-set
 !  solvers on large problems (their iterations each solve with the reduced
@@ -96,6 +109,9 @@
     integer, parameter, public :: sqpopt_direct_max_changes = 3 !! too many changes of the working set
     integer, parameter, public :: sqpopt_direct_failed     = 4 !! a factorization or a solve failed
     integer, parameter, public :: sqpopt_direct_inaccurate = 5 !! a solve was too inaccurate
+    integer, parameter, public :: sqpopt_direct_solved_inexact = 6 !! it found the QP's solution, but the step
+                                                                   !! satisfies the working set's rows only
+                                                                   !! approximately (with `accept_inexact`)
 
     contains
 !*******************************************************************************
@@ -105,12 +121,13 @@
 !  try to solve the QP subproblem directly (see the module documentation),
 !  starting from the working set `status`. If it succeeds
 !  (`outcome = sqpopt_direct_solved`), `p` and `lambda` are the QP's
-!  solution and `status` its working set. Otherwise they are not to be
-!  used, `status` is unchanged, and `outcome` says why it gave up (see the
-!  `sqpopt_direct_*` constants).
+!  solution and `status` its working set (also with
+!  `outcome = sqpopt_direct_solved_inexact`, see `accept_inexact`). Otherwise
+!  they are not to be used, `status` is unchanged, and `outcome` says why it
+!  gave up (see the `sqpopt_direct_*` constants).
 
     subroutine direct_qp_step(kkt, hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, max_changes, tol, &
-                              status, p, lambda, n_changes, outcome, inertia)
+                              status, p, lambda, n_changes, outcome, inertia, relative, accept_inexact)
 
     type(sqpopt_kkt_type),      intent(inout) :: kkt     !! the KKT matrix (see [[sqpopt_kkt_module]])
     type(sqpopt_hessian_type),  intent(inout) :: hessian !! the Hessian (exact, with its shift, or quasi-Newton)
@@ -134,12 +151,20 @@
     integer,                    intent(out)   :: outcome   !! how it ended (a `sqpopt_direct_*` constant)
     type(sqpopt_inertia_type), optional, intent(inout) :: inertia !! the inertia control, to raise the Hessian's shift
                                                                   !! at a nonconvex face (used if `inertia%enabled`)
+    logical, optional, intent(in) :: relative       !! test the rows relative to the terms of their linearization,
+                                                    !! \( \max(1, |b_i|, |J_i| \, |p|) \), not \( \max(1, |b_i|) \)
+                                                    !! (default `.false.`; see the module documentation)
+    logical, optional, intent(in) :: accept_inexact !! accept a face whose step only fails to satisfy the working
+                                                    !! set's rows to the tolerance, with
+                                                    !! `outcome = sqpopt_direct_solved_inexact` (default `.false.`)
 
     integer :: n, m, i, j, k
     integer, dimension(:), allocatable :: st, st_new
     real(wp), dimension(:), allocatable :: v
     real(wp), dimension(:), allocatable :: p_fixed, hp, z
     real(wp), dimension(:), allocatable :: jp
+    real(wp), dimension(:), allocatable :: jp_abs  !! \( |J| \, |p| \), the size of the terms of each row's linearization
+    logical  :: rel, inexact_ok
     real(wp) :: dual_tol, lin
     logical  :: ok, convex, shifted, consistent
     logical  :: regularized !! whether the current face's KKT matrix is singular, and so regularized
@@ -147,7 +172,11 @@
     real(wp) :: reg, target, jmax
 
     allocate(st(size(status)), st_new(size(status)))
-    allocate(v(size(x) + size(c)), p_fixed(size(x)), hp(size(x)), z(size(x)), jp(size(c)))
+    allocate(v(size(x) + size(c)), p_fixed(size(x)), hp(size(x)), z(size(x)), jp(size(c)), jp_abs(size(c)))
+    rel = .false.
+    if (present(relative)) rel = relative
+    inexact_ok = .false.
+    if (present(accept_inexact)) inexact_ok = accept_inexact
 
     n = size(x)
     m = size(c)
@@ -227,6 +256,12 @@
         call sparse_matvec_transpose(jac, lambda, z)
         z = g + hp - z
         call sparse_matvec(jac, p, jp)
+        jp_abs = 0.0_wp
+        if (rel) then
+            do k = 1, jac%nnz
+                jp_abs(jac%irow(k)) = jp_abs(jac%irow(k)) + abs(jac%val(k)*p(jac%icol(k)))
+            end do
+        end if
 
         ! (the step must satisfy the stationarity condition in the free
         ! variables: this checks the accuracy of the solve. The residual is
@@ -252,12 +287,12 @@
             if (st(i) /= 0) then
                 ! (a regularized face may not satisfy its rows)
                 target = merge(c_lb(i), c_ub(i), st(i) < 0)
-                if (abs(lin - target) > tol*max(1.0_wp, abs(target))) consistent = .false.
+                if (abs(lin - target) > tol*max(1.0_wp, abs(target), jp_abs(i))) consistent = .false.
             end if
             if (st(i) == 0) then
-                if (lin < c_lb(i) - tol*max(1.0_wp, abs(c_lb(i)))) then
+                if (lin < c_lb(i) - tol*max(1.0_wp, abs(c_lb(i)), jp_abs(i))) then
                     st_new(i) = -1
-                else if (lin > c_ub(i) + tol*max(1.0_wp, abs(c_ub(i)))) then
+                else if (lin > c_ub(i) + tol*max(1.0_wp, abs(c_ub(i)), jp_abs(i))) then
                     st_new(i) = 1
                 end if
             else if (c_ub(i) - c_lb(i) > 0.0_wp) then
@@ -281,6 +316,10 @@
                 ! (only the rows are not satisfied: perhaps because of the regularization)
                 fine = .true.
                 cycle
+            else if (.not. consistent .and. inexact_ok .and. sqpopt_all_finite(p) .and. sqpopt_all_finite(lambda)) then
+                ! (optimal and feasible, but the rows are only met approximately: accepted)
+                outcome = sqpopt_direct_solved_inexact
+                status  = st
             else if (.not. consistent) then
                 ! (the working set's rows are inconsistent, and nothing can be dropped)
                 outcome = sqpopt_direct_singular
@@ -315,6 +354,7 @@
 
     select case (outcome)
     case (sqpopt_direct_solved);      text = 'solved'
+    case (sqpopt_direct_solved_inexact); text = 'solved (rows met approximately)'
     case (sqpopt_direct_nonconvex);   text = 'a face is nonconvex'
     case (sqpopt_direct_singular);    text = 'a face is singular'
     case (sqpopt_direct_max_changes); text = 'too many changes of the working set'

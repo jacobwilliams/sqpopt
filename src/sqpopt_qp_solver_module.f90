@@ -79,7 +79,7 @@
     use sqpopt_spectral_module,  only: sqpopt_spectrum_type, sqpopt_spectrum_ok
     use sqpopt_kkt_module,       only: sqpopt_kkt_type
     use sqpopt_inertia_module,   only: sqpopt_inertia_type
-    use sqpopt_qp_direct_module, only: direct_qp_step, sqpopt_direct_solved
+    use sqpopt_qp_direct_module, only: direct_qp_step, sqpopt_direct_solved, sqpopt_direct_solved_inexact
 
     implicit none
 
@@ -134,6 +134,14 @@
                                            !! factorization) without reaching the solution
         real(wp) :: direct_tol = 1.0e-8_wp !! the direct method's relative tolerance for a violated row or
                                            !! bound, and for the sign of a multiplier
+        logical :: direct_relative_tol = .false. !! with `direct`: test the rows relative to the terms of their
+                                                 !! linearization, \( \max(1, |b_i|, |J_i| \, |p|) \), instead of
+                                                 !! \( \max(1, |b_i|) \), for large steps (see
+                                                 !! [[sqpopt_qp_direct_module]]). Off by default
+        logical :: direct_accept_inexact = .false. !! with `direct`: accept a face whose step is optimal and feasible
+                                                   !! but satisfies the working set's rows only approximately, instead
+                                                   !! of running the active-set solver (the SQP iterations correct
+                                                   !! the step). Off by default
         logical :: direct_used = .false.   !! whether the last QP was solved by the direct method (output)
         integer :: direct_outcome = -1     !! how the direct method ended in the last QP solve: a `sqpopt_direct_*`
                                            !! constant (see [[sqpopt_qp_direct_module]]), or `-1` if it wasn't
@@ -334,9 +342,11 @@
         t_kkt = kkt%solver%time
         call me%starting_working_set(x_lb, x_ub, c_lb, c_ub, status)
         call direct_qp_step(kkt, hessian, jac, x, g, c, x_lb, x_ub, c_lb, c_ub, me%direct_max_changes, &
-                            me%direct_tol, status, p, lambda, me%direct_changes, me%direct_outcome, inertia=inertia)
+                            me%direct_tol, status, p, lambda, me%direct_changes, me%direct_outcome, inertia=inertia, &
+                            relative=me%direct_relative_tol, accept_inexact=me%direct_accept_inexact)
         t_kkt = kkt%solver%time - t_kkt
-        me%direct_used = me%direct_outcome == sqpopt_direct_solved
+        me%direct_used = me%direct_outcome == sqpopt_direct_solved .or. &
+                         me%direct_outcome == sqpopt_direct_solved_inexact
         if (.not. me%direct_used) return
         istat = sqpopt_success
         me%n_direct  = me%n_direct + 1
