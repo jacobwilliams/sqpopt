@@ -116,6 +116,20 @@
         real(wp) :: lsqr_btol   = 0.0_wp !! `LSQR` relative error tolerance in `b` (0 => `LSQR` default)
         real(wp) :: lsqr_conlim = 0.0_wp !! `LSQR` upper limit on `cond(Abar)` (0 => `LSQR` default)
         integer  :: lsqr_itnlim = 0      !! `LSQR` maximum iterations per solve (`<=0` => `2*(rows+columns)+10`)
+        real(wp) :: basis_rel_tol = 1.0e-8_wp !! with `null_space=sqpopt_null_space_lu`: the relative singularity
+                                              !! tolerance of the rank-revealing factorization that picks the
+                                              !! basis (see [[choose_basis]]). A smaller value accepts a basis
+                                              !! closer to singular
+        logical  :: basis_repair = .false. !! with `null_space=sqpopt_null_space_lu`: if the basis picked has
+                                           !! fewer columns than rows (LUSOL marked some of its pivots as too
+                                           !! small, or left rows without a pivot), complete it with the slacks
+                                           !! of those rows, as MINOS and SNOPT do, instead of giving up on the
+                                           !! method (see [[choose_basis]])
+        real(wp) :: basis_eq_slack_weight = 1.0e-6_wp !! with `null_space=sqpopt_null_space_lu`: the weight of
+                                              !! the slacks of the equality rows when the basis is picked (relative
+                                              !! to the free columns' `1`; see [[choose_basis]]). A larger value
+                                              !! lets the slack of a row that depends on the others stand in for
+                                              !! it, so that the basis is square and nonsingular
 
         logical  :: warm_start = .true.  !! start from the previous solve's final working set, if the problem
                                          !! size is unchanged (see [[sqpopt_qp_dense_module]]: the crash and
@@ -651,7 +665,8 @@
                 ! the basis (dropping dependent guesses), and the basic solution:
                 w = 0.0_wp
                 if (m > 0) then
-                    call choose_basis(m, nc, n, ptr, cr, cv, st_v, eqv, chosen, stat)
+                    call choose_basis(m, nc, n, ptr, cr, cv, st_v, eqv, chosen, stat, &
+                                      me%basis_rel_tol, me%basis_eq_slack_weight, me%basis_repair)
                     if (stat /= 0) return
                     where (chosen) st_v = 0
                 end if
@@ -915,7 +930,8 @@
             if (is_eqv(j)) state(j) = -1
         end do
         if (m > 0) then
-            call choose_basis(m, nn, nt, cptr, crow, cval, state, is_eqv, chosen, st)
+            call choose_basis(m, nn, nt, cptr, crow, cval, state, is_eqv, chosen, st, &
+                              me%basis_rel_tol, me%basis_eq_slack_weight, me%basis_repair)
             if (st /= 0 .or. count(chosen) /= m) return
             k = 0
             do j = 1, nn
@@ -1705,8 +1721,14 @@
 !
 !  (Normalizing the columns instead can make a poor basis: e.g. a variable
 !  with a single small entry would become a unit column.)
+!
+!  With `repair`, a basis with fewer than `m` columns (LUSOL marked some
+!  pivots as too small for `rel_tol`, or left rows without a pivot) is
+!  completed with the slack columns of those rows (see `repair_rows` of
+!  [[independent_columns]]), as MINOS and SNOPT repair a singular basis,
+!  instead of being reported as a failure.
 
-    subroutine choose_basis(m, nn, nx, cptr, crow, cval, state, is_eqv, chosen, istat)
+    subroutine choose_basis(m, nn, nx, cptr, crow, cval, state, is_eqv, chosen, istat, rel_tol, eq_slack_weight, repair)
 
     integer,                intent(in)  :: m      !! number of rows
     integer,                intent(in)  :: nn     !! number of columns (unknowns)
@@ -1718,13 +1740,25 @@
     logical,  dimension(:), intent(in)  :: is_eqv !! unknowns with equal bounds
     logical,  dimension(:), intent(out) :: chosen !! the basic columns
     integer,                intent(out) :: istat  !! 0 if exactly `m` columns were picked
+    real(wp), optional,     intent(in)  :: rel_tol         !! the factorization's relative singularity tolerance
+                                                           !! (default `1e-8`)
+    real(wp), optional,     intent(in)  :: eq_slack_weight !! the weight of the unknowns with equal bounds (the
+                                                           !! equality rows' slacks; default `1e-6`)
+    logical,  optional,     intent(in)  :: repair          !! complete a short basis with the slacks of the rows
+                                                           !! that need them (default `.false.`)
 
     real(wp), dimension(:), allocatable :: wv
     integer, dimension(:), allocatable :: wc
     real(wp), dimension(:), allocatable :: rn
-    real(wp) :: wt
+    real(wp) :: wt, tol_rel, w_eq
+    logical  :: do_repair
+    logical, dimension(:), allocatable :: rrows
     integer  :: j, l
 
+    tol_rel = 1.0e-8_wp
+    if (present(rel_tol)) tol_rel = rel_tol
+    w_eq = 1.0e-6_wp
+    if (present(eq_slack_weight)) w_eq = eq_slack_weight
     allocate(wv(size(cval)), wc(size(cval)), rn(m))
 
     rn = 0.0_wp
@@ -1739,7 +1773,7 @@
         if (state(j) == 0) then
             wt = 1.0_wp
         else if (is_eqv(j)) then
-            wt = 1.0e-6_wp
+            wt = w_eq
         else if (j <= nx) then
             wt = 1.0e-4_wp
         else
@@ -1751,7 +1785,27 @@
         end do
         if (j > nx .and. state(j) == 0) wv(cptr(j)) = -1.0_wp
     end do
-    call independent_columns(m, nn, crow, wc, wv, 1.0e-8_wp, 1.0e-6_wp*epsilon(1.0_wp)**0.67_wp, chosen, istat)
+    do_repair = .false.
+    if (present(repair)) do_repair = repair
+    if (do_repair) then
+        allocate(rrows(m))
+        call independent_columns(m, nn, crow, wc, wv, tol_rel, 1.0e-6_wp*epsilon(1.0_wp)**0.67_wp, chosen, istat, &
+                                 repair_rows=rrows)
+        if (istat == 0 .and. count(chosen) < m) then
+            ! basis repair: the slack column of each row that needs one (a column after
+            ! the variables, `j > nx`, with a single entry in that row)
+            do j = nx+1, nn
+                if (cptr(j+1) - cptr(j) /= 1) cycle
+                l = crow(cptr(j))
+                if (rrows(l) .and. .not. chosen(j)) then
+                    chosen(j) = .true.
+                    rrows(l)  = .false.
+                end if
+            end do
+        end if
+    else
+        call independent_columns(m, nn, crow, wc, wv, tol_rel, 1.0e-6_wp*epsilon(1.0_wp)**0.67_wp, chosen, istat)
+    end if
     if (istat == 0 .and. count(chosen) /= m) istat = -1
 
     end subroutine choose_basis
