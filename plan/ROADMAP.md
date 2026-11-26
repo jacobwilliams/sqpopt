@@ -1144,6 +1144,31 @@ which is now double precision only.
   inner products for discretized function spaces, designed with OPTGRA's
   variable scaling; and checkpoints of the solver state.
 
+- **Ideas from KSOPT** *(not implemented; from `references/19890007408.pdf`,
+  Wrenn, NASA CR-4220, 1989; reviewed 2026-11-26)*: KSOPT is a SUMT
+  method. It folds the objectives (each rescaled at every iteration to
+  `F_m/F_m0 - 1 - g_max`) and the inequality constraints into one smooth
+  envelope, the Kreisselmeier-Steinhauser function
+  `KS = f_max + log(sum exp(rho*(f_k - f_max)))/rho` (between `f_max` and
+  `f_max + log(K)/rho`, with `rho` raised from 5 to 100), and minimizes it
+  with DFP and a quadratic line search. Most of it doesn't apply: SQP
+  meets the constraints exactly where KS only approximates their maximum
+  (with a Hessian that gets worse as `rho` grows), there are no equality
+  constraints, and the bounds, line search, stopping test, and scaling
+  are things sqpopt already has. What is worth having is the problem it
+  solves: **several objectives at once** (a compromise design, such as
+  minimum weight and cost, in one solve), and minimax problems in general.
+  In an SQP code this is the epigraph form, not KS: a layer like
+  `sqpopt_nlls_type` that adds a variable `z`, minimizes it subject to
+  `w_m*(F_m(x) - F_m*) <= z` (goal attainment, with targets and weights
+  given by the user, or `F_m* = 0` and `w_m = 1/|F_m(x0)|` for KSOPT's
+  normalization) and the problem's constraints, and leaves the solver
+  unchanged. The minimax part is the same device as the maximum norm in
+  F20's maximum norm (from DFNLP), not yet done. KSOPT's compromise is not a
+  fixed problem (the scaling changes every iteration), so fixed weights
+  are the right definition. KS aggregation of many constraints into one
+  is not worth it here: the sparse QP handles many constraints directly.
+
 - **F1: a real QP as the default, and a real large-scale QP.** *(Done
   2026-09-26; see "Phase 4 status".)* The
   composite step was removed (2026-09-26; it couldn't survive the B2
