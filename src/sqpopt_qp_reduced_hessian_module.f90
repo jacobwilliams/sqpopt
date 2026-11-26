@@ -36,7 +36,13 @@
 !      backtracking), and at a face optimum every wrongly-signed fixed
 !      unknown is freed at once (the worst one only, in the second half of
 !      the iteration limit, against cycling). Both matter on infeasible
-!      starts, where many constraints change status in one QP.
+!      starts, where many constraints change status in one QP;
+!    - the basis is picked by one rank-revealing `LUSOL` factorization (see
+!      [[choose_basis]]). If that leaves it short of square (pivots too
+!      small for `basis_rel_tol`), the QP is solved by the LSQR method
+!      instead, unless `basis_repair` completes the basis with the slacks
+!      of the rows left without a basic column, as MINOS and SNOPT do
+!      (`basis_used` tells which method solved the last QP).
 !  * `sqpopt_null_space_lsqr`: orthogonal projections onto the null space,
 !    each a least-squares solve with `LSQR`, with **projected conjugate
 !    gradients** (Gould, Hribar & Nocedal 1998; Nocedal & Wright,
@@ -150,6 +156,9 @@
         integer :: n_slacks  = 0 !! number of elastic slacks in the last solve (output; see the module docs)
         logical :: negative_curvature = .false. !! whether the last solve found a direction of negative curvature
                                                 !! of the Hessian in the variables (output; the QP was nonconvex)
+        logical :: basis_used = .false. !! whether the last solve was done by the basis method (output; `.false.`
+                                        !! with `null_space=sqpopt_null_space_lsqr`, or if the basis method failed
+                                        !! and the QP was solved by the LSQR method)
         logical :: keep_slacks = .false. !! whether to keep the elastic slacks of each solve in `slack_row` and
                                          !! `slack_value` (internal input, set by the solver for its diagnostics:
                                          !! see `options%diagnostic_level`)
@@ -235,6 +244,7 @@
     m = size(c)
 
     me%negative_curvature = .false.
+    me%basis_used = .false.
     me%n_working = 0
     me%n_slacks  = 0
 
@@ -313,6 +323,7 @@
     ! ---- the basis method (the default), falling back to the LSQR method if it fails ----
     if (me%null_space == sqpopt_null_space_lu) then
         call basis_active_set(lu_ok)
+        me%basis_used = lu_ok
         if (lu_ok) return
         u(1:n)    = p0
         u(n+1:nt) = s0

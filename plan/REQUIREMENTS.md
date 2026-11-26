@@ -4,7 +4,7 @@
 |---|---|
 | **Product** | SQPOPT, a sequential quadratic programming solver for sparse, nonlinearly constrained optimization |
 | **Version** | 0.1.0 (`fpm.toml`) |
-| **Baseline** | commit `53b81010` (2026-11-08), with the working-tree changes of that date (QDLDL's fallback, FAC-006; the curvature test, HES-009): replace by their commit |
+| **Baseline** | commit `55e84dd9` (2026-11-25), with the working-tree changes of 2026-11-26 (the sparse QP's basis settings, QP-010; the direct method's tolerance settings, QP-011): replace by their commit |
 | **Status** | Derived from the implementation: each requirement states what the code does at the baseline |
 
 ## 1. Introduction
@@ -211,6 +211,8 @@ the solver does not depend on.
 | QP-007 | `sqpopt_qp_reduced_hessian` shall be a sparse active-set method using matrix-free Hessian products and projected conjugate gradients on the reduced Hessian, with a null-space basis from a sparse LU partition (`sqpopt_null_space_lu`, default) or from LSQR projections (`sqpopt_null_space_lsqr`). | T | `sqpopt_qp_reduced_hessian_module`; `test_qp_reduced_hessian`, `test_qp_fuzz`, `test_sparse_options` |
 | QP-008 | `sqpopt_qp_daqp` shall solve convex QPs with the DAQP dual active-set solver, and solve with the dense QP solver every QP that DAQP does not solve (nonconvex, inconsistent, or a forced elastic re-solve), counting these in `n_daqp_fallbacks`. | T | `sqpopt_qp_daqp_module`; `test_qp_daqp` |
 | QP-009 | With `options%direct_qp`, each QP shall first be tried by sparse factorizations of the KKT matrix of its working set, starting from the previous QP's working set; the active-set solver shall run only if that does not give the solution within `qp_solver%direct_max_changes` (default 10) changes of the working set. | T | `sqpopt_qp_direct_module`; `test_direct` |
+| QP-010 | With `null_space = sqpopt_null_space_lu`, the sparse QP solver shall pick its basis by one rank-revealing LUSOL factorization with the relative singularity tolerance `qp_solver%sparse_qp%basis_rel_tol` (default \( 10^{-8} \)) and the equality slacks' column weight `basis_eq_slack_weight` (default \( 10^{-6} \)), retrying the factorization with doubled workspace up to 8 times while LUSOL reports insufficient storage. If the basis has fewer than \( m \) columns, the QP shall be solved by the LSQR method, unless `basis_repair` (default off) is set, in which case the slack of each row without an accepted pivot shall complete the basis, and the basis method shall solve the QP if that basis can be factorized. `basis_used` shall tell whether the last QP was solved by the basis method. | T | `choose_basis`, `independent_columns`; `test_basis_repair` |
+| QP-011 | With `options%direct_qp`, `qp_solver%direct_relative_tol` (default off) shall test the working set's rows and the violated rows relative to \( \max(1, \lvert b_i \rvert, \lvert J_i \rvert \, \lvert p \rvert) \) instead of \( \max(1, \lvert b_i \rvert) \), and `qp_solver%direct_accept_inexact` (default off) shall accept a face whose step is optimal and feasible but satisfies its rows only approximately (outcome `sqpopt_direct_solved_inexact`) instead of running the active-set solver. | T | `direct_qp_step`; `test_direct_tolerances` |
 
 ### 3.8 Hessian of the Lagrangian (HES)
 
@@ -478,7 +480,7 @@ the solver does not depend on.
 | `trust_region` (if `enabled`) | `0 < radius_min <= radius0 <= radius_max` (defaults \( 10^{-8} \), 1, \( 10^3 \)); `0 < eta1 <= eta2 < 1`; `shrink_factor` in \( (0,1) \); `expand_factor` \( \ge 1 \); `max_retries` (default 20) \( \ge 1 \) |
 | `qp_solver` | `max_step` (default 2) \( > 0 \); `auto_dense_max_n` (default 200) \( \ge 0 \); `direct_max_changes` (default 10) \( \ge 0 \); `direct_tol` (default \( 10^{-8} \)) \( > 0 \) |
 | `qp_solver%dense_qp` | `active_tol`, `opt_tol`, `feas_tol`, `elastic_weight` \( > 0 \); `elastic_weight_max` \( \ge \) `elastic_weight`; `max_iter` \( \ge 1 \) |
-| `qp_solver%sparse_qp` | `active_tol`, `opt_tol`, `feas_tol`, `pcg_rtol`, `elastic_weight` \( > 0 \); `elastic_weight_max` \( \ge \) `elastic_weight`; `lsqr_atol`, `lsqr_btol`, `lsqr_conlim` \( \ge 0 \); `max_iter` \( \ge 1 \); `dense_max_ns` \( \ge 0 \); `null_space` `sqpopt_null_space_lu` or `_lsqr` |
+| `qp_solver%sparse_qp` | `active_tol`, `opt_tol`, `feas_tol`, `pcg_rtol`, `elastic_weight` \( > 0 \); `elastic_weight_max` \( \ge \) `elastic_weight`; `lsqr_atol`, `lsqr_btol`, `lsqr_conlim` \( \ge 0 \); `basis_rel_tol` (default \( 10^{-8} \)), `basis_eq_slack_weight` (default \( 10^{-6} \)) \( > 0 \); `max_iter` \( \ge 1 \); `dense_max_ns` \( \ge 0 \); `null_space` `sqpopt_null_space_lu` or `_lsqr` |
 | `qp_solver%daqp_qp` | `primal_tol`, `dual_tol` \( > 0 \); `max_iter` \( \ge 1 \) |
 | `hessian` | `eigen_solver` `sqpopt_eigen_auto`, `_jacobi`, `_ql`, or `_lapack` (LAPACK build) |
 

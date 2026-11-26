@@ -176,6 +176,14 @@ program test_input_validation
         call expect_invalid('qp_solver%direct_max_changes = -1', problem, default_options, [0.0_wp, 0.0_wp], &
                             qp_solver=qp)
         qp = default_qp_solver
+        qp%sparse_qp%basis_rel_tol = 0.0_wp
+        call expect_invalid('qp_solver%sparse_qp%basis_rel_tol = 0', problem, default_options, [0.0_wp, 0.0_wp], &
+                            qp_solver=qp)
+        qp = default_qp_solver
+        qp%sparse_qp%basis_eq_slack_weight = -1.0_wp
+        call expect_invalid('qp_solver%sparse_qp%basis_eq_slack_weight < 0', problem, default_options, &
+                            [0.0_wp, 0.0_wp], qp_solver=qp)
+        qp = default_qp_solver
         qp%daqp_qp%primal_tol = 0.0_wp
         call expect_invalid('qp_solver%daqp_qp%primal_tol = 0', problem, default_options, [0.0_wp, 0.0_wp], &
                             qp_solver=qp)

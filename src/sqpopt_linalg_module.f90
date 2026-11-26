@@ -136,6 +136,7 @@
 
     independent = .false.
     istat = 0
+    if (present(repair_rows)) repair_rows = .true.   ! (no columns kept: every row needs its slack)
     if (ncols == 0) return
     if (nrows == 0 .or. size(val) == 0) return   ! (every column is zero)
 
