@@ -1,0 +1,1268 @@
+<!-- -*- mode: jinja2 -*- -->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- sqpopt theme: set before the page is drawn; the guide's choice (the same
+         localStorage key, on the same site), or else the system's -->
+    <script>
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('sqpopt-theme'); } catch (e) {}
+        if (t !== 'dark' && t !== 'light') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-bs-theme', t);
+      })();
+    </script>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta name="description" content="Modern Fortran SQP OPTimizer">
+    <meta name="author" content="Jacob Williams" >
+    <link rel="icon" href="../favicon.png">
+
+    <title>sqpopt_dense_product_module.F90 &ndash; sqpopt</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <!-- Font Awesome -->
+    <link href="../css/fontawesome.min.css" rel="stylesheet">
+    <link href="../css/brands.min.css" rel="stylesheet">
+    <link href="../css/regular.min.css" rel="stylesheet">
+    <link href="../css/solid.min.css" rel="stylesheet">
+    <link href="../css/v4-font-face.min.css" rel="stylesheet">
+    <link href="../css/v4-shims.min.css" rel="stylesheet">
+    <!-- MathJax -->
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        TeX: { equationNumbers: { autoNumber: "AMS" } }
+      });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@2.7.9/MathJax.js?config=TeX-AMS-MML_HTMLorMML" async
+            integrity="sha256-DViIOMYdwlM/axqoGDPeUyf0urLoHMN4QACBKyB58Uw=" crossorigin="anonymous"></script>
+    <!-- Other scripts and stylesheets -->
+    <link href="../css/local.css" rel="stylesheet">
+    <link href="../css/pygments.css" rel="stylesheet">
+      <link href="../css/user.css" rel="stylesheet">
+    <script src="../js/svg-pan-zoom.min.js"></script>
+  </head>
+
+  <body>
+
+    <!-- Fixed navbar -->
+    <div class="container-fluid mb-sm-4 mb-xl-2">
+      <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+          <a class="navbar-brand" href="../index.html">sqpopt </a>
+          <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbar"
+                  aria-expanded="false" aria-controls="navbar" aria-label="Toggle navigation">
+                  <span class="navbar-toggler-icon">
+          </button>
+
+          <div id="navbar" class="navbar-collapse collapse">
+            <ul class="navbar-nav">
+                  <li class="nav-item">
+                    <a class="nav-link" href="../lists/files.html">Source Files</a>
+                  </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/modules.html">Modules</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/procedures.html">Procedures</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/absint.html">Abstract Interfaces</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/types.html">Derived Types</a>
+                </li>
+            </ul>
+              <div class="d-flex align-items-end flex-grow-1">
+                <form action="../search.html" role="search" class="ms-auto">
+                  <input type="text" class="form-control" aria-label="Search" placeholder="Search" name="q" id="tipue_search_input" autocomplete="off" required>
+                </form>
+              </div>
+            <!-- sqpopt theme: the light/dark button -->
+            <button type="button" class="btn nav-link theme-toggle ms-lg-3" aria-label="Toggle dark mode" title="Toggle dark mode">
+              <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg>
+              <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div><!--/.nav-collapse -->
+        </div>
+      </nav>
+    </div>
+
+    <div class="container">
+  <div class="row">
+    <h1>sqpopt_dense_product_module.F90
+      <small>Source File</small>
+      
+    </h1>
+      <div class="container p-2 mb-4 bg-light border rounded-3">
+    <div class="row align-items-center justify-content-between" id="info-bar">
+      <div class="col">
+        <ul class="list-inline" style="margin-bottom:0px;display:inline">
+
+            <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
+              <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
+                 title=" 0.8% of total for source files.">94 statements</a>
+            </li>
+
+            <li class="list-inline-item" id="source-file">
+              <i class="fa fa-code"></i>
+              <a href="../src/sqpopt_dense_product_module.F90"> Source File</a>
+            </li>
+        </ul>
+      </div>
+      <div class="col">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb justify-content-end mb-0">
+            <li class="breadcrumb-item active" aria-current="page">sqpopt_dense_product_module.F90</li>
+          </ol>
+        </nav>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Enable Bootstrap tooltips
+    (function () {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+      const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+    })();
+  </script>
+
+  </div>
+  <div class="row">
+    <div class="col-md-3 hidden-xs hidden-sm visible-md visible-lg">
+        <div id="sidebar">
+      <h3>Contents</h3>
+  
+  
+  
+  
+  
+      <div class="card mb-4">
+      <a data-bs-toggle="collapse" href="#mods-0"
+         aria-expanded="false" aria-controls="mods-0">
+         <h4 class="card-header bg-primary text-white">Modules</h4>
+      </a>
+      <div id="mods-0" class="collapse">
+        <div class="list-group list-group-flush">
+            <a class="list-group-item" href="../module/sqpopt_dense_product_module.html">sqpopt_dense_product_module</a>
+        </div>
+      </div>
+    </div>
+
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+    <div class="card card-primary">
+      <div class="card-header text-left"><h3 class="card-title">Source Code</h3></div>
+      <div class="list-group">
+        <a class="list-group-item" href="../sourcefile/sqpopt_dense_product_module.f90.html#src">sqpopt_dense_product_module.F90</a>
+      </div>
+    </div>
+
+
+  </div>
+
+    </div>
+    <div class="col-md-9" id='text'>
+      
+      <br>
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">This file depends on</h3>
+          </div>
+          <div class="card-body">
+            <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: sourcefile~~sqpopt_dense_product_module.f90~~EfferentGraph Pages: 1 -->
+<svg id="sourcefilesqpopt_dense_product_modulef90EfferentGraph" width="346pt" height="32pt"
+ viewBox="0.00 0.00 346.00 32.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~EfferentGraph" class="graph" transform="scale(1 1) rotate(0) translate(4 28.27)">
+<title>sourcefile~~sqpopt_dense_product_module.f90~~EfferentGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 342.04,-28.27 342.04,4 -4,4"/>
+<!-- sourcefile~sqpopt_dense_product_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~EfferentGraph_node1" class="node">
+<title>sourcefile~sqpopt_dense_product_module.f90</title>
+<polygon fill="none" stroke="black" points="338.04,-24.27 139.02,-24.27 139.02,0 338.04,0 338.04,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="238.53" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_dense_product_module.F90</text>
+</g>
+<!-- sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~EfferentGraph_node2" class="node">
+<title>sourcefile~sqpopt_kinds.f90</title>
+<g id="a_sourcefile~~sqpopt_dense_product_module.f90~~EfferentGraph_node2"><a xlink:href="../sourcefile/sqpopt_kinds.f90.html" xlink:title="sqpopt_kinds.F90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="103.02,-24.27 0,-24.27 0,0 103.02,0 103.02,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="51.51" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_kinds.F90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_dense_product_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~EfferentGraph_edge1" class="edge">
+<title>sourcefile~sqpopt_dense_product_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M138.52,-12.13C130.42,-12.13 122.38,-12.13 114.67,-12.13"/>
+<polygon fill="#000000" stroke="#000000" points="114.74,-8.64 104.74,-12.14 114.74,-15.64 114.74,-8.64"/>
+</g>
+</g>
+</svg>
+</div>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#EfferentGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="EfferentGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="200pt" height="32pt"
+ viewBox="0.00 0.00 200.00 32.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 195.52,-28.27 195.52,4 -4,4"/>
+<!-- Source File -->
+<g id="node1" class="node">
+<title>Source File</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="69.27,-24.27 0,-24.27 0,0 69.27,0 69.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="34.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Source File</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node2" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="191.52,-24.27 87.75,-24.27 87.75,0 191.52,0 191.52,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="139.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a file to a file which it depends on. A file
+is dependent upon another if the latter must be compiled before the former
+can be.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Files dependent on this one</h3>
+          </div>
+          <div class="card-body">
+            <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph Pages: 1 -->
+<svg id="sourcefilesqpopt_dense_product_modulef90AfferentGraph" width="641pt" height="180pt"
+ viewBox="0.00 0.00 641.00 180.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph" class="graph" transform="scale(0.218881 0.218881) rotate(0) translate(4 817.87)">
+<title>sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-817.87 2924.53,-817.87 2924.53,4 -4,4"/>
+<!-- sourcefile~sqpopt_dense_product_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node1" class="node">
+<title>sourcefile~sqpopt_dense_product_module.f90</title>
+<polygon fill="none" stroke="black" points="199.02,-491.14 0,-491.14 0,-466.87 199.02,-466.87 199.02,-491.14"/>
+<text xml:space="preserve" text-anchor="middle" x="99.51" y="-475.41" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_dense_product_module.F90</text>
+</g>
+<!-- sourcefile~sqpopt_dense_linalg_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node2" class="node">
+<title>sourcefile~sqpopt_dense_linalg_module.f90</title>
+<g id="a_sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node2"><a xlink:href="../sourcefile/sqpopt_dense_linalg_module.f90.html" xlink:title="sqpopt_dense_linalg_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="420.54,-491.14 235.02,-491.14 235.02,-466.87 420.54,-466.87 420.54,-491.14"/>
+<text xml:space="preserve" text-anchor="middle" x="327.78" y="-475.41" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_dense_linalg_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_dense_linalg_module.f90&#45;&gt;sourcefile~sqpopt_dense_product_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge1" class="edge">
+<title>sourcefile~sqpopt_dense_linalg_module.f90&#45;&gt;sourcefile~sqpopt_dense_product_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M234.75,-479.01C226.85,-479.01 218.8,-479.01 210.78,-479.01"/>
+<polygon fill="#000000" stroke="#000000" points="210.98,-475.51 200.98,-479.01 210.98,-482.51 210.98,-475.51"/>
+</g>
+<!-- sourcefile~sqpopt_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node3" class="node">
+<title>sourcefile~sqpopt_hessian_module.f90</title>
+<g id="a_sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node3"><a xlink:href="../sourcefile/sqpopt_hessian_module.f90.html" xlink:title="sqpopt_hessian_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="849.71,-452.14 690.44,-452.14 690.44,-427.87 849.71,-427.87 849.71,-452.14"/>
+<text xml:space="preserve" text-anchor="middle" x="770.07" y="-436.41" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_hessian_module.f90&#45;&gt;sourcefile~sqpopt_dense_product_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge2" class="edge">
+<title>sourcefile~sqpopt_hessian_module.f90&#45;&gt;sourcefile~sqpopt_dense_product_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M690.1,-437.77C646.72,-437.02 591.95,-436.84 543.18,-439.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M541.18,-439.01C404.98,-445.05 370.55,-443.25 235.02,-458.01 218.54,-459.8 200.99,-462.19 184.2,-464.71"/>
+<polygon fill="#000000" stroke="#000000" points="184.15,-461.18 174.79,-466.15 185.21,-468.1 184.15,-461.18"/>
+</g>
+<!-- sourcefile~sqpopt_hessian_module.f90&#45;&gt;sourcefile~sqpopt_dense_linalg_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge5" class="edge">
+<title>sourcefile~sqpopt_hessian_module.f90&#45;&gt;sourcefile~sqpopt_dense_linalg_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M541.18,-439.01C487.84,-441.37 428.18,-453.46 385.7,-463.74"/>
+<polygon fill="#000000" stroke="#000000" points="385.08,-460.29 376.21,-466.08 386.76,-467.08 385.08,-460.29"/>
+</g>
+<!-- sourcefile~sqpopt_qp_dense_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node4" class="node">
+<title>sourcefile~sqpopt_qp_dense_module.f90</title>
+<g id="a_sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node4"><a xlink:href="../sourcefile/sqpopt_qp_dense_module.f90.html" xlink:title="sqpopt_qp_dense_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1082.1,-539.14 912.33,-539.14 912.33,-514.87 1082.1,-514.87 1082.1,-539.14"/>
+<text xml:space="preserve" text-anchor="middle" x="997.22" y="-523.41" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qp_dense_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_qp_dense_module.f90&#45;&gt;sourcefile~sqpopt_dense_product_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge3" class="edge">
+<title>sourcefile~sqpopt_qp_dense_module.f90&#45;&gt;sourcefile~sqpopt_dense_product_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M769.07,-527.01C706.1,-526.45 690.73,-535.56 627.81,-538.01 551.75,-540.96 532.4,-544.25 456.54,-538.01 355.93,-529.73 240.92,-508.5 169.5,-493.9"/>
+<polygon fill="#000000" stroke="#000000" points="170.41,-490.51 159.91,-491.92 168.99,-497.37 170.41,-490.51"/>
+</g>
+<!-- sourcefile~sqpopt_qp_dense_module.f90&#45;&gt;sourcefile~sqpopt_dense_linalg_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge7" class="edge">
+<title>sourcefile~sqpopt_qp_dense_module.f90&#45;&gt;sourcefile~sqpopt_dense_linalg_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M912.01,-527.88C869.71,-528.1 817.67,-528.03 771.07,-527.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M769.07,-527.01C704.81,-525.6 691.49,-504.75 627.81,-496.01 563.09,-487.12 489.88,-482.87 432.1,-480.83"/>
+<polygon fill="#000000" stroke="#000000" points="432.38,-477.34 422.27,-480.5 432.15,-484.34 432.38,-477.34"/>
+</g>
+<!-- sourcefile~sqpopt_qp_dense_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge15" class="edge">
+<title>sourcefile~sqpopt_qp_dense_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M963.96,-514.54C924.61,-499.34 857.96,-473.58 814.23,-456.68"/>
+<polygon fill="#000000" stroke="#000000" points="815.63,-453.48 805.05,-453.14 813.11,-460 815.63,-453.48"/>
+</g>
+<!-- sourcefile~sqpopt_dense_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node5" class="node">
+<title>sourcefile~sqpopt_dense_ldl_module.f90</title>
+<g id="a_sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node5"><a xlink:href="../sourcefile/sqpopt_dense_ldl_module.f90.html" xlink:title="sqpopt_dense_ldl_module.F90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="627.81,-529.14 456.54,-529.14 456.54,-504.87 627.81,-504.87 627.81,-529.14"/>
+<text xml:space="preserve" text-anchor="middle" x="542.18" y="-513.41" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_dense_ldl_module.F90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_dense_ldl_module.f90&#45;&gt;sourcefile~sqpopt_dense_linalg_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge4" class="edge">
+<title>sourcefile~sqpopt_dense_ldl_module.f90&#45;&gt;sourcefile~sqpopt_dense_linalg_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M470.75,-504.41C451.48,-500.96 430.43,-497.19 410.58,-493.64"/>
+<polygon fill="#000000" stroke="#000000" points="411.33,-490.22 400.87,-491.9 410.1,-497.11 411.33,-490.22"/>
+</g>
+<!-- sourcefile~sqpopt_inertia_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node6" class="node">
+<title>sourcefile~sqpopt_inertia_module.f90</title>
+<g id="a_sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node6"><a xlink:href="../sourcefile/sqpopt_inertia_module.f90.html" xlink:title="sqpopt_inertia_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1271.37,-158.14 1118.1,-158.14 1118.1,-133.87 1271.37,-133.87 1271.37,-158.14"/>
+<text xml:space="preserve" text-anchor="middle" x="1194.74" y="-142.41" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_inertia_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_inertia_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge8" class="edge">
+<title>sourcefile~sqpopt_inertia_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1180.8,-133.53C1149.28,-104.7 1066.14,-38.17 998.22,-68.01"/>
+</g>
+<!-- sourcefile~sqpopt_kkt_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node8" class="node">
+<title>sourcefile~sqpopt_kkt_module.f90</title>
+<g id="a_sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node8"><a xlink:href="../sourcefile/sqpopt_kkt_module.f90.html" xlink:title="sqpopt_kkt_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1064.48,-412.14 929.96,-412.14 929.96,-387.87 1064.48,-387.87 1064.48,-412.14"/>
+<text xml:space="preserve" text-anchor="middle" x="997.22" y="-396.41" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_kkt_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_inertia_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge30" class="edge">
+<title>sourcefile~sqpopt_inertia_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1140.52,-158.51C1132.44,-161.99 1124.63,-166.4 1118.1,-172.01 1052.04,-228.67 1017.13,-330.94 1004.19,-376.74"/>
+<polygon fill="#000000" stroke="#000000" points="1000.89,-375.56 1001.64,-386.13 1007.64,-377.39 1000.89,-375.56"/>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node7" class="node">
+<title>sourcefile~sqpopt_iterate_module.f90</title>
+<g id="a_sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node7"><a xlink:href="../sourcefile/sqpopt_iterate_module.f90.html" xlink:title="sqpopt_iterate_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="2595.99,-514.14 2441.97,-514.14 2441.97,-489.87 2595.99,-489.87 2595.99,-514.14"/>
+<text xml:space="preserve" text-anchor="middle" x="2518.98" y="-498.41" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_iterate_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge9" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2099.32,-464.01C2005.16,-453.56 1980.85,-460.99 1886.17,-464.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1884.17,-464.01C1787.45,-467.09 1763.15,-463.27 1666.53,-458.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1664.53,-458.01C1605.92,-454.81 1592.65,-441.69 1534.14,-437.01 1433.67,-428.97 1407.72,-427.65 1307.37,-437.01 1257.1,-441.69 1246.19,-456.14 1195.74,-458.01"/>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge24" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2315.59,-298.01C2231.19,-253.89 2196.5,-300.81 2101.32,-298.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2099.32,-298.01C2091.35,-297.77 1542.02,-201.18 1534.14,-200.01 1484.35,-192.59 1471.93,-189.97 1421.76,-186.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1419.76,-186.01C1368.15,-179.84 1310.43,-169.45 1266.5,-160.8"/>
+<polygon fill="#000000" stroke="#000000" points="1267.33,-157.4 1256.84,-158.88 1265.97,-164.26 1267.33,-157.4"/>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge31" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1419.76,-186.01C1320.89,-174.19 1288.57,-150.04 1195.74,-186.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1193.74,-186.01C1100.99,-221.94 1034.9,-329.96 1009.6,-377.33"/>
+<polygon fill="#000000" stroke="#000000" points="1006.53,-375.65 1005.01,-386.14 1012.73,-378.89 1006.53,-375.65"/>
+</g>
+<!-- sourcefile~sqpopt_options_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node11" class="node">
+<title>sourcefile~sqpopt_options_module.f90</title>
+<g id="a_sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node11"><a xlink:href="../sourcefile/sqpopt_options_module.f90.html" xlink:title="sqpopt_options_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="2179.2,-632.14 2021.43,-632.14 2021.43,-607.87 2179.2,-607.87 2179.2,-632.14"/>
+<text xml:space="preserve" text-anchor="middle" x="2100.32" y="-616.41" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_options_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge40" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2514.26,-514.36C2498.57,-563.67 2433.31,-743.09 2317.59,-730.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2315.59,-730.01C2276.7,-725.61 2180.12,-668.83 2131.01,-638.63"/>
+<polygon fill="#000000" stroke="#000000" points="2132.92,-635.69 2122.57,-633.41 2129.24,-641.64 2132.92,-635.69"/>
+</g>
+<!-- sourcefile~sqpopt_qp_daqp_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node12" class="node">
+<title>sourcefile~sqpopt_qp_daqp_module.f90</title>
+<g id="a_sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node12"><a xlink:href="../sourcefile/sqpopt_qp_daqp_module.f90.html" xlink:title="sqpopt_qp_daqp_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1503.02,-550.14 1338.5,-550.14 1338.5,-525.87 1503.02,-525.87 1503.02,-550.14"/>
+<text xml:space="preserve" text-anchor="middle" x="1420.76" y="-534.41" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qp_daqp_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_qp_daqp_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge44" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_qp_daqp_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2454.87,-514.61C2342.75,-536.88 2118.89,-580.81 2101.32,-580.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2099.32,-580.01C2042.98,-577.34 2029.62,-568.89 1973.43,-564.01 1812.44,-550 1624.32,-543.17 1514.57,-540.13"/>
+<polygon fill="#000000" stroke="#000000" points="1514.82,-536.64 1504.73,-539.87 1514.63,-543.64 1514.82,-536.64"/>
+</g>
+<!-- sourcefile~sqpopt_qp_direct_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node13" class="node">
+<title>sourcefile~sqpopt_qp_direct_module.f90</title>
+<g id="a_sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node13"><a xlink:href="../sourcefile/sqpopt_qp_direct_module.f90.html" xlink:title="sqpopt_qp_direct_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1504.52,-314.14 1337,-314.14 1337,-289.87 1504.52,-289.87 1504.52,-314.14"/>
+<text xml:space="preserve" text-anchor="middle" x="1420.76" y="-298.41" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qp_direct_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_qp_direct_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge46" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_qp_direct_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1884.17,-338.01C1756.47,-341.08 1609.47,-326.52 1516.13,-315"/>
+<polygon fill="#000000" stroke="#000000" points="1516.59,-311.53 1506.24,-313.76 1515.72,-318.48 1516.59,-311.53"/>
+</g>
+<!-- sourcefile~sqpopt_qp_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node15" class="node">
+<title>sourcefile~sqpopt_qp_solver_module.f90</title>
+<g id="a_sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node15"><a xlink:href="../sourcefile/sqpopt_qp_solver_module.f90.html" xlink:title="sqpopt_qp_solver_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1750.41,-510.14 1580.64,-510.14 1580.64,-485.87 1750.41,-485.87 1750.41,-510.14"/>
+<text xml:space="preserve" text-anchor="middle" x="1665.53" y="-494.41" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qp_solver_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge51" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1884.17,-464.01C1833.12,-465.63 1776.09,-474.82 1733.22,-483.23"/>
+<polygon fill="#000000" stroke="#000000" points="1732.68,-479.77 1723.57,-485.16 1734.06,-486.63 1732.68,-479.77"/>
+</g>
+<!-- sourcefile~sqpopt_restoration_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node16" class="node">
+<title>sourcefile~sqpopt_restoration_module.f90</title>
+<g id="a_sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node16"><a xlink:href="../sourcefile/sqpopt_restoration_module.f90.html" xlink:title="sqpopt_restoration_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1973.43,-413.14 1796.91,-413.14 1796.91,-388.87 1973.43,-388.87 1973.43,-413.14"/>
+<text xml:space="preserve" text-anchor="middle" x="1885.17" y="-397.41" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_restoration_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_restoration_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge57" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_restoration_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2441.51,-491.98C2429.62,-490.55 2417.47,-489.18 2405.97,-488.01 2270.85,-474.25 2236.78,-473.87 2101.32,-464.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2099.32,-464.01C2037.53,-457.15 1969.1,-433.98 1926.85,-417.73"/>
+<polygon fill="#000000" stroke="#000000" points="1928.17,-414.49 1917.59,-414.11 1925.63,-421.01 1928.17,-414.49"/>
+</g>
+<!-- sourcefile~sqpopt_spectral_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node17" class="node">
+<title>sourcefile~sqpopt_spectral_module.f90</title>
+<g id="a_sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node17"><a xlink:href="../sourcefile/sqpopt_spectral_module.f90.html" xlink:title="sqpopt_spectral_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1501.52,-470.14 1340,-470.14 1340,-445.87 1501.52,-445.87 1501.52,-470.14"/>
+<text xml:space="preserve" text-anchor="middle" x="1420.76" y="-454.41" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_spectral_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_spectral_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge60" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_spectral_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1664.53,-458.01C1614.57,-455.29 1558.75,-455.09 1513.25,-455.66"/>
+<polygon fill="#000000" stroke="#000000" points="1513.37,-452.16 1503.42,-455.8 1513.47,-459.16 1513.37,-452.16"/>
+</g>
+<!-- sourcefile~sqpopt_trust_region_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node18" class="node">
+<title>sourcefile~sqpopt_trust_region_module.f90</title>
+<g id="a_sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node18"><a xlink:href="../sourcefile/sqpopt_trust_region_module.f90.html" xlink:title="sqpopt_trust_region_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="2191.2,-234.14 2009.43,-234.14 2009.43,-209.87 2191.2,-209.87 2191.2,-234.14"/>
+<text xml:space="preserve" text-anchor="middle" x="2100.32" y="-218.41" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_trust_region_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_trust_region_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge62" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_trust_region_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2510.02,-489.55C2486,-453.14 2410.2,-346.42 2317.59,-298.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2315.59,-298.01C2279.51,-279.15 2265.73,-287.14 2227.2,-274.01 2197.17,-263.77 2164.05,-249.99 2139.32,-239.18"/>
+<polygon fill="#000000" stroke="#000000" points="2140.87,-236.04 2130.31,-235.21 2138.05,-242.45 2140.87,-236.04"/>
+</g>
+<!-- sourcefile~sqpopt_diagnostics_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node19" class="node">
+<title>sourcefile~sqpopt_diagnostics_module.f90</title>
+<g id="a_sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node19"><a xlink:href="../sourcefile/sqpopt_diagnostics_module.f90.html" xlink:title="sqpopt_diagnostics_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="2405.97,-592.14 2227.2,-592.14 2227.2,-567.87 2405.97,-567.87 2405.97,-592.14"/>
+<text xml:space="preserve" text-anchor="middle" x="2316.59" y="-576.41" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_diagnostics_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_diagnostics_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge65" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_diagnostics_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2493.95,-514.43C2471.57,-525.7 2437.07,-542.29 2405.97,-554.01 2396.41,-557.61 2386.11,-561.03 2376.05,-564.14"/>
+<polygon fill="#000000" stroke="#000000" points="2375.28,-560.72 2366.71,-566.95 2377.29,-567.42 2375.28,-560.72"/>
+</g>
+<!-- sourcefile~sqpopt_least_squares_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node20" class="node">
+<title>sourcefile~sqpopt_least_squares_module.f90</title>
+<g id="a_sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node20"><a xlink:href="../sourcefile/sqpopt_least_squares_module.f90.html" xlink:title="sqpopt_least_squares_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1760.91,-290.14 1570.14,-290.14 1570.14,-265.87 1760.91,-265.87 1760.91,-290.14"/>
+<text xml:space="preserve" text-anchor="middle" x="1665.53" y="-274.41" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_least_squares_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_least_squares_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge67" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_least_squares_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2099.32,-298.01C2002.97,-295.17 1982.53,-335.69 1886.17,-338.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1884.17,-338.01C1818.57,-339.58 1745.68,-313.43 1703.1,-295.15"/>
+<polygon fill="#000000" stroke="#000000" points="1704.64,-292.01 1694.08,-291.19 1701.83,-298.41 1704.64,-292.01"/>
+</g>
+<!-- sourcefile~sqpopt_soc_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node22" class="node">
+<title>sourcefile~sqpopt_soc_module.f90</title>
+<g id="a_sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node22"><a xlink:href="../sourcefile/sqpopt_soc_module.f90.html" xlink:title="sqpopt_soc_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1953.56,-310.14 1816.79,-310.14 1816.79,-285.87 1953.56,-285.87 1953.56,-310.14"/>
+<text xml:space="preserve" text-anchor="middle" x="1885.17" y="-294.41" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_soc_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_soc_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge75" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_soc_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2099.32,-298.01C2054.95,-296.7 2005.37,-296.62 1965.2,-296.9"/>
+<polygon fill="#000000" stroke="#000000" points="1965.35,-293.4 1955.37,-296.98 1965.4,-300.4 1965.35,-293.4"/>
+</g>
+<!-- sourcefile~sqpopt_kkt_module.f90&#45;&gt;sourcefile~sqpopt_dense_linalg_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge6" class="edge">
+<title>sourcefile~sqpopt_kkt_module.f90&#45;&gt;sourcefile~sqpopt_dense_linalg_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M929.58,-395.64C826.67,-390.55 623.47,-387.14 456.54,-425.01 422.84,-432.65 386.78,-448.69 361.59,-461.32"/>
+<polygon fill="#000000" stroke="#000000" points="360.15,-458.12 352.85,-465.79 363.34,-464.35 360.15,-458.12"/>
+</g>
+<!-- sourcefile~sqpopt_kkt_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge10" class="edge">
+<title>sourcefile~sqpopt_kkt_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M929.58,-411.85C905.52,-416.12 878.08,-420.99 852.87,-425.47"/>
+<polygon fill="#000000" stroke="#000000" points="852.57,-421.97 843.34,-427.17 853.8,-428.86 852.57,-421.97"/>
+</g>
+<!-- sourcefile~sqpopt_symmetric_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node21" class="node">
+<title>sourcefile~sqpopt_symmetric_solver_module.f90</title>
+<g id="a_sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node21"><a xlink:href="../sourcefile/sqpopt_symmetric_solver_module.f90.html" xlink:title="sqpopt_symmetric_solver_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="876.33,-579.14 663.81,-579.14 663.81,-554.87 876.33,-554.87 876.33,-579.14"/>
+<text xml:space="preserve" text-anchor="middle" x="770.07" y="-563.41" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_symmetric_solver_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_kkt_module.f90&#45;&gt;sourcefile~sqpopt_symmetric_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge72" class="edge">
+<title>sourcefile~sqpopt_kkt_module.f90&#45;&gt;sourcefile~sqpopt_symmetric_solver_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M979.29,-412.56C940.24,-441.52 843.63,-513.19 797.03,-547.75"/>
+<polygon fill="#000000" stroke="#000000" points="795.04,-544.87 789.1,-553.64 799.21,-550.49 795.04,-544.87"/>
+</g>
+<!-- sourcefile~sqpopt_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node9" class="node">
+<title>sourcefile~sqpopt_module.f90</title>
+<g id="a_sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node9"><a xlink:href="../sourcefile/sqpopt_module.f90.html" xlink:title="sqpopt_module.F90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="2747.76,-413.14 2631.99,-413.14 2631.99,-388.87 2747.76,-388.87 2747.76,-413.14"/>
+<text xml:space="preserve" text-anchor="middle" x="2689.88" y="-397.41" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_module.F90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge11" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2099.32,-692.01C2025.69,-675.85 1497.13,-657.8 1421.76,-658.01"/>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge25" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2099.32,-144.01C2004.95,-135.74 1980.52,-152.49 1886.17,-144.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1884.17,-144.01C1668.74,-124.64 1413.85,-133.65 1282.95,-140.6"/>
+<polygon fill="#000000" stroke="#000000" points="1283.14,-137.09 1273.34,-141.12 1283.51,-144.08 1283.14,-137.09"/>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_iterate_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge29" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_iterate_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2667.83,-413.59C2638.42,-431.18 2584.83,-463.23 2550.88,-483.53"/>
+<polygon fill="#000000" stroke="#000000" points="2549.11,-480.51 2542.33,-488.64 2552.71,-486.51 2549.11,-480.51"/>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge33" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2681.67,-388.53C2667.74,-365.3 2634.99,-314.97 2595.99,-284.01 2417.04,-141.93 2328.93,-163.95 2101.32,-144.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2099.32,-144.01C2038.1,-135.62 2033.71,-98.58 1973.43,-85.01 1636.11,-9.05 1493.8,69.25 1195.74,-106.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1193.74,-106.01C1164.72,-124.97 1144.54,-102.6 1118.1,-125.01 1038.45,-192.49 1010.04,-322.87 1001.45,-376.3"/>
+<polygon fill="#000000" stroke="#000000" points="998,-375.69 999.98,-386.1 1004.93,-376.73 998,-375.69"/>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge41" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2517.98,-730.01C2434.23,-760.3 2406.09,-740.02 2317.59,-730.01"/>
+</g>
+<!-- sourcefile~sqpopt_qp_reduced_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node14" class="node">
+<title>sourcefile~sqpopt_qp_reduced_hessian_module.f90</title>
+<g id="a_sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node14"><a xlink:href="../sourcefile/sqpopt_qp_reduced_hessian_module.f90.html" xlink:title="sqpopt_qp_reduced_hessian_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1534.14,-630.14 1307.37,-630.14 1307.37,-605.87 1534.14,-605.87 1534.14,-630.14"/>
+<text xml:space="preserve" text-anchor="middle" x="1420.76" y="-614.41" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qp_reduced_hessian_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_qp_reduced_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge48" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_qp_reduced_hessian_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2517.98,-730.01C2433.24,-762.2 2408.24,-767.48 2317.59,-768.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2315.59,-768.01C2274.88,-768.24 2264.58,-760.11 2227.2,-744.01 2209.98,-736.59 2208.2,-729.91 2191.2,-722.01 2153.01,-704.25 2142.05,-702.69 2101.32,-692.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2099.32,-692.01C1910.33,-642.46 1683.27,-626.05 1545.87,-620.63"/>
+<polygon fill="#000000" stroke="#000000" points="1546.13,-617.14 1536.01,-620.26 1545.87,-624.13 1546.13,-617.14"/>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge52" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2687.89,-413.57C2682.85,-467.8 2654.62,-681.31 2519.98,-730.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2517.98,-730.01C2432.54,-760.91 2481.57,-609.4 2405.97,-559.01 2291.35,-482.6 2238.52,-514.28 2101.32,-502.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2099.32,-502.01C1983.93,-487.8 1849.93,-489.31 1761.97,-492.72"/>
+<polygon fill="#000000" stroke="#000000" points="1762.03,-489.21 1752.18,-493.12 1762.32,-496.21 1762.03,-489.21"/>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_restoration_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge58" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_restoration_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2517.98,-298.01C2411.32,-259.12 2072.53,-347.9 1940.03,-385.34"/>
+<polygon fill="#000000" stroke="#000000" points="1939.1,-381.97 1930.43,-388.07 1941.01,-388.7 1939.1,-381.97"/>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_trust_region_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge63" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_trust_region_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2517.98,-298.01C2432.81,-266.96 2407.43,-272.1 2317.59,-260.01"/>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_diagnostics_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge66" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_diagnostics_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2517.98,-730.01C2436.1,-759.62 2359.64,-651.01 2330.27,-602.39"/>
+<polygon fill="#000000" stroke="#000000" points="2333.29,-600.62 2325.2,-593.78 2327.26,-604.17 2333.29,-600.62"/>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_least_squares_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge68" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_least_squares_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2672.63,-388.44C2643.63,-366.66 2580.33,-321.9 2519.98,-298.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2517.98,-298.01C2466.95,-277.8 2458.06,-263.3 2405.97,-246.01 2237.64,-190.11 2185.92,-183.33 2009.43,-201.01 1904.55,-211.51 1785.06,-242.9 1718.45,-262.21"/>
+<polygon fill="#000000" stroke="#000000" points="1717.5,-258.84 1708.88,-265.01 1719.46,-265.56 1717.5,-258.84"/>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_symmetric_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge73" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_symmetric_solver_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2315.59,-768.01C1817.88,-770.91 1691.17,-819.61 1195.74,-772.01"/>
+</g>
+<!-- sourcefile~sqpopt_nlls_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node10" class="node">
+<title>sourcefile~sqpopt_nlls_module.f90</title>
+<g id="a_sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_node10"><a xlink:href="../sourcefile/sqpopt_nlls_module.f90.html" xlink:title="sqpopt_nlls_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="2920.53,-413.14 2783.76,-413.14 2783.76,-388.87 2920.53,-388.87 2920.53,-413.14"/>
+<text xml:space="preserve" text-anchor="middle" x="2852.14" y="-397.41" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_nlls_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge12" class="edge">
+<title>sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2315.59,-806.01C1813.09,-777.91 1665.45,-818.73 1195.74,-638.01"/>
+</g>
+<!-- sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge38" class="edge">
+<title>sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2783.64,-401.01C2775.71,-401.01 2767.61,-401.01 2759.66,-401.01"/>
+<polygon fill="#000000" stroke="#000000" points="2759.67,-397.51 2749.67,-401.01 2759.67,-404.51 2759.67,-397.51"/>
+</g>
+<!-- sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge42" class="edge">
+<title>sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2848.03,-413.29C2829.54,-483.03 2727.98,-825.36 2519.98,-806.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2517.98,-806.01C2423.66,-819.33 2412.24,-740.71 2317.59,-730.01"/>
+</g>
+<!-- sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge53" class="edge">
+<title>sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2517.98,-806.01C2429.79,-818.46 2406.31,-813.74 2317.59,-806.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2315.59,-806.01C2067.15,-784.35 2005.95,-727.98 1796.91,-592.01 1779.92,-580.95 1777.22,-576.04 1760.91,-564.01 1738.85,-547.73 1713.35,-529.96 1694.42,-516.96"/>
+<polygon fill="#000000" stroke="#000000" points="1696.65,-514.25 1686.42,-511.49 1692.69,-520.02 1696.65,-514.25"/>
+</g>
+<!-- sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_trust_region_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge64" class="edge">
+<title>sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_trust_region_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2830.24,-388.37C2787.82,-363.45 2687.87,-308.25 2595.99,-284.01 2475.9,-252.32 2440.67,-276.57 2317.59,-260.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2315.59,-260.01C2270.19,-253.04 2219.59,-244.12 2178.96,-236.67"/>
+<polygon fill="#000000" stroke="#000000" points="2179.74,-233.26 2169.27,-234.89 2178.47,-240.14 2179.74,-233.26"/>
+</g>
+<!-- sourcefile~sqpopt_options_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge13" class="edge">
+<title>sourcefile~sqpopt_options_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1664.53,-578.01C1600.74,-582.93 1595.21,-619.95 1534.14,-639.01 1485.78,-654.1 1472.41,-657.87 1421.76,-658.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1419.76,-658.01C1319.79,-658.28 1289.03,-673.9 1195.74,-638.01"/>
+</g>
+<!-- sourcefile~sqpopt_options_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge34" class="edge">
+<title>sourcefile~sqpopt_options_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1884.17,-578.01C1789.12,-560.07 1762.94,-570.18 1666.53,-578.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1664.53,-578.01C1506.09,-590.87 1460.82,-600.5 1307.37,-559.01 1300,-557.01 1111.01,-458.77 1032.21,-417.73"/>
+<polygon fill="#000000" stroke="#000000" points="1034.12,-414.78 1023.64,-413.26 1030.89,-420.98 1034.12,-414.78"/>
+</g>
+<!-- sourcefile~sqpopt_options_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge54" class="edge">
+<title>sourcefile~sqpopt_options_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2036.88,-607.43C1994.42,-598.94 1936.95,-587.59 1886.17,-578.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1884.17,-578.01C1817.76,-565.48 1744.85,-534.98 1702.52,-515.46"/>
+<polygon fill="#000000" stroke="#000000" points="1704.1,-512.34 1693.56,-511.28 1701.14,-518.68 1704.1,-512.34"/>
+</g>
+<!-- sourcefile~sqpopt_options_module.f90&#45;&gt;sourcefile~sqpopt_restoration_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge59" class="edge">
+<title>sourcefile~sqpopt_options_module.f90&#45;&gt;sourcefile~sqpopt_restoration_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2092.55,-607.5C2075.74,-577.32 2029.35,-499.31 1973.43,-450.01 1959.21,-437.47 1941.26,-426.72 1925.35,-418.51"/>
+<polygon fill="#000000" stroke="#000000" points="1927.11,-415.48 1916.6,-414.16 1923.99,-421.75 1927.11,-415.48"/>
+</g>
+<!-- sourcefile~sqpopt_options_module.f90&#45;&gt;sourcefile~sqpopt_symmetric_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge74" class="edge">
+<title>sourcefile~sqpopt_options_module.f90&#45;&gt;sourcefile~sqpopt_symmetric_solver_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2028.57,-632.61C1830.38,-667.81 1278.71,-765.08 1195.74,-772.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1193.74,-772.01C1024.71,-778.37 852.13,-639.86 792.71,-587.05"/>
+<polygon fill="#000000" stroke="#000000" points="795.05,-584.45 785.28,-580.36 790.37,-589.65 795.05,-584.45"/>
+</g>
+<!-- sourcefile~sqpopt_qp_daqp_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge14" class="edge">
+<title>sourcefile~sqpopt_qp_daqp_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1396.74,-550.51C1343.68,-579 1215.81,-645.73 1195.74,-638.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1193.74,-638.01C1157.01,-623.88 1143.76,-621.83 1118.1,-592.01 1091.08,-560.59 1109.54,-537.06 1082.1,-506.01 1053.66,-473.82 1040.87,-463.07 998.22,-458.01"/>
+</g>
+<!-- sourcefile~sqpopt_qp_direct_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge16" class="edge">
+<title>sourcefile~sqpopt_qp_direct_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1193.74,-372.01C1102.78,-399.21 1092.49,-469.2 998.22,-458.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M996.22,-458.01C951.99,-452.76 902.69,-448.62 861.53,-445.65"/>
+<polygon fill="#000000" stroke="#000000" points="861.88,-442.16 851.65,-444.94 861.38,-449.14 861.88,-442.16"/>
+</g>
+<!-- sourcefile~sqpopt_qp_direct_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge26" class="edge">
+<title>sourcefile~sqpopt_qp_direct_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1336.7,-293.03C1325.96,-289.07 1315.78,-283.57 1307.37,-276.01 1271,-243.3 1305.99,-206.56 1271.37,-172.01 1268.39,-169.04 1265.06,-166.41 1261.5,-164.07"/>
+<polygon fill="#000000" stroke="#000000" points="1263.4,-161.12 1252.96,-159.32 1259.99,-167.24 1263.4,-161.12"/>
+</g>
+<!-- sourcefile~sqpopt_qp_direct_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge35" class="edge">
+<title>sourcefile~sqpopt_qp_direct_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1357.78,-314.62C1341.27,-318.44 1323.53,-322.98 1307.37,-328.01 1256.44,-343.84 1246.83,-356.72 1195.74,-372.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1193.74,-372.01C1155.77,-383.36 1112.25,-390.17 1075.92,-394.22"/>
+<polygon fill="#000000" stroke="#000000" points="1075.97,-390.7 1066.39,-395.24 1076.71,-397.66 1075.97,-390.7"/>
+</g>
+<!-- sourcefile~sqpopt_qp_reduced_hessian_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge17" class="edge">
+<title>sourcefile~sqpopt_qp_reduced_hessian_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1351.77,-630.64C1296.49,-639.7 1223.29,-648.61 1195.74,-638.01"/>
+</g>
+<!-- sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge18" class="edge">
+<title>sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1580.15,-492.37C1533.29,-490.65 1474.05,-490.8 1421.76,-498.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1419.76,-498.01C1319.56,-511.81 1296.67,-451.56 1195.74,-458.01"/>
+</g>
+<!-- sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_qp_dense_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge22" class="edge">
+<title>sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_qp_dense_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1419.76,-498.01C1369.65,-505.48 1344.82,-482.89 1307.37,-517.01 1261.46,-558.82 1320.61,-614.18 1271.37,-652.01 1217.35,-693.51 1180.76,-678.73 1118.1,-652.01 1068.86,-631.01 1030.13,-578.77 1011.11,-548.89"/>
+<polygon fill="#000000" stroke="#000000" points="1014.24,-547.31 1006.01,-540.63 1008.28,-550.98 1014.24,-547.31"/>
+</g>
+<!-- sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge27" class="edge">
+<title>sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1588.42,-485.6C1581.6,-482.09 1575.32,-477.63 1570.14,-472.01 1511.63,-408.46 1590.25,-346.68 1534.14,-281.01 1464.62,-199.64 1401.19,-251.51 1307.37,-200.01 1289.6,-190.25 1289.2,-181.65 1271.37,-172.01 1264.89,-168.5 1257.84,-165.33 1250.75,-162.5"/>
+<polygon fill="#000000" stroke="#000000" points="1252.38,-159.38 1241.79,-159.15 1249.93,-165.94 1252.38,-159.38"/>
+</g>
+<!-- sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge36" class="edge">
+<title>sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1601.81,-485.51C1590.86,-482.01 1579.87,-477.58 1570.14,-472.01 1550.77,-460.92 1554.51,-446.11 1534.14,-437.01 1454.37,-401.37 1204.34,-398.08 1075.96,-398.87"/>
+<polygon fill="#000000" stroke="#000000" points="1076.17,-395.37 1066.19,-398.95 1076.22,-402.37 1076.17,-395.37"/>
+</g>
+<!-- sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_qp_daqp_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge45" class="edge">
+<title>sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_qp_daqp_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1588.04,-510.61C1563.1,-514.72 1535.22,-519.31 1509.52,-523.55"/>
+<polygon fill="#000000" stroke="#000000" points="1509.06,-520.07 1499.76,-525.15 1510.2,-526.98 1509.06,-520.07"/>
+</g>
+<!-- sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_qp_direct_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge47" class="edge">
+<title>sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_qp_direct_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1590.61,-485.49C1583.1,-482.02 1576.08,-477.6 1570.14,-472.01 1533.94,-437.87 1565.82,-404.37 1534.14,-366.01 1516.86,-345.08 1490.85,-329.65 1468.2,-319.19"/>
+<polygon fill="#000000" stroke="#000000" points="1469.69,-316.02 1459.13,-315.2 1466.87,-322.43 1469.69,-316.02"/>
+</g>
+<!-- sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_qp_reduced_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge49" class="edge">
+<title>sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_qp_reduced_hessian_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1639,-510.62C1595.56,-532.09 1507.16,-575.79 1457.56,-600.31"/>
+<polygon fill="#000000" stroke="#000000" points="1456.07,-597.14 1448.66,-604.71 1459.17,-603.42 1456.07,-597.14"/>
+</g>
+<!-- sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_spectral_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge61" class="edge">
+<title>sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_spectral_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1588.04,-485.41C1563.1,-481.3 1535.22,-476.7 1509.52,-472.47"/>
+<polygon fill="#000000" stroke="#000000" points="1510.2,-469.03 1499.76,-470.86 1509.06,-475.94 1510.2,-469.03"/>
+</g>
+<!-- sourcefile~sqpopt_restoration_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge19" class="edge">
+<title>sourcefile~sqpopt_restoration_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1796.79,-389.62C1682.58,-377.4 1477.11,-364.64 1307.37,-404.01 1253.68,-416.46 1250.74,-454.49 1195.74,-458.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1193.74,-458.01C1106.9,-461.22 1084.51,-468.25 998.22,-458.01"/>
+</g>
+<!-- sourcefile~sqpopt_restoration_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge55" class="edge">
+<title>sourcefile~sqpopt_restoration_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1861.44,-413.47C1843.75,-423.24 1818.65,-437.27 1796.91,-450.01 1780.73,-459.49 1778.12,-464.56 1760.91,-472.01 1752.17,-475.79 1742.73,-479.17 1733.31,-482.13"/>
+<polygon fill="#000000" stroke="#000000" points="1732.35,-478.77 1723.77,-484.98 1734.35,-485.47 1732.35,-478.77"/>
+</g>
+<!-- sourcefile~sqpopt_restoration_module.f90&#45;&gt;sourcefile~sqpopt_least_squares_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge69" class="edge">
+<title>sourcefile~sqpopt_restoration_module.f90&#45;&gt;sourcefile~sqpopt_least_squares_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1861.92,-388.55C1844.28,-378.66 1819,-364.48 1796.91,-352.01 1763.29,-333.03 1724.87,-311.2 1698.48,-296.2"/>
+<polygon fill="#000000" stroke="#000000" points="1700.39,-293.26 1689.97,-291.36 1696.93,-299.34 1700.39,-293.26"/>
+</g>
+<!-- sourcefile~sqpopt_spectral_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge20" class="edge">
+<title>sourcefile~sqpopt_spectral_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1339.58,-455.53C1296.84,-454.84 1243.38,-454.96 1195.74,-458.01"/>
+</g>
+<!-- sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge21" class="edge">
+<title>sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_hessian_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2081.25,-209.48C2062.98,-196.73 2034.02,-176.31 2009.43,-158.01 1993.17,-145.9 1992.46,-137 1973.43,-130.01 1743.08,-45.33 1666.96,-116.3 1421.76,-106.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1419.76,-106.01C1231.68,-102.27 1170.45,7.64 998.22,-68.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M996.22,-68.01C850.43,-133.63 791.77,-345.27 775.85,-416.42"/>
+<polygon fill="#000000" stroke="#000000" points="772.43,-415.66 773.76,-426.18 779.28,-417.13 772.43,-415.66"/>
+</g>
+<!-- sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge28" class="edge">
+<title>sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2077.2,-209.5C2039.46,-189.18 1959.56,-150.6 1886.17,-144.01"/>
+</g>
+<!-- sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge37" class="edge">
+<title>sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1419.76,-106.01C1320.28,-101.83 1281.56,-55.54 1195.74,-106.01"/>
+</g>
+<!-- sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge56" class="edge">
+<title>sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1884.17,-258.01C1846.89,-271.62 1824.53,-248.5 1796.91,-277.01 1735.59,-340.31 1820.48,-407.06 1760.91,-472.01 1758.38,-474.76 1755.59,-477.24 1752.6,-479.46"/>
+<polygon fill="#000000" stroke="#000000" points="1751.02,-476.32 1744.39,-484.58 1754.72,-482.26 1751.02,-476.32"/>
+</g>
+<!-- sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_least_squares_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge71" class="edge">
+<title>sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_least_squares_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2009.03,-229.86C1970.36,-235.09 1925.21,-243.75 1886.17,-258.01"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1884.17,-258.01C1863.59,-265.52 1817.3,-270.33 1772.68,-273.34"/>
+<polygon fill="#000000" stroke="#000000" points="1772.65,-269.83 1762.9,-273.97 1773.1,-276.82 1772.65,-269.83"/>
+</g>
+<!-- sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_soc_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge76" class="edge">
+<title>sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_soc_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2069.83,-234.57C2044.5,-245.17 2006.87,-260.41 1973.43,-272.01 1963.34,-275.51 1952.51,-278.97 1942.01,-282.17"/>
+<polygon fill="#000000" stroke="#000000" points="1941.27,-278.74 1932.7,-284.97 1943.29,-285.44 1941.27,-278.74"/>
+</g>
+<!-- sourcefile~sqpopt_diagnostics_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge39" class="edge">
+<title>sourcefile~sqpopt_diagnostics_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2248.08,-592.61C2226.47,-596.64 2202.34,-601.15 2180,-605.32"/>
+<polygon fill="#000000" stroke="#000000" points="2179.52,-601.85 2170.33,-607.12 2180.81,-608.73 2179.52,-601.85"/>
+</g>
+<!-- sourcefile~sqpopt_diagnostics_module.f90&#45;&gt;sourcefile~sqpopt_qp_daqp_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge43" class="edge">
+<title>sourcefile~sqpopt_diagnostics_module.f90&#45;&gt;sourcefile~sqpopt_qp_daqp_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2226.93,-581.83C2188.33,-582.15 2142.56,-581.9 2101.32,-580.01"/>
+</g>
+<!-- sourcefile~sqpopt_diagnostics_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge50" class="edge">
+<title>sourcefile~sqpopt_diagnostics_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2293.35,-567.5C2255.39,-547.18 2175.05,-508.6 2101.32,-502.01"/>
+</g>
+<!-- sourcefile~sqpopt_least_squares_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge32" class="edge">
+<title>sourcefile~sqpopt_least_squares_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1608.92,-265.45C1488.94,-238.57 1215.01,-178.51 1195.74,-186.01"/>
+</g>
+<!-- sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_dense_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge23" class="edge">
+<title>sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_dense_ldl_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M712.07,-554.39C681.43,-547.61 643.46,-539.2 611.28,-532.08"/>
+<polygon fill="#000000" stroke="#000000" points="612.16,-528.69 601.64,-529.95 610.64,-535.53 612.16,-528.69"/>
+</g>
+<!-- sourcefile~sqpopt_soc_module.f90&#45;&gt;sourcefile~sqpopt_least_squares_module.f90 -->
+<g id="sourcefile~~sqpopt_dense_product_module.f90~~AfferentGraph_edge70" class="edge">
+<title>sourcefile~sqpopt_soc_module.f90&#45;&gt;sourcefile~sqpopt_least_squares_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1816.5,-291.79C1802.58,-290.51 1787.6,-289.13 1772.69,-287.76"/>
+<polygon fill="#000000" stroke="#000000" points="1773.11,-284.29 1762.83,-286.86 1772.47,-291.26 1773.11,-284.29"/>
+</g>
+</g>
+</svg>
+</div>                <script>
+                  var pansourcefilesqpopt_dense_product_modulef90AfferentGraph = svgPanZoom('#sourcefilesqpopt_dense_product_modulef90AfferentGraph',
+                    {zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true,}
+                  );
+                </script>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#AfferentGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="AfferentGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="200pt" height="32pt"
+ viewBox="0.00 0.00 200.00 32.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 195.52,-28.27 195.52,4 -4,4"/>
+<!-- Source File -->
+<g id="node1" class="node">
+<title>Source File</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="69.27,-24.27 0,-24.27 0,0 69.27,0 69.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="34.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Source File</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node2" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="191.52,-24.27 87.75,-24.27 87.75,0 191.52,0 191.52,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="139.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a file to a file which it depends on. A file
+is dependent upon another if the latter must be compiled before the former
+can be.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+          </div>
+        </div>
+<br>
+      <section>
+        <h2><span class="anchor" id="src"></span>Source Code</h2>
+        <div class="hl codehilite"><pre><span></span><a id="ln-1" name="ln-1" href="#ln-1"></a><span class="c">!*******************************************************************************</span>
+<a id="ln-2" name="ln-2" href="#ln-2"></a><span class="c">!&gt; author: Jacob Williams</span>
+<a id="ln-3" name="ln-3" href="#ln-3"></a><span class="c">!  license: MIT</span>
+<a id="ln-4" name="ln-4" href="#ln-4"></a><span class="c">!</span>
+<a id="ln-5" name="ln-5" href="#ln-5"></a><span class="c">!  Dense matrix-vector and matrix-matrix products, in the caller&#39;s arrays:</span>
+<a id="ln-6" name="ln-6" href="#ln-6"></a><span class="c">!  the library&#39;s replacement for the `matmul` intrinsic, which it doesn&#39;t</span>
+<a id="ln-7" name="ln-7" href="#ln-7"></a><span class="c">!  use. An expression with `matmul` (nested, or with a `transpose`, or as an</span>
+<a id="ln-8" name="ln-8" href="#ln-8"></a><span class="c">!  actual argument) needs an array temporary for its result, and some</span>
+<a id="ln-9" name="ln-9" href="#ln-9"></a><span class="c">!  compilers put those on the stack (the Intel compilers by default,</span>
+<a id="ln-10" name="ln-10" href="#ln-10"></a><span class="c">!  gfortran with `-fstack-arrays` or `-Ofast`), which a moderately large</span>
+<a id="ln-11" name="ln-11" href="#ln-11"></a><span class="c">!  matrix then overflows (Windows&#39;s default stack is 1 MB, the size of a</span>
+<a id="ln-12" name="ln-12" href="#ln-12"></a><span class="c">!  350 by 350 matrix). These routines form nothing: the result goes into</span>
+<a id="ln-13" name="ln-13" href="#ln-13"></a><span class="c">!  an array the caller has allocated, and `op(A)` is never formed.</span>
+<a id="ln-14" name="ln-14" href="#ln-14"></a><span class="c">!</span>
+<a id="ln-15" name="ln-15" href="#ln-15"></a><span class="c">!  The products are explicit loops (column-oriented, the order of the</span>
+<a id="ln-16" name="ln-16" href="#ln-16"></a><span class="c">!  arrays&#39; storage), in any real kind; in a library built with LAPACK (the</span>
+<a id="ln-17" name="ln-17" href="#ln-17"></a><span class="c">!  `HAS_LAPACK` preprocessor directive, in double precision, which links</span>
+<a id="ln-18" name="ln-18" href="#ln-18"></a><span class="c">!  BLAS too), BLAS&#39;s `DGEMV` and `DGEMM` instead, whenever the arrays are</span>
+<a id="ln-19" name="ln-19" href="#ln-19"></a><span class="c">!  contiguous (a section that isn&#39;t, e.g. the leading rows of a matrix,</span>
+<a id="ln-20" name="ln-20" href="#ln-20"></a><span class="c">!  uses the loops, since BLAS would need it copied). The two builds&#39;</span>
+<a id="ln-21" name="ln-21" href="#ln-21"></a><span class="c">!  products then differ in rounding, and so can their iterates.</span>
+<a id="ln-22" name="ln-22" href="#ln-22"></a>
+<a id="ln-23" name="ln-23" href="#ln-23"></a><span class="w">    </span><span class="k">module </span><span class="n">sqpopt_dense_product_module</span><span class="w"></span>
+<a id="ln-24" name="ln-24" href="#ln-24"></a>
+<a id="ln-25" name="ln-25" href="#ln-25"></a><span class="w">    </span><span class="k">use </span><span class="n">sqpopt_kinds</span><span class="p">,</span><span class="w"> </span><span class="k">only</span><span class="p">:</span><span class="w"> </span><span class="n">wp</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">sqpopt_module_wp</span><span class="w"></span>
+<a id="ln-26" name="ln-26" href="#ln-26"></a>
+<a id="ln-27" name="ln-27" href="#ln-27"></a><span class="w">    </span><span class="k">implicit none</span>
+<a id="ln-28" name="ln-28" href="#ln-28"></a>
+<a id="ln-29" name="ln-29" href="#ln-29"></a><span class="k">    private</span><span class="w"></span>
+<a id="ln-30" name="ln-30" href="#ln-30"></a>
+<a id="ln-31" name="ln-31" href="#ln-31"></a><span class="cp">#ifdef HAS_LAPACK</span>
+<a id="ln-32" name="ln-32" href="#ln-32"></a><span class="cp">#if defined(REAL32) || defined(REAL128)</span>
+<a id="ln-33" name="ln-33" href="#ln-33"></a><span class="cp">#error &quot;HAS_LAPACK needs the default (double precision) real kind: don&#39;t define REAL32 or REAL128 with it&quot;</span>
+<a id="ln-34" name="ln-34" href="#ln-34"></a><span class="cp">#endif</span>
+<a id="ln-35" name="ln-35" href="#ln-35"></a><span class="w">    </span><span class="k">interface</span><span class="w"></span>
+<a id="ln-36" name="ln-36" href="#ln-36"></a><span class="w">        </span><span class="c">! (declared `pure`: they change nothing but `y` and `c`)</span>
+<a id="ln-37" name="ln-37" href="#ln-37"></a><span class="w">        </span><span class="k">pure subroutine </span><span class="n">dgemv</span><span class="p">(</span><span class="n">trans</span><span class="p">,</span><span class="w"> </span><span class="n">m</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">alpha</span><span class="p">,</span><span class="w"> </span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">lda</span><span class="p">,</span><span class="w"> </span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">incx</span><span class="p">,</span><span class="w"> </span><span class="n">beta</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="p">,</span><span class="w"> </span><span class="n">incy</span><span class="p">)</span><span class="w"></span>
+<a id="ln-38" name="ln-38" href="#ln-38"></a><span class="w">            </span><span class="c">!! BLAS: \( y \leftarrow \alpha \, op(A) x + \beta y \)</span>
+<a id="ln-39" name="ln-39" href="#ln-39"></a><span class="w">            </span><span class="k">import</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">wp</span><span class="w"></span>
+<a id="ln-40" name="ln-40" href="#ln-40"></a><span class="w">            </span><span class="k">implicit none</span>
+<a id="ln-41" name="ln-41" href="#ln-41"></a><span class="k">            </span><span class="kt">character</span><span class="p">,</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">trans</span><span class="w">    </span><span class="c">!! `&#39;N&#39;`: \( op(A)=A \), `&#39;T&#39;`: \( op(A)=A^T \)</span>
+<a id="ln-42" name="ln-42" href="#ln-42"></a><span class="w">            </span><span class="kt">integer</span><span class="p">,</span><span class="w">   </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">m</span><span class="w">        </span><span class="c">!! number of rows of `a`</span>
+<a id="ln-43" name="ln-43" href="#ln-43"></a><span class="w">            </span><span class="kt">integer</span><span class="p">,</span><span class="w">   </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">n</span><span class="w">        </span><span class="c">!! number of columns of `a`</span>
+<a id="ln-44" name="ln-44" href="#ln-44"></a><span class="w">            </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">  </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">alpha</span><span class="w">    </span><span class="c">!! the product&#39;s factor</span>
+<a id="ln-45" name="ln-45" href="#ln-45"></a><span class="w">            </span><span class="kt">integer</span><span class="p">,</span><span class="w">   </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">lda</span><span class="w">      </span><span class="c">!! leading dimension of `a`</span>
+<a id="ln-46" name="ln-46" href="#ln-46"></a><span class="w">            </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">  </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">a</span><span class="p">(</span><span class="n">lda</span><span class="p">,</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="c">!! the matrix</span>
+<a id="ln-47" name="ln-47" href="#ln-47"></a><span class="w">            </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">  </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">x</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w">     </span><span class="c">!! the vector</span>
+<a id="ln-48" name="ln-48" href="#ln-48"></a><span class="w">            </span><span class="kt">integer</span><span class="p">,</span><span class="w">   </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">incx</span><span class="w">     </span><span class="c">!! the stride of `x`</span>
+<a id="ln-49" name="ln-49" href="#ln-49"></a><span class="w">            </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">  </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">beta</span><span class="w">     </span><span class="c">!! the factor of `y` (`0`: `y` isn&#39;t read)</span>
+<a id="ln-50" name="ln-50" href="#ln-50"></a><span class="w">            </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">  </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">y</span><span class="p">(</span><span class="o">*</span><span class="p">)</span><span class="w">     </span><span class="c">!! the result</span>
+<a id="ln-51" name="ln-51" href="#ln-51"></a><span class="w">            </span><span class="kt">integer</span><span class="p">,</span><span class="w">   </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">incy</span><span class="w">     </span><span class="c">!! the stride of `y`</span>
+<a id="ln-52" name="ln-52" href="#ln-52"></a><span class="w">        </span><span class="k">end subroutine </span><span class="n">dgemv</span><span class="w"></span>
+<a id="ln-53" name="ln-53" href="#ln-53"></a><span class="w">        </span><span class="k">pure subroutine </span><span class="n">dgemm</span><span class="p">(</span><span class="n">transa</span><span class="p">,</span><span class="w"> </span><span class="n">transb</span><span class="p">,</span><span class="w"> </span><span class="n">m</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">k</span><span class="p">,</span><span class="w"> </span><span class="n">alpha</span><span class="p">,</span><span class="w"> </span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">lda</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">,</span><span class="w"> </span><span class="n">ldb</span><span class="p">,</span><span class="w"> </span><span class="n">beta</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">ldc</span><span class="p">)</span><span class="w"></span>
+<a id="ln-54" name="ln-54" href="#ln-54"></a><span class="w">            </span><span class="c">!! BLAS: \( C \leftarrow \alpha \, op(A) \, op(B) + \beta C \)</span>
+<a id="ln-55" name="ln-55" href="#ln-55"></a><span class="w">            </span><span class="k">import</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">wp</span><span class="w"></span>
+<a id="ln-56" name="ln-56" href="#ln-56"></a><span class="w">            </span><span class="k">implicit none</span>
+<a id="ln-57" name="ln-57" href="#ln-57"></a><span class="k">            </span><span class="kt">character</span><span class="p">,</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">transa</span><span class="w">   </span><span class="c">!! `&#39;N&#39;`: \( op(A)=A \), `&#39;T&#39;`: \( op(A)=A^T \)</span>
+<a id="ln-58" name="ln-58" href="#ln-58"></a><span class="w">            </span><span class="kt">character</span><span class="p">,</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">transb</span><span class="w">   </span><span class="c">!! the same for `b`</span>
+<a id="ln-59" name="ln-59" href="#ln-59"></a><span class="w">            </span><span class="kt">integer</span><span class="p">,</span><span class="w">   </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">m</span><span class="w">        </span><span class="c">!! number of rows of `c`</span>
+<a id="ln-60" name="ln-60" href="#ln-60"></a><span class="w">            </span><span class="kt">integer</span><span class="p">,</span><span class="w">   </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">n</span><span class="w">        </span><span class="c">!! number of columns of `c`</span>
+<a id="ln-61" name="ln-61" href="#ln-61"></a><span class="w">            </span><span class="kt">integer</span><span class="p">,</span><span class="w">   </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">k</span><span class="w">        </span><span class="c">!! the inner dimension</span>
+<a id="ln-62" name="ln-62" href="#ln-62"></a><span class="w">            </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">  </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">alpha</span><span class="w">    </span><span class="c">!! the product&#39;s factor</span>
+<a id="ln-63" name="ln-63" href="#ln-63"></a><span class="w">            </span><span class="kt">integer</span><span class="p">,</span><span class="w">   </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">lda</span><span class="w">      </span><span class="c">!! leading dimension of `a`</span>
+<a id="ln-64" name="ln-64" href="#ln-64"></a><span class="w">            </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">  </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">a</span><span class="p">(</span><span class="n">lda</span><span class="p">,</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="c">!! the first matrix</span>
+<a id="ln-65" name="ln-65" href="#ln-65"></a><span class="w">            </span><span class="kt">integer</span><span class="p">,</span><span class="w">   </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">ldb</span><span class="w">      </span><span class="c">!! leading dimension of `b`</span>
+<a id="ln-66" name="ln-66" href="#ln-66"></a><span class="w">            </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">  </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">b</span><span class="p">(</span><span class="n">ldb</span><span class="p">,</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="c">!! the second matrix</span>
+<a id="ln-67" name="ln-67" href="#ln-67"></a><span class="w">            </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">  </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">beta</span><span class="w">     </span><span class="c">!! the factor of `c` (`0`: `c` isn&#39;t read)</span>
+<a id="ln-68" name="ln-68" href="#ln-68"></a><span class="w">            </span><span class="kt">integer</span><span class="p">,</span><span class="w">   </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">ldc</span><span class="w">      </span><span class="c">!! leading dimension of `c`</span>
+<a id="ln-69" name="ln-69" href="#ln-69"></a><span class="w">            </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w">  </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">c</span><span class="p">(</span><span class="n">ldc</span><span class="p">,</span><span class="o">*</span><span class="p">)</span><span class="w"> </span><span class="c">!! the result</span>
+<a id="ln-70" name="ln-70" href="#ln-70"></a><span class="w">        </span><span class="k">end subroutine </span><span class="n">dgemm</span><span class="w"></span>
+<a id="ln-71" name="ln-71" href="#ln-71"></a><span class="w">    </span><span class="k">end interface</span><span class="w"></span>
+<a id="ln-72" name="ln-72" href="#ln-72"></a><span class="cp">#endif</span>
+<a id="ln-73" name="ln-73" href="#ln-73"></a>
+<a id="ln-74" name="ln-74" href="#ln-74"></a><span class="w">    </span><span class="k">public</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">dense_matvec</span><span class="w"></span>
+<a id="ln-75" name="ln-75" href="#ln-75"></a><span class="w">    </span><span class="k">public</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">dense_matmul</span><span class="w"></span>
+<a id="ln-76" name="ln-76" href="#ln-76"></a>
+<a id="ln-77" name="ln-77" href="#ln-77"></a><span class="w">    </span><span class="k">contains</span><span class="w"></span>
+<a id="ln-78" name="ln-78" href="#ln-78"></a><span class="c">!*******************************************************************************</span>
+<a id="ln-79" name="ln-79" href="#ln-79"></a>
+<a id="ln-80" name="ln-80" href="#ln-80"></a><span class="c">!*******************************************************************************</span>
+<a id="ln-81" name="ln-81" href="#ln-81"></a><span class="c">!&gt;</span>
+<a id="ln-82" name="ln-82" href="#ln-82"></a><span class="c">!  \( y \leftarrow \alpha \, op(A) x + \beta y \), with \( op(A) = A \) or,</span>
+<a id="ln-83" name="ln-83" href="#ln-83"></a><span class="c">!  with `trans`, \( A^T \) (not formed). `y` must not overlap `a` or `x`.</span>
+<a id="ln-84" name="ln-84" href="#ln-84"></a><span class="c">!  With `beta = 0` (the default) `y` is only written, so it may hold</span>
+<a id="ln-85" name="ln-85" href="#ln-85"></a><span class="c">!  anything (even NaNs) on entry.</span>
+<a id="ln-86" name="ln-86" href="#ln-86"></a>
+<a id="ln-87" name="ln-87" href="#ln-87"></a><span class="w">    </span><span class="k">pure subroutine </span><span class="n">dense_matvec</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="p">,</span><span class="w"> </span><span class="n">trans</span><span class="p">,</span><span class="w"> </span><span class="n">alpha</span><span class="p">,</span><span class="w"> </span><span class="n">beta</span><span class="p">)</span><span class="w"></span>
+<a id="ln-88" name="ln-88" href="#ln-88"></a>
+<a id="ln-89" name="ln-89" href="#ln-89"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:,:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">a</span><span class="w">     </span><span class="c">!! the matrix `dimension(m,n)`</span>
+<a id="ln-90" name="ln-90" href="#ln-90"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">   </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">x</span><span class="w">     </span><span class="c">!! the vector `dimension(n)` (`dimension(m)` with `trans`)</span>
+<a id="ln-91" name="ln-91" href="#ln-91"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">   </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">y</span><span class="w">     </span><span class="c">!! the result `dimension(m)` (`dimension(n)` with `trans`)</span>
+<a id="ln-92" name="ln-92" href="#ln-92"></a><span class="w">    </span><span class="kt">logical</span><span class="p">,</span><span class="w">  </span><span class="k">optional</span><span class="p">,</span><span class="w">       </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">trans</span><span class="w"> </span><span class="c">!! whether to multiply by \( A^T \) (default `.false.`)</span>
+<a id="ln-93" name="ln-93" href="#ln-93"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">optional</span><span class="p">,</span><span class="w">       </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">alpha</span><span class="w"> </span><span class="c">!! the product&#39;s factor (default `1`)</span>
+<a id="ln-94" name="ln-94" href="#ln-94"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">optional</span><span class="p">,</span><span class="w">       </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">beta</span><span class="w">  </span><span class="c">!! the factor of `y` on entry (default `0`)</span>
+<a id="ln-95" name="ln-95" href="#ln-95"></a>
+<a id="ln-96" name="ln-96" href="#ln-96"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">al</span><span class="p">,</span><span class="w"> </span><span class="n">be</span><span class="w"></span>
+<a id="ln-97" name="ln-97" href="#ln-97"></a><span class="w">    </span><span class="kt">logical</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">tr</span><span class="w"></span>
+<a id="ln-98" name="ln-98" href="#ln-98"></a><span class="w">    </span><span class="kt">integer</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">j</span><span class="w"></span>
+<a id="ln-99" name="ln-99" href="#ln-99"></a>
+<a id="ln-100" name="ln-100" href="#ln-100"></a><span class="w">    </span><span class="n">tr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"></span>
+<a id="ln-101" name="ln-101" href="#ln-101"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">present</span><span class="p">(</span><span class="n">trans</span><span class="p">))</span><span class="w"> </span><span class="n">tr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">trans</span><span class="w"></span>
+<a id="ln-102" name="ln-102" href="#ln-102"></a><span class="w">    </span><span class="n">al</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">1.0_wp</span><span class="w"></span>
+<a id="ln-103" name="ln-103" href="#ln-103"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">present</span><span class="p">(</span><span class="n">alpha</span><span class="p">))</span><span class="w"> </span><span class="n">al</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">alpha</span><span class="w"></span>
+<a id="ln-104" name="ln-104" href="#ln-104"></a><span class="w">    </span><span class="n">be</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="w"></span>
+<a id="ln-105" name="ln-105" href="#ln-105"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">present</span><span class="p">(</span><span class="n">beta</span><span class="p">))</span><span class="w"> </span><span class="n">be</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">beta</span><span class="w"></span>
+<a id="ln-106" name="ln-106" href="#ln-106"></a>
+<a id="ln-107" name="ln-107" href="#ln-107"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">y</span><span class="p">)</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"></span>
+<a id="ln-108" name="ln-108" href="#ln-108"></a>
+<a id="ln-109" name="ln-109" href="#ln-109"></a><span class="cp">#ifdef HAS_LAPACK</span>
+<a id="ln-110" name="ln-110" href="#ln-110"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="nb">is_contiguous</span><span class="p">(</span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="nb">is_contiguous</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="nb">is_contiguous</span><span class="p">(</span><span class="n">y</span><span class="p">))</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-111" name="ln-111" href="#ln-111"></a><span class="k">        call </span><span class="n">dgemv</span><span class="p">(</span><span class="nb">merge</span><span class="p">(</span><span class="s1">&#39;T&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;N&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">tr</span><span class="p">),</span><span class="w"> </span><span class="n">size</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="mi">1</span><span class="p">),</span><span class="w"> </span><span class="n">size</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="mi">2</span><span class="p">),</span><span class="w"> </span><span class="n">al</span><span class="p">,</span><span class="w"> </span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">size</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="mi">1</span><span class="p">),</span><span class="w"> </span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">be</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"></span>
+<a id="ln-112" name="ln-112" href="#ln-112"></a><span class="w">        </span><span class="k">return</span>
+<a id="ln-113" name="ln-113" href="#ln-113"></a><span class="k">    end if</span><span class="w"></span>
+<a id="ln-114" name="ln-114" href="#ln-114"></a><span class="cp">#endif</span>
+<a id="ln-115" name="ln-115" href="#ln-115"></a>
+<a id="ln-116" name="ln-116" href="#ln-116"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">tr</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-117" name="ln-117" href="#ln-117"></a><span class="k">        do </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">size</span><span class="p">(</span><span class="n">y</span><span class="p">)</span><span class="w"></span>
+<a id="ln-118" name="ln-118" href="#ln-118"></a><span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">be</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-119" name="ln-119" href="#ln-119"></a><span class="k">                </span><span class="n">y</span><span class="p">(</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">al</span><span class="o">*</span><span class="nb">dot_product</span><span class="p">(</span><span class="n">a</span><span class="p">(:,</span><span class="n">j</span><span class="p">),</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="w"></span>
+<a id="ln-120" name="ln-120" href="#ln-120"></a><span class="w">            </span><span class="k">else</span>
+<a id="ln-121" name="ln-121" href="#ln-121"></a><span class="k">                </span><span class="n">y</span><span class="p">(</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">al</span><span class="o">*</span><span class="nb">dot_product</span><span class="p">(</span><span class="n">a</span><span class="p">(:,</span><span class="n">j</span><span class="p">),</span><span class="w"> </span><span class="n">x</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">be</span><span class="o">*</span><span class="n">y</span><span class="p">(</span><span class="n">j</span><span class="p">)</span><span class="w"></span>
+<a id="ln-122" name="ln-122" href="#ln-122"></a><span class="w">            </span><span class="k">end if</span>
+<a id="ln-123" name="ln-123" href="#ln-123"></a><span class="k">        end do</span>
+<a id="ln-124" name="ln-124" href="#ln-124"></a><span class="k">    else</span>
+<a id="ln-125" name="ln-125" href="#ln-125"></a><span class="k">        if</span><span class="w"> </span><span class="p">(</span><span class="n">be</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-126" name="ln-126" href="#ln-126"></a><span class="k">            </span><span class="n">y</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="w"></span>
+<a id="ln-127" name="ln-127" href="#ln-127"></a><span class="w">        </span><span class="k">else if</span><span class="w"> </span><span class="p">(</span><span class="n">be</span><span class="w"> </span><span class="o">/=</span><span class="w"> </span><span class="mf">1.0_wp</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-128" name="ln-128" href="#ln-128"></a><span class="k">            </span><span class="n">y</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">be</span><span class="o">*</span><span class="n">y</span><span class="w"></span>
+<a id="ln-129" name="ln-129" href="#ln-129"></a><span class="w">        </span><span class="k">end if</span>
+<a id="ln-130" name="ln-130" href="#ln-130"></a><span class="k">        do </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">size</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="w"></span>
+<a id="ln-131" name="ln-131" href="#ln-131"></a><span class="w">            </span><span class="n">y</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="n">al</span><span class="o">*</span><span class="n">x</span><span class="p">(</span><span class="n">j</span><span class="p">))</span><span class="o">*</span><span class="n">a</span><span class="p">(:,</span><span class="n">j</span><span class="p">)</span><span class="w"></span>
+<a id="ln-132" name="ln-132" href="#ln-132"></a><span class="w">        </span><span class="k">end do</span>
+<a id="ln-133" name="ln-133" href="#ln-133"></a><span class="k">    end if</span>
+<a id="ln-134" name="ln-134" href="#ln-134"></a>
+<a id="ln-135" name="ln-135" href="#ln-135"></a><span class="k">    end subroutine </span><span class="n">dense_matvec</span><span class="w"></span>
+<a id="ln-136" name="ln-136" href="#ln-136"></a><span class="c">!*******************************************************************************</span>
+<a id="ln-137" name="ln-137" href="#ln-137"></a>
+<a id="ln-138" name="ln-138" href="#ln-138"></a><span class="c">!*******************************************************************************</span>
+<a id="ln-139" name="ln-139" href="#ln-139"></a><span class="c">!&gt;</span>
+<a id="ln-140" name="ln-140" href="#ln-140"></a><span class="c">!  \( C \leftarrow \alpha \, op(A) \, op(B) + \beta C \), with</span>
+<a id="ln-141" name="ln-141" href="#ln-141"></a><span class="c">!  \( op(A) = A \) or, with `trans_a`, \( A^T \) (not formed), and the same</span>
+<a id="ln-142" name="ln-142" href="#ln-142"></a><span class="c">!  for `b`. `c` must not overlap `a` or `b`. With `beta = 0` (the default)</span>
+<a id="ln-143" name="ln-143" href="#ln-143"></a><span class="c">!  `c` is only written, so it may hold anything (even NaNs) on entry.</span>
+<a id="ln-144" name="ln-144" href="#ln-144"></a>
+<a id="ln-145" name="ln-145" href="#ln-145"></a><span class="w">    </span><span class="k">pure subroutine </span><span class="n">dense_matmul</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">b</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">trans_a</span><span class="p">,</span><span class="w"> </span><span class="n">trans_b</span><span class="p">,</span><span class="w"> </span><span class="n">alpha</span><span class="p">,</span><span class="w"> </span><span class="n">beta</span><span class="p">)</span><span class="w"></span>
+<a id="ln-146" name="ln-146" href="#ln-146"></a>
+<a id="ln-147" name="ln-147" href="#ln-147"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:,:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">a</span><span class="w">       </span><span class="c">!! the first matrix: `dimension(m,k)` (`dimension(k,m)`</span>
+<a id="ln-148" name="ln-148" href="#ln-148"></a><span class="w">                                                       </span><span class="c">!! with `trans_a`)</span>
+<a id="ln-149" name="ln-149" href="#ln-149"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:,:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">b</span><span class="w">       </span><span class="c">!! the second matrix: `dimension(k,n)` (`dimension(n,k)`</span>
+<a id="ln-150" name="ln-150" href="#ln-150"></a><span class="w">                                                       </span><span class="c">!! with `trans_b`)</span>
+<a id="ln-151" name="ln-151" href="#ln-151"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:,:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">c</span><span class="w">       </span><span class="c">!! the result `dimension(m,n)`</span>
+<a id="ln-152" name="ln-152" href="#ln-152"></a><span class="w">    </span><span class="kt">logical</span><span class="p">,</span><span class="w">  </span><span class="k">optional</span><span class="p">,</span><span class="w">       </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">trans_a</span><span class="w"> </span><span class="c">!! whether to use \( A^T \) (default `.false.`)</span>
+<a id="ln-153" name="ln-153" href="#ln-153"></a><span class="w">    </span><span class="kt">logical</span><span class="p">,</span><span class="w">  </span><span class="k">optional</span><span class="p">,</span><span class="w">       </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">trans_b</span><span class="w"> </span><span class="c">!! whether to use \( B^T \) (default `.false.`)</span>
+<a id="ln-154" name="ln-154" href="#ln-154"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">optional</span><span class="p">,</span><span class="w">       </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">alpha</span><span class="w">   </span><span class="c">!! the product&#39;s factor (default `1`)</span>
+<a id="ln-155" name="ln-155" href="#ln-155"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">optional</span><span class="p">,</span><span class="w">       </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">beta</span><span class="w">    </span><span class="c">!! the factor of `c` on entry (default `0`)</span>
+<a id="ln-156" name="ln-156" href="#ln-156"></a>
+<a id="ln-157" name="ln-157" href="#ln-157"></a><span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">al</span><span class="p">,</span><span class="w"> </span><span class="n">be</span><span class="w"></span>
+<a id="ln-158" name="ln-158" href="#ln-158"></a><span class="w">    </span><span class="kt">logical</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">ta</span><span class="p">,</span><span class="w"> </span><span class="n">tb</span><span class="w"></span>
+<a id="ln-159" name="ln-159" href="#ln-159"></a><span class="w">    </span><span class="kt">integer</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">j</span><span class="p">,</span><span class="w"> </span><span class="n">l</span><span class="p">,</span><span class="w"> </span><span class="n">m</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">k</span><span class="w"></span>
+<a id="ln-160" name="ln-160" href="#ln-160"></a>
+<a id="ln-161" name="ln-161" href="#ln-161"></a><span class="w">    </span><span class="n">ta</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"></span>
+<a id="ln-162" name="ln-162" href="#ln-162"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">present</span><span class="p">(</span><span class="n">trans_a</span><span class="p">))</span><span class="w"> </span><span class="n">ta</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">trans_a</span><span class="w"></span>
+<a id="ln-163" name="ln-163" href="#ln-163"></a><span class="w">    </span><span class="n">tb</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"></span>
+<a id="ln-164" name="ln-164" href="#ln-164"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">present</span><span class="p">(</span><span class="n">trans_b</span><span class="p">))</span><span class="w"> </span><span class="n">tb</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">trans_b</span><span class="w"></span>
+<a id="ln-165" name="ln-165" href="#ln-165"></a><span class="w">    </span><span class="n">al</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">1.0_wp</span><span class="w"></span>
+<a id="ln-166" name="ln-166" href="#ln-166"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">present</span><span class="p">(</span><span class="n">alpha</span><span class="p">))</span><span class="w"> </span><span class="n">al</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">alpha</span><span class="w"></span>
+<a id="ln-167" name="ln-167" href="#ln-167"></a><span class="w">    </span><span class="n">be</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="w"></span>
+<a id="ln-168" name="ln-168" href="#ln-168"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">present</span><span class="p">(</span><span class="n">beta</span><span class="p">))</span><span class="w"> </span><span class="n">be</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">beta</span><span class="w"></span>
+<a id="ln-169" name="ln-169" href="#ln-169"></a>
+<a id="ln-170" name="ln-170" href="#ln-170"></a><span class="w">    </span><span class="n">m</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span><span class="w"></span>
+<a id="ln-171" name="ln-171" href="#ln-171"></a><span class="w">    </span><span class="n">n</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">,</span><span class="mi">2</span><span class="p">)</span><span class="w"></span>
+<a id="ln-172" name="ln-172" href="#ln-172"></a><span class="w">    </span><span class="n">k</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">merge</span><span class="p">(</span><span class="n">size</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="mi">1</span><span class="p">),</span><span class="w"> </span><span class="n">size</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="mi">2</span><span class="p">),</span><span class="w"> </span><span class="n">ta</span><span class="p">)</span><span class="w"></span>
+<a id="ln-173" name="ln-173" href="#ln-173"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">m</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">.</span><span class="nb">or</span><span class="p">.</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">return</span><span class="w"></span>
+<a id="ln-174" name="ln-174" href="#ln-174"></a>
+<a id="ln-175" name="ln-175" href="#ln-175"></a><span class="cp">#ifdef HAS_LAPACK</span>
+<a id="ln-176" name="ln-176" href="#ln-176"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">k</span><span class="w"> </span><span class="o">&gt;</span><span class="w"> </span><span class="mi">0</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="nb">is_contiguous</span><span class="p">(</span><span class="n">a</span><span class="p">)</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="nb">is_contiguous</span><span class="p">(</span><span class="n">b</span><span class="p">)</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="nb">is_contiguous</span><span class="p">(</span><span class="n">c</span><span class="p">))</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-177" name="ln-177" href="#ln-177"></a><span class="k">        call </span><span class="n">dgemm</span><span class="p">(</span><span class="nb">merge</span><span class="p">(</span><span class="s1">&#39;T&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;N&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">ta</span><span class="p">),</span><span class="w"> </span><span class="nb">merge</span><span class="p">(</span><span class="s1">&#39;T&#39;</span><span class="p">,</span><span class="w"> </span><span class="s1">&#39;N&#39;</span><span class="p">,</span><span class="w"> </span><span class="n">tb</span><span class="p">),</span><span class="w"> </span><span class="n">m</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">k</span><span class="p">,</span><span class="w"> </span><span class="n">al</span><span class="p">,</span><span class="w"> </span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">size</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="mi">1</span><span class="p">),</span><span class="w"> </span><span class="n">b</span><span class="p">,</span><span class="w"> </span><span class="n">size</span><span class="p">(</span><span class="n">b</span><span class="p">,</span><span class="mi">1</span><span class="p">),</span><span class="w"> </span><span class="p">&amp;</span><span class="w"></span>
+<a id="ln-178" name="ln-178" href="#ln-178"></a><span class="w">                   </span><span class="n">be</span><span class="p">,</span><span class="w"> </span><span class="n">c</span><span class="p">,</span><span class="w"> </span><span class="n">size</span><span class="p">(</span><span class="n">c</span><span class="p">,</span><span class="mi">1</span><span class="p">))</span><span class="w"></span>
+<a id="ln-179" name="ln-179" href="#ln-179"></a><span class="w">        </span><span class="k">return</span>
+<a id="ln-180" name="ln-180" href="#ln-180"></a><span class="k">    end if</span><span class="w"></span>
+<a id="ln-181" name="ln-181" href="#ln-181"></a><span class="cp">#endif</span>
+<a id="ln-182" name="ln-182" href="#ln-182"></a>
+<a id="ln-183" name="ln-183" href="#ln-183"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">be</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-184" name="ln-184" href="#ln-184"></a><span class="k">        </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.0_wp</span><span class="w"></span>
+<a id="ln-185" name="ln-185" href="#ln-185"></a><span class="w">    </span><span class="k">else if</span><span class="w"> </span><span class="p">(</span><span class="n">be</span><span class="w"> </span><span class="o">/=</span><span class="w"> </span><span class="mf">1.0_wp</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-186" name="ln-186" href="#ln-186"></a><span class="k">        </span><span class="n">c</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">be</span><span class="o">*</span><span class="n">c</span><span class="w"></span>
+<a id="ln-187" name="ln-187" href="#ln-187"></a><span class="w">    </span><span class="k">end if</span>
+<a id="ln-188" name="ln-188" href="#ln-188"></a><span class="k">    if</span><span class="w"> </span><span class="p">(</span><span class="n">ta</span><span class="p">)</span><span class="w"> </span><span class="k">then</span><span class="w"></span>
+<a id="ln-189" name="ln-189" href="#ln-189"></a><span class="w">        </span><span class="c">! (each element a dot product of two columns, or of a column and a row)</span>
+<a id="ln-190" name="ln-190" href="#ln-190"></a><span class="w">        </span><span class="k">do </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"></span>
+<a id="ln-191" name="ln-191" href="#ln-191"></a><span class="w">            </span><span class="k">do </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">m</span><span class="w"></span>
+<a id="ln-192" name="ln-192" href="#ln-192"></a><span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">tb</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-193" name="ln-193" href="#ln-193"></a><span class="k">                    </span><span class="n">c</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">c</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">al</span><span class="o">*</span><span class="nb">dot_product</span><span class="p">(</span><span class="n">a</span><span class="p">(:,</span><span class="n">i</span><span class="p">),</span><span class="w"> </span><span class="n">b</span><span class="p">(</span><span class="n">j</span><span class="p">,:))</span><span class="w"></span>
+<a id="ln-194" name="ln-194" href="#ln-194"></a><span class="w">                </span><span class="k">else</span>
+<a id="ln-195" name="ln-195" href="#ln-195"></a><span class="k">                    </span><span class="n">c</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">c</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">al</span><span class="o">*</span><span class="nb">dot_product</span><span class="p">(</span><span class="n">a</span><span class="p">(:,</span><span class="n">i</span><span class="p">),</span><span class="w"> </span><span class="n">b</span><span class="p">(:,</span><span class="n">j</span><span class="p">))</span><span class="w"></span>
+<a id="ln-196" name="ln-196" href="#ln-196"></a><span class="w">                </span><span class="k">end if</span>
+<a id="ln-197" name="ln-197" href="#ln-197"></a><span class="k">            end do</span>
+<a id="ln-198" name="ln-198" href="#ln-198"></a><span class="k">        end do</span>
+<a id="ln-199" name="ln-199" href="#ln-199"></a><span class="k">    else</span><span class="w"></span>
+<a id="ln-200" name="ln-200" href="#ln-200"></a><span class="w">        </span><span class="c">! (each column a combination of the columns of `a`)</span>
+<a id="ln-201" name="ln-201" href="#ln-201"></a><span class="w">        </span><span class="k">do </span><span class="n">j</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="w"></span>
+<a id="ln-202" name="ln-202" href="#ln-202"></a><span class="w">            </span><span class="k">do </span><span class="n">l</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">k</span><span class="w"></span>
+<a id="ln-203" name="ln-203" href="#ln-203"></a><span class="w">                </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">tb</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<a id="ln-204" name="ln-204" href="#ln-204"></a><span class="k">                    </span><span class="n">c</span><span class="p">(:,</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">c</span><span class="p">(:,</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="n">al</span><span class="o">*</span><span class="n">b</span><span class="p">(</span><span class="n">j</span><span class="p">,</span><span class="n">l</span><span class="p">))</span><span class="o">*</span><span class="n">a</span><span class="p">(:,</span><span class="n">l</span><span class="p">)</span><span class="w"></span>
+<a id="ln-205" name="ln-205" href="#ln-205"></a><span class="w">                </span><span class="k">else</span>
+<a id="ln-206" name="ln-206" href="#ln-206"></a><span class="k">                    </span><span class="n">c</span><span class="p">(:,</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">c</span><span class="p">(:,</span><span class="n">j</span><span class="p">)</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="p">(</span><span class="n">al</span><span class="o">*</span><span class="n">b</span><span class="p">(</span><span class="n">l</span><span class="p">,</span><span class="n">j</span><span class="p">))</span><span class="o">*</span><span class="n">a</span><span class="p">(:,</span><span class="n">l</span><span class="p">)</span><span class="w"></span>
+<a id="ln-207" name="ln-207" href="#ln-207"></a><span class="w">                </span><span class="k">end if</span>
+<a id="ln-208" name="ln-208" href="#ln-208"></a><span class="k">            end do</span>
+<a id="ln-209" name="ln-209" href="#ln-209"></a><span class="k">        end do</span>
+<a id="ln-210" name="ln-210" href="#ln-210"></a><span class="k">    end if</span>
+<a id="ln-211" name="ln-211" href="#ln-211"></a>
+<a id="ln-212" name="ln-212" href="#ln-212"></a><span class="k">    end subroutine </span><span class="n">dense_matmul</span><span class="w"></span>
+<a id="ln-213" name="ln-213" href="#ln-213"></a><span class="c">!*******************************************************************************</span>
+<a id="ln-214" name="ln-214" href="#ln-214"></a>
+<a id="ln-215" name="ln-215" href="#ln-215"></a><span class="w">    </span><span class="k">end module </span><span class="n">sqpopt_dense_product_module</span><span class="w"></span>
+<a id="ln-216" name="ln-216" href="#ln-216"></a><span class="c">!*******************************************************************************</span>
+</pre></div>
+
+      </section>
+    </div>
+  </div>
+
+      <hr>
+    </div> <!-- /container -->
+    <footer>
+      <div class="container">
+        <div class="row justify-content-between">
+          <div class="col">
+            <p>
+              sqpopt
+ was developed by Jacob Williams<br>              &copy; 2026 
+</p>
+          </div>
+          <div class="col">
+            <p class="text-end">
+              Documentation generated by
+              <a href="https://github.com/Fortran-FOSS-Programmers/ford">FORD</a>
+            </p>
+          </div>
+        </div>
+        <br>
+      </div> <!-- /container -->
+    </footer>
+    <!-- sqpopt theme: the button switches the theme, and remembers it for the guide too -->
+    <script>
+      document.querySelector('.theme-toggle').addEventListener('click', function () {
+        var root = document.documentElement;
+        var next = root.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-bs-theme', next);
+        try { localStorage.setItem('sqpopt-theme', next); } catch (e) {}
+      });
+    </script>
+  </body>
+</html>

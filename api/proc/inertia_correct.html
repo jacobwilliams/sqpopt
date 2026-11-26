@@ -1,0 +1,1269 @@
+<!-- -*- mode: jinja2 -*- -->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- sqpopt theme: set before the page is drawn; the guide's choice (the same
+         localStorage key, on the same site), or else the system's -->
+    <script>
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('sqpopt-theme'); } catch (e) {}
+        if (t !== 'dark' && t !== 'light') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-bs-theme', t);
+      })();
+    </script>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta name="description" content="Modern Fortran SQP OPTimizer">
+    <meta name="author" content="Jacob Williams" >
+    <link rel="icon" href="../favicon.png">
+
+    <title>inertia_correct &ndash; sqpopt</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <!-- Font Awesome -->
+    <link href="../css/fontawesome.min.css" rel="stylesheet">
+    <link href="../css/brands.min.css" rel="stylesheet">
+    <link href="../css/regular.min.css" rel="stylesheet">
+    <link href="../css/solid.min.css" rel="stylesheet">
+    <link href="../css/v4-font-face.min.css" rel="stylesheet">
+    <link href="../css/v4-shims.min.css" rel="stylesheet">
+    <!-- MathJax -->
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        TeX: { equationNumbers: { autoNumber: "AMS" } }
+      });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@2.7.9/MathJax.js?config=TeX-AMS-MML_HTMLorMML" async
+            integrity="sha256-DViIOMYdwlM/axqoGDPeUyf0urLoHMN4QACBKyB58Uw=" crossorigin="anonymous"></script>
+    <!-- Other scripts and stylesheets -->
+    <link href="../css/local.css" rel="stylesheet">
+    <link href="../css/pygments.css" rel="stylesheet">
+      <link href="../css/user.css" rel="stylesheet">
+    <script src="../js/svg-pan-zoom.min.js"></script>
+  </head>
+
+  <body>
+
+    <!-- Fixed navbar -->
+    <div class="container-fluid mb-sm-4 mb-xl-2">
+      <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+          <a class="navbar-brand" href="../index.html">sqpopt </a>
+          <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbar"
+                  aria-expanded="false" aria-controls="navbar" aria-label="Toggle navigation">
+                  <span class="navbar-toggler-icon">
+          </button>
+
+          <div id="navbar" class="navbar-collapse collapse">
+            <ul class="navbar-nav">
+                  <li class="nav-item">
+                    <a class="nav-link" href="../lists/files.html">Source Files</a>
+                  </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/modules.html">Modules</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/procedures.html">Procedures</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/absint.html">Abstract Interfaces</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/types.html">Derived Types</a>
+                </li>
+            </ul>
+              <div class="d-flex align-items-end flex-grow-1">
+                <form action="../search.html" role="search" class="ms-auto">
+                  <input type="text" class="form-control" aria-label="Search" placeholder="Search" name="q" id="tipue_search_input" autocomplete="off" required>
+                </form>
+              </div>
+            <!-- sqpopt theme: the light/dark button -->
+            <button type="button" class="btn nav-link theme-toggle ms-lg-3" aria-label="Toggle dark mode" title="Toggle dark mode">
+              <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg>
+              <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div><!--/.nav-collapse -->
+        </div>
+      </nav>
+    </div>
+
+    <div class="container">
+  <div class="row">
+    <h1>inertia_correct
+      <small>Subroutine</small>
+      
+    </h1>
+      <div class="container p-2 mb-4 bg-light border rounded-3">
+    <div class="row align-items-center justify-content-between" id="info-bar">
+      <div class="col">
+        <ul class="list-inline" style="margin-bottom:0px;display:inline">
+
+            <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
+              <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
+                 title=" 0.4% of total for procedures.">39 statements</a>
+            </li>
+
+            <li class="list-inline-item" id="source-file">
+              <i class="fa fa-code"></i>
+              <a href="../src/sqpopt_inertia_module.f90"> Source File</a>
+            </li>
+        </ul>
+      </div>
+      <div class="col">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb justify-content-end mb-0">
+                <li class="breadcrumb-item"><a href='../sourcefile/sqpopt_inertia_module.f90.html'>sqpopt_inertia_module.f90</a></li>
+                <li class="breadcrumb-item"><a href='../module/sqpopt_inertia_module.html'>sqpopt_inertia_module</a></li>
+            <li class="breadcrumb-item active" aria-current="page">inertia_correct</li>
+          </ol>
+        </nav>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Enable Bootstrap tooltips
+    (function () {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+      const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+    })();
+  </script>
+
+  </div>
+  
+  <div class="row">
+    <div class="col-md-3 hidden-xs hidden-sm visible-md visible-lg">
+      <div id="sidebar">
+      <h3>Contents</h3>
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+    <div class="card card-primary">
+      <div class="card-header text-left"><h3 class="card-title">Source Code</h3></div>
+      <div class="list-group">
+        <a class="list-group-item" href="../proc/inertia_correct.html#src">inertia_correct</a>
+      </div>
+    </div>
+
+
+  </div>
+
+    </div>
+    
+    <div class="col-md-9" id='text'>
+    <h2>private  subroutine inertia_correct(me, kkt, hessian, jac, status, changed, ok, n_negative, step)  
+</h2>
+    
+
+    <p>increase the Hessian's shift (<code>hessian%shift</code>), if necessary, until
+<script type="math/tex"> H + \delta I </script> has no negative curvature on the null space of the
+working set <code>status</code> (see the module documentation for the shifts that
+are tried). The shift is never decreased: the search starts from its
+current value. On success, <code>kkt</code> holds the factorization for the final
+shift.</p>
+<p><code>ok</code> is true if no negative curvature is left. It is false if inertia
+control isn't enabled, if a factorization failed (inertia control is then
+disabled for the rest of the solve), or if the largest shift,
+<code>shift_max</code>, isn't enough.</p>
+<p>Where the KKT matrix's inertia isn't used (<code>kkt%curvature_needed</code>, see
+the module documentation), <code>step</code> is the QP's step for this working set
+and the shift on entry: if it has too little curvature, the shift is
+raised once (the caller then re-solves the QP, and calls this again
+with the new step). Without <code>step</code>, the face is taken as convex.</p>
+
+    <h3>Type Bound</h3>
+    <p><a href='../type/sqpopt_inertia_type.html'>sqpopt_inertia_type</a></p>
+
+    <h3>Arguments</h3>
+        <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~102"></span>
+              class(<a href='../type/sqpopt_inertia_type.html'>sqpopt_inertia_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+                
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-kkt~5"></span>
+              type(<a href='../type/sqpopt_kkt_type.html'>sqpopt_kkt_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>kkt</strong></td>
+            <td>
+                <p>the KKT matrix (see <a href="../module/sqpopt_kkt_module.html">sqpopt_kkt_module</a>)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-hessian~9"></span>
+              type(<a href='../type/sqpopt_hessian_type.html'>sqpopt_hessian_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>hessian</strong></td>
+            <td>
+                <p>the Hessian (its <code>shift</code> is updated)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-jac~18"></span>
+              type(<a href='../type/sqpopt_sparse_matrix.html'>sqpopt_sparse_matrix</a>),
+            </td>
+<td>intent(in)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>jac</strong></td>
+            <td>
+                <p>the constraint Jacobian <code>dimension(m,n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-status~21"></span>
+              integer,
+            </td>
+<td>intent(in),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>status</strong></td>
+            <td>
+                <p>the working set: nonzero for each general row, then each
+variable bound, that is in it <code>dimension(m+n)</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-changed"></span>
+              logical,
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>changed</strong></td>
+            <td>
+                <p>whether the shift was increased</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-ok~33"></span>
+              logical,
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>ok</strong></td>
+            <td>
+                <p>whether no negative curvature is left (see above)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-n_negative~3"></span>
+              integer,
+            </td>
+<td>intent(out),</td>
+              <td>optional</td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>n_negative</strong></td>
+            <td>
+                <p>the number of directions of negative curvature
+found with the shift on entry (<code>-1</code> if nothing
+was factored)</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-step~8"></span>
+              real(kind=wp),
+            </td>
+<td>intent(in),</td>
+              <td>optional,</td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>step</strong></td>
+            <td>
+                <p>the QP's step for the working set <code>status</code> and the
+shift on entry, for the curvature test (see above;
+only used where <code>kkt%curvature_needed</code>)
+<code>dimension(n)</code></p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+    <br>
+    <div class="card">
+      <div class="card-header">
+  <h3 class="card-title">Calls</h3>
+      </div>
+      <div class="card-body">
+  <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: proc~~inertia_correct~~CallsGraph Pages: 1 -->
+<svg id="procinertia_correctCallsGraph" width="641pt" height="180pt"
+ viewBox="0.00 0.00 641.00 180.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="proc~~inertia_correct~~CallsGraph" class="graph" transform="scale(0.348016 0.348016) rotate(0) translate(4 514.27)">
+<title>proc~~inertia_correct~~CallsGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-514.27 1837.87,-514.27 1837.87,4 -4,4"/>
+<!-- proc~inertia_correct -->
+<g id="proc~~inertia_correct~~CallsGraph_node1" class="node">
+<title>proc~inertia_correct</title>
+<polygon fill="none" stroke="black" points="202.77,-431.27 0,-431.27 0,-407 202.77,-407 202.77,-431.27"/>
+<text xml:space="preserve" text-anchor="middle" x="101.38" y="-415.53" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_inertia_type%inertia_correct</text>
+</g>
+<!-- proc~enough_curvature -->
+<g id="proc~~inertia_correct~~CallsGraph_node2" class="node">
+<title>proc~enough_curvature</title>
+<g id="a_proc~~inertia_correct~~CallsGraph_node2"><a xlink:href="../proc/enough_curvature.html" xlink:title="enough_curvature">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="388.66,-410.27 280.39,-410.27 280.39,-386 388.66,-386 388.66,-410.27"/>
+<text xml:space="preserve" text-anchor="middle" x="334.53" y="-394.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">enough_curvature</text>
+</a>
+</g>
+</g>
+<!-- proc~inertia_correct&#45;&gt;proc~enough_curvature -->
+<g id="proc~~inertia_correct~~CallsGraph_edge1" class="edge">
+<title>proc~inertia_correct&#45;&gt;proc~enough_curvature</title>
+<path fill="none" stroke="#000000" d="M203.1,-409.99C225.37,-407.96 248.39,-405.87 268.78,-404.02"/>
+<polygon fill="#000000" stroke="#000000" points="268.98,-407.51 278.63,-403.12 268.35,-400.54 268.98,-407.51"/>
+</g>
+<!-- proc~hessian_size -->
+<g id="proc~~inertia_correct~~CallsGraph_node3" class="node">
+<title>proc~hessian_size</title>
+<g id="a_proc~~inertia_correct~~CallsGraph_node3"><a xlink:href="../proc/hessian_size.html" xlink:title="sqpopt_hessian_type%hessian_size">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="663.81,-452.27 466.29,-452.27 466.29,-428 663.81,-428 663.81,-452.27"/>
+<text xml:space="preserve" text-anchor="middle" x="565.05" y="-436.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_size</text>
+</a>
+</g>
+</g>
+<!-- proc~inertia_correct&#45;&gt;proc~hessian_size -->
+<g id="proc~~inertia_correct~~CallsGraph_edge2" class="edge">
+<title>proc~inertia_correct&#45;&gt;proc~hessian_size</title>
+<path fill="none" stroke="#000000" d="M133.72,-431.73C160.97,-441.96 201.78,-455.57 238.77,-461.13 322.62,-473.75 419.74,-464.41 485.88,-454.49"/>
+<polygon fill="#000000" stroke="#000000" points="486.19,-457.98 495.54,-452.99 485.13,-451.06 486.19,-457.98"/>
+</g>
+<!-- proc~inertia_raise -->
+<g id="proc~~inertia_correct~~CallsGraph_node4" class="node">
+<title>proc~inertia_raise</title>
+<g id="a_proc~~inertia_correct~~CallsGraph_node4"><a xlink:href="../proc/inertia_raise.html" xlink:title="sqpopt_inertia_type%inertia_raise">
+<polygon fill="#d9534f" stroke="#d9534f" points="430.29,-452.27 238.77,-452.27 238.77,-428 430.29,-428 430.29,-452.27"/>
+<text xml:space="preserve" text-anchor="middle" x="334.53" y="-436.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_inertia_type%inertia_raise</text>
+</a>
+</g>
+</g>
+<!-- proc~inertia_correct&#45;&gt;proc~inertia_raise -->
+<g id="proc~~inertia_correct~~CallsGraph_edge3" class="edge">
+<title>proc~inertia_correct&#45;&gt;proc~inertia_raise</title>
+<path fill="none" stroke="#000000" d="M203.1,-428.28C211.12,-429.01 219.23,-429.75 227.29,-430.48"/>
+<polygon fill="#000000" stroke="#000000" points="226.84,-433.96 237.12,-431.38 227.48,-426.99 226.84,-433.96"/>
+</g>
+<!-- proc~kkt_factor -->
+<g id="proc~~inertia_correct~~CallsGraph_node5" class="node">
+<title>proc~kkt_factor</title>
+<g id="a_proc~~inertia_correct~~CallsGraph_node5"><a xlink:href="../proc/kkt_factor.html" xlink:title="sqpopt_kkt_type%kkt_factor">
+<polygon fill="#d9534f" stroke="#d9534f" points="414.16,-288.27 254.89,-288.27 254.89,-264 414.16,-264 414.16,-288.27"/>
+<text xml:space="preserve" text-anchor="middle" x="334.53" y="-272.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_kkt_type%kkt_factor</text>
+</a>
+</g>
+</g>
+<!-- proc~inertia_correct&#45;&gt;proc~kkt_factor -->
+<g id="proc~~inertia_correct~~CallsGraph_edge4" class="edge">
+<title>proc~inertia_correct&#45;&gt;proc~kkt_factor</title>
+<path fill="none" stroke="#000000" d="M122.49,-406.69C163.22,-381.5 255.64,-324.32 303.52,-294.7"/>
+<polygon fill="#000000" stroke="#000000" points="305.35,-297.68 312.02,-289.44 301.67,-291.73 305.35,-297.68"/>
+</g>
+<!-- proc~enough_curvature&#45;&gt;proc~hessian_size -->
+<g id="proc~~inertia_correct~~CallsGraph_edge5" class="edge">
+<title>proc~enough_curvature&#45;&gt;proc~hessian_size</title>
+<path fill="none" stroke="#000000" d="M389.11,-407.98C417.55,-413.21 453.05,-419.73 484.63,-425.54"/>
+<polygon fill="#000000" stroke="#000000" points="483.66,-428.92 494.13,-427.28 484.93,-422.03 483.66,-428.92"/>
+</g>
+<!-- proc~hessian_vector_product -->
+<g id="proc~~inertia_correct~~CallsGraph_node7" class="node">
+<title>proc~hessian_vector_product</title>
+<g id="a_proc~~inertia_correct~~CallsGraph_node7"><a xlink:href="../proc/hessian_vector_product.html" xlink:title="sqpopt_hessian_type%hessian_vector_product">
+<polygon fill="#d9534f" stroke="#d9534f" points="985.83,-472.27 729.06,-472.27 729.06,-448 985.83,-448 985.83,-472.27"/>
+<text xml:space="preserve" text-anchor="middle" x="857.44" y="-456.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_vector_product</text>
+</a>
+</g>
+</g>
+<!-- proc~enough_curvature&#45;&gt;proc~hessian_vector_product -->
+<g id="proc~~inertia_correct~~CallsGraph_edge6" class="edge">
+<title>proc~enough_curvature&#45;&gt;proc~hessian_vector_product</title>
+<path fill="none" stroke="#000000" d="M388.91,-396.2C454.52,-395.03 568.85,-396.97 663.81,-419.13 680.69,-423.08 683.15,-429.35 699.81,-434.13 715.2,-438.56 731.67,-442.31 747.94,-445.47"/>
+<polygon fill="#000000" stroke="#000000" points="747.2,-448.89 757.67,-447.29 748.48,-442.01 747.2,-448.89"/>
+</g>
+<!-- proc~inertia_raise&#45;&gt;proc~hessian_size -->
+<g id="proc~~inertia_correct~~CallsGraph_edge7" class="edge">
+<title>proc~inertia_raise&#45;&gt;proc~hessian_size</title>
+<path fill="none" stroke="#000000" d="M430.79,-440.13C438.7,-440.13 446.73,-440.13 454.73,-440.13"/>
+<polygon fill="#000000" stroke="#000000" points="454.49,-443.64 464.49,-440.14 454.49,-436.64 454.49,-443.64"/>
+</g>
+<!-- proc~factor_values -->
+<g id="proc~~inertia_correct~~CallsGraph_node6" class="node">
+<title>proc~factor_values</title>
+<g id="a_proc~~inertia_correct~~CallsGraph_node6"><a xlink:href="../proc/factor_values.html" xlink:title="factor_values">
+<polygon fill="#d9534f" stroke="#d9534f" points="606.43,-148.27 523.66,-148.27 523.66,-124 606.43,-124 606.43,-148.27"/>
+<text xml:space="preserve" text-anchor="middle" x="565.05" y="-132.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">factor_values</text>
+</a>
+</g>
+</g>
+<!-- proc~kkt_factor&#45;&gt;proc~factor_values -->
+<g id="proc~~inertia_correct~~CallsGraph_edge8" class="edge">
+<title>proc~kkt_factor&#45;&gt;proc~factor_values</title>
+<path fill="none" stroke="#000000" d="M355.81,-263.71C396.11,-239.02 486.45,-183.67 533.8,-154.67"/>
+<polygon fill="#000000" stroke="#000000" points="535.5,-157.73 542.2,-149.52 531.84,-151.76 535.5,-157.73"/>
+</g>
+<!-- proc~low_rank_update -->
+<g id="proc~~inertia_correct~~CallsGraph_node8" class="node">
+<title>proc~low_rank_update</title>
+<g id="a_proc~~inertia_correct~~CallsGraph_node8"><a xlink:href="../proc/low_rank_update.html" xlink:title="low_rank_update">
+<polygon fill="#d9534f" stroke="#d9534f" points="615.81,-288.27 514.29,-288.27 514.29,-264 615.81,-264 615.81,-288.27"/>
+<text xml:space="preserve" text-anchor="middle" x="565.05" y="-272.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">low_rank_update</text>
+</a>
+</g>
+</g>
+<!-- proc~kkt_factor&#45;&gt;proc~low_rank_update -->
+<g id="proc~~inertia_correct~~CallsGraph_edge9" class="edge">
+<title>proc~kkt_factor&#45;&gt;proc~low_rank_update</title>
+<path fill="none" stroke="#000000" d="M414.49,-276.13C443.39,-276.13 475.63,-276.13 502.75,-276.13"/>
+<polygon fill="#000000" stroke="#000000" points="502.53,-279.64 512.53,-276.14 502.53,-272.64 502.53,-279.64"/>
+</g>
+<!-- proc~kkt_negatives -->
+<g id="proc~~inertia_correct~~CallsGraph_node17" class="node">
+<title>proc~kkt_negatives</title>
+<g id="a_proc~~inertia_correct~~CallsGraph_node17"><a xlink:href="../proc/kkt_negatives.html" xlink:title="kkt_negatives">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="899.58,-148.27 815.31,-148.27 815.31,-124 899.58,-124 899.58,-148.27"/>
+<text xml:space="preserve" text-anchor="middle" x="857.44" y="-132.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">kkt_negatives</text>
+</a>
+</g>
+</g>
+<!-- proc~factor_values&#45;&gt;proc~kkt_negatives -->
+<g id="proc~~inertia_correct~~CallsGraph_edge10" class="edge">
+<title>proc~factor_values&#45;&gt;proc~kkt_negatives</title>
+<path fill="none" stroke="#000000" d="M606.73,-136.13C658.28,-136.13 747.22,-136.13 803.87,-136.13"/>
+<polygon fill="#000000" stroke="#000000" points="803.58,-139.64 813.58,-136.14 803.58,-132.64 803.58,-139.64"/>
+</g>
+<!-- proc~symmetric_solver_factor -->
+<g id="proc~~inertia_correct~~CallsGraph_node19" class="node">
+<title>proc~symmetric_solver_factor</title>
+<g id="a_proc~~inertia_correct~~CallsGraph_node19"><a xlink:href="../proc/symmetric_solver_factor.html" xlink:title="sqpopt_symmetric_solver_type%symmetric_solver_factor">
+<polygon fill="#d9534f" stroke="#d9534f" points="1015.08,-64.27 699.81,-64.27 699.81,-40 1015.08,-40 1015.08,-64.27"/>
+<text xml:space="preserve" text-anchor="middle" x="857.44" y="-48.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_symmetric_solver_type%symmetric_solver_factor</text>
+</a>
+</g>
+</g>
+<!-- proc~factor_values&#45;&gt;proc~symmetric_solver_factor -->
+<g id="proc~~inertia_correct~~CallsGraph_edge11" class="edge">
+<title>proc~factor_values&#45;&gt;proc~symmetric_solver_factor</title>
+<path fill="none" stroke="#000000" d="M606.73,-124.37C657.81,-109.59 745.58,-84.2 802.29,-67.8"/>
+<polygon fill="#000000" stroke="#000000" points="803.11,-71.21 811.74,-65.07 801.16,-64.48 803.11,-71.21"/>
+</g>
+<!-- proc~dense_lu_solve -->
+<g id="proc~~inertia_correct~~CallsGraph_node10" class="node">
+<title>proc~dense_lu_solve</title>
+<g id="a_proc~~inertia_correct~~CallsGraph_node10"><a xlink:href="../proc/dense_lu_solve.html" xlink:title="dense_lu_solve">
+<polygon fill="#d9534f" stroke="#d9534f" points="1260.22,-510.27 1168.45,-510.27 1168.45,-486 1260.22,-486 1260.22,-510.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1214.34" y="-494.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">dense_lu_solve</text>
+</a>
+</g>
+</g>
+<!-- proc~hessian_vector_product&#45;&gt;proc~dense_lu_solve -->
+<g id="proc~~inertia_correct~~CallsGraph_edge12" class="edge">
+<title>proc~hessian_vector_product&#45;&gt;proc~dense_lu_solve</title>
+<path fill="none" stroke="#000000" d="M976.13,-472.74C1037.02,-479.26 1108.55,-486.91 1157.02,-492.1"/>
+<polygon fill="#000000" stroke="#000000" points="1156.39,-495.56 1166.71,-493.14 1157.14,-488.6 1156.39,-495.56"/>
+</g>
+<!-- proc~factor_middle_matrix -->
+<g id="proc~~inertia_correct~~CallsGraph_node12" class="node">
+<title>proc~factor_middle_matrix</title>
+<g id="a_proc~~inertia_correct~~CallsGraph_node12"><a xlink:href="../proc/factor_middle_matrix.html" xlink:title="factor_middle_matrix">
+<polygon fill="#d9534f" stroke="#d9534f" points="1276.72,-392.27 1151.95,-392.27 1151.95,-368 1276.72,-368 1276.72,-392.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1214.34" y="-376.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">factor_middle_matrix</text>
+</a>
+</g>
+</g>
+<!-- proc~hessian_vector_product&#45;&gt;proc~factor_middle_matrix -->
+<g id="proc~~inertia_correct~~CallsGraph_edge13" class="edge">
+<title>proc~hessian_vector_product&#45;&gt;proc~factor_middle_matrix</title>
+<path fill="none" stroke="#000000" d="M914.29,-447.55C977.25,-433.35 1079.56,-410.29 1146.66,-395.16"/>
+<polygon fill="#000000" stroke="#000000" points="1147.07,-398.66 1156.05,-393.05 1145.53,-391.83 1147.07,-398.66"/>
+</g>
+<!-- proc~pair_col -->
+<g id="proc~~inertia_correct~~CallsGraph_node18" class="node">
+<title>proc~pair_col</title>
+<g id="a_proc~~inertia_correct~~CallsGraph_node18"><a xlink:href="../proc/pair_col.html" xlink:title="pair_col">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="1833.87,-293.27 1779.87,-293.27 1779.87,-269 1833.87,-269 1833.87,-293.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1806.87" y="-277.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">pair_col</text>
+</a>
+</g>
+</g>
+<!-- proc~hessian_vector_product&#45;&gt;proc~pair_col -->
+<g id="proc~~inertia_correct~~CallsGraph_edge14" class="edge">
+<title>proc~hessian_vector_product&#45;&gt;proc~pair_col</title>
+<path fill="none" stroke="#000000" d="M986.27,-461.73C1216.59,-463.53 1683.05,-461.88 1743.87,-420.13 1782.7,-393.48 1797.51,-336.57 1802.93,-304.45"/>
+<polygon fill="#000000" stroke="#000000" points="1806.33,-305.37 1804.35,-294.96 1799.41,-304.33 1806.33,-305.37"/>
+</g>
+<!-- proc~dense_lu_factor -->
+<g id="proc~~inertia_correct~~CallsGraph_node9" class="node">
+<title>proc~dense_lu_factor</title>
+<g id="a_proc~~inertia_correct~~CallsGraph_node9"><a xlink:href="../proc/dense_lu_factor.html" xlink:title="dense_lu_factor">
+<polygon fill="#d9534f" stroke="#d9534f" points="1626.49,-411.27 1530.97,-411.27 1530.97,-387 1626.49,-387 1626.49,-411.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1578.73" y="-395.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">dense_lu_factor</text>
+</a>
+</g>
+</g>
+<!-- proc~low_rank_update&#45;&gt;proc~dense_lu_factor -->
+<g id="proc~~inertia_correct~~CallsGraph_edge15" class="edge">
+<title>proc~low_rank_update&#45;&gt;proc~dense_lu_factor</title>
+<path fill="none" stroke="#000000" d="M574.24,-288.51C592.78,-315.27 640.97,-377.92 699.81,-401.13 849.24,-460.09 1347.77,-420.61 1519.23,-404.82"/>
+<polygon fill="#000000" stroke="#000000" points="1519.38,-408.32 1529.01,-403.91 1518.73,-401.35 1519.38,-408.32"/>
+</g>
+<!-- proc~dense_symmetric_inertia -->
+<g id="proc~~inertia_correct~~CallsGraph_node11" class="node">
+<title>proc~dense_symmetric_inertia</title>
+<g id="a_proc~~inertia_correct~~CallsGraph_node11"><a xlink:href="../proc/dense_symmetric_inertia.html" xlink:title="dense_symmetric_inertia">
+<polygon fill="#d9534f" stroke="#d9534f" points="929.95,-350.27 784.93,-350.27 784.93,-326 929.95,-326 929.95,-350.27"/>
+<text xml:space="preserve" text-anchor="middle" x="857.44" y="-334.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">dense_symmetric_inertia</text>
+</a>
+</g>
+</g>
+<!-- proc~low_rank_update&#45;&gt;proc~dense_symmetric_inertia -->
+<g id="proc~~inertia_correct~~CallsGraph_edge16" class="edge">
+<title>proc~low_rank_update&#45;&gt;proc~dense_symmetric_inertia</title>
+<path fill="none" stroke="#000000" d="M601.39,-288.71C628.12,-297.79 665.88,-309.71 699.81,-317.13 723.53,-322.32 749.56,-326.43 773.48,-329.59"/>
+<polygon fill="#000000" stroke="#000000" points="772.8,-333.03 783.16,-330.83 773.69,-326.09 772.8,-333.03"/>
+</g>
+<!-- proc~hessian_low_rank_column -->
+<g id="proc~~inertia_correct~~CallsGraph_node13" class="node">
+<title>proc~hessian_low_rank_column</title>
+<g id="a_proc~~inertia_correct~~CallsGraph_node13"><a xlink:href="../proc/hessian_low_rank_column.html" xlink:title="sqpopt_hessian_type%hessian_low_rank_column">
+<polygon fill="#d9534f" stroke="#d9534f" points="1713.49,-272.27 1443.97,-272.27 1443.97,-248 1713.49,-248 1713.49,-272.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1578.73" y="-256.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_low_rank_column</text>
+</a>
+</g>
+</g>
+<!-- proc~low_rank_update&#45;&gt;proc~hessian_low_rank_column -->
+<g id="proc~~inertia_correct~~CallsGraph_edge17" class="edge">
+<title>proc~low_rank_update&#45;&gt;proc~hessian_low_rank_column</title>
+<path fill="none" stroke="#000000" d="M616.22,-275.34C764.04,-273 1201.93,-266.08 1432.31,-262.43"/>
+<polygon fill="#000000" stroke="#000000" points="1432.34,-265.94 1442.28,-262.28 1432.23,-258.94 1432.34,-265.94"/>
+</g>
+<!-- proc~hessian_low_rank_middle -->
+<g id="proc~~inertia_correct~~CallsGraph_node14" class="node">
+<title>proc~hessian_low_rank_middle</title>
+<g id="a_proc~~inertia_correct~~CallsGraph_node14"><a xlink:href="../proc/hessian_low_rank_middle.html" xlink:title="sqpopt_hessian_type%hessian_low_rank_middle">
+<polygon fill="#d9534f" stroke="#d9534f" points="990.7,-308.27 724.18,-308.27 724.18,-284 990.7,-284 990.7,-308.27"/>
+<text xml:space="preserve" text-anchor="middle" x="857.44" y="-292.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_low_rank_middle</text>
+</a>
+</g>
+</g>
+<!-- proc~low_rank_update&#45;&gt;proc~hessian_low_rank_middle -->
+<g id="proc~~inertia_correct~~CallsGraph_edge18" class="edge">
+<title>proc~low_rank_update&#45;&gt;proc~hessian_low_rank_middle</title>
+<path fill="none" stroke="#000000" d="M616.3,-279.6C643.25,-281.45 677.98,-283.84 712.6,-286.23"/>
+<polygon fill="#000000" stroke="#000000" points="712.1,-289.7 722.32,-286.9 712.58,-282.72 712.1,-289.7"/>
+</g>
+<!-- proc~hessian_low_rank_multiply_transpose -->
+<g id="proc~~inertia_correct~~CallsGraph_node15" class="node">
+<title>proc~hessian_low_rank_multiply_transpose</title>
+<g id="a_proc~~inertia_correct~~CallsGraph_node15"><a xlink:href="../proc/hessian_low_rank_multiply_transpose.html" xlink:title="sqpopt_hessian_type%hessian_low_rank_multiply_transpose">
+<polygon fill="#d9534f" stroke="#d9534f" points="1743.87,-230.27 1413.6,-230.27 1413.6,-206 1743.87,-206 1743.87,-230.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1578.73" y="-214.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_low_rank_multiply_transpose</text>
+</a>
+</g>
+</g>
+<!-- proc~low_rank_update&#45;&gt;proc~hessian_low_rank_multiply_transpose -->
+<g id="proc~~inertia_correct~~CallsGraph_edge19" class="edge">
+<title>proc~low_rank_update&#45;&gt;proc~hessian_low_rank_multiply_transpose</title>
+<path fill="none" stroke="#000000" d="M616.2,-271.67C641.3,-269.52 672.15,-267.01 699.81,-265.13 943.2,-248.62 1224.87,-234.4 1402.16,-226.06"/>
+<polygon fill="#000000" stroke="#000000" points="1402.08,-229.56 1411.91,-225.6 1401.75,-222.57 1402.08,-229.56"/>
+</g>
+<!-- proc~hessian_low_rank_size -->
+<g id="proc~~inertia_correct~~CallsGraph_node16" class="node">
+<title>proc~hessian_low_rank_size</title>
+<g id="a_proc~~inertia_correct~~CallsGraph_node16"><a xlink:href="../proc/hessian_low_rank_size.html" xlink:title="sqpopt_hessian_type%hessian_low_rank_size">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="982.45,-392.27 732.43,-392.27 732.43,-368 982.45,-368 982.45,-392.27"/>
+<text xml:space="preserve" text-anchor="middle" x="857.44" y="-376.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_low_rank_size</text>
+</a>
+</g>
+</g>
+<!-- proc~low_rank_update&#45;&gt;proc~hessian_low_rank_size -->
+<g id="proc~~inertia_correct~~CallsGraph_edge20" class="edge">
+<title>proc~low_rank_update&#45;&gt;proc~hessian_low_rank_size</title>
+<path fill="none" stroke="#000000" d="M581.38,-288.72C605.14,-307.48 652.99,-342.34 699.81,-359.13 706.67,-361.6 713.79,-363.77 721.05,-365.69"/>
+<polygon fill="#000000" stroke="#000000" points="720.13,-369.07 730.68,-368.06 721.81,-362.28 720.13,-369.07"/>
+</g>
+<!-- proc~low_rank_update&#45;&gt;proc~kkt_negatives -->
+<g id="proc~~inertia_correct~~CallsGraph_edge21" class="edge">
+<title>proc~low_rank_update&#45;&gt;proc~kkt_negatives</title>
+<path fill="none" stroke="#000000" d="M575.52,-263.78C595.45,-238.8 644.44,-182.54 699.81,-157.13 732.35,-142.21 772.41,-137.04 803.87,-135.56"/>
+<polygon fill="#000000" stroke="#000000" points="803.66,-139.07 813.53,-135.23 803.41,-132.08 803.66,-139.07"/>
+</g>
+<!-- proc~symmetric_solver_solve -->
+<g id="proc~~inertia_correct~~CallsGraph_node20" class="node">
+<title>proc~symmetric_solver_solve</title>
+<g id="a_proc~~inertia_correct~~CallsGraph_node20"><a xlink:href="../proc/symmetric_solver_solve.html" xlink:title="sqpopt_symmetric_solver_type%symmetric_solver_solve">
+<polygon fill="#d9534f" stroke="#d9534f" points="1013.2,-190.27 701.68,-190.27 701.68,-166 1013.2,-166 1013.2,-190.27"/>
+<text xml:space="preserve" text-anchor="middle" x="857.44" y="-174.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_symmetric_solver_type%symmetric_solver_solve</text>
+</a>
+</g>
+</g>
+<!-- proc~low_rank_update&#45;&gt;proc~symmetric_solver_solve -->
+<g id="proc~~inertia_correct~~CallsGraph_edge22" class="edge">
+<title>proc~low_rank_update&#45;&gt;proc~symmetric_solver_solve</title>
+<path fill="none" stroke="#000000" d="M584.63,-263.55C609.67,-247.22 656.14,-219.05 699.81,-204.13 712.67,-199.74 726.4,-196.07 740.17,-193.02"/>
+<polygon fill="#000000" stroke="#000000" points="740.66,-196.49 749.72,-191.01 739.22,-189.64 740.66,-196.49"/>
+</g>
+<!-- proc~dense_matvec -->
+<g id="proc~~inertia_correct~~CallsGraph_node22" class="node">
+<title>proc~dense_matvec</title>
+<g id="a_proc~~inertia_correct~~CallsGraph_node22"><a xlink:href="../proc/dense_matvec.html" xlink:title="dense_matvec">
+<polygon fill="#d9534f" stroke="#d9534f" points="1258.72,-350.27 1169.95,-350.27 1169.95,-326 1258.72,-326 1258.72,-350.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1214.34" y="-334.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">dense_matvec</text>
+</a>
+</g>
+</g>
+<!-- proc~dense_symmetric_inertia&#45;&gt;proc~dense_matvec -->
+<g id="proc~~inertia_correct~~CallsGraph_edge23" class="edge">
+<title>proc~dense_symmetric_inertia&#45;&gt;proc~dense_matvec</title>
+<path fill="none" stroke="#000000" d="M930.26,-338.13C997.62,-338.13 1096.91,-338.13 1158.23,-338.13"/>
+<polygon fill="#000000" stroke="#000000" points="1158.08,-341.64 1168.08,-338.14 1158.08,-334.64 1158.08,-341.64"/>
+</g>
+<!-- proc~factor_middle_matrix&#45;&gt;proc~dense_lu_factor -->
+<g id="proc~~inertia_correct~~CallsGraph_edge24" class="edge">
+<title>proc~factor_middle_matrix&#45;&gt;proc~dense_lu_factor</title>
+<path fill="none" stroke="#000000" d="M1276.82,-383.36C1344.68,-386.92 1453.1,-392.6 1519.6,-396.09"/>
+<polygon fill="#000000" stroke="#000000" points="1519.02,-399.56 1529.19,-396.59 1519.38,-392.57 1519.02,-399.56"/>
+</g>
+<!-- proc~middle_matrix -->
+<g id="proc~~inertia_correct~~CallsGraph_node23" class="node">
+<title>proc~middle_matrix</title>
+<g id="a_proc~~inertia_correct~~CallsGraph_node23"><a xlink:href="../proc/middle_matrix.html" xlink:title="middle_matrix">
+<polygon fill="#d9534f" stroke="#d9534f" points="1622.74,-314.27 1534.72,-314.27 1534.72,-290 1622.74,-290 1622.74,-314.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1578.73" y="-298.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">middle_matrix</text>
+</a>
+</g>
+</g>
+<!-- proc~factor_middle_matrix&#45;&gt;proc~middle_matrix -->
+<g id="proc~~inertia_correct~~CallsGraph_edge25" class="edge">
+<title>proc~factor_middle_matrix&#45;&gt;proc~middle_matrix</title>
+<path fill="none" stroke="#000000" d="M1276.95,-374.34C1307.42,-370.93 1344.63,-365.92 1377.6,-359.13 1430.16,-348.31 1489.1,-330.86 1529.33,-318.11"/>
+<polygon fill="#000000" stroke="#000000" points="1530.25,-321.49 1538.71,-315.11 1528.12,-314.82 1530.25,-321.49"/>
+</g>
+<!-- proc~hessian_low_rank_column&#45;&gt;proc~pair_col -->
+<g id="proc~~inertia_correct~~CallsGraph_edge26" class="edge">
+<title>proc~hessian_low_rank_column&#45;&gt;proc~pair_col</title>
+<path fill="none" stroke="#000000" d="M1713.89,-272.59C1733.9,-274.45 1752.99,-276.22 1768.55,-277.67"/>
+<polygon fill="#000000" stroke="#000000" points="1767.92,-281.13 1778.2,-278.57 1768.57,-274.16 1767.92,-281.13"/>
+</g>
+<!-- proc~hessian_low_rank_middle&#45;&gt;proc~middle_matrix -->
+<g id="proc~~inertia_correct~~CallsGraph_edge27" class="edge">
+<title>proc~hessian_low_rank_middle&#45;&gt;proc~middle_matrix</title>
+<path fill="none" stroke="#000000" d="M990.79,-297.24C1150.09,-298.57 1410.21,-300.74 1522.86,-301.68"/>
+<polygon fill="#000000" stroke="#000000" points="1522.71,-305.18 1532.74,-301.76 1522.77,-298.18 1522.71,-305.18"/>
+</g>
+<!-- proc~hessian_low_rank_multiply_transpose&#45;&gt;proc~pair_col -->
+<g id="proc~~inertia_correct~~CallsGraph_edge28" class="edge">
+<title>proc~hessian_low_rank_multiply_transpose&#45;&gt;proc~pair_col</title>
+<path fill="none" stroke="#000000" d="M1717.07,-230.77C1726.26,-233.12 1735.27,-235.89 1743.87,-239.13 1757.79,-244.4 1771.66,-253.35 1782.74,-261.64"/>
+<polygon fill="#000000" stroke="#000000" points="1780.46,-264.31 1790.5,-267.72 1784.78,-258.79 1780.46,-264.31"/>
+</g>
+<!-- proc~hessian_low_rank_size&#45;&gt;proc~factor_middle_matrix -->
+<g id="proc~~inertia_correct~~CallsGraph_edge29" class="edge">
+<title>proc~hessian_low_rank_size&#45;&gt;proc~factor_middle_matrix</title>
+<path fill="none" stroke="#000000" d="M982.57,-380.13C1035.27,-380.13 1094.89,-380.13 1140.33,-380.13"/>
+<polygon fill="#000000" stroke="#000000" points="1140.05,-383.64 1150.05,-380.14 1140.05,-376.64 1140.05,-383.64"/>
+</g>
+<!-- proc~switch_solver -->
+<g id="proc~~inertia_correct~~CallsGraph_node25" class="node">
+<title>proc~switch_solver</title>
+<g id="a_proc~~inertia_correct~~CallsGraph_node25"><a xlink:href="../proc/switch_solver.html" xlink:title="switch_solver">
+<polygon fill="#d9534f" stroke="#d9534f" points="1255.35,-64.27 1173.33,-64.27 1173.33,-40 1255.35,-40 1255.35,-64.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1214.34" y="-48.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">switch_solver</text>
+</a>
+</g>
+</g>
+<!-- proc~symmetric_solver_factor&#45;&gt;proc~switch_solver -->
+<g id="proc~~inertia_correct~~CallsGraph_edge30" class="edge">
+<title>proc~symmetric_solver_factor&#45;&gt;proc~switch_solver</title>
+<path fill="none" stroke="#000000" d="M1015.4,-52.13C1068.03,-52.13 1123.1,-52.13 1161.75,-52.13"/>
+<polygon fill="#000000" stroke="#000000" points="1161.68,-55.64 1171.68,-52.14 1161.68,-48.64 1161.68,-55.64"/>
+</g>
+<!-- refactor -->
+<g id="proc~~inertia_correct~~CallsGraph_node27" class="node">
+<title>refactor</title>
+<polygon fill="#777777" stroke="#777777" points="1605.73,-24.27 1551.73,-24.27 1551.73,0 1605.73,0 1605.73,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1578.73" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">refactor</text>
+</g>
+<!-- proc~symmetric_solver_factor&#45;&gt;refactor -->
+<g id="proc~~inertia_correct~~CallsGraph_edge31" class="edge">
+<title>proc~symmetric_solver_factor&#45;&gt;refactor</title>
+<path fill="none" stroke="#000000" d="M961.54,-39.5C990.47,-36.33 1021.97,-33.24 1051.08,-31.13 1234.1,-17.87 1453.61,-13.73 1540.09,-12.56"/>
+<polygon fill="#000000" stroke="#000000" points="1539.93,-16.06 1549.88,-12.43 1539.84,-9.06 1539.93,-16.06"/>
+</g>
+<!-- back_solve -->
+<g id="proc~~inertia_correct~~CallsGraph_node21" class="node">
+<title>back_solve</title>
+<polygon fill="#777777" stroke="#777777" points="1249.35,-106.27 1179.33,-106.27 1179.33,-82 1249.35,-82 1249.35,-106.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1214.34" y="-90.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">back_solve</text>
+</g>
+<!-- proc~symmetric_solver_solve&#45;&gt;back_solve -->
+<g id="proc~~inertia_correct~~CallsGraph_edge32" class="edge">
+<title>proc~symmetric_solver_solve&#45;&gt;back_solve</title>
+<path fill="none" stroke="#000000" d="M996.56,-165.55C1002.96,-163.13 1009.17,-160.34 1015.08,-157.13 1036.68,-145.4 1029.45,-126.82 1051.08,-115.13 1086.85,-95.81 1133.34,-91.53 1167.38,-91.51"/>
+<polygon fill="#000000" stroke="#000000" points="1167.31,-95.01 1177.35,-91.64 1167.4,-88.01 1167.31,-95.01"/>
+</g>
+<!-- proc~sqpopt_all_finite -->
+<g id="proc~~inertia_correct~~CallsGraph_node24" class="node">
+<title>proc~sqpopt_all_finite</title>
+<g id="a_proc~~inertia_correct~~CallsGraph_node24"><a xlink:href="../proc/sqpopt_all_finite.html" xlink:title="sqpopt_all_finite">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="1263.22,-190.27 1165.45,-190.27 1165.45,-166 1263.22,-166 1263.22,-190.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1214.34" y="-174.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_all_finite</text>
+</a>
+</g>
+</g>
+<!-- proc~symmetric_solver_solve&#45;&gt;proc~sqpopt_all_finite -->
+<g id="proc~~inertia_correct~~CallsGraph_edge33" class="edge">
+<title>proc~symmetric_solver_solve&#45;&gt;proc~sqpopt_all_finite</title>
+<path fill="none" stroke="#000000" d="M1013.59,-178.13C1063.12,-178.13 1115,-178.13 1153.47,-178.13"/>
+<polygon fill="#000000" stroke="#000000" points="1153.45,-181.64 1163.45,-178.14 1153.45,-174.64 1153.45,-181.64"/>
+</g>
+<!-- proc~symmetric_solver_multiply -->
+<g id="proc~~inertia_correct~~CallsGraph_node26" class="node">
+<title>proc~symmetric_solver_multiply</title>
+<g id="a_proc~~inertia_correct~~CallsGraph_node26"><a xlink:href="../proc/symmetric_solver_multiply.html" xlink:title="sqpopt_symmetric_solver_type%symmetric_solver_multiply">
+<polygon fill="#d9534f" stroke="#d9534f" points="1377.6,-148.27 1051.08,-148.27 1051.08,-124 1377.6,-124 1377.6,-148.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1214.34" y="-132.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_symmetric_solver_type%symmetric_solver_multiply</text>
+</a>
+</g>
+</g>
+<!-- proc~symmetric_solver_solve&#45;&gt;proc~symmetric_solver_multiply -->
+<g id="proc~~inertia_correct~~CallsGraph_edge34" class="edge">
+<title>proc~symmetric_solver_solve&#45;&gt;proc~symmetric_solver_multiply</title>
+<path fill="none" stroke="#000000" d="M964.93,-165.53C1006.06,-160.66 1053.3,-155.08 1095.46,-150.09"/>
+<polygon fill="#000000" stroke="#000000" points="1095.61,-153.59 1105.13,-148.94 1094.78,-146.64 1095.61,-153.59"/>
+</g>
+<!-- proc~middle_matrix&#45;&gt;proc~pair_col -->
+<g id="proc~~inertia_correct~~CallsGraph_edge35" class="edge">
+<title>proc~middle_matrix&#45;&gt;proc~pair_col</title>
+<path fill="none" stroke="#000000" d="M1623.07,-298.11C1665.12,-294.21 1728.27,-288.34 1768.26,-284.63"/>
+<polygon fill="#000000" stroke="#000000" points="1768.49,-288.12 1778.12,-283.71 1767.84,-281.15 1768.49,-288.12"/>
+</g>
+<!-- proc~switch_solver&#45;&gt;refactor -->
+<g id="proc~~inertia_correct~~CallsGraph_edge36" class="edge">
+<title>proc~switch_solver&#45;&gt;refactor</title>
+<path fill="none" stroke="#000000" d="M1255.51,-47.7C1326.24,-39.89 1471.99,-23.81 1540.55,-16.24"/>
+<polygon fill="#000000" stroke="#000000" points="1540.58,-19.76 1550.14,-15.18 1539.81,-12.8 1540.58,-19.76"/>
+</g>
+<!-- start -->
+<g id="proc~~inertia_correct~~CallsGraph_node29" class="node">
+<title>start</title>
+<polygon fill="#777777" stroke="#777777" points="1605.73,-66.27 1551.73,-66.27 1551.73,-42 1605.73,-42 1605.73,-66.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1578.73" y="-50.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">start</text>
+</g>
+<!-- proc~switch_solver&#45;&gt;start -->
+<g id="proc~~inertia_correct~~CallsGraph_edge37" class="edge">
+<title>proc~switch_solver&#45;&gt;start</title>
+<path fill="none" stroke="#000000" d="M1255.51,-52.36C1326.24,-52.75 1471.99,-53.55 1540.55,-53.93"/>
+<polygon fill="#000000" stroke="#000000" points="1540.11,-57.43 1550.13,-53.98 1540.15,-50.43 1540.11,-57.43"/>
+</g>
+<!-- multiply -->
+<g id="proc~~inertia_correct~~CallsGraph_node28" class="node">
+<title>multiply</title>
+<polygon fill="#777777" stroke="#777777" points="1605.87,-148.27 1551.6,-148.27 1551.6,-124 1605.87,-124 1605.87,-148.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1578.73" y="-132.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">multiply</text>
+</g>
+<!-- proc~symmetric_solver_multiply&#45;&gt;multiply -->
+<g id="proc~~inertia_correct~~CallsGraph_edge38" class="edge">
+<title>proc~symmetric_solver_multiply&#45;&gt;multiply</title>
+<path fill="none" stroke="#000000" d="M1377.99,-136.13C1438.05,-136.13 1500.86,-136.13 1539.65,-136.13"/>
+<polygon fill="#000000" stroke="#000000" points="1539.61,-139.64 1549.61,-136.14 1539.61,-132.64 1539.61,-139.64"/>
+</g>
+</g>
+</svg>
+</div>                <script>
+                  var panprocinertia_correctCallsGraph = svgPanZoom('#procinertia_correctCallsGraph',
+                    {zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true,}
+                  );
+                </script>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#CallsGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="CallsGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="641pt" height="28pt"
+ viewBox="0.00 0.00 641.00 28.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(0.873868 0.873868) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 729.52,-28.27 729.52,4 -4,4"/>
+<!-- Subroutine -->
+<g id="node1" class="node">
+<title>Subroutine</title>
+<polygon fill="#d9534f" stroke="#d9534f" points="69.27,-24.27 0,-24.27 0,0 69.27,0 69.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="34.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Subroutine</text>
+</g>
+<!-- Function -->
+<g id="node2" class="node">
+<title>Function</title>
+<polygon fill="#d94e8f" stroke="#d94e8f" points="143.89,-24.27 87.38,-24.27 87.38,0 143.89,0 143.89,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="115.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Function</text>
+</g>
+<!-- Interface -->
+<g id="node3" class="node">
+<title>Interface</title>
+<polygon fill="#a7506f" stroke="#a7506f" points="221.39,-24.27 161.88,-24.27 161.88,0 221.39,0 221.39,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="191.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Interface</text>
+</g>
+<!-- Type Bound Procedure -->
+<g id="node4" class="node">
+<title>Type Bound Procedure</title>
+<polygon fill="#a7506f" stroke="#a7506f" points="368.27,-24.27 239,-24.27 239,0 368.27,0 368.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="303.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Type Bound Procedure</text>
+</g>
+<!-- Unknown Procedure Type -->
+<g id="node5" class="node">
+<title>Unknown Procedure Type</title>
+<polygon fill="#777777" stroke="#777777" points="529.39,-24.27 385.88,-24.27 385.88,0 529.39,0 529.39,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="457.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Unknown Procedure Type</text>
+</g>
+<!-- Program -->
+<g id="node6" class="node">
+<title>Program</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="603.89,-24.27 547.38,-24.27 547.38,0 603.89,0 603.89,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="575.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Program</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node7" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="725.52,-24.27 621.75,-24.27 621.75,0 725.52,0 725.52,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="673.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a procedure to one which it calls. Dashed 
+arrows point from an interface to procedures which implement that interface.
+This could include the module procedures in a generic interface or the
+implementation in a submodule of an interface in a parent module.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+  <h3 class="card-title">Called by</h3>
+      </div>
+      <div class="card-body">
+  <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: proc~~inertia_correct~~CalledByGraph Pages: 1 -->
+<svg id="procinertia_correctCalledByGraph" width="641pt" height="50pt"
+ viewBox="0.00 0.00 641.00 50.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="proc~~inertia_correct~~CalledByGraph" class="graph" transform="scale(0.443249 0.443249) rotate(0) translate(4 109.27)">
+<title>proc~~inertia_correct~~CalledByGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-109.27 1442.14,-109.27 1442.14,4 -4,4"/>
+<!-- proc~inertia_correct -->
+<g id="proc~~inertia_correct~~CalledByGraph_node1" class="node">
+<title>proc~inertia_correct</title>
+<polygon fill="none" stroke="black" points="1438.14,-105.27 1235.37,-105.27 1235.37,-81 1438.14,-81 1438.14,-105.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1336.75" y="-89.54" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_inertia_type%inertia_correct</text>
+</g>
+<!-- proc~direct_qp_step -->
+<g id="proc~~inertia_correct~~CalledByGraph_node2" class="node">
+<title>proc~direct_qp_step</title>
+<g id="a_proc~~inertia_correct~~CalledByGraph_node2"><a xlink:href="../proc/direct_qp_step.html" xlink:title="direct_qp_step">
+<polygon fill="#d9534f" stroke="#d9534f" points="1199.37,-85.27 1111.35,-85.27 1111.35,-61 1199.37,-61 1199.37,-85.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1155.36" y="-69.54" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">direct_qp_step</text>
+</a>
+</g>
+</g>
+<!-- proc~direct_qp_step&#45;&gt;proc~inertia_correct -->
+<g id="proc~~inertia_correct~~CalledByGraph_edge1" class="edge">
+<title>proc~direct_qp_step&#45;&gt;proc~inertia_correct</title>
+<path fill="none" stroke="#000000" d="M1199.79,-77.98C1207.2,-78.8 1215.2,-79.69 1223.47,-80.62"/>
+<polygon fill="#000000" stroke="#000000" points="1223.05,-84.09 1233.38,-81.72 1223.83,-77.13 1223.05,-84.09"/>
+</g>
+<!-- proc~sqpopt_iterate -->
+<g id="proc~~inertia_correct~~CalledByGraph_node3" class="node">
+<title>proc~sqpopt_iterate</title>
+<g id="a_proc~~inertia_correct~~CalledByGraph_node3"><a xlink:href="../proc/sqpopt_iterate.html" xlink:title="sqpopt_iterate">
+<polygon fill="#d9534f" stroke="#d9534f" points="474.81,-86.27 386.79,-86.27 386.79,-62 474.81,-62 474.81,-86.27"/>
+<text xml:space="preserve" text-anchor="middle" x="430.8" y="-70.54" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_iterate</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~inertia_correct -->
+<g id="proc~~inertia_correct~~CalledByGraph_edge2" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~inertia_correct</title>
+<path fill="none" stroke="#000000" d="M475.04,-84.46C486.59,-86.78 499.12,-88.92 510.81,-90.14 776.3,-117.64 844.44,-93.25 1111.35,-94.14 1150.47,-94.27 1160.25,-94.28 1199.37,-94.14 1207.35,-94.11 1215.59,-94.07 1223.88,-94.02"/>
+<polygon fill="#000000" stroke="#000000" points="1223.71,-97.52 1233.69,-93.96 1223.67,-90.52 1223.71,-97.52"/>
+</g>
+<!-- proc~solve_qp_subproblem -->
+<g id="proc~~inertia_correct~~CalledByGraph_node4" class="node">
+<title>proc~solve_qp_subproblem</title>
+<g id="a_proc~~inertia_correct~~CalledByGraph_node4"><a xlink:href="../proc/solve_qp_subproblem.html" xlink:title="sqpopt_qp_solver_type%solve_qp_subproblem">
+<polygon fill="#d9534f" stroke="#d9534f" points="1075.35,-75.27 818.58,-75.27 818.58,-51 1075.35,-51 1075.35,-75.27"/>
+<text xml:space="preserve" text-anchor="middle" x="946.96" y="-59.54" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qp_solver_type%solve_qp_subproblem</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~solve_qp_subproblem -->
+<g id="proc~~inertia_correct~~CalledByGraph_edge6" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~solve_qp_subproblem</title>
+<path fill="none" stroke="#000000" d="M475.27,-74.78C486.82,-74.93 499.29,-75.06 510.81,-75.14 631.59,-75.9 661.87,-79.56 782.58,-75.14 790.59,-74.84 798.82,-74.47 807.12,-74.03"/>
+<polygon fill="#000000" stroke="#000000" points="807.17,-77.54 816.96,-73.49 806.78,-70.55 807.17,-77.54"/>
+</g>
+<!-- proc~restoration_phase_step -->
+<g id="proc~~inertia_correct~~CalledByGraph_node7" class="node">
+<title>proc~restoration_phase_step</title>
+<g id="a_proc~~inertia_correct~~CalledByGraph_node7"><a xlink:href="../proc/restoration_phase_step.html" xlink:title="sqpopt_restoration_type%restoration_phase_step">
+<polygon fill="#d9534f" stroke="#d9534f" points="782.58,-66.27 510.81,-66.27 510.81,-42 782.58,-42 782.58,-66.27"/>
+<text xml:space="preserve" text-anchor="middle" x="646.69" y="-50.54" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_restoration_type%restoration_phase_step</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~restoration_phase_step -->
+<g id="proc~~inertia_correct~~CalledByGraph_edge9" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~restoration_phase_step</title>
+<path fill="none" stroke="#000000" d="M475.08,-70.09C482.55,-69.39 490.67,-68.63 499.18,-67.83"/>
+<polygon fill="#000000" stroke="#000000" points="499.44,-71.33 509.07,-66.91 498.78,-64.36 499.44,-71.33"/>
+</g>
+<!-- proc~trust_region_step -->
+<g id="proc~~inertia_correct~~CalledByGraph_node8" class="node">
+<title>proc~trust_region_step</title>
+<g id="a_proc~~inertia_correct~~CalledByGraph_node8"><a xlink:href="../proc/trust_region_step.html" xlink:title="sqpopt_trust_region_type%trust_region_step">
+<polygon fill="#d9534f" stroke="#d9534f" points="769.08,-24.27 524.31,-24.27 524.31,0 769.08,0 769.08,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="646.69" y="-8.54" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_trust_region_type%trust_region_step</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~trust_region_step -->
+<g id="proc~~inertia_correct~~CalledByGraph_edge10" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~trust_region_step</title>
+<path fill="none" stroke="#000000" d="M451.47,-61.63C467,-52.34 489.52,-40.11 510.81,-33.14 517.39,-30.98 524.22,-29.04 531.16,-27.3"/>
+<polygon fill="#000000" stroke="#000000" points="531.73,-30.77 540.67,-25.07 530.13,-23.95 531.73,-30.77"/>
+</g>
+<!-- proc~solve_qp_subproblem&#45;&gt;proc~direct_qp_step -->
+<g id="proc~~inertia_correct~~CalledByGraph_edge3" class="edge">
+<title>proc~solve_qp_subproblem&#45;&gt;proc~direct_qp_step</title>
+<path fill="none" stroke="#000000" d="M1075.74,-69.33C1083.97,-69.72 1091.97,-70.11 1099.53,-70.48"/>
+<polygon fill="#000000" stroke="#000000" points="1099.34,-73.97 1109.49,-70.96 1099.68,-66.98 1099.34,-73.97"/>
+</g>
+<!-- proc~sqpopt_solve -->
+<g id="proc~~inertia_correct~~CalledByGraph_node5" class="node">
+<title>proc~sqpopt_solve</title>
+<g id="a_proc~~inertia_correct~~CalledByGraph_node5"><a xlink:href="../proc/sqpopt_solve.html" xlink:title="sqpopt_type%sqpopt_solve">
+<polygon fill="#d9534f" stroke="#d9534f" points="350.79,-86.27 196.02,-86.27 196.02,-62 350.79,-62 350.79,-86.27"/>
+<text xml:space="preserve" text-anchor="middle" x="273.4" y="-70.54" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_type%sqpopt_solve</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_solve&#45;&gt;proc~sqpopt_iterate -->
+<g id="proc~~inertia_correct~~CalledByGraph_edge4" class="edge">
+<title>proc~sqpopt_solve&#45;&gt;proc~sqpopt_iterate</title>
+<path fill="none" stroke="#000000" d="M351.19,-74.14C359.21,-74.14 367.25,-74.14 374.96,-74.14"/>
+<polygon fill="#000000" stroke="#000000" points="374.84,-77.64 384.84,-74.14 374.84,-70.64 374.84,-77.64"/>
+</g>
+<!-- proc~nlls_solve -->
+<g id="proc~~inertia_correct~~CalledByGraph_node6" class="node">
+<title>proc~nlls_solve</title>
+<g id="a_proc~~inertia_correct~~CalledByGraph_node6"><a xlink:href="../proc/nlls_solve.html" xlink:title="sqpopt_nlls_type%nlls_solve">
+<polygon fill="#d9534f" stroke="#d9534f" points="160.02,-86.27 0,-86.27 0,-62 160.02,-62 160.02,-86.27"/>
+<text xml:space="preserve" text-anchor="middle" x="80.01" y="-70.54" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_nlls_type%nlls_solve</text>
+</a>
+</g>
+</g>
+<!-- proc~nlls_solve&#45;&gt;proc~sqpopt_solve -->
+<g id="proc~~inertia_correct~~CalledByGraph_edge8" class="edge">
+<title>proc~nlls_solve&#45;&gt;proc~sqpopt_solve</title>
+<path fill="none" stroke="#000000" d="M160.52,-74.14C168.31,-74.14 176.26,-74.14 184.14,-74.14"/>
+<polygon fill="#000000" stroke="#000000" points="184.09,-77.64 194.09,-74.14 184.09,-70.64 184.09,-77.64"/>
+</g>
+<!-- proc~restoration_phase_step&#45;&gt;proc~solve_qp_subproblem -->
+<g id="proc~~inertia_correct~~CalledByGraph_edge5" class="edge">
+<title>proc~restoration_phase_step&#45;&gt;proc~solve_qp_subproblem</title>
+<path fill="none" stroke="#000000" d="M782.87,-58.21C790.93,-58.46 799.06,-58.7 807.14,-58.95"/>
+<polygon fill="#000000" stroke="#000000" points="806.91,-62.44 817.01,-59.24 807.12,-55.44 806.91,-62.44"/>
+</g>
+<!-- proc~trust_region_step&#45;&gt;proc~solve_qp_subproblem -->
+<g id="proc~~inertia_correct~~CalledByGraph_edge7" class="edge">
+<title>proc~trust_region_step&#45;&gt;proc~solve_qp_subproblem</title>
+<path fill="none" stroke="#000000" d="M730.86,-24.72C747.98,-27.41 765.87,-30.3 782.58,-33.14 810.69,-37.9 841.46,-43.46 868.65,-48.49"/>
+<polygon fill="#000000" stroke="#000000" points="867.7,-51.88 878.17,-50.26 868.98,-45 867.7,-51.88"/>
+</g>
+</g>
+</svg>
+</div>                <script>
+                  var panprocinertia_correctCalledByGraph = svgPanZoom('#procinertia_correctCalledByGraph',
+                    {zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true,}
+                  );
+                </script>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#CalledByGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="CalledByGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="641pt" height="28pt"
+ viewBox="0.00 0.00 641.00 28.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(0.873868 0.873868) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 729.52,-28.27 729.52,4 -4,4"/>
+<!-- Subroutine -->
+<g id="node1" class="node">
+<title>Subroutine</title>
+<polygon fill="#d9534f" stroke="#d9534f" points="69.27,-24.27 0,-24.27 0,0 69.27,0 69.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="34.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Subroutine</text>
+</g>
+<!-- Function -->
+<g id="node2" class="node">
+<title>Function</title>
+<polygon fill="#d94e8f" stroke="#d94e8f" points="143.89,-24.27 87.38,-24.27 87.38,0 143.89,0 143.89,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="115.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Function</text>
+</g>
+<!-- Interface -->
+<g id="node3" class="node">
+<title>Interface</title>
+<polygon fill="#a7506f" stroke="#a7506f" points="221.39,-24.27 161.88,-24.27 161.88,0 221.39,0 221.39,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="191.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Interface</text>
+</g>
+<!-- Type Bound Procedure -->
+<g id="node4" class="node">
+<title>Type Bound Procedure</title>
+<polygon fill="#a7506f" stroke="#a7506f" points="368.27,-24.27 239,-24.27 239,0 368.27,0 368.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="303.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Type Bound Procedure</text>
+</g>
+<!-- Unknown Procedure Type -->
+<g id="node5" class="node">
+<title>Unknown Procedure Type</title>
+<polygon fill="#777777" stroke="#777777" points="529.39,-24.27 385.88,-24.27 385.88,0 529.39,0 529.39,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="457.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Unknown Procedure Type</text>
+</g>
+<!-- Program -->
+<g id="node6" class="node">
+<title>Program</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="603.89,-24.27 547.38,-24.27 547.38,0 603.89,0 603.89,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="575.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Program</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node7" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="725.52,-24.27 621.75,-24.27 621.75,0 725.52,0 725.52,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="673.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a procedure to one which it calls. Dashed 
+arrows point from an interface to procedures which implement that interface.
+This could include the module procedures in a generic interface or the
+implementation in a submodule of an interface in a parent module.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <br>
+
+
+    
+    
+
+    
+    
+
+
+
+    
+    <section>
+    <h2><span class="anchor" id="src"></span>Source Code</h2>
+    <div class="hl codehilite"><pre><span></span><span class="w">    </span><span class="k">subroutine </span><span class="n">inertia_correct</span><span class="p">(</span><span class="n">me</span><span class="p">,</span><span class="w"> </span><span class="n">kkt</span><span class="p">,</span><span class="w"> </span><span class="n">hessian</span><span class="p">,</span><span class="w"> </span><span class="n">jac</span><span class="p">,</span><span class="w"> </span><span class="n">status</span><span class="p">,</span><span class="w"> </span><span class="n">changed</span><span class="p">,</span><span class="w"> </span><span class="n">ok</span><span class="p">,</span><span class="w"> </span><span class="n">n_negative</span><span class="p">,</span><span class="w"> </span><span class="n">step</span><span class="p">)</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">class</span><span class="p">(</span><span class="n">sqpopt_inertia_type</span><span class="p">),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">me</span><span class="w"></span>
+<span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_kkt_type</span><span class="p">),</span><span class="w">      </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">kkt</span><span class="w">     </span><span class="c">!! the KKT matrix (see [[sqpopt_kkt_module]])</span>
+<span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_hessian_type</span><span class="p">),</span><span class="w">  </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">hessian</span><span class="w"> </span><span class="c">!! the Hessian (its `shift` is updated)</span>
+<span class="w">    </span><span class="k">type</span><span class="p">(</span><span class="n">sqpopt_sparse_matrix</span><span class="p">),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">jac</span><span class="w">     </span><span class="c">!! the constraint Jacobian `dimension(m,n)`</span>
+<span class="w">    </span><span class="kt">integer</span><span class="p">,</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">      </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">    </span><span class="kd">::</span><span class="w"> </span><span class="n">status</span><span class="w">  </span><span class="c">!! the working set: nonzero for each general row, then each</span>
+<span class="w">                                                         </span><span class="c">!! variable bound, that is in it `dimension(m+n)`</span>
+<span class="w">    </span><span class="kt">logical</span><span class="p">,</span><span class="w">                    </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w">   </span><span class="kd">::</span><span class="w"> </span><span class="n">changed</span><span class="w"> </span><span class="c">!! whether the shift was increased</span>
+<span class="w">    </span><span class="kt">logical</span><span class="p">,</span><span class="w">                    </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w">   </span><span class="kd">::</span><span class="w"> </span><span class="n">ok</span><span class="w">      </span><span class="c">!! whether no negative curvature is left (see above)</span>
+<span class="w">    </span><span class="kt">integer</span><span class="p">,</span><span class="w"> </span><span class="k">optional</span><span class="p">,</span><span class="w">          </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w">   </span><span class="kd">::</span><span class="w"> </span><span class="n">n_negative</span><span class="w"> </span><span class="c">!! the number of directions of negative curvature</span>
+<span class="w">                                                            </span><span class="c">!! found with the shift on entry (`-1` if nothing</span>
+<span class="w">                                                            </span><span class="c">!! was factored)</span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">optional</span><span class="p">,</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">step</span><span class="w"> </span><span class="c">!! the QP&#39;s step for the working set `status` and the</span>
+<span class="w">                                                         </span><span class="c">!! shift on entry, for the curvature test (see above;</span>
+<span class="w">                                                         </span><span class="c">!! only used where `kkt%curvature_needed`)</span>
+<span class="w">                                                         </span><span class="c">!! `dimension(n)`</span>
+
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">shift_max</span><span class="w"></span>
+<span class="w">    </span><span class="kt">logical</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">first</span><span class="p">,</span><span class="w"> </span><span class="n">factored</span><span class="w"></span>
+
+<span class="w">    </span><span class="n">changed</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"></span>
+<span class="w">    </span><span class="n">ok</span><span class="w">      </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">present</span><span class="p">(</span><span class="n">n_negative</span><span class="p">))</span><span class="w"> </span><span class="n">n_negative</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">-</span><span class="mi">1</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(.</span><span class="nb">not</span><span class="p">.</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">enabled</span><span class="p">)</span><span class="w"> </span><span class="k">return</span>
+
+<span class="k">    </span><span class="n">shift_max</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">hessian</span><span class="p">%</span><span class="n">shift_max</span><span class="o">*</span><span class="n">hessian</span><span class="p">%</span><span class="n">magnitude</span><span class="p">()</span><span class="w"></span>
+<span class="w">    </span><span class="n">first</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">true</span><span class="p">.</span><span class="w"></span>
+<span class="w">    </span><span class="k">do</span>
+<span class="k">        call </span><span class="n">kkt</span><span class="p">%</span><span class="n">factor</span><span class="p">(</span><span class="n">hessian</span><span class="p">,</span><span class="w"> </span><span class="n">jac</span><span class="p">,</span><span class="w"> </span><span class="n">status</span><span class="p">,</span><span class="w"> </span><span class="n">factored</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(.</span><span class="nb">not</span><span class="p">.</span><span class="w"> </span><span class="n">factored</span><span class="p">)</span><span class="w"> </span><span class="k">then</span><span class="w"></span>
+<span class="w">            </span><span class="c">! (fall back on the matrix-free tests from here on)</span>
+<span class="w">            </span><span class="n">me</span><span class="p">%</span><span class="n">enabled</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"></span>
+<span class="w">            </span><span class="k">return</span>
+<span class="k">        end if</span>
+<span class="k">        if</span><span class="w"> </span><span class="p">(</span><span class="n">first</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="nb">present</span><span class="p">(</span><span class="n">n_negative</span><span class="p">))</span><span class="w"> </span><span class="n">n_negative</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">kkt</span><span class="p">%</span><span class="n">n_negative</span><span class="w"></span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="n">kkt</span><span class="p">%</span><span class="n">n_negative</span><span class="w"> </span><span class="o">==</span><span class="w"> </span><span class="mi">0</span><span class="p">)</span><span class="w"> </span><span class="k">then</span><span class="w"></span>
+<span class="w">            </span><span class="c">! (where the inertia isn&#39;t used, the step&#39;s curvature decides, if</span>
+<span class="w">            </span><span class="c">! there is a step for this shift: see the module documentation)</span>
+<span class="w">            </span><span class="n">ok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">true</span><span class="p">.</span><span class="w"></span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(.</span><span class="nb">not</span><span class="p">.</span><span class="w"> </span><span class="p">(</span><span class="n">kkt</span><span class="p">%</span><span class="n">curvature_needed</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="nb">present</span><span class="p">(</span><span class="n">step</span><span class="p">)</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="n">first</span><span class="p">))</span><span class="w"> </span><span class="k">exit</span>
+<span class="k">            if</span><span class="w"> </span><span class="p">(</span><span class="n">enough_curvature</span><span class="p">(</span><span class="n">hessian</span><span class="p">,</span><span class="w"> </span><span class="n">step</span><span class="p">))</span><span class="w"> </span><span class="k">exit</span>
+<span class="k">            </span><span class="n">ok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"></span>
+<span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">present</span><span class="p">(</span><span class="n">n_negative</span><span class="p">))</span><span class="w"> </span><span class="n">n_negative</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="w"></span>
+<span class="w">        </span><span class="k">end if</span>
+<span class="k">        if</span><span class="w"> </span><span class="p">(</span><span class="n">hessian</span><span class="p">%</span><span class="n">shift</span><span class="w"> </span><span class="o">&gt;=</span><span class="w"> </span><span class="n">shift_max</span><span class="p">)</span><span class="w"> </span><span class="k">exit</span>
+<span class="k">        call </span><span class="n">me</span><span class="p">%</span><span class="n">raise</span><span class="p">(</span><span class="n">hessian</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="n">changed</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">true</span><span class="p">.</span><span class="w"></span>
+<span class="w">        </span><span class="n">first</span><span class="w">   </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"></span>
+<span class="w">    </span><span class="k">end do</span>
+<span class="k">    if</span><span class="w"> </span><span class="p">(</span><span class="n">ok</span><span class="w"> </span><span class="p">.</span><span class="nb">and</span><span class="p">.</span><span class="w"> </span><span class="n">changed</span><span class="p">)</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">shift_last</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">hessian</span><span class="p">%</span><span class="n">shift</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">end subroutine </span><span class="n">inertia_correct</span><span class="w"></span>
+</pre></div>
+
+    </section>
+    <br>
+    
+    </div>
+  </div>
+
+      <hr>
+    </div> <!-- /container -->
+    <footer>
+      <div class="container">
+        <div class="row justify-content-between">
+          <div class="col">
+            <p>
+              sqpopt
+ was developed by Jacob Williams<br>              &copy; 2026 
+</p>
+          </div>
+          <div class="col">
+            <p class="text-end">
+              Documentation generated by
+              <a href="https://github.com/Fortran-FOSS-Programmers/ford">FORD</a>
+            </p>
+          </div>
+        </div>
+        <br>
+      </div> <!-- /container -->
+    </footer>
+    <!-- sqpopt theme: the button switches the theme, and remembers it for the guide too -->
+    <script>
+      document.querySelector('.theme-toggle').addEventListener('click', function () {
+        var root = document.documentElement;
+        var next = root.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-bs-theme', next);
+        try { localStorage.setItem('sqpopt-theme', next); } catch (e) {}
+      });
+    </script>
+  </body>
+</html>

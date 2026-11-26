@@ -1,0 +1,920 @@
+<!-- -*- mode: jinja2 -*- -->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- sqpopt theme: set before the page is drawn; the guide's choice (the same
+         localStorage key, on the same site), or else the system's -->
+    <script>
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('sqpopt-theme'); } catch (e) {}
+        if (t !== 'dark' && t !== 'light') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-bs-theme', t);
+      })();
+    </script>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta name="description" content="Modern Fortran SQP OPTimizer">
+    <meta name="author" content="Jacob Williams" >
+    <link rel="icon" href="../favicon.png">
+
+    <title>dense_lu_factor &ndash; sqpopt</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <!-- Font Awesome -->
+    <link href="../css/fontawesome.min.css" rel="stylesheet">
+    <link href="../css/brands.min.css" rel="stylesheet">
+    <link href="../css/regular.min.css" rel="stylesheet">
+    <link href="../css/solid.min.css" rel="stylesheet">
+    <link href="../css/v4-font-face.min.css" rel="stylesheet">
+    <link href="../css/v4-shims.min.css" rel="stylesheet">
+    <!-- MathJax -->
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        TeX: { equationNumbers: { autoNumber: "AMS" } }
+      });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@2.7.9/MathJax.js?config=TeX-AMS-MML_HTMLorMML" async
+            integrity="sha256-DViIOMYdwlM/axqoGDPeUyf0urLoHMN4QACBKyB58Uw=" crossorigin="anonymous"></script>
+    <!-- Other scripts and stylesheets -->
+    <link href="../css/local.css" rel="stylesheet">
+    <link href="../css/pygments.css" rel="stylesheet">
+      <link href="../css/user.css" rel="stylesheet">
+    <script src="../js/svg-pan-zoom.min.js"></script>
+  </head>
+
+  <body>
+
+    <!-- Fixed navbar -->
+    <div class="container-fluid mb-sm-4 mb-xl-2">
+      <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+          <a class="navbar-brand" href="../index.html">sqpopt </a>
+          <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbar"
+                  aria-expanded="false" aria-controls="navbar" aria-label="Toggle navigation">
+                  <span class="navbar-toggler-icon">
+          </button>
+
+          <div id="navbar" class="navbar-collapse collapse">
+            <ul class="navbar-nav">
+                  <li class="nav-item">
+                    <a class="nav-link" href="../lists/files.html">Source Files</a>
+                  </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/modules.html">Modules</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/procedures.html">Procedures</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/absint.html">Abstract Interfaces</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/types.html">Derived Types</a>
+                </li>
+            </ul>
+              <div class="d-flex align-items-end flex-grow-1">
+                <form action="../search.html" role="search" class="ms-auto">
+                  <input type="text" class="form-control" aria-label="Search" placeholder="Search" name="q" id="tipue_search_input" autocomplete="off" required>
+                </form>
+              </div>
+            <!-- sqpopt theme: the light/dark button -->
+            <button type="button" class="btn nav-link theme-toggle ms-lg-3" aria-label="Toggle dark mode" title="Toggle dark mode">
+              <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg>
+              <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div><!--/.nav-collapse -->
+        </div>
+      </nav>
+    </div>
+
+    <div class="container">
+  <div class="row">
+    <h1>dense_lu_factor
+      <small>Subroutine</small>
+      
+    </h1>
+      <div class="container p-2 mb-4 bg-light border rounded-3">
+    <div class="row align-items-center justify-content-between" id="info-bar">
+      <div class="col">
+        <ul class="list-inline" style="margin-bottom:0px;display:inline">
+
+            <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
+              <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
+                 title=" 0.2% of total for procedures.">23 statements</a>
+            </li>
+
+            <li class="list-inline-item" id="source-file">
+              <i class="fa fa-code"></i>
+              <a href="../src/sqpopt_dense_linalg_module.f90"> Source File</a>
+            </li>
+        </ul>
+      </div>
+      <div class="col">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb justify-content-end mb-0">
+                <li class="breadcrumb-item"><a href='../sourcefile/sqpopt_dense_linalg_module.f90.html'>sqpopt_dense_linalg_module.f90</a></li>
+                <li class="breadcrumb-item"><a href='../module/sqpopt_dense_linalg_module.html'>sqpopt_dense_linalg_module</a></li>
+            <li class="breadcrumb-item active" aria-current="page">dense_lu_factor</li>
+          </ol>
+        </nav>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Enable Bootstrap tooltips
+    (function () {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+      const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+    })();
+  </script>
+
+  </div>
+  
+  <div class="row">
+    <div class="col-md-3 hidden-xs hidden-sm visible-md visible-lg">
+      <div id="sidebar">
+      <h3>Contents</h3>
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+    <div class="card card-primary">
+      <div class="card-header text-left"><h3 class="card-title">Source Code</h3></div>
+      <div class="list-group">
+        <a class="list-group-item" href="../proc/dense_lu_factor.html#src">dense_lu_factor</a>
+      </div>
+    </div>
+
+
+  </div>
+
+    </div>
+    
+    <div class="col-md-9" id='text'>
+    <h2>public pure subroutine dense_lu_factor(a, piv, ok)  
+</h2>
+    
+
+    <p>in-place LU factorization with partial pivoting of a small dense
+matrix <code>a</code> (e.g. the middle matrix of <a href="../module/sqpopt_hessian_module.html">sqpopt_hessian_module</a>, whose order is
+<code>2*max_history</code> at most, independent of <code>n</code>).
+<code>ok</code> is false if a pivot is negligible relative to the matrix's largest
+element.</p>
+
+
+    <h3>Arguments</h3>
+        <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-a~6"></span>
+              real(kind=wp),
+            </td>
+<td>intent(inout),</td>
+              <td></td>            <td>
+              dimension(:,:)
+            </td>
+            <td>::</td>
+            <td><strong>a</strong></td>
+            <td>
+                <p>matrix, overwritten by its <code>L</code> (unit, below the diagonal) and <code>U</code> factors</p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-piv~3"></span>
+              integer,
+            </td>
+<td>intent(out),</td>
+              <td></td>            <td>
+              dimension(:)
+            </td>
+            <td>::</td>
+            <td><strong>piv</strong></td>
+            <td>
+                <p><code>piv(p)</code> is the row swapped with row <code>p</code> at step <code>p</code></p>
+            </td>
+        </tr>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-ok~8"></span>
+              logical,
+            </td>
+<td>intent(out)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>ok</strong></td>
+            <td>
+                <p>false if <code>a</code> is (numerically) singular</p>
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+    <br>
+    <div class="card">
+      <div class="card-header">
+  <h3 class="card-title">Called by</h3>
+      </div>
+      <div class="card-body">
+  <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: proc~~dense_lu_factor~~CalledByGraph Pages: 1 -->
+<svg id="procdense_lu_factorCalledByGraph" width="641pt" height="108pt"
+ viewBox="0.00 0.00 641.00 108.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="proc~~dense_lu_factor~~CalledByGraph" class="graph" transform="scale(0.216044 0.216044) rotate(0) translate(4 496.27)">
+<title>proc~~dense_lu_factor~~CalledByGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-496.27 2962.99,-496.27 2962.99,4 -4,4"/>
+<!-- proc~dense_lu_factor -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_node1" class="node">
+<title>proc~dense_lu_factor</title>
+<polygon fill="none" stroke="black" points="2958.99,-392.27 2863.47,-392.27 2863.47,-368 2958.99,-368 2958.99,-392.27"/>
+<text xml:space="preserve" text-anchor="middle" x="2911.23" y="-376.53" font-family="Helvetica,sans-Serif" font-size="10.50">dense_lu_factor</text>
+</g>
+<!-- proc~factor_middle_matrix -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_node2" class="node">
+<title>proc~factor_middle_matrix</title>
+<g id="a_proc~~dense_lu_factor~~CalledByGraph_node2"><a xlink:href="../proc/factor_middle_matrix.html" xlink:title="factor_middle_matrix">
+<polygon fill="#d9534f" stroke="#d9534f" points="2827.47,-372.27 2702.7,-372.27 2702.7,-348 2827.47,-348 2827.47,-372.27"/>
+<text xml:space="preserve" text-anchor="middle" x="2765.09" y="-356.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">factor_middle_matrix</text>
+</a>
+</g>
+</g>
+<!-- proc~factor_middle_matrix&#45;&gt;proc~dense_lu_factor -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge1" class="edge">
+<title>proc~factor_middle_matrix&#45;&gt;proc~dense_lu_factor</title>
+<path fill="none" stroke="#000000" d="M2827.63,-368.67C2835.75,-369.8 2844.04,-370.95 2852.1,-372.07"/>
+<polygon fill="#000000" stroke="#000000" points="2851.39,-375.5 2861.78,-373.41 2852.35,-368.57 2851.39,-375.5"/>
+</g>
+<!-- proc~low_rank_update -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_node3" class="node">
+<title>proc~low_rank_update</title>
+<g id="a_proc~~dense_lu_factor~~CalledByGraph_node3"><a xlink:href="../proc/low_rank_update.html" xlink:title="low_rank_update">
+<polygon fill="#d9534f" stroke="#d9534f" points="2276.06,-412.27 2174.53,-412.27 2174.53,-388 2276.06,-388 2276.06,-412.27"/>
+<text xml:space="preserve" text-anchor="middle" x="2225.3" y="-396.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">low_rank_update</text>
+</a>
+</g>
+</g>
+<!-- proc~low_rank_update&#45;&gt;proc~dense_lu_factor -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge2" class="edge">
+<title>proc~low_rank_update&#45;&gt;proc~dense_lu_factor</title>
+<path fill="none" stroke="#000000" d="M2276.31,-398.67C2399.91,-395.06 2719.32,-385.72 2851.56,-381.85"/>
+<polygon fill="#000000" stroke="#000000" points="2851.6,-385.35 2861.5,-381.56 2851.4,-378.35 2851.6,-385.35"/>
+</g>
+<!-- proc~hessian_low_rank_size -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_node6" class="node">
+<title>proc~hessian_low_rank_size</title>
+<g id="a_proc~~dense_lu_factor~~CalledByGraph_node6"><a xlink:href="../proc/hessian_low_rank_size.html" xlink:title="sqpopt_hessian_type%hessian_low_rank_size">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="2666.7,-452.27 2416.68,-452.27 2416.68,-428 2666.7,-428 2666.7,-452.27"/>
+<text xml:space="preserve" text-anchor="middle" x="2541.69" y="-436.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_low_rank_size</text>
+</a>
+</g>
+</g>
+<!-- proc~low_rank_update&#45;&gt;proc~hessian_low_rank_size -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge12" class="edge">
+<title>proc~low_rank_update&#45;&gt;proc~hessian_low_rank_size</title>
+<path fill="none" stroke="#000000" d="M2276.46,-406.52C2317.73,-411.77 2377.73,-419.4 2430.14,-426.07"/>
+<polygon fill="#000000" stroke="#000000" points="2429.68,-429.54 2440.04,-427.33 2430.56,-422.59 2429.68,-429.54"/>
+</g>
+<!-- proc~hessian_dense -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_node4" class="node">
+<title>proc~hessian_dense</title>
+<g id="a_proc~~dense_lu_factor~~CalledByGraph_node4"><a xlink:href="../proc/hessian_dense.html" xlink:title="sqpopt_hessian_type%hessian_dense">
+<polygon fill="#d9534f" stroke="#d9534f" points="1657.89,-218.27 1448.37,-218.27 1448.37,-194 1657.89,-194 1657.89,-218.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1553.13" y="-202.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_dense</text>
+</a>
+</g>
+</g>
+<!-- proc~hessian_dense&#45;&gt;proc~factor_middle_matrix -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge3" class="edge">
+<title>proc~hessian_dense&#45;&gt;proc~factor_middle_matrix</title>
+<path fill="none" stroke="#000000" d="M1645.81,-218.52C1650.13,-220.97 1654.2,-223.82 1657.89,-227.13 1697.4,-262.66 1651.31,-309.35 1693.89,-341.13 1773.24,-400.38 2462.49,-374.13 2690.9,-363.69"/>
+<polygon fill="#000000" stroke="#000000" points="2691.05,-367.19 2700.88,-363.23 2690.73,-360.2 2691.05,-367.19"/>
+</g>
+<!-- proc~hessian_vector_product -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_node7" class="node">
+<title>proc~hessian_vector_product</title>
+<g id="a_proc~~dense_lu_factor~~CalledByGraph_node7"><a xlink:href="../proc/hessian_vector_product.html" xlink:title="sqpopt_hessian_type%hessian_vector_product">
+<polygon fill="#d9534f" stroke="#d9534f" points="2353.68,-197.27 2096.91,-197.27 2096.91,-173 2353.68,-173 2353.68,-197.27"/>
+<text xml:space="preserve" text-anchor="middle" x="2225.3" y="-181.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_vector_product</text>
+</a>
+</g>
+</g>
+<!-- proc~hessian_dense&#45;&gt;proc~hessian_vector_product -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge17" class="edge">
+<title>proc~hessian_dense&#45;&gt;proc~hessian_vector_product</title>
+<path fill="none" stroke="#000000" d="M1658.11,-202.88C1772.84,-199.28 1958.07,-193.48 2085.22,-189.49"/>
+<polygon fill="#000000" stroke="#000000" points="2085.17,-193 2095.06,-189.18 2084.95,-186 2085.17,-193"/>
+</g>
+<!-- proc~hessian_diagonal -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_node5" class="node">
+<title>proc~hessian_diagonal</title>
+<g id="a_proc~~dense_lu_factor~~CalledByGraph_node5"><a xlink:href="../proc/hessian_diagonal.html" xlink:title="sqpopt_hessian_type%hessian_diagonal">
+<polygon fill="#d9534f" stroke="#d9534f" points="2653.58,-125.27 2429.81,-125.27 2429.81,-101 2653.58,-101 2653.58,-125.27"/>
+<text xml:space="preserve" text-anchor="middle" x="2541.69" y="-109.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_diagonal</text>
+</a>
+</g>
+</g>
+<!-- proc~hessian_diagonal&#45;&gt;proc~factor_middle_matrix -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge4" class="edge">
+<title>proc~hessian_diagonal&#45;&gt;proc~factor_middle_matrix</title>
+<path fill="none" stroke="#000000" d="M2553.97,-125.72C2589.73,-165.61 2700.77,-289.49 2745.31,-339.19"/>
+<polygon fill="#000000" stroke="#000000" points="2742.53,-341.33 2751.81,-346.44 2747.75,-336.66 2742.53,-341.33"/>
+</g>
+<!-- proc~hessian_low_rank_size&#45;&gt;proc~factor_middle_matrix -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge5" class="edge">
+<title>proc~hessian_low_rank_size&#45;&gt;proc~factor_middle_matrix</title>
+<path fill="none" stroke="#000000" d="M2577.28,-427.63C2615.35,-413.88 2676.7,-391.71 2718.63,-376.56"/>
+<polygon fill="#000000" stroke="#000000" points="2719.73,-379.88 2727.95,-373.19 2717.35,-373.3 2719.73,-379.88"/>
+</g>
+<!-- proc~hessian_vector_product&#45;&gt;proc~factor_middle_matrix -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge6" class="edge">
+<title>proc~hessian_vector_product&#45;&gt;proc~factor_middle_matrix</title>
+<path fill="none" stroke="#000000" d="M2264.97,-197.72C2360.69,-228.87 2608.55,-309.52 2714.68,-344.06"/>
+<polygon fill="#000000" stroke="#000000" points="2713.37,-347.31 2723.96,-347.08 2715.53,-340.66 2713.37,-347.31"/>
+</g>
+<!-- proc~kkt_factor -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_node8" class="node">
+<title>proc~kkt_factor</title>
+<g id="a_proc~~dense_lu_factor~~CalledByGraph_node8"><a xlink:href="../proc/kkt_factor.html" xlink:title="sqpopt_kkt_type%kkt_factor">
+<polygon fill="#d9534f" stroke="#d9534f" points="1943.54,-412.27 1784.27,-412.27 1784.27,-388 1943.54,-388 1943.54,-412.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1863.9" y="-396.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_kkt_type%kkt_factor</text>
+</a>
+</g>
+</g>
+<!-- proc~kkt_factor&#45;&gt;proc~low_rank_update -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge7" class="edge">
+<title>proc~kkt_factor&#45;&gt;proc~low_rank_update</title>
+<path fill="none" stroke="#000000" d="M1943.77,-400.13C2009.67,-400.13 2102.33,-400.13 2162.83,-400.13"/>
+<polygon fill="#000000" stroke="#000000" points="2162.6,-403.64 2172.6,-400.14 2162.6,-396.64 2162.6,-403.64"/>
+</g>
+<!-- proc~direct_qp_step -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_node9" class="node">
+<title>proc~direct_qp_step</title>
+<g id="a_proc~~dense_lu_factor~~CalledByGraph_node9"><a xlink:href="../proc/direct_qp_step.html" xlink:title="direct_qp_step">
+<polygon fill="#d9534f" stroke="#d9534f" points="1305.87,-344.27 1217.85,-344.27 1217.85,-320 1305.87,-320 1305.87,-344.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1261.86" y="-328.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">direct_qp_step</text>
+</a>
+</g>
+</g>
+<!-- proc~direct_qp_step&#45;&gt;proc~hessian_vector_product -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge14" class="edge">
+<title>proc~direct_qp_step&#45;&gt;proc~hessian_vector_product</title>
+<path fill="none" stroke="#000000" d="M1306.27,-329.14C1424.16,-320.52 1759.8,-292.68 2033.91,-238.13 2082.45,-228.48 2136.74,-212.87 2174.89,-201.09"/>
+<polygon fill="#000000" stroke="#000000" points="2175.74,-204.49 2184.25,-198.17 2173.66,-197.81 2175.74,-204.49"/>
+</g>
+<!-- proc~direct_qp_step&#45;&gt;proc~kkt_factor -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge23" class="edge">
+<title>proc~direct_qp_step&#45;&gt;proc~kkt_factor</title>
+<path fill="none" stroke="#000000" d="M1306.13,-341.66C1343.59,-349.58 1399.32,-360.57 1448.37,-367.13 1559.54,-382 1688.45,-390.98 1772.62,-395.74"/>
+<polygon fill="#000000" stroke="#000000" points="1772.25,-399.22 1782.43,-396.28 1772.64,-392.23 1772.25,-399.22"/>
+</g>
+<!-- proc~inertia_correct -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_node15" class="node">
+<title>proc~inertia_correct</title>
+<g id="a_proc~~dense_lu_factor~~CalledByGraph_node15"><a xlink:href="../proc/inertia_correct.html" xlink:title="sqpopt_inertia_type%inertia_correct">
+<polygon fill="#d9534f" stroke="#d9534f" points="1654.52,-358.27 1451.75,-358.27 1451.75,-334 1654.52,-334 1654.52,-358.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1553.13" y="-342.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_inertia_type%inertia_correct</text>
+</a>
+</g>
+</g>
+<!-- proc~direct_qp_step&#45;&gt;proc~inertia_correct -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge31" class="edge">
+<title>proc~direct_qp_step&#45;&gt;proc~inertia_correct</title>
+<path fill="none" stroke="#000000" d="M1306.17,-334.23C1341.55,-335.94 1393.19,-338.44 1440.03,-340.71"/>
+<polygon fill="#000000" stroke="#000000" points="1439.84,-344.2 1449.99,-341.19 1440.17,-337.21 1439.84,-344.2"/>
+</g>
+<!-- proc~enough_curvature -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_node10" class="node">
+<title>proc~enough_curvature</title>
+<g id="a_proc~~dense_lu_factor~~CalledByGraph_node10"><a xlink:href="../proc/enough_curvature.html" xlink:title="enough_curvature">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="1918.04,-332.27 1809.77,-332.27 1809.77,-308 1918.04,-308 1918.04,-332.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1863.9" y="-316.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">enough_curvature</text>
+</a>
+</g>
+</g>
+<!-- proc~enough_curvature&#45;&gt;proc~hessian_vector_product -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge15" class="edge">
+<title>proc~enough_curvature&#45;&gt;proc~hessian_vector_product</title>
+<path fill="none" stroke="#000000" d="M1918.26,-316.96C1952.14,-313.72 1996.5,-307.21 2033.91,-294.13 2097.01,-272.08 2163.07,-229.04 2198.38,-204.15"/>
+<polygon fill="#000000" stroke="#000000" points="2200.15,-207.18 2206.26,-198.52 2196.09,-201.48 2200.15,-207.18"/>
+</g>
+<!-- proc~hessian_cg_solve -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_node11" class="node">
+<title>proc~hessian_cg_solve</title>
+<g id="a_proc~~dense_lu_factor~~CalledByGraph_node11"><a xlink:href="../proc/hessian_cg_solve.html" xlink:title="hessian_cg_solve">
+<polygon fill="#d9534f" stroke="#d9534f" points="1604.64,-260.27 1501.62,-260.27 1501.62,-236 1604.64,-236 1604.64,-260.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1553.13" y="-244.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">hessian_cg_solve</text>
+</a>
+</g>
+</g>
+<!-- proc~hessian_cg_solve&#45;&gt;proc~hessian_vector_product -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge16" class="edge">
+<title>proc~hessian_cg_solve&#45;&gt;proc~hessian_vector_product</title>
+<path fill="none" stroke="#000000" d="M1604.98,-244.97C1692.66,-239.32 1877.89,-226.55 2033.91,-210.13 2063.46,-207.03 2095.5,-203.05 2124.73,-199.19"/>
+<polygon fill="#000000" stroke="#000000" points="2124.83,-202.71 2134.28,-197.92 2123.9,-195.77 2124.83,-202.71"/>
+</g>
+<!-- proc~hessian_low_rank_middle_inverse -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_node12" class="node">
+<title>proc~hessian_low_rank_middle_inverse</title>
+<g id="a_proc~~dense_lu_factor~~CalledByGraph_node12"><a xlink:href="../proc/hessian_low_rank_middle_inverse.html" xlink:title="sqpopt_hessian_type%hessian_low_rank_middle_inverse">
+<polygon fill="#d9534f" stroke="#d9534f" points="2380.68,-492.27 2069.91,-492.27 2069.91,-468 2380.68,-468 2380.68,-492.27"/>
+<text xml:space="preserve" text-anchor="middle" x="2225.3" y="-476.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_low_rank_middle_inverse</text>
+</a>
+</g>
+</g>
+<!-- proc~hessian_low_rank_middle_inverse&#45;&gt;proc~hessian_low_rank_size -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge11" class="edge">
+<title>proc~hessian_low_rank_middle_inverse&#45;&gt;proc~hessian_low_rank_size</title>
+<path fill="none" stroke="#000000" d="M2325.34,-467.53C2358.8,-463.28 2396.35,-458.5 2430.6,-454.14"/>
+<polygon fill="#000000" stroke="#000000" points="2430.62,-457.67 2440.1,-452.93 2429.74,-450.72 2430.62,-457.67"/>
+</g>
+<!-- proc~hessian_update_bfgs -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_node13" class="node">
+<title>proc~hessian_update_bfgs</title>
+<g id="a_proc~~dense_lu_factor~~CalledByGraph_node13"><a xlink:href="../proc/hessian_update_bfgs.html" xlink:title="sqpopt_hessian_type%hessian_update_bfgs">
+<polygon fill="#d9534f" stroke="#d9534f" points="1068.23,-100.27 825.71,-100.27 825.71,-76 1068.23,-76 1068.23,-100.27"/>
+<text xml:space="preserve" text-anchor="middle" x="946.97" y="-84.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_update_bfgs</text>
+</a>
+</g>
+</g>
+<!-- proc~hessian_update_bfgs&#45;&gt;proc~hessian_vector_product -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge18" class="edge">
+<title>proc~hessian_update_bfgs&#45;&gt;proc~hessian_vector_product</title>
+<path fill="none" stroke="#000000" d="M1068.59,-85.99C1311.59,-82.5 1852.32,-79.13 2033.91,-114.13 2089.87,-124.92 2151.02,-150.37 2188.53,-167.68"/>
+<polygon fill="#000000" stroke="#000000" points="2187,-170.83 2197.54,-171.9 2189.97,-164.49 2187,-170.83"/>
+</g>
+<!-- proc~hessian_update_sr1 -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_node14" class="node">
+<title>proc~hessian_update_sr1</title>
+<g id="a_proc~~dense_lu_factor~~CalledByGraph_node14"><a xlink:href="../proc/hessian_update_sr1.html" xlink:title="sqpopt_hessian_type%hessian_update_sr1">
+<polygon fill="#d9534f" stroke="#d9534f" points="1065.23,-58.27 828.71,-58.27 828.71,-34 1065.23,-34 1065.23,-58.27"/>
+<text xml:space="preserve" text-anchor="middle" x="946.97" y="-42.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_update_sr1</text>
+</a>
+</g>
+</g>
+<!-- proc~hessian_update_sr1&#45;&gt;proc~hessian_vector_product -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge19" class="edge">
+<title>proc~hessian_update_sr1&#45;&gt;proc~hessian_vector_product</title>
+<path fill="none" stroke="#000000" d="M1065.36,-43.62C1307.4,-39.5 1854.29,-36.09 2033.91,-84.13 2097.18,-101.06 2162.94,-142.06 2198.2,-166.3"/>
+<polygon fill="#000000" stroke="#000000" points="2195.87,-168.94 2206.07,-171.79 2199.87,-163.2 2195.87,-168.94"/>
+</g>
+<!-- proc~inertia_correct&#45;&gt;proc~kkt_factor -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge24" class="edge">
+<title>proc~inertia_correct&#45;&gt;proc~kkt_factor</title>
+<path fill="none" stroke="#000000" d="M1613.87,-358.72C1638.59,-363.77 1667.57,-369.48 1693.89,-374.13 1719.48,-378.66 1747.34,-383.14 1772.91,-387.06"/>
+<polygon fill="#000000" stroke="#000000" points="1772.19,-390.49 1782.6,-388.54 1773.24,-383.57 1772.19,-390.49"/>
+</g>
+<!-- proc~inertia_correct&#45;&gt;proc~enough_curvature -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge26" class="edge">
+<title>proc~inertia_correct&#45;&gt;proc~enough_curvature</title>
+<path fill="none" stroke="#000000" d="M1654.81,-337.66C1701.94,-333.69 1756.7,-329.08 1798.21,-325.58"/>
+<polygon fill="#000000" stroke="#000000" points="1798.38,-329.08 1808.05,-324.75 1797.79,-322.11 1798.38,-329.08"/>
+</g>
+<!-- proc~solve_daqp_qp -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_node16" class="node">
+<title>proc~solve_daqp_qp</title>
+<g id="a_proc~~dense_lu_factor~~CalledByGraph_node16"><a xlink:href="../proc/solve_daqp_qp.html" xlink:title="sqpopt_daqp_qp_type%solve_daqp_qp">
+<polygon fill="#d9534f" stroke="#d9534f" points="1369.62,-260.27 1154.1,-260.27 1154.1,-236 1369.62,-236 1369.62,-260.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1261.86" y="-244.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_daqp_qp_type%solve_daqp_qp</text>
+</a>
+</g>
+</g>
+<!-- proc~solve_daqp_qp&#45;&gt;proc~hessian_dense -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge8" class="edge">
+<title>proc~solve_daqp_qp&#45;&gt;proc~hessian_dense</title>
+<path fill="none" stroke="#000000" d="M1353.8,-235.5C1373.14,-232.78 1393.43,-229.89 1412.37,-227.13 1427.12,-224.99 1442.74,-222.68 1457.99,-220.41"/>
+<polygon fill="#000000" stroke="#000000" points="1458.14,-223.92 1467.51,-218.98 1457.1,-217 1458.14,-223.92"/>
+</g>
+<!-- proc~solve_dense_qp -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_node17" class="node">
+<title>proc~solve_dense_qp</title>
+<g id="a_proc~~dense_lu_factor~~CalledByGraph_node17"><a xlink:href="../proc/solve_dense_qp.html" xlink:title="sqpopt_dense_qp_type%solve_dense_qp">
+<polygon fill="#d9534f" stroke="#d9534f" points="1374.87,-218.27 1148.85,-218.27 1148.85,-194 1374.87,-194 1374.87,-218.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1261.86" y="-202.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_dense_qp_type%solve_dense_qp</text>
+</a>
+</g>
+</g>
+<!-- proc~solve_dense_qp&#45;&gt;proc~hessian_dense -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge9" class="edge">
+<title>proc~solve_dense_qp&#45;&gt;proc~hessian_dense</title>
+<path fill="none" stroke="#000000" d="M1375.11,-206.13C1395.25,-206.13 1416.28,-206.13 1436.51,-206.13"/>
+<polygon fill="#000000" stroke="#000000" points="1436.47,-209.64 1446.47,-206.14 1436.47,-202.64 1436.47,-209.64"/>
+</g>
+<!-- proc~solve_reduced_hessian_qp -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_node18" class="node">
+<title>proc~solve_reduced_hessian_qp</title>
+<g id="a_proc~~dense_lu_factor~~CalledByGraph_node18"><a xlink:href="../proc/solve_reduced_hessian_qp.html" xlink:title="sqpopt_reduced_hessian_qp_type%solve_reduced_hessian_qp">
+<polygon fill="#d9534f" stroke="#d9534f" points="2033.91,-24.27 1693.89,-24.27 1693.89,0 2033.91,0 2033.91,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1863.9" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_reduced_hessian_qp_type%solve_reduced_hessian_qp</text>
+</a>
+</g>
+</g>
+<!-- proc~solve_reduced_hessian_qp&#45;&gt;proc~hessian_diagonal -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge10" class="edge">
+<title>proc~solve_reduced_hessian_qp&#45;&gt;proc~hessian_diagonal</title>
+<path fill="none" stroke="#000000" d="M1949.12,-24.72C2075.21,-43.57 2312.36,-79.01 2444.89,-98.82"/>
+<polygon fill="#000000" stroke="#000000" points="2444.3,-102.27 2454.71,-100.28 2445.33,-95.34 2444.3,-102.27"/>
+</g>
+<!-- proc~solve_reduced_hessian_qp&#45;&gt;proc~hessian_vector_product -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge20" class="edge">
+<title>proc~solve_reduced_hessian_qp&#45;&gt;proc~hessian_vector_product</title>
+<path fill="none" stroke="#000000" d="M2007.03,-24.72C2016.48,-28.33 2025.55,-32.75 2033.91,-38.13 2058.48,-53.95 2048.82,-72.92 2069.91,-93.13 2103.85,-125.67 2151.33,-151.78 2184.64,-167.76"/>
+<polygon fill="#000000" stroke="#000000" points="2183.02,-170.86 2193.56,-171.94 2185.99,-164.52 2183.02,-170.86"/>
+</g>
+<!-- proc~spectrum_compute -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_node19" class="node">
+<title>proc~spectrum_compute</title>
+<g id="a_proc~~dense_lu_factor~~CalledByGraph_node19"><a xlink:href="../proc/spectrum_compute.html" xlink:title="sqpopt_spectrum_type%spectrum_compute">
+<polygon fill="#d9534f" stroke="#d9534f" points="1985.91,-454.27 1741.89,-454.27 1741.89,-430 1985.91,-430 1985.91,-454.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1863.9" y="-438.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_spectrum_type%spectrum_compute</text>
+</a>
+</g>
+</g>
+<!-- proc~spectrum_compute&#45;&gt;proc~hessian_low_rank_size -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge13" class="edge">
+<title>proc~spectrum_compute&#45;&gt;proc~hessian_low_rank_size</title>
+<path fill="none" stroke="#000000" d="M1986.11,-441.78C2103.88,-441.43 2282.4,-440.9 2404.9,-440.54"/>
+<polygon fill="#000000" stroke="#000000" points="2404.7,-444.04 2414.69,-440.51 2404.68,-437.04 2404.7,-444.04"/>
+</g>
+<!-- proc~spectrum_compute&#45;&gt;proc~hessian_low_rank_middle_inverse -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge28" class="edge">
+<title>proc~spectrum_compute&#45;&gt;proc~hessian_low_rank_middle_inverse</title>
+<path fill="none" stroke="#000000" d="M1984.07,-454.74C2019.26,-458.46 2057.94,-462.55 2093.8,-466.34"/>
+<polygon fill="#000000" stroke="#000000" points="2093.01,-469.77 2103.33,-467.34 2093.75,-462.81 2093.01,-469.77"/>
+</g>
+<!-- proc~sqpopt_iterate -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_node20" class="node">
+<title>proc~sqpopt_iterate</title>
+<g id="a_proc~~dense_lu_factor~~CalledByGraph_node20"><a xlink:href="../proc/sqpopt_iterate.html" xlink:title="sqpopt_iterate">
+<polygon fill="#d9534f" stroke="#d9534f" points="474.81,-201.27 386.79,-201.27 386.79,-177 474.81,-177 474.81,-201.27"/>
+<text xml:space="preserve" text-anchor="middle" x="430.8" y="-185.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_iterate</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~hessian_vector_product -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge21" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~hessian_vector_product</title>
+<path fill="none" stroke="#000000" d="M449.66,-176.65C465.07,-166.63 488.33,-153.26 510.81,-147.13 697.58,-96.23 752.38,-128.13 945.97,-128.13 945.97,-128.13 945.97,-128.13 1554.13,-128.13 1756.23,-128.13 1991.39,-154.19 2122.52,-171.07"/>
+<polygon fill="#000000" stroke="#000000" points="2121.85,-174.51 2132.22,-172.33 2122.75,-167.57 2121.85,-174.51"/>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~hessian_update_bfgs -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge29" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~hessian_update_bfgs</title>
+<path fill="none" stroke="#000000" d="M440.52,-176.52C453.5,-158.91 479.76,-127.61 510.81,-114.13 615.17,-68.84 747.01,-67.77 838.07,-74.61"/>
+<polygon fill="#000000" stroke="#000000" points="837.77,-78.1 848.02,-75.41 838.33,-71.12 837.77,-78.1"/>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~hessian_update_sr1 -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge30" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~hessian_update_sr1</title>
+<path fill="none" stroke="#000000" d="M435.59,-176.63C444.16,-150.81 467.72,-91.93 510.81,-67.13 626.02,-0.84 788.11,-15.67 878.43,-31.48"/>
+<polygon fill="#000000" stroke="#000000" points="877.66,-34.9 888.13,-33.24 878.91,-28.01 877.66,-34.9"/>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~inertia_correct -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge32" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~inertia_correct</title>
+<path fill="none" stroke="#000000" d="M441.81,-201.62C455.53,-217.78 481.8,-245.47 510.81,-259.13 875.28,-430.78 1009.63,-363.21 1412.37,-353.13 1421.35,-352.91 1430.65,-352.6 1439.99,-352.25"/>
+<polygon fill="#000000" stroke="#000000" points="1440.02,-355.75 1449.87,-351.85 1439.74,-348.75 1440.02,-355.75"/>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~spectrum_compute -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge35" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~spectrum_compute</title>
+<path fill="none" stroke="#000000" d="M435.56,-201.58C444.21,-228.02 468.14,-289.9 510.81,-321.13 671.18,-438.53 747.22,-424.13 945.97,-424.13 945.97,-424.13 945.97,-424.13 1262.86,-424.13 1423.68,-424.13 1608.64,-430.67 1730.2,-435.87"/>
+<polygon fill="#000000" stroke="#000000" points="1729.75,-439.35 1739.89,-436.29 1730.05,-432.36 1729.75,-439.35"/>
+</g>
+<!-- proc~trust_region_step -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_node21" class="node">
+<title>proc~trust_region_step</title>
+<g id="a_proc~~dense_lu_factor~~CalledByGraph_node21"><a xlink:href="../proc/trust_region_step.html" xlink:title="sqpopt_trust_region_type%trust_region_step">
+<polygon fill="#d9534f" stroke="#d9534f" points="769.08,-180.27 524.31,-180.27 524.31,-156 769.08,-156 769.08,-180.27"/>
+<text xml:space="preserve" text-anchor="middle" x="646.7" y="-164.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_trust_region_type%trust_region_step</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~trust_region_step -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge37" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~trust_region_step</title>
+<path fill="none" stroke="#000000" d="M475.08,-184.89C486.43,-183.77 499.29,-182.51 512.72,-181.19"/>
+<polygon fill="#000000" stroke="#000000" points="513.01,-184.68 522.62,-180.22 512.33,-177.71 513.01,-184.68"/>
+</g>
+<!-- proc~solve_qp_subproblem -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_node23" class="node">
+<title>proc~solve_qp_subproblem</title>
+<g id="a_proc~~dense_lu_factor~~CalledByGraph_node23"><a xlink:href="../proc/solve_qp_subproblem.html" xlink:title="sqpopt_qp_solver_type%solve_qp_subproblem">
+<polygon fill="#d9534f" stroke="#d9534f" points="1075.35,-260.27 818.58,-260.27 818.58,-236 1075.35,-236 1075.35,-260.27"/>
+<text xml:space="preserve" text-anchor="middle" x="946.97" y="-244.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qp_solver_type%solve_qp_subproblem</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~solve_qp_subproblem -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge40" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~solve_qp_subproblem</title>
+<path fill="none" stroke="#000000" d="M449.65,-201.65C465.05,-211.68 488.31,-225.06 510.81,-231.13 607.38,-257.22 720.37,-260.88 807.01,-258.33"/>
+<polygon fill="#000000" stroke="#000000" points="807.12,-261.83 817,-258 806.89,-254.84 807.12,-261.83"/>
+</g>
+<!-- proc~restoration_phase_step -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_node26" class="node">
+<title>proc~restoration_phase_step</title>
+<g id="a_proc~~dense_lu_factor~~CalledByGraph_node26"><a xlink:href="../proc/restoration_phase_step.html" xlink:title="sqpopt_restoration_type%restoration_phase_step">
+<polygon fill="#d9534f" stroke="#d9534f" points="782.58,-222.27 510.81,-222.27 510.81,-198 782.58,-198 782.58,-222.27"/>
+<text xml:space="preserve" text-anchor="middle" x="646.7" y="-206.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_restoration_type%restoration_phase_step</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~restoration_phase_step -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge43" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~restoration_phase_step</title>
+<path fill="none" stroke="#000000" d="M475.08,-193.38C484.51,-194.31 494.98,-195.34 505.96,-196.42"/>
+<polygon fill="#000000" stroke="#000000" points="505.29,-199.87 515.58,-197.36 505.97,-192.9 505.29,-199.87"/>
+</g>
+<!-- proc~trust_region_step&#45;&gt;proc~hessian_vector_product -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge22" class="edge">
+<title>proc~trust_region_step&#45;&gt;proc~hessian_vector_product</title>
+<path fill="none" stroke="#000000" d="M769.56,-167.5C893.29,-166.92 1090.4,-166.13 1260.86,-166.13 1260.86,-166.13 1260.86,-166.13 1554.13,-166.13 1737.82,-166.13 1949.71,-173.36 2085.23,-178.89"/>
+<polygon fill="#000000" stroke="#000000" points="2084.83,-182.38 2094.96,-179.29 2085.11,-175.39 2084.83,-182.38"/>
+</g>
+<!-- proc~trust_region_step&#45;&gt;proc~solve_qp_subproblem -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge41" class="edge">
+<title>proc~trust_region_step&#45;&gt;proc~solve_qp_subproblem</title>
+<path fill="none" stroke="#000000" d="M743.59,-180.73C756.77,-183.14 770.07,-185.93 782.58,-189.13 825.63,-200.15 873.25,-218.03 905.92,-231.22"/>
+<polygon fill="#000000" stroke="#000000" points="904.41,-234.39 914.99,-234.93 907.06,-227.91 904.41,-234.39"/>
+</g>
+<!-- proc~hessian_inverse_vector_product -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_node22" class="node">
+<title>proc~hessian_inverse_vector_product</title>
+<g id="a_proc~~dense_lu_factor~~CalledByGraph_node22"><a xlink:href="../proc/hessian_inverse_vector_product.html" xlink:title="sqpopt_hessian_type%hessian_inverse_vector_product">
+<polygon fill="#d9534f" stroke="#d9534f" points="1412.37,-302.27 1111.35,-302.27 1111.35,-278 1412.37,-278 1412.37,-302.27"/>
+<text xml:space="preserve" text-anchor="middle" x="1261.86" y="-286.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_inverse_vector_product</text>
+</a>
+</g>
+</g>
+<!-- proc~hessian_inverse_vector_product&#45;&gt;proc~hessian_cg_solve -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge27" class="edge">
+<title>proc~hessian_inverse_vector_product&#45;&gt;proc~hessian_cg_solve</title>
+<path fill="none" stroke="#000000" d="M1353.8,-277.5C1373.14,-274.78 1393.43,-271.89 1412.37,-269.13 1437.84,-265.43 1465.9,-261.24 1490.15,-257.58"/>
+<polygon fill="#000000" stroke="#000000" points="1490.5,-261.07 1499.87,-256.11 1489.45,-254.14 1490.5,-261.07"/>
+</g>
+<!-- proc~solve_qp_subproblem&#45;&gt;proc~direct_qp_step -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge25" class="edge">
+<title>proc~solve_qp_subproblem&#45;&gt;proc~direct_qp_step</title>
+<path fill="none" stroke="#000000" d="M974.8,-260.68C1006.67,-275.05 1061.76,-298.27 1111.35,-311.13 1142.23,-319.15 1177.55,-324.29 1206.1,-327.48"/>
+<polygon fill="#000000" stroke="#000000" points="1205.67,-330.95 1215.99,-328.52 1206.41,-323.99 1205.67,-330.95"/>
+</g>
+<!-- proc~solve_qp_subproblem&#45;&gt;proc~solve_daqp_qp -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge33" class="edge">
+<title>proc~solve_qp_subproblem&#45;&gt;proc~solve_daqp_qp</title>
+<path fill="none" stroke="#000000" d="M1075.68,-248.13C1097.84,-248.13 1120.8,-248.13 1142.69,-248.13"/>
+<polygon fill="#000000" stroke="#000000" points="1142.52,-251.64 1152.52,-248.14 1142.52,-244.64 1142.52,-251.64"/>
+</g>
+<!-- proc~solve_qp_subproblem&#45;&gt;proc~solve_dense_qp -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge34" class="edge">
+<title>proc~solve_qp_subproblem&#45;&gt;proc~solve_dense_qp</title>
+<path fill="none" stroke="#000000" d="M1041.84,-235.53C1077.65,-230.73 1118.7,-225.22 1155.5,-220.28"/>
+<polygon fill="#000000" stroke="#000000" points="1155.83,-223.76 1165.28,-218.97 1154.9,-216.83 1155.83,-223.76"/>
+</g>
+<!-- proc~solve_qp_subproblem&#45;&gt;proc~hessian_inverse_vector_product -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge38" class="edge">
+<title>proc~solve_qp_subproblem&#45;&gt;proc~hessian_inverse_vector_product</title>
+<path fill="none" stroke="#000000" d="M1041.84,-260.74C1077.65,-265.54 1118.7,-271.05 1155.5,-275.99"/>
+<polygon fill="#000000" stroke="#000000" points="1154.9,-279.44 1165.28,-277.3 1155.83,-272.51 1154.9,-279.44"/>
+</g>
+<!-- proc~sqpopt_solve -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_node24" class="node">
+<title>proc~sqpopt_solve</title>
+<g id="a_proc~~dense_lu_factor~~CalledByGraph_node24"><a xlink:href="../proc/sqpopt_solve.html" xlink:title="sqpopt_type%sqpopt_solve">
+<polygon fill="#d9534f" stroke="#d9534f" points="350.79,-201.27 196.02,-201.27 196.02,-177 350.79,-177 350.79,-201.27"/>
+<text xml:space="preserve" text-anchor="middle" x="273.41" y="-185.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_type%sqpopt_solve</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_solve&#45;&gt;proc~sqpopt_iterate -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge36" class="edge">
+<title>proc~sqpopt_solve&#45;&gt;proc~sqpopt_iterate</title>
+<path fill="none" stroke="#000000" d="M351.19,-189.13C359.21,-189.13 367.25,-189.13 374.96,-189.13"/>
+<polygon fill="#000000" stroke="#000000" points="374.84,-192.64 384.84,-189.14 374.84,-185.64 374.84,-192.64"/>
+</g>
+<!-- proc~nlls_solve -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_node25" class="node">
+<title>proc~nlls_solve</title>
+<g id="a_proc~~dense_lu_factor~~CalledByGraph_node25"><a xlink:href="../proc/nlls_solve.html" xlink:title="sqpopt_nlls_type%nlls_solve">
+<polygon fill="#d9534f" stroke="#d9534f" points="160.02,-201.27 0,-201.27 0,-177 160.02,-177 160.02,-201.27"/>
+<text xml:space="preserve" text-anchor="middle" x="80.01" y="-185.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_nlls_type%nlls_solve</text>
+</a>
+</g>
+</g>
+<!-- proc~nlls_solve&#45;&gt;proc~sqpopt_solve -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge42" class="edge">
+<title>proc~nlls_solve&#45;&gt;proc~sqpopt_solve</title>
+<path fill="none" stroke="#000000" d="M160.52,-189.13C168.31,-189.13 176.26,-189.13 184.14,-189.13"/>
+<polygon fill="#000000" stroke="#000000" points="184.09,-192.64 194.09,-189.14 184.09,-185.64 184.09,-192.64"/>
+</g>
+<!-- proc~restoration_phase_step&#45;&gt;proc~solve_qp_subproblem -->
+<g id="proc~~dense_lu_factor~~CalledByGraph_edge39" class="edge">
+<title>proc~restoration_phase_step&#45;&gt;proc~solve_qp_subproblem</title>
+<path fill="none" stroke="#000000" d="M746.6,-222.74C775.17,-226.38 806.52,-230.37 835.74,-234.09"/>
+<polygon fill="#000000" stroke="#000000" points="834.96,-237.52 845.32,-235.31 835.84,-230.58 834.96,-237.52"/>
+</g>
+</g>
+</svg>
+</div>                <script>
+                  var panprocdense_lu_factorCalledByGraph = svgPanZoom('#procdense_lu_factorCalledByGraph',
+                    {zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true,}
+                  );
+                </script>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#CalledByGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="CalledByGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="641pt" height="28pt"
+ viewBox="0.00 0.00 641.00 28.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(0.873868 0.873868) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 729.52,-28.27 729.52,4 -4,4"/>
+<!-- Subroutine -->
+<g id="node1" class="node">
+<title>Subroutine</title>
+<polygon fill="#d9534f" stroke="#d9534f" points="69.27,-24.27 0,-24.27 0,0 69.27,0 69.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="34.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Subroutine</text>
+</g>
+<!-- Function -->
+<g id="node2" class="node">
+<title>Function</title>
+<polygon fill="#d94e8f" stroke="#d94e8f" points="143.89,-24.27 87.38,-24.27 87.38,0 143.89,0 143.89,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="115.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Function</text>
+</g>
+<!-- Interface -->
+<g id="node3" class="node">
+<title>Interface</title>
+<polygon fill="#a7506f" stroke="#a7506f" points="221.39,-24.27 161.88,-24.27 161.88,0 221.39,0 221.39,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="191.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Interface</text>
+</g>
+<!-- Type Bound Procedure -->
+<g id="node4" class="node">
+<title>Type Bound Procedure</title>
+<polygon fill="#a7506f" stroke="#a7506f" points="368.27,-24.27 239,-24.27 239,0 368.27,0 368.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="303.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Type Bound Procedure</text>
+</g>
+<!-- Unknown Procedure Type -->
+<g id="node5" class="node">
+<title>Unknown Procedure Type</title>
+<polygon fill="#777777" stroke="#777777" points="529.39,-24.27 385.88,-24.27 385.88,0 529.39,0 529.39,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="457.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Unknown Procedure Type</text>
+</g>
+<!-- Program -->
+<g id="node6" class="node">
+<title>Program</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="603.89,-24.27 547.38,-24.27 547.38,0 603.89,0 603.89,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="575.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Program</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node7" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="725.52,-24.27 621.75,-24.27 621.75,0 725.52,0 725.52,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="673.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a procedure to one which it calls. Dashed 
+arrows point from an interface to procedures which implement that interface.
+This could include the module procedures in a generic interface or the
+implementation in a submodule of an interface in a parent module.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <br>
+
+
+    
+    
+
+    
+    
+
+
+
+    
+    <section>
+    <h2><span class="anchor" id="src"></span>Source Code</h2>
+    <div class="hl codehilite"><pre><span></span><span class="w">    </span><span class="k">pure subroutine </span><span class="n">dense_lu_factor</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="n">piv</span><span class="p">,</span><span class="w"> </span><span class="n">ok</span><span class="p">)</span><span class="w"></span>
+
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:,:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">a</span><span class="w">   </span><span class="c">!! matrix, overwritten by its `L` (unit, below the diagonal) and `U` factors</span>
+<span class="w">    </span><span class="kt">integer</span><span class="p">,</span><span class="w">  </span><span class="k">dimension</span><span class="p">(:),</span><span class="w">   </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w">   </span><span class="kd">::</span><span class="w"> </span><span class="n">piv</span><span class="w"> </span><span class="c">!! `piv(p)` is the row swapped with row `p` at step `p`</span>
+<span class="w">    </span><span class="kt">logical</span><span class="p">,</span><span class="w">                  </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w">   </span><span class="kd">::</span><span class="w"> </span><span class="n">ok</span><span class="w">  </span><span class="c">!! false if `a` is (numerically) singular</span>
+
+<span class="w">    </span><span class="kt">integer</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">p</span><span class="p">,</span><span class="w"> </span><span class="n">k2</span><span class="w"></span>
+<span class="w">    </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="nb">amax</span><span class="p">,</span><span class="w"> </span><span class="n">tol</span><span class="w"></span>
+
+<span class="w">    </span><span class="n">k2</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">size</span><span class="p">(</span><span class="n">a</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="n">ok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">true</span><span class="p">.</span><span class="w"></span>
+<span class="w">    </span><span class="n">tol</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">1.0e-14_wp</span><span class="o">*</span><span class="nb">max</span><span class="p">(</span><span class="nb">maxval</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">a</span><span class="p">)),</span><span class="w"> </span><span class="nb">tiny</span><span class="p">(</span><span class="mf">1.0_wp</span><span class="p">))</span><span class="w"></span>
+<span class="w">    </span><span class="k">do </span><span class="n">p</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">k2</span><span class="w"></span>
+<span class="w">        </span><span class="n">piv</span><span class="p">(</span><span class="n">p</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="nb">maxloc</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">a</span><span class="p">(</span><span class="n">p</span><span class="p">:</span><span class="n">k2</span><span class="p">,</span><span class="n">p</span><span class="p">)),</span><span class="w"> </span><span class="nb">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="nb">amax</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">abs</span><span class="p">(</span><span class="n">a</span><span class="p">(</span><span class="n">piv</span><span class="p">(</span><span class="n">p</span><span class="p">),</span><span class="n">p</span><span class="p">))</span><span class="w"></span>
+<span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">amax</span><span class="w"> </span><span class="o">&lt;=</span><span class="w"> </span><span class="n">tol</span><span class="p">)</span><span class="w"> </span><span class="k">then</span>
+<span class="k">            </span><span class="n">ok</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"></span>
+<span class="w">            </span><span class="k">return</span>
+<span class="k">        end if</span>
+<span class="k">        if</span><span class="w"> </span><span class="p">(</span><span class="n">piv</span><span class="p">(</span><span class="n">p</span><span class="p">)</span><span class="w"> </span><span class="o">/=</span><span class="w"> </span><span class="n">p</span><span class="p">)</span><span class="w"> </span><span class="n">a</span><span class="p">([</span><span class="n">p</span><span class="p">,</span><span class="n">piv</span><span class="p">(</span><span class="n">p</span><span class="p">)],:)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">a</span><span class="p">([</span><span class="n">piv</span><span class="p">(</span><span class="n">p</span><span class="p">),</span><span class="n">p</span><span class="p">],:)</span><span class="w"></span>
+<span class="w">        </span><span class="k">do </span><span class="n">i</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">p</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="n">k2</span><span class="w"></span>
+<span class="w">            </span><span class="n">a</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="n">p</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">a</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="n">p</span><span class="p">)</span><span class="o">/</span><span class="n">a</span><span class="p">(</span><span class="n">p</span><span class="p">,</span><span class="n">p</span><span class="p">)</span><span class="w"></span>
+<span class="w">            </span><span class="n">a</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="n">p</span><span class="o">+</span><span class="mi">1</span><span class="p">:</span><span class="n">k2</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">a</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="n">p</span><span class="o">+</span><span class="mi">1</span><span class="p">:</span><span class="n">k2</span><span class="p">)</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="n">a</span><span class="p">(</span><span class="n">i</span><span class="p">,</span><span class="n">p</span><span class="p">)</span><span class="o">*</span><span class="n">a</span><span class="p">(</span><span class="n">p</span><span class="p">,</span><span class="n">p</span><span class="o">+</span><span class="mi">1</span><span class="p">:</span><span class="n">k2</span><span class="p">)</span><span class="w"></span>
+<span class="w">        </span><span class="k">end do</span>
+<span class="k">    end do</span>
+
+<span class="k">    end subroutine </span><span class="n">dense_lu_factor</span><span class="w"></span>
+</pre></div>
+
+    </section>
+    <br>
+    
+    </div>
+  </div>
+
+      <hr>
+    </div> <!-- /container -->
+    <footer>
+      <div class="container">
+        <div class="row justify-content-between">
+          <div class="col">
+            <p>
+              sqpopt
+ was developed by Jacob Williams<br>              &copy; 2026 
+</p>
+          </div>
+          <div class="col">
+            <p class="text-end">
+              Documentation generated by
+              <a href="https://github.com/Fortran-FOSS-Programmers/ford">FORD</a>
+            </p>
+          </div>
+        </div>
+        <br>
+      </div> <!-- /container -->
+    </footer>
+    <!-- sqpopt theme: the button switches the theme, and remembers it for the guide too -->
+    <script>
+      document.querySelector('.theme-toggle').addEventListener('click', function () {
+        var root = document.documentElement;
+        var next = root.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-bs-theme', next);
+        try { localStorage.setItem('sqpopt-theme', next); } catch (e) {}
+      });
+    </script>
+  </body>
+</html>

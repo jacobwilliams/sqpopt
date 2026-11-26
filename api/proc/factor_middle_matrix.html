@@ -1,0 +1,1013 @@
+<!-- -*- mode: jinja2 -*- -->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- sqpopt theme: set before the page is drawn; the guide's choice (the same
+         localStorage key, on the same site), or else the system's -->
+    <script>
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('sqpopt-theme'); } catch (e) {}
+        if (t !== 'dark' && t !== 'light') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-bs-theme', t);
+      })();
+    </script>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta name="description" content="Modern Fortran SQP OPTimizer">
+    <meta name="author" content="Jacob Williams" >
+    <link rel="icon" href="../favicon.png">
+
+    <title>factor_middle_matrix &ndash; sqpopt</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <!-- Font Awesome -->
+    <link href="../css/fontawesome.min.css" rel="stylesheet">
+    <link href="../css/brands.min.css" rel="stylesheet">
+    <link href="../css/regular.min.css" rel="stylesheet">
+    <link href="../css/solid.min.css" rel="stylesheet">
+    <link href="../css/v4-font-face.min.css" rel="stylesheet">
+    <link href="../css/v4-shims.min.css" rel="stylesheet">
+    <!-- MathJax -->
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        TeX: { equationNumbers: { autoNumber: "AMS" } }
+      });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@2.7.9/MathJax.js?config=TeX-AMS-MML_HTMLorMML" async
+            integrity="sha256-DViIOMYdwlM/axqoGDPeUyf0urLoHMN4QACBKyB58Uw=" crossorigin="anonymous"></script>
+    <!-- Other scripts and stylesheets -->
+    <link href="../css/local.css" rel="stylesheet">
+    <link href="../css/pygments.css" rel="stylesheet">
+      <link href="../css/user.css" rel="stylesheet">
+    <script src="../js/svg-pan-zoom.min.js"></script>
+  </head>
+
+  <body>
+
+    <!-- Fixed navbar -->
+    <div class="container-fluid mb-sm-4 mb-xl-2">
+      <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+          <a class="navbar-brand" href="../index.html">sqpopt </a>
+          <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbar"
+                  aria-expanded="false" aria-controls="navbar" aria-label="Toggle navigation">
+                  <span class="navbar-toggler-icon">
+          </button>
+
+          <div id="navbar" class="navbar-collapse collapse">
+            <ul class="navbar-nav">
+                  <li class="nav-item">
+                    <a class="nav-link" href="../lists/files.html">Source Files</a>
+                  </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/modules.html">Modules</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/procedures.html">Procedures</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/absint.html">Abstract Interfaces</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/types.html">Derived Types</a>
+                </li>
+            </ul>
+              <div class="d-flex align-items-end flex-grow-1">
+                <form action="../search.html" role="search" class="ms-auto">
+                  <input type="text" class="form-control" aria-label="Search" placeholder="Search" name="q" id="tipue_search_input" autocomplete="off" required>
+                </form>
+              </div>
+            <!-- sqpopt theme: the light/dark button -->
+            <button type="button" class="btn nav-link theme-toggle ms-lg-3" aria-label="Toggle dark mode" title="Toggle dark mode">
+              <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg>
+              <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div><!--/.nav-collapse -->
+        </div>
+      </nav>
+    </div>
+
+    <div class="container">
+  <div class="row">
+    <h1>factor_middle_matrix
+      <small>Subroutine</small>
+      
+    </h1>
+      <div class="container p-2 mb-4 bg-light border rounded-3">
+    <div class="row align-items-center justify-content-between" id="info-bar">
+      <div class="col">
+        <ul class="list-inline" style="margin-bottom:0px;display:inline">
+
+            <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
+              <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
+                 title=" 0.1% of total for procedures.">12 statements</a>
+            </li>
+
+            <li class="list-inline-item" id="source-file">
+              <i class="fa fa-code"></i>
+              <a href="../src/sqpopt_hessian_module.f90"> Source File</a>
+            </li>
+        </ul>
+      </div>
+      <div class="col">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb justify-content-end mb-0">
+                <li class="breadcrumb-item"><a href='../sourcefile/sqpopt_hessian_module.f90.html'>sqpopt_hessian_module.f90</a></li>
+                <li class="breadcrumb-item"><a href='../module/sqpopt_hessian_module.html'>sqpopt_hessian_module</a></li>
+            <li class="breadcrumb-item active" aria-current="page">factor_middle_matrix</li>
+          </ol>
+        </nav>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Enable Bootstrap tooltips
+    (function () {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+      const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+    })();
+  </script>
+
+  </div>
+  
+  <div class="row">
+    <div class="col-md-3 hidden-xs hidden-sm visible-md visible-lg">
+      <div id="sidebar">
+      <h3>Contents</h3>
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+    <div class="card card-primary">
+      <div class="card-header text-left"><h3 class="card-title">Source Code</h3></div>
+      <div class="list-group">
+        <a class="list-group-item" href="../proc/factor_middle_matrix.html#src">factor_middle_matrix</a>
+      </div>
+    </div>
+
+
+  </div>
+
+    </div>
+    
+    <div class="col-md-9" id='text'>
+    <h2>private  subroutine factor_middle_matrix(me)  
+</h2>
+    
+
+    <p>form and LU-factor the middle matrix of the compact representation for
+the current pairs and <code>gamma</code> (<script type="math/tex"> \theta = 1/\gamma </script>):</p>
+<ul>
+<li>BFGS: <script type="math/tex"> M = <script type="math/tex; mode=display">\begin{bmatrix} \theta S^TS & L \\ L^T & -D \end{bmatrix}</script>
+</script>
+</li>
+<li>SR1: <script type="math/tex"> M = D + L + L^T - \theta S^TS </script>
+</li>
+</ul>
+<p>with <script type="math/tex"> L_{pq} = s_p^Ty_q </script> for <script type="math/tex"> p>q </script> and <script type="math/tex"> D = \text{diag}(s_p^Ty_p) </script>,
+from the stored inner products (<code>O(k^2)</code>, plus <code>O(k^3)</code> for the LU).</p>
+
+
+    <h3>Arguments</h3>
+        <table class="table table-striped varlist">
+    <thead>
+      <tr>
+        <th scope="col">Type</th>
+<th scope="col">Intent</th><th scope="col">Optional</th>        <th scope="col">Attributes</th>
+        <th scope="col"></th>
+        <th scope="col">Name</th>
+        <th scope="col"></th>
+    </thead>
+    <tbody>
+        <tr>
+            <td>
+              <span class="anchor" id="variable-me~83"></span>
+              class(<a href='../type/sqpopt_hessian_type.html'>sqpopt_hessian_type</a>),
+            </td>
+<td>intent(inout)</td>
+              <td></td>            <td>
+              
+            </td>
+            <td>::</td>
+            <td><strong>me</strong></td>
+            <td>
+                
+            </td>
+        </tr>
+    </tbody>
+  </table>
+
+    <br>
+    <div class="card">
+      <div class="card-header">
+  <h3 class="card-title">Calls</h3>
+      </div>
+      <div class="card-body">
+  <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: proc~~factor_middle_matrix~~CallsGraph Pages: 1 -->
+<svg id="procfactor_middle_matrixCallsGraph" width="354pt" height="74pt"
+ viewBox="0.00 0.00 354.00 74.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="proc~~factor_middle_matrix~~CallsGraph" class="graph" transform="scale(1 1) rotate(0) translate(4 70.27)">
+<title>proc~~factor_middle_matrix~~CallsGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-70.27 350.29,-70.27 350.29,4 -4,4"/>
+<!-- proc~factor_middle_matrix -->
+<g id="proc~~factor_middle_matrix~~CallsGraph_node1" class="node">
+<title>proc~factor_middle_matrix</title>
+<polygon fill="none" stroke="black" points="124.77,-45.27 0,-45.27 0,-21 124.77,-21 124.77,-45.27"/>
+<text xml:space="preserve" text-anchor="middle" x="62.38" y="-29.53" font-family="Helvetica,sans-Serif" font-size="10.50">factor_middle_matrix</text>
+</g>
+<!-- proc~dense_lu_factor -->
+<g id="proc~~factor_middle_matrix~~CallsGraph_node2" class="node">
+<title>proc~dense_lu_factor</title>
+<g id="a_proc~~factor_middle_matrix~~CallsGraph_node2"><a xlink:href="../proc/dense_lu_factor.html" xlink:title="dense_lu_factor">
+<polygon fill="#d9534f" stroke="#d9534f" points="256.29,-66.27 160.77,-66.27 160.77,-42 256.29,-42 256.29,-66.27"/>
+<text xml:space="preserve" text-anchor="middle" x="208.53" y="-50.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">dense_lu_factor</text>
+</a>
+</g>
+</g>
+<!-- proc~factor_middle_matrix&#45;&gt;proc~dense_lu_factor -->
+<g id="proc~~factor_middle_matrix~~CallsGraph_edge1" class="edge">
+<title>proc~factor_middle_matrix&#45;&gt;proc~dense_lu_factor</title>
+<path fill="none" stroke="#000000" d="M124.93,-42.1C133.05,-43.28 141.34,-44.49 149.4,-45.67"/>
+<polygon fill="#000000" stroke="#000000" points="148.68,-49.1 159.08,-47.08 149.69,-42.17 148.68,-49.1"/>
+</g>
+<!-- proc~middle_matrix -->
+<g id="proc~~factor_middle_matrix~~CallsGraph_node3" class="node">
+<title>proc~middle_matrix</title>
+<g id="a_proc~~factor_middle_matrix~~CallsGraph_node3"><a xlink:href="../proc/middle_matrix.html" xlink:title="middle_matrix">
+<polygon fill="#d9534f" stroke="#d9534f" points="252.54,-24.27 164.52,-24.27 164.52,0 252.54,0 252.54,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="208.53" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">middle_matrix</text>
+</a>
+</g>
+</g>
+<!-- proc~factor_middle_matrix&#45;&gt;proc~middle_matrix -->
+<g id="proc~~factor_middle_matrix~~CallsGraph_edge2" class="edge">
+<title>proc~factor_middle_matrix&#45;&gt;proc~middle_matrix</title>
+<path fill="none" stroke="#000000" d="M124.93,-24.17C134.19,-22.82 143.68,-21.44 152.78,-20.11"/>
+<polygon fill="#000000" stroke="#000000" points="153.16,-23.59 162.55,-18.69 152.15,-16.67 153.16,-23.59"/>
+</g>
+<!-- proc~pair_col -->
+<g id="proc~~factor_middle_matrix~~CallsGraph_node4" class="node">
+<title>proc~pair_col</title>
+<g id="a_proc~~factor_middle_matrix~~CallsGraph_node4"><a xlink:href="../proc/pair_col.html" xlink:title="pair_col">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="346.29,-24.27 292.29,-24.27 292.29,0 346.29,0 346.29,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="319.29" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">pair_col</text>
+</a>
+</g>
+</g>
+<!-- proc~middle_matrix&#45;&gt;proc~pair_col -->
+<g id="proc~~factor_middle_matrix~~CallsGraph_edge3" class="edge">
+<title>proc~middle_matrix&#45;&gt;proc~pair_col</title>
+<path fill="none" stroke="#000000" d="M252.83,-12.13C262.05,-12.13 271.72,-12.13 280.72,-12.13"/>
+<polygon fill="#000000" stroke="#000000" points="280.54,-15.64 290.54,-12.14 280.54,-8.64 280.54,-15.64"/>
+</g>
+</g>
+</svg>
+</div>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#CallsGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="CallsGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="641pt" height="28pt"
+ viewBox="0.00 0.00 641.00 28.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(0.873868 0.873868) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 729.52,-28.27 729.52,4 -4,4"/>
+<!-- Subroutine -->
+<g id="node1" class="node">
+<title>Subroutine</title>
+<polygon fill="#d9534f" stroke="#d9534f" points="69.27,-24.27 0,-24.27 0,0 69.27,0 69.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="34.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Subroutine</text>
+</g>
+<!-- Function -->
+<g id="node2" class="node">
+<title>Function</title>
+<polygon fill="#d94e8f" stroke="#d94e8f" points="143.89,-24.27 87.38,-24.27 87.38,0 143.89,0 143.89,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="115.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Function</text>
+</g>
+<!-- Interface -->
+<g id="node3" class="node">
+<title>Interface</title>
+<polygon fill="#a7506f" stroke="#a7506f" points="221.39,-24.27 161.88,-24.27 161.88,0 221.39,0 221.39,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="191.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Interface</text>
+</g>
+<!-- Type Bound Procedure -->
+<g id="node4" class="node">
+<title>Type Bound Procedure</title>
+<polygon fill="#a7506f" stroke="#a7506f" points="368.27,-24.27 239,-24.27 239,0 368.27,0 368.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="303.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Type Bound Procedure</text>
+</g>
+<!-- Unknown Procedure Type -->
+<g id="node5" class="node">
+<title>Unknown Procedure Type</title>
+<polygon fill="#777777" stroke="#777777" points="529.39,-24.27 385.88,-24.27 385.88,0 529.39,0 529.39,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="457.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Unknown Procedure Type</text>
+</g>
+<!-- Program -->
+<g id="node6" class="node">
+<title>Program</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="603.89,-24.27 547.38,-24.27 547.38,0 603.89,0 603.89,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="575.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Program</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node7" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="725.52,-24.27 621.75,-24.27 621.75,0 725.52,0 725.52,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="673.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a procedure to one which it calls. Dashed 
+arrows point from an interface to procedures which implement that interface.
+This could include the module procedures in a generic interface or the
+implementation in a submodule of an interface in a parent module.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+  <h3 class="card-title">Called by</h3>
+      </div>
+      <div class="card-body">
+  <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: proc~~factor_middle_matrix~~CalledByGraph Pages: 1 -->
+<svg id="procfactor_middle_matrixCalledByGraph" width="641pt" height="109pt"
+ viewBox="0.00 0.00 641.00 109.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="proc~~factor_middle_matrix~~CalledByGraph" class="graph" transform="scale(0.226065 0.226065) rotate(0) translate(4 476.27)">
+<title>proc~~factor_middle_matrix~~CalledByGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-476.27 2831.47,-476.27 2831.47,4 -4,4"/>
+<!-- proc~factor_middle_matrix -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_node1" class="node">
+<title>proc~factor_middle_matrix</title>
+<polygon fill="none" stroke="black" points="2827.47,-128.79 2702.7,-128.79 2702.7,-104.52 2827.47,-104.52 2827.47,-128.79"/>
+<text xml:space="preserve" text-anchor="middle" x="2765.08" y="-113.06" font-family="Helvetica,sans-Serif" font-size="10.50">factor_middle_matrix</text>
+</g>
+<!-- proc~hessian_dense -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_node2" class="node">
+<title>proc~hessian_dense</title>
+<g id="a_proc~~factor_middle_matrix~~CalledByGraph_node2"><a xlink:href="../proc/hessian_dense.html" xlink:title="sqpopt_hessian_type%hessian_dense">
+<polygon fill="#d9534f" stroke="#d9534f" points="1657.89,-171.79 1448.37,-171.79 1448.37,-147.52 1657.89,-147.52 1657.89,-171.79"/>
+<text xml:space="preserve" text-anchor="middle" x="1553.13" y="-156.06" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_dense</text>
+</a>
+</g>
+</g>
+<!-- proc~hessian_dense&#45;&gt;proc~factor_middle_matrix -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge1" class="edge">
+<title>proc~hessian_dense&#45;&gt;proc~factor_middle_matrix</title>
+<path fill="none" stroke="#000000" d="M1561.63,-147.23C1579.91,-118.32 1629.99,-47.02 1693.89,-20.66 1840.23,39.73 2560.1,-49.28 2666.7,-75.66 2688.58,-81.07 2711.9,-90.73 2730.22,-99.32"/>
+<polygon fill="#000000" stroke="#000000" points="2728.5,-102.37 2739.03,-103.55 2731.53,-96.07 2728.5,-102.37"/>
+</g>
+<!-- proc~hessian_vector_product -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_node5" class="node">
+<title>proc~hessian_vector_product</title>
+<g id="a_proc~~factor_middle_matrix~~CalledByGraph_node5"><a xlink:href="../proc/hessian_vector_product.html" xlink:title="sqpopt_hessian_type%hessian_vector_product">
+<polygon fill="#d9534f" stroke="#d9534f" points="2353.68,-193.79 2096.91,-193.79 2096.91,-169.52 2353.68,-169.52 2353.68,-193.79"/>
+<text xml:space="preserve" text-anchor="middle" x="2225.3" y="-178.06" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_vector_product</text>
+</a>
+</g>
+</g>
+<!-- proc~hessian_dense&#45;&gt;proc~hessian_vector_product -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge14" class="edge">
+<title>proc~hessian_dense&#45;&gt;proc~hessian_vector_product</title>
+<path fill="none" stroke="#000000" d="M1658.11,-163.07C1772.84,-166.84 1958.07,-172.92 2085.22,-177.09"/>
+<polygon fill="#000000" stroke="#000000" points="2084.95,-180.58 2095.06,-177.41 2085.18,-173.59 2084.95,-180.58"/>
+</g>
+<!-- proc~hessian_diagonal -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_node3" class="node">
+<title>proc~hessian_diagonal</title>
+<g id="a_proc~~factor_middle_matrix~~CalledByGraph_node3"><a xlink:href="../proc/hessian_diagonal.html" xlink:title="sqpopt_hessian_type%hessian_diagonal">
+<polygon fill="#d9534f" stroke="#d9534f" points="2653.57,-108.79 2429.8,-108.79 2429.8,-84.52 2653.57,-84.52 2653.57,-108.79"/>
+<text xml:space="preserve" text-anchor="middle" x="2541.69" y="-93.06" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_diagonal</text>
+</a>
+</g>
+</g>
+<!-- proc~hessian_diagonal&#45;&gt;proc~factor_middle_matrix -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge2" class="edge">
+<title>proc~hessian_diagonal&#45;&gt;proc~factor_middle_matrix</title>
+<path fill="none" stroke="#000000" d="M2654.04,-106.72C2666.6,-107.85 2679.16,-108.98 2691.05,-110.06"/>
+<polygon fill="#000000" stroke="#000000" points="2690.46,-113.52 2700.73,-110.93 2691.09,-106.55 2690.46,-113.52"/>
+</g>
+<!-- proc~hessian_low_rank_size -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_node4" class="node">
+<title>proc~hessian_low_rank_size</title>
+<g id="a_proc~~factor_middle_matrix~~CalledByGraph_node4"><a xlink:href="../proc/hessian_low_rank_size.html" xlink:title="sqpopt_hessian_type%hessian_low_rank_size">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="2666.7,-395.79 2416.68,-395.79 2416.68,-371.52 2666.7,-371.52 2666.7,-395.79"/>
+<text xml:space="preserve" text-anchor="middle" x="2541.69" y="-380.06" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_low_rank_size</text>
+</a>
+</g>
+</g>
+<!-- proc~hessian_low_rank_size&#45;&gt;proc~factor_middle_matrix -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge3" class="edge">
+<title>proc~hessian_low_rank_size&#45;&gt;proc~factor_middle_matrix</title>
+<path fill="none" stroke="#000000" d="M2553.07,-371.14C2588.15,-328.83 2702.55,-190.87 2746.59,-137.76"/>
+<polygon fill="#000000" stroke="#000000" points="2749.07,-140.25 2752.76,-130.31 2743.68,-135.78 2749.07,-140.25"/>
+</g>
+<!-- proc~hessian_vector_product&#45;&gt;proc~factor_middle_matrix -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge4" class="edge">
+<title>proc~hessian_vector_product&#45;&gt;proc~factor_middle_matrix</title>
+<path fill="none" stroke="#000000" d="M2330.62,-169.05C2436.62,-156.24 2598.06,-136.72 2691.09,-125.48"/>
+<polygon fill="#000000" stroke="#000000" points="2691.36,-128.97 2700.86,-124.3 2690.52,-122.02 2691.36,-128.97"/>
+</g>
+<!-- proc~direct_qp_step -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_node6" class="node">
+<title>proc~direct_qp_step</title>
+<g id="a_proc~~factor_middle_matrix~~CalledByGraph_node6"><a xlink:href="../proc/direct_qp_step.html" xlink:title="direct_qp_step">
+<polygon fill="#d9534f" stroke="#d9534f" points="1305.87,-335.79 1217.85,-335.79 1217.85,-311.52 1305.87,-311.52 1305.87,-335.79"/>
+<text xml:space="preserve" text-anchor="middle" x="1261.86" y="-320.06" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">direct_qp_step</text>
+</a>
+</g>
+</g>
+<!-- proc~direct_qp_step&#45;&gt;proc~hessian_vector_product -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge11" class="edge">
+<title>proc~direct_qp_step&#45;&gt;proc~hessian_vector_product</title>
+<path fill="none" stroke="#000000" d="M1306.02,-321.63C1447.13,-314.76 1893.7,-290.87 2033.91,-257.66 2090.33,-244.29 2152.05,-217.16 2189.47,-199.19"/>
+<polygon fill="#000000" stroke="#000000" points="2190.99,-202.35 2198.45,-194.82 2187.92,-196.05 2190.99,-202.35"/>
+</g>
+<!-- proc~inertia_correct -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_node20" class="node">
+<title>proc~inertia_correct</title>
+<g id="a_proc~~factor_middle_matrix~~CalledByGraph_node20"><a xlink:href="../proc/inertia_correct.html" xlink:title="sqpopt_inertia_type%inertia_correct">
+<polygon fill="#d9534f" stroke="#d9534f" points="1654.51,-375.79 1451.74,-375.79 1451.74,-351.52 1654.51,-351.52 1654.51,-375.79"/>
+<text xml:space="preserve" text-anchor="middle" x="1553.13" y="-360.06" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_inertia_type%inertia_correct</text>
+</a>
+</g>
+</g>
+<!-- proc~direct_qp_step&#45;&gt;proc~inertia_correct -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge33" class="edge">
+<title>proc~direct_qp_step&#45;&gt;proc~inertia_correct</title>
+<path fill="none" stroke="#000000" d="M1306.17,-329.64C1343.96,-334.87 1400.32,-342.66 1449.55,-349.47"/>
+<polygon fill="#000000" stroke="#000000" points="1449.03,-352.93 1459.41,-350.84 1449.99,-346 1449.03,-352.93"/>
+</g>
+<!-- proc~kkt_factor -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_node21" class="node">
+<title>proc~kkt_factor</title>
+<g id="a_proc~~factor_middle_matrix~~CalledByGraph_node21"><a xlink:href="../proc/kkt_factor.html" xlink:title="sqpopt_kkt_type%kkt_factor">
+<polygon fill="#d9534f" stroke="#d9534f" points="1943.53,-375.79 1784.26,-375.79 1784.26,-351.52 1943.53,-351.52 1943.53,-375.79"/>
+<text xml:space="preserve" text-anchor="middle" x="1863.9" y="-360.06" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_kkt_type%kkt_factor</text>
+</a>
+</g>
+</g>
+<!-- proc~direct_qp_step&#45;&gt;proc~kkt_factor -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge35" class="edge">
+<title>proc~direct_qp_step&#45;&gt;proc~kkt_factor</title>
+<path fill="none" stroke="#000000" d="M1306.16,-324.97C1378.9,-327.36 1530.2,-333.05 1657.89,-342.66 1695.56,-345.49 1737.02,-349.56 1772.75,-353.36"/>
+<polygon fill="#000000" stroke="#000000" points="1772.31,-356.83 1782.63,-354.42 1773.06,-349.87 1772.31,-356.83"/>
+</g>
+<!-- proc~enough_curvature -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_node7" class="node">
+<title>proc~enough_curvature</title>
+<g id="a_proc~~factor_middle_matrix~~CalledByGraph_node7"><a xlink:href="../proc/enough_curvature.html" xlink:title="enough_curvature">
+<polygon fill="#d94e8f" stroke="#d94e8f" points="1918.03,-333.79 1809.76,-333.79 1809.76,-309.52 1918.03,-309.52 1918.03,-333.79"/>
+<text xml:space="preserve" text-anchor="middle" x="1863.9" y="-318.06" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">enough_curvature</text>
+</a>
+</g>
+</g>
+<!-- proc~enough_curvature&#45;&gt;proc~hessian_vector_product -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge12" class="edge">
+<title>proc~enough_curvature&#45;&gt;proc~hessian_vector_product</title>
+<path fill="none" stroke="#000000" d="M1918.35,-318.73C1952.27,-315.59 1996.63,-309.1 2033.91,-295.66 2098.18,-272.48 2164.76,-226.71 2199.61,-200.77"/>
+<polygon fill="#000000" stroke="#000000" points="2201.49,-203.74 2207.37,-194.93 2197.27,-198.15 2201.49,-203.74"/>
+</g>
+<!-- proc~hessian_cg_solve -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_node8" class="node">
+<title>proc~hessian_cg_solve</title>
+<g id="a_proc~~factor_middle_matrix~~CalledByGraph_node8"><a xlink:href="../proc/hessian_cg_solve.html" xlink:title="hessian_cg_solve">
+<polygon fill="#d9534f" stroke="#d9534f" points="1604.64,-214.79 1501.62,-214.79 1501.62,-190.52 1604.64,-190.52 1604.64,-214.79"/>
+<text xml:space="preserve" text-anchor="middle" x="1553.13" y="-199.06" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">hessian_cg_solve</text>
+</a>
+</g>
+</g>
+<!-- proc~hessian_cg_solve&#45;&gt;proc~hessian_vector_product -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge13" class="edge">
+<title>proc~hessian_cg_solve&#45;&gt;proc~hessian_vector_product</title>
+<path fill="none" stroke="#000000" d="M1605.05,-201.06C1706.3,-197.89 1935.97,-190.69 2085.37,-186.01"/>
+<polygon fill="#000000" stroke="#000000" points="2085.03,-189.52 2094.92,-185.71 2084.81,-182.53 2085.03,-189.52"/>
+</g>
+<!-- proc~hessian_low_rank_middle_inverse -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_node9" class="node">
+<title>proc~hessian_low_rank_middle_inverse</title>
+<g id="a_proc~~factor_middle_matrix~~CalledByGraph_node9"><a xlink:href="../proc/hessian_low_rank_middle_inverse.html" xlink:title="sqpopt_hessian_type%hessian_low_rank_middle_inverse">
+<polygon fill="#d9534f" stroke="#d9534f" points="2380.68,-416.79 2069.91,-416.79 2069.91,-392.52 2380.68,-392.52 2380.68,-416.79"/>
+<text xml:space="preserve" text-anchor="middle" x="2225.3" y="-401.06" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_low_rank_middle_inverse</text>
+</a>
+</g>
+</g>
+<!-- proc~hessian_low_rank_middle_inverse&#45;&gt;proc~hessian_low_rank_size -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge8" class="edge">
+<title>proc~hessian_low_rank_middle_inverse&#45;&gt;proc~hessian_low_rank_size</title>
+<path fill="none" stroke="#000000" d="M2380.73,-394.34C2388.86,-393.8 2396.99,-393.25 2405.05,-392.72"/>
+<polygon fill="#000000" stroke="#000000" points="2405.13,-396.22 2414.88,-392.06 2404.67,-389.23 2405.13,-396.22"/>
+</g>
+<!-- proc~hessian_update_bfgs -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_node10" class="node">
+<title>proc~hessian_update_bfgs</title>
+<g id="a_proc~~factor_middle_matrix~~CalledByGraph_node10"><a xlink:href="../proc/hessian_update_bfgs.html" xlink:title="sqpopt_hessian_type%hessian_update_bfgs">
+<polygon fill="#d9534f" stroke="#d9534f" points="1068.22,-415.79 825.7,-415.79 825.7,-391.52 1068.22,-391.52 1068.22,-415.79"/>
+<text xml:space="preserve" text-anchor="middle" x="946.96" y="-400.06" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_update_bfgs</text>
+</a>
+</g>
+</g>
+<!-- proc~hessian_update_bfgs&#45;&gt;proc~hessian_vector_product -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge15" class="edge">
+<title>proc~hessian_update_bfgs&#45;&gt;proc~hessian_vector_product</title>
+<path fill="none" stroke="#000000" d="M1068.41,-407.15C1333.11,-414.02 1948.78,-425.32 2033.91,-384.66 2056.4,-373.91 2053.25,-360.19 2069.91,-341.66 2116.18,-290.19 2173.37,-232.33 2203.49,-202.28"/>
+<polygon fill="#000000" stroke="#000000" points="2205.88,-204.83 2210.5,-195.29 2200.95,-199.87 2205.88,-204.83"/>
+</g>
+<!-- proc~hessian_update_sr1 -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_node11" class="node">
+<title>proc~hessian_update_sr1</title>
+<g id="a_proc~~factor_middle_matrix~~CalledByGraph_node11"><a xlink:href="../proc/hessian_update_sr1.html" xlink:title="sqpopt_hessian_type%hessian_update_sr1">
+<polygon fill="#d9534f" stroke="#d9534f" points="1065.22,-91.79 828.7,-91.79 828.7,-67.52 1065.22,-67.52 1065.22,-91.79"/>
+<text xml:space="preserve" text-anchor="middle" x="946.96" y="-76.06" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_update_sr1</text>
+</a>
+</g>
+</g>
+<!-- proc~hessian_update_sr1&#45;&gt;proc~hessian_vector_product -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge16" class="edge">
+<title>proc~hessian_update_sr1&#45;&gt;proc~hessian_vector_product</title>
+<path fill="none" stroke="#000000" d="M1065.42,-77.23C1306.95,-73.09 1851.92,-68.41 2033.91,-105.66 2091.19,-117.38 2153.36,-145.35 2190.55,-163.9"/>
+<polygon fill="#000000" stroke="#000000" points="2188.95,-167.01 2199.46,-168.4 2192.11,-160.76 2188.95,-167.01"/>
+</g>
+<!-- proc~low_rank_update -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_node12" class="node">
+<title>proc~low_rank_update</title>
+<g id="a_proc~~factor_middle_matrix~~CalledByGraph_node12"><a xlink:href="../proc/low_rank_update.html" xlink:title="low_rank_update">
+<polygon fill="#d9534f" stroke="#d9534f" points="2276.06,-374.79 2174.53,-374.79 2174.53,-350.52 2276.06,-350.52 2276.06,-374.79"/>
+<text xml:space="preserve" text-anchor="middle" x="2225.3" y="-359.06" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">low_rank_update</text>
+</a>
+</g>
+</g>
+<!-- proc~low_rank_update&#45;&gt;proc~hessian_low_rank_size -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge9" class="edge">
+<title>proc~low_rank_update&#45;&gt;proc~hessian_low_rank_size</title>
+<path fill="none" stroke="#000000" d="M2276.46,-366.01C2311.29,-368.33 2359.48,-371.55 2405.18,-374.61"/>
+<polygon fill="#000000" stroke="#000000" points="2404.7,-378.08 2414.91,-375.26 2405.17,-371.1 2404.7,-378.08"/>
+</g>
+<!-- proc~solve_daqp_qp -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_node13" class="node">
+<title>proc~solve_daqp_qp</title>
+<g id="a_proc~~factor_middle_matrix~~CalledByGraph_node13"><a xlink:href="../proc/solve_daqp_qp.html" xlink:title="sqpopt_daqp_qp_type%solve_daqp_qp">
+<polygon fill="#d9534f" stroke="#d9534f" points="1369.62,-213.79 1154.1,-213.79 1154.1,-189.52 1369.62,-189.52 1369.62,-213.79"/>
+<text xml:space="preserve" text-anchor="middle" x="1261.86" y="-198.06" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_daqp_qp_type%solve_daqp_qp</text>
+</a>
+</g>
+</g>
+<!-- proc~solve_daqp_qp&#45;&gt;proc~hessian_dense -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge5" class="edge">
+<title>proc~solve_daqp_qp&#45;&gt;proc~hessian_dense</title>
+<path fill="none" stroke="#000000" d="M1353.8,-189.02C1373.14,-186.3 1393.43,-183.41 1412.37,-180.66 1427.12,-178.51 1442.74,-176.2 1457.99,-173.93"/>
+<polygon fill="#000000" stroke="#000000" points="1458.14,-177.44 1467.51,-172.5 1457.1,-170.52 1458.14,-177.44"/>
+</g>
+<!-- proc~solve_dense_qp -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_node14" class="node">
+<title>proc~solve_dense_qp</title>
+<g id="a_proc~~factor_middle_matrix~~CalledByGraph_node14"><a xlink:href="../proc/solve_dense_qp.html" xlink:title="sqpopt_dense_qp_type%solve_dense_qp">
+<polygon fill="#d9534f" stroke="#d9534f" points="1374.87,-171.79 1148.85,-171.79 1148.85,-147.52 1374.87,-147.52 1374.87,-171.79"/>
+<text xml:space="preserve" text-anchor="middle" x="1261.86" y="-156.06" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_dense_qp_type%solve_dense_qp</text>
+</a>
+</g>
+</g>
+<!-- proc~solve_dense_qp&#45;&gt;proc~hessian_dense -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge6" class="edge">
+<title>proc~solve_dense_qp&#45;&gt;proc~hessian_dense</title>
+<path fill="none" stroke="#000000" d="M1375.11,-159.66C1395.25,-159.66 1416.28,-159.66 1436.51,-159.66"/>
+<polygon fill="#000000" stroke="#000000" points="1436.47,-163.16 1446.47,-159.66 1436.47,-156.16 1436.47,-163.16"/>
+</g>
+<!-- proc~solve_reduced_hessian_qp -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_node15" class="node">
+<title>proc~solve_reduced_hessian_qp</title>
+<g id="a_proc~~factor_middle_matrix~~CalledByGraph_node15"><a xlink:href="../proc/solve_reduced_hessian_qp.html" xlink:title="sqpopt_reduced_hessian_qp_type%solve_reduced_hessian_qp">
+<polygon fill="#d9534f" stroke="#d9534f" points="2033.91,-53.79 1693.89,-53.79 1693.89,-29.52 2033.91,-29.52 2033.91,-53.79"/>
+<text xml:space="preserve" text-anchor="middle" x="1863.9" y="-38.06" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_reduced_hessian_qp_type%solve_reduced_hessian_qp</text>
+</a>
+</g>
+</g>
+<!-- proc~solve_reduced_hessian_qp&#45;&gt;proc~hessian_diagonal -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge7" class="edge">
+<title>proc~solve_reduced_hessian_qp&#45;&gt;proc~hessian_diagonal</title>
+<path fill="none" stroke="#000000" d="M2019.94,-54.27C2140.78,-64.11 2306.27,-77.58 2418,-86.67"/>
+<polygon fill="#000000" stroke="#000000" points="2417.55,-90.15 2427.8,-87.47 2418.12,-83.17 2417.55,-90.15"/>
+</g>
+<!-- proc~solve_reduced_hessian_qp&#45;&gt;proc~hessian_vector_product -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge17" class="edge">
+<title>proc~solve_reduced_hessian_qp&#45;&gt;proc~hessian_vector_product</title>
+<path fill="none" stroke="#000000" d="M1991.85,-54.21C2006.33,-57.68 2020.64,-62.08 2033.91,-67.66 2052.35,-75.41 2053.16,-83.72 2069.91,-94.66 2109.72,-120.64 2157.72,-146.96 2189.52,-163.74"/>
+<polygon fill="#000000" stroke="#000000" points="2187.83,-166.8 2198.31,-168.34 2191.08,-160.6 2187.83,-166.8"/>
+</g>
+<!-- proc~spectrum_compute -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_node16" class="node">
+<title>proc~spectrum_compute</title>
+<g id="a_proc~~factor_middle_matrix~~CalledByGraph_node16"><a xlink:href="../proc/spectrum_compute.html" xlink:title="sqpopt_spectrum_type%spectrum_compute">
+<polygon fill="#d9534f" stroke="#d9534f" points="1985.91,-455.79 1741.89,-455.79 1741.89,-431.52 1985.91,-431.52 1985.91,-455.79"/>
+<text xml:space="preserve" text-anchor="middle" x="1863.9" y="-440.06" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_spectrum_type%spectrum_compute</text>
+</a>
+</g>
+</g>
+<!-- proc~spectrum_compute&#45;&gt;proc~hessian_low_rank_size -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge10" class="edge">
+<title>proc~spectrum_compute&#45;&gt;proc~hessian_low_rank_size</title>
+<path fill="none" stroke="#000000" d="M1986.21,-446.97C2091.17,-448.05 2246.71,-445.33 2380.68,-425.66 2418.55,-420.1 2460.36,-408.94 2491.75,-399.52"/>
+<polygon fill="#000000" stroke="#000000" points="2492.4,-402.98 2500.94,-396.72 2490.35,-396.29 2492.4,-402.98"/>
+</g>
+<!-- proc~spectrum_compute&#45;&gt;proc~hessian_low_rank_middle_inverse -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge23" class="edge">
+<title>proc~spectrum_compute&#45;&gt;proc~hessian_low_rank_middle_inverse</title>
+<path fill="none" stroke="#000000" d="M1981.09,-431.05C2018.05,-427.04 2059.12,-422.58 2096.83,-418.49"/>
+<polygon fill="#000000" stroke="#000000" points="2096.82,-422.01 2106.39,-417.45 2096.07,-415.05 2096.82,-422.01"/>
+</g>
+<!-- proc~sqpopt_iterate -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_node17" class="node">
+<title>proc~sqpopt_iterate</title>
+<g id="a_proc~~factor_middle_matrix~~CalledByGraph_node17"><a xlink:href="../proc/sqpopt_iterate.html" xlink:title="sqpopt_iterate">
+<polygon fill="#d9534f" stroke="#d9534f" points="474.81,-275.79 386.79,-275.79 386.79,-251.52 474.81,-251.52 474.81,-275.79"/>
+<text xml:space="preserve" text-anchor="middle" x="430.8" y="-260.06" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_iterate</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~hessian_vector_product -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge18" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~hessian_vector_product</title>
+<path fill="none" stroke="#000000" d="M440.01,-251.03C452.75,-232.6 479.12,-198.79 510.81,-182.66 684.97,-94.01 750.55,-119.66 945.96,-119.66 945.96,-119.66 945.96,-119.66 1554.13,-119.66 1760.48,-119.66 2001.06,-149.16 2130.44,-167.46"/>
+<polygon fill="#000000" stroke="#000000" points="2129.57,-170.88 2139.97,-168.82 2130.56,-163.95 2129.57,-170.88"/>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~hessian_update_bfgs -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge24" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~hessian_update_bfgs</title>
+<path fill="none" stroke="#000000" d="M436.15,-276.07C445.46,-300.54 469.88,-354.64 510.81,-377.66 623.42,-440.97 779.33,-431.41 870.73,-418.01"/>
+<polygon fill="#000000" stroke="#000000" points="871.24,-421.47 880.6,-416.5 870.18,-414.55 871.24,-421.47"/>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~hessian_update_sr1 -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge25" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~hessian_update_sr1</title>
+<path fill="none" stroke="#000000" d="M433.71,-251.47C439.24,-220.77 458.34,-140.29 510.81,-105.66 623.48,-31.29 790.4,-47.93 881.27,-64.87"/>
+<polygon fill="#000000" stroke="#000000" points="880.54,-68.29 891.02,-66.75 881.86,-61.41 880.54,-68.29"/>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~spectrum_compute -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge29" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~spectrum_compute</title>
+<path fill="none" stroke="#000000" d="M433.93,-275.91C439.89,-305.96 459.73,-383.33 510.81,-416.66 673.1,-522.53 752.19,-443.66 945.96,-443.66 945.96,-443.66 945.96,-443.66 1262.86,-443.66 1423.73,-443.66 1608.87,-443.66 1730.45,-443.66"/>
+<polygon fill="#000000" stroke="#000000" points="1730.14,-447.16 1740.14,-443.66 1730.14,-440.16 1730.14,-447.16"/>
+</g>
+<!-- proc~trust_region_step -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_node18" class="node">
+<title>proc~trust_region_step</title>
+<g id="a_proc~~factor_middle_matrix~~CalledByGraph_node18"><a xlink:href="../proc/trust_region_step.html" xlink:title="sqpopt_trust_region_type%trust_region_step">
+<polygon fill="#d9534f" stroke="#d9534f" points="769.08,-295.79 524.31,-295.79 524.31,-271.52 769.08,-271.52 769.08,-295.79"/>
+<text xml:space="preserve" text-anchor="middle" x="646.7" y="-280.06" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_trust_region_type%trust_region_step</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~trust_region_step -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge31" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~trust_region_step</title>
+<path fill="none" stroke="#000000" d="M475.08,-267.7C486.43,-268.77 499.29,-269.97 512.72,-271.22"/>
+<polygon fill="#000000" stroke="#000000" points="512.34,-274.7 522.62,-272.15 512.99,-267.73 512.34,-274.7"/>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~inertia_correct -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge34" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~inertia_correct</title>
+<path fill="none" stroke="#000000" d="M450.36,-276.1C465.82,-285.76 488.78,-298.5 510.81,-304.66 838.67,-396.31 1246.59,-385.16 1440.16,-372.78"/>
+<polygon fill="#000000" stroke="#000000" points="1440.21,-376.28 1449.96,-372.14 1439.75,-369.3 1440.21,-376.28"/>
+</g>
+<!-- proc~solve_qp_subproblem -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_node22" class="node">
+<title>proc~solve_qp_subproblem</title>
+<g id="a_proc~~factor_middle_matrix~~CalledByGraph_node22"><a xlink:href="../proc/solve_qp_subproblem.html" xlink:title="sqpopt_qp_solver_type%solve_qp_subproblem">
+<polygon fill="#d9534f" stroke="#d9534f" points="1075.35,-255.79 818.58,-255.79 818.58,-231.52 1075.35,-231.52 1075.35,-255.79"/>
+<text xml:space="preserve" text-anchor="middle" x="946.96" y="-240.06" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qp_solver_type%solve_qp_subproblem</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~solve_qp_subproblem -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge38" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~solve_qp_subproblem</title>
+<path fill="none" stroke="#000000" d="M475.19,-261.97C547.58,-259.15 695.96,-253.38 806.89,-249.07"/>
+<polygon fill="#000000" stroke="#000000" points="806.82,-252.57 816.67,-248.69 806.54,-245.58 806.82,-252.57"/>
+</g>
+<!-- proc~restoration_phase_step -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_node25" class="node">
+<title>proc~restoration_phase_step</title>
+<g id="a_proc~~factor_middle_matrix~~CalledByGraph_node25"><a xlink:href="../proc/restoration_phase_step.html" xlink:title="sqpopt_restoration_type%restoration_phase_step">
+<polygon fill="#d9534f" stroke="#d9534f" points="782.58,-215.79 510.81,-215.79 510.81,-191.52 782.58,-191.52 782.58,-215.79"/>
+<text xml:space="preserve" text-anchor="middle" x="646.7" y="-200.06" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_restoration_type%restoration_phase_step</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_iterate&#45;&gt;proc~restoration_phase_step -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge41" class="edge">
+<title>proc~sqpopt_iterate&#45;&gt;proc~restoration_phase_step</title>
+<path fill="none" stroke="#000000" d="M457.25,-251.04C472.48,-243.91 492.4,-235.32 510.81,-229.66 524.62,-225.41 539.44,-221.72 554.02,-218.56"/>
+<polygon fill="#000000" stroke="#000000" points="554.56,-222.02 563.63,-216.55 553.12,-215.17 554.56,-222.02"/>
+</g>
+<!-- proc~trust_region_step&#45;&gt;proc~hessian_vector_product -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge19" class="edge">
+<title>proc~trust_region_step&#45;&gt;proc~hessian_vector_product</title>
+<path fill="none" stroke="#000000" d="M769.31,-283.19C920.26,-282.02 1185.52,-278.04 1412.37,-264.66 1689.33,-248.31 1758.2,-237.61 2033.91,-206.66 2062.72,-203.42 2093.92,-199.5 2122.57,-195.73"/>
+<polygon fill="#000000" stroke="#000000" points="2122.88,-199.22 2132.33,-194.44 2121.96,-192.28 2122.88,-199.22"/>
+</g>
+<!-- proc~trust_region_step&#45;&gt;proc~solve_qp_subproblem -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge39" class="edge">
+<title>proc~trust_region_step&#45;&gt;proc~solve_qp_subproblem</title>
+<path fill="none" stroke="#000000" d="M741.66,-271.06C773.13,-266.84 808.41,-262.1 840.68,-257.78"/>
+<polygon fill="#000000" stroke="#000000" points="841.01,-261.26 850.46,-256.46 840.08,-254.32 841.01,-261.26"/>
+</g>
+<!-- proc~hessian_inverse_vector_product -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_node19" class="node">
+<title>proc~hessian_inverse_vector_product</title>
+<g id="a_proc~~factor_middle_matrix~~CalledByGraph_node19"><a xlink:href="../proc/hessian_inverse_vector_product.html" xlink:title="sqpopt_hessian_type%hessian_inverse_vector_product">
+<polygon fill="#d9534f" stroke="#d9534f" points="1412.37,-255.79 1111.35,-255.79 1111.35,-231.52 1412.37,-231.52 1412.37,-255.79"/>
+<text xml:space="preserve" text-anchor="middle" x="1261.86" y="-240.06" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_hessian_type%hessian_inverse_vector_product</text>
+</a>
+</g>
+</g>
+<!-- proc~hessian_inverse_vector_product&#45;&gt;proc~hessian_cg_solve -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge22" class="edge">
+<title>proc~hessian_inverse_vector_product&#45;&gt;proc~hessian_cg_solve</title>
+<path fill="none" stroke="#000000" d="M1352.99,-231.03C1372.57,-228.28 1393.17,-225.38 1412.37,-222.66 1437.82,-219.05 1465.88,-215.04 1490.14,-211.56"/>
+<polygon fill="#000000" stroke="#000000" points="1490.45,-215.05 1499.85,-210.17 1489.46,-208.13 1490.45,-215.05"/>
+</g>
+<!-- proc~inertia_correct&#45;&gt;proc~enough_curvature -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge21" class="edge">
+<title>proc~inertia_correct&#45;&gt;proc~enough_curvature</title>
+<path fill="none" stroke="#000000" d="M1635.74,-351.04C1654.81,-348.19 1675.05,-345.24 1693.89,-342.66 1728.33,-337.93 1766.78,-333.12 1798.29,-329.29"/>
+<polygon fill="#000000" stroke="#000000" points="1798.56,-332.79 1808.07,-328.11 1797.72,-325.84 1798.56,-332.79"/>
+</g>
+<!-- proc~inertia_correct&#45;&gt;proc~kkt_factor -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge36" class="edge">
+<title>proc~inertia_correct&#45;&gt;proc~kkt_factor</title>
+<path fill="none" stroke="#000000" d="M1654.81,-363.66C1692.76,-363.66 1735.67,-363.66 1772.62,-363.66"/>
+<polygon fill="#000000" stroke="#000000" points="1772.37,-367.16 1782.37,-363.66 1772.37,-360.16 1772.37,-367.16"/>
+</g>
+<!-- proc~kkt_factor&#45;&gt;proc~low_rank_update -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge26" class="edge">
+<title>proc~kkt_factor&#45;&gt;proc~low_rank_update</title>
+<path fill="none" stroke="#000000" d="M1943.77,-363.44C2009.67,-363.25 2102.33,-363 2162.83,-362.83"/>
+<polygon fill="#000000" stroke="#000000" points="2162.61,-366.33 2172.6,-362.8 2162.59,-359.33 2162.61,-366.33"/>
+</g>
+<!-- proc~solve_qp_subproblem&#45;&gt;proc~direct_qp_step -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge20" class="edge">
+<title>proc~solve_qp_subproblem&#45;&gt;proc~direct_qp_step</title>
+<path fill="none" stroke="#000000" d="M997.2,-256.24C1054.11,-270.8 1147.49,-294.67 1206.5,-309.76"/>
+<polygon fill="#000000" stroke="#000000" points="1205.43,-313.1 1215.99,-312.18 1207.17,-306.32 1205.43,-313.1"/>
+</g>
+<!-- proc~solve_qp_subproblem&#45;&gt;proc~solve_daqp_qp -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge27" class="edge">
+<title>proc~solve_qp_subproblem&#45;&gt;proc~solve_daqp_qp</title>
+<path fill="none" stroke="#000000" d="M1041.84,-231.06C1077.65,-226.25 1118.7,-220.74 1155.5,-215.8"/>
+<polygon fill="#000000" stroke="#000000" points="1155.83,-219.29 1165.28,-214.49 1154.9,-212.35 1155.83,-219.29"/>
+</g>
+<!-- proc~solve_qp_subproblem&#45;&gt;proc~solve_dense_qp -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge28" class="edge">
+<title>proc~solve_qp_subproblem&#45;&gt;proc~solve_dense_qp</title>
+<path fill="none" stroke="#000000" d="M974.8,-231.12C1006.67,-216.74 1061.76,-193.52 1111.35,-180.66 1120.38,-178.32 1129.78,-176.22 1139.29,-174.35"/>
+<polygon fill="#000000" stroke="#000000" points="1139.8,-177.81 1148.99,-172.53 1138.51,-170.93 1139.8,-177.81"/>
+</g>
+<!-- proc~solve_qp_subproblem&#45;&gt;proc~hessian_inverse_vector_product -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge32" class="edge">
+<title>proc~solve_qp_subproblem&#45;&gt;proc~hessian_inverse_vector_product</title>
+<path fill="none" stroke="#000000" d="M1075.68,-243.66C1083.61,-243.66 1091.63,-243.66 1099.68,-243.66"/>
+<polygon fill="#000000" stroke="#000000" points="1099.54,-247.16 1109.54,-243.66 1099.54,-240.16 1099.54,-247.16"/>
+</g>
+<!-- proc~sqpopt_solve -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_node23" class="node">
+<title>proc~sqpopt_solve</title>
+<g id="a_proc~~factor_middle_matrix~~CalledByGraph_node23"><a xlink:href="../proc/sqpopt_solve.html" xlink:title="sqpopt_type%sqpopt_solve">
+<polygon fill="#d9534f" stroke="#d9534f" points="350.79,-275.79 196.02,-275.79 196.02,-251.52 350.79,-251.52 350.79,-275.79"/>
+<text xml:space="preserve" text-anchor="middle" x="273.41" y="-260.06" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_type%sqpopt_solve</text>
+</a>
+</g>
+</g>
+<!-- proc~sqpopt_solve&#45;&gt;proc~sqpopt_iterate -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge30" class="edge">
+<title>proc~sqpopt_solve&#45;&gt;proc~sqpopt_iterate</title>
+<path fill="none" stroke="#000000" d="M351.19,-263.66C359.21,-263.66 367.25,-263.66 374.96,-263.66"/>
+<polygon fill="#000000" stroke="#000000" points="374.84,-267.16 384.84,-263.66 374.84,-260.16 374.84,-267.16"/>
+</g>
+<!-- proc~nlls_solve -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_node24" class="node">
+<title>proc~nlls_solve</title>
+<g id="a_proc~~factor_middle_matrix~~CalledByGraph_node24"><a xlink:href="../proc/nlls_solve.html" xlink:title="sqpopt_nlls_type%nlls_solve">
+<polygon fill="#d9534f" stroke="#d9534f" points="160.02,-275.79 0,-275.79 0,-251.52 160.02,-251.52 160.02,-275.79"/>
+<text xml:space="preserve" text-anchor="middle" x="80.01" y="-260.06" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_nlls_type%nlls_solve</text>
+</a>
+</g>
+</g>
+<!-- proc~nlls_solve&#45;&gt;proc~sqpopt_solve -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge40" class="edge">
+<title>proc~nlls_solve&#45;&gt;proc~sqpopt_solve</title>
+<path fill="none" stroke="#000000" d="M160.52,-263.66C168.31,-263.66 176.26,-263.66 184.14,-263.66"/>
+<polygon fill="#000000" stroke="#000000" points="184.09,-267.16 194.09,-263.66 184.09,-260.16 184.09,-267.16"/>
+</g>
+<!-- proc~restoration_phase_step&#45;&gt;proc~solve_qp_subproblem -->
+<g id="proc~~factor_middle_matrix~~CalledByGraph_edge37" class="edge">
+<title>proc~restoration_phase_step&#45;&gt;proc~solve_qp_subproblem</title>
+<path fill="none" stroke="#000000" d="M741.66,-216.26C773.13,-220.48 808.41,-225.21 840.68,-229.54"/>
+<polygon fill="#000000" stroke="#000000" points="840.08,-232.99 850.46,-230.85 841.01,-226.05 840.08,-232.99"/>
+</g>
+</g>
+</svg>
+</div>                <script>
+                  var panprocfactor_middle_matrixCalledByGraph = svgPanZoom('#procfactor_middle_matrixCalledByGraph',
+                    {zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true,}
+                  );
+                </script>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#CalledByGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="CalledByGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="641pt" height="28pt"
+ viewBox="0.00 0.00 641.00 28.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(0.873868 0.873868) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 729.52,-28.27 729.52,4 -4,4"/>
+<!-- Subroutine -->
+<g id="node1" class="node">
+<title>Subroutine</title>
+<polygon fill="#d9534f" stroke="#d9534f" points="69.27,-24.27 0,-24.27 0,0 69.27,0 69.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="34.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Subroutine</text>
+</g>
+<!-- Function -->
+<g id="node2" class="node">
+<title>Function</title>
+<polygon fill="#d94e8f" stroke="#d94e8f" points="143.89,-24.27 87.38,-24.27 87.38,0 143.89,0 143.89,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="115.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Function</text>
+</g>
+<!-- Interface -->
+<g id="node3" class="node">
+<title>Interface</title>
+<polygon fill="#a7506f" stroke="#a7506f" points="221.39,-24.27 161.88,-24.27 161.88,0 221.39,0 221.39,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="191.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Interface</text>
+</g>
+<!-- Type Bound Procedure -->
+<g id="node4" class="node">
+<title>Type Bound Procedure</title>
+<polygon fill="#a7506f" stroke="#a7506f" points="368.27,-24.27 239,-24.27 239,0 368.27,0 368.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="303.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Type Bound Procedure</text>
+</g>
+<!-- Unknown Procedure Type -->
+<g id="node5" class="node">
+<title>Unknown Procedure Type</title>
+<polygon fill="#777777" stroke="#777777" points="529.39,-24.27 385.88,-24.27 385.88,0 529.39,0 529.39,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="457.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Unknown Procedure Type</text>
+</g>
+<!-- Program -->
+<g id="node6" class="node">
+<title>Program</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="603.89,-24.27 547.38,-24.27 547.38,0 603.89,0 603.89,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="575.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Program</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node7" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="725.52,-24.27 621.75,-24.27 621.75,0 725.52,0 725.52,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="673.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a procedure to one which it calls. Dashed 
+arrows point from an interface to procedures which implement that interface.
+This could include the module procedures in a generic interface or the
+implementation in a submodule of an interface in a parent module.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <br>
+
+
+    
+    
+
+    
+    
+
+
+
+    
+    <section>
+    <h2><span class="anchor" id="src"></span>Source Code</h2>
+    <div class="hl codehilite"><pre><span></span><span class="w">    </span><span class="k">subroutine </span><span class="n">factor_middle_matrix</span><span class="p">(</span><span class="n">me</span><span class="p">)</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">class</span><span class="p">(</span><span class="n">sqpopt_hessian_type</span><span class="p">),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">me</span><span class="w"></span>
+
+<span class="w">    </span><span class="kt">integer</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">nk</span><span class="w"></span>
+
+<span class="w">    </span><span class="n">nk</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nb">merge</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">n_history</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="o">*</span><span class="n">me</span><span class="p">%</span><span class="n">n_history</span><span class="p">,</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">use_sr1</span><span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">allocated</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">mid_lu</span><span class="p">))</span><span class="w">  </span><span class="k">deallocate</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">mid_lu</span><span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="p">(</span><span class="nb">allocated</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">mid_piv</span><span class="p">))</span><span class="w"> </span><span class="k">deallocate</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">mid_piv</span><span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="k">allocate</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">mid_lu</span><span class="p">(</span><span class="n">nk</span><span class="p">,</span><span class="n">nk</span><span class="p">),</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">mid_piv</span><span class="p">(</span><span class="n">nk</span><span class="p">))</span><span class="w"></span>
+<span class="w">    </span><span class="k">call </span><span class="n">middle_matrix</span><span class="p">(</span><span class="n">me</span><span class="p">,</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">mid_lu</span><span class="p">)</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">call </span><span class="n">lu_factor</span><span class="p">(</span><span class="n">me</span><span class="p">%</span><span class="n">mid_lu</span><span class="p">,</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">mid_piv</span><span class="p">,</span><span class="w"> </span><span class="n">me</span><span class="p">%</span><span class="n">mid_ok</span><span class="p">)</span><span class="w"></span>
+<span class="w">    </span><span class="n">me</span><span class="p">%</span><span class="n">mid_valid</span><span class="w">  </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">true</span><span class="p">.</span><span class="w"></span>
+<span class="w">    </span><span class="n">me</span><span class="p">%</span><span class="n">diag_valid</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w"></span>
+
+<span class="w">    </span><span class="k">end subroutine </span><span class="n">factor_middle_matrix</span><span class="w"></span>
+</pre></div>
+
+    </section>
+    <br>
+    
+    </div>
+  </div>
+
+      <hr>
+    </div> <!-- /container -->
+    <footer>
+      <div class="container">
+        <div class="row justify-content-between">
+          <div class="col">
+            <p>
+              sqpopt
+ was developed by Jacob Williams<br>              &copy; 2026 
+</p>
+          </div>
+          <div class="col">
+            <p class="text-end">
+              Documentation generated by
+              <a href="https://github.com/Fortran-FOSS-Programmers/ford">FORD</a>
+            </p>
+          </div>
+        </div>
+        <br>
+      </div> <!-- /container -->
+    </footer>
+    <!-- sqpopt theme: the button switches the theme, and remembers it for the guide too -->
+    <script>
+      document.querySelector('.theme-toggle').addEventListener('click', function () {
+        var root = document.documentElement;
+        var next = root.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-bs-theme', next);
+        try { localStorage.setItem('sqpopt-theme', next); } catch (e) {}
+      });
+    </script>
+  </body>
+</html>

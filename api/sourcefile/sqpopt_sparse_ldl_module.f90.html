@@ -1,0 +1,978 @@
+<!-- -*- mode: jinja2 -*- -->
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <!-- sqpopt theme: set before the page is drawn; the guide's choice (the same
+         localStorage key, on the same site), or else the system's -->
+    <script>
+      (function () {
+        var t = null;
+        try { t = localStorage.getItem('sqpopt-theme'); } catch (e) {}
+        if (t !== 'dark' && t !== 'light') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.setAttribute('data-bs-theme', t);
+      })();
+    </script>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta name="description" content="Modern Fortran SQP OPTimizer">
+    <meta name="author" content="Jacob Williams" >
+    <link rel="icon" href="../favicon.png">
+
+    <title>sqpopt_sparse_ldl_module.f90 &ndash; sqpopt</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+            integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <!-- Font Awesome -->
+    <link href="../css/fontawesome.min.css" rel="stylesheet">
+    <link href="../css/brands.min.css" rel="stylesheet">
+    <link href="../css/regular.min.css" rel="stylesheet">
+    <link href="../css/solid.min.css" rel="stylesheet">
+    <link href="../css/v4-font-face.min.css" rel="stylesheet">
+    <link href="../css/v4-shims.min.css" rel="stylesheet">
+    <!-- MathJax -->
+    <script type="text/x-mathjax-config">
+      MathJax.Hub.Config({
+        TeX: { equationNumbers: { autoNumber: "AMS" } }
+      });
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@2.7.9/MathJax.js?config=TeX-AMS-MML_HTMLorMML" async
+            integrity="sha256-DViIOMYdwlM/axqoGDPeUyf0urLoHMN4QACBKyB58Uw=" crossorigin="anonymous"></script>
+    <!-- Other scripts and stylesheets -->
+    <link href="../css/local.css" rel="stylesheet">
+    <link href="../css/pygments.css" rel="stylesheet">
+      <link href="../css/user.css" rel="stylesheet">
+    <script src="../js/svg-pan-zoom.min.js"></script>
+  </head>
+
+  <body>
+
+    <!-- Fixed navbar -->
+    <div class="container-fluid mb-sm-4 mb-xl-2">
+      <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+        <div class="container">
+          <a class="navbar-brand" href="../index.html">sqpopt </a>
+          <button type="button" class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#navbar"
+                  aria-expanded="false" aria-controls="navbar" aria-label="Toggle navigation">
+                  <span class="navbar-toggler-icon">
+          </button>
+
+          <div id="navbar" class="navbar-collapse collapse">
+            <ul class="navbar-nav">
+                  <li class="nav-item">
+                    <a class="nav-link" href="../lists/files.html">Source Files</a>
+                  </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/modules.html">Modules</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/procedures.html">Procedures</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/absint.html">Abstract Interfaces</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="../lists/types.html">Derived Types</a>
+                </li>
+            </ul>
+              <div class="d-flex align-items-end flex-grow-1">
+                <form action="../search.html" role="search" class="ms-auto">
+                  <input type="text" class="form-control" aria-label="Search" placeholder="Search" name="q" id="tipue_search_input" autocomplete="off" required>
+                </form>
+              </div>
+            <!-- sqpopt theme: the light/dark button -->
+            <button type="button" class="btn nav-link theme-toggle ms-lg-3" aria-label="Toggle dark mode" title="Toggle dark mode">
+              <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" fill="currentColor"/></svg>
+              <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="currentColor"/><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+          </div><!--/.nav-collapse -->
+        </div>
+      </nav>
+    </div>
+
+    <div class="container">
+  <div class="row">
+    <h1>sqpopt_sparse_ldl_module.f90
+      <small>Source File</small>
+      
+    </h1>
+      <div class="container p-2 mb-4 bg-light border rounded-3">
+    <div class="row align-items-center justify-content-between" id="info-bar">
+      <div class="col">
+        <ul class="list-inline" style="margin-bottom:0px;display:inline">
+
+            <li class="list-inline-item" id="statements"><i class="fa fa-list-ol"></i>
+              <a data-bs-toggle="tooltip" data-bs-placement="bottom" data-bs-html="true"
+                 title=" 0.5% of total for source files.">56 statements</a>
+            </li>
+
+            <li class="list-inline-item" id="source-file">
+              <i class="fa fa-code"></i>
+              <a href="../src/sqpopt_sparse_ldl_module.f90"> Source File</a>
+            </li>
+        </ul>
+      </div>
+      <div class="col">
+        <nav aria-label="breadcrumb">
+          <ol class="breadcrumb justify-content-end mb-0">
+            <li class="breadcrumb-item active" aria-current="page">sqpopt_sparse_ldl_module.f90</li>
+          </ol>
+        </nav>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Enable Bootstrap tooltips
+    (function () {
+      const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]')
+      const tooltipList = [...tooltipTriggerList].map(tooltipTriggerEl => new bootstrap.Tooltip(tooltipTriggerEl))
+    })();
+  </script>
+
+  </div>
+  <div class="row">
+    <div class="col-md-3 hidden-xs hidden-sm visible-md visible-lg">
+        <div id="sidebar">
+      <h3>Contents</h3>
+  
+  
+  
+  
+  
+      <div class="card mb-4">
+      <a data-bs-toggle="collapse" href="#mods-0"
+         aria-expanded="false" aria-controls="mods-0">
+         <h4 class="card-header bg-primary text-white">Modules</h4>
+      </a>
+      <div id="mods-0" class="collapse">
+        <div class="list-group list-group-flush">
+            <a class="list-group-item" href="../module/sqpopt_sparse_ldl_module.html">sqpopt_sparse_ldl_module</a>
+        </div>
+      </div>
+    </div>
+
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+    <div class="card card-primary">
+      <div class="card-header text-left"><h3 class="card-title">Source Code</h3></div>
+      <div class="list-group">
+        <a class="list-group-item" href="../sourcefile/sqpopt_sparse_ldl_module.f90.html#src">sqpopt_sparse_ldl_module.f90</a>
+      </div>
+    </div>
+
+
+  </div>
+
+    </div>
+    <div class="col-md-9" id='text'>
+      
+      <br>
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">This file depends on</h3>
+          </div>
+          <div class="card-body">
+            <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: sourcefile~~sqpopt_sparse_ldl_module.f90~~EfferentGraph Pages: 1 -->
+<svg id="sourcefilesqpopt_sparse_ldl_modulef90EfferentGraph" width="319pt" height="32pt"
+ viewBox="0.00 0.00 319.00 32.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~EfferentGraph" class="graph" transform="scale(1 1) rotate(0) translate(4 28.27)">
+<title>sourcefile~~sqpopt_sparse_ldl_module.f90~~EfferentGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 315.04,-28.27 315.04,4 -4,4"/>
+<!-- sourcefile~sqpopt_sparse_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~EfferentGraph_node1" class="node">
+<title>sourcefile~sqpopt_sparse_ldl_module.f90</title>
+<polygon fill="none" stroke="black" points="311.04,-24.27 139.02,-24.27 139.02,0 311.04,0 311.04,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="225.03" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_sparse_ldl_module.f90</text>
+</g>
+<!-- sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~EfferentGraph_node2" class="node">
+<title>sourcefile~sqpopt_kinds.f90</title>
+<g id="a_sourcefile~~sqpopt_sparse_ldl_module.f90~~EfferentGraph_node2"><a xlink:href="../sourcefile/sqpopt_kinds.f90.html" xlink:title="sqpopt_kinds.F90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="103.02,-24.27 0,-24.27 0,0 103.02,0 103.02,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="51.51" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_kinds.F90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_sparse_ldl_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~EfferentGraph_edge1" class="edge">
+<title>sourcefile~sqpopt_sparse_ldl_module.f90&#45;&gt;sourcefile~sqpopt_kinds.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M138.52,-12.13C130.5,-12.13 122.47,-12.13 114.72,-12.13"/>
+<polygon fill="#000000" stroke="#000000" points="114.72,-8.64 104.72,-12.14 114.72,-15.64 114.72,-8.64"/>
+</g>
+</g>
+</svg>
+</div>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#EfferentGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="EfferentGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="200pt" height="32pt"
+ viewBox="0.00 0.00 200.00 32.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 195.52,-28.27 195.52,4 -4,4"/>
+<!-- Source File -->
+<g id="node1" class="node">
+<title>Source File</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="69.27,-24.27 0,-24.27 0,0 69.27,0 69.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="34.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Source File</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node2" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="191.52,-24.27 87.75,-24.27 87.75,0 191.52,0 191.52,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="139.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a file to a file which it depends on. A file
+is dependent upon another if the latter must be compiled before the former
+can be.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <h3 class="card-title">Files dependent on this one</h3>
+          </div>
+          <div class="card-body">
+            <div class="depgraph"><?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph Pages: 1 -->
+<svg id="sourcefilesqpopt_sparse_ldl_modulef90AfferentGraph" width="641pt" height="132pt"
+ viewBox="0.00 0.00 641.00 132.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph" class="graph" transform="scale(0.247203 0.247203) rotate(0) translate(4 529.94)">
+<title>sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-529.94 2589.01,-529.94 2589.01,4 -4,4"/>
+<!-- sourcefile~sqpopt_sparse_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node1" class="node">
+<title>sourcefile~sqpopt_sparse_ldl_module.f90</title>
+<polygon fill="none" stroke="black" points="172.02,-312.13 0,-312.13 0,-287.87 172.02,-287.87 172.02,-312.13"/>
+<text xml:space="preserve" text-anchor="middle" x="86.01" y="-296.4" font-family="Helvetica,sans-Serif" font-size="10.50">sqpopt_sparse_ldl_module.f90</text>
+</g>
+<!-- sourcefile~sqpopt_dense_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node2" class="node">
+<title>sourcefile~sqpopt_dense_ldl_module.f90</title>
+<g id="a_sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node2"><a xlink:href="../sourcefile/sqpopt_dense_ldl_module.f90.html" xlink:title="sqpopt_dense_ldl_module.F90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="383.04,-333.13 211.77,-333.13 211.77,-308.87 383.04,-308.87 383.04,-333.13"/>
+<text xml:space="preserve" text-anchor="middle" x="297.41" y="-317.4" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_dense_ldl_module.F90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_dense_ldl_module.f90&#45;&gt;sourcefile~sqpopt_sparse_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge1" class="edge">
+<title>sourcefile~sqpopt_dense_ldl_module.f90&#45;&gt;sourcefile~sqpopt_sparse_ldl_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M211.54,-312.49C202.35,-311.57 192.95,-310.62 183.64,-309.69"/>
+<polygon fill="#000000" stroke="#000000" points="184.14,-306.22 173.84,-308.71 183.44,-313.19 184.14,-306.22"/>
+</g>
+<!-- sourcefile~sqpopt_mumps_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node3" class="node">
+<title>sourcefile~sqpopt_mumps_ldl_module.f90</title>
+<g id="a_sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node3"><a xlink:href="../sourcefile/sqpopt_mumps_ldl_module.f90.html" xlink:title="sqpopt_mumps_ldl_module.F90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="386.79,-291.13 208.02,-291.13 208.02,-266.87 386.79,-266.87 386.79,-291.13"/>
+<text xml:space="preserve" text-anchor="middle" x="297.41" y="-275.4" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_mumps_ldl_module.F90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_mumps_ldl_module.f90&#45;&gt;sourcefile~sqpopt_sparse_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge2" class="edge">
+<title>sourcefile~sqpopt_mumps_ldl_module.f90&#45;&gt;sourcefile~sqpopt_sparse_ldl_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M207.6,-287.91C199.65,-288.7 191.57,-289.51 183.55,-290.32"/>
+<polygon fill="#000000" stroke="#000000" points="183.39,-286.82 173.79,-291.3 184.09,-293.78 183.39,-286.82"/>
+</g>
+<!-- sourcefile~sqpopt_qdldl_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node4" class="node">
+<title>sourcefile~sqpopt_qdldl_ldl_module.f90</title>
+<g id="a_sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node4"><a xlink:href="../sourcefile/sqpopt_qdldl_ldl_module.f90.html" xlink:title="sqpopt_qdldl_ldl_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="378.92,-249.13 215.9,-249.13 215.9,-224.87 378.92,-224.87 378.92,-249.13"/>
+<text xml:space="preserve" text-anchor="middle" x="297.41" y="-233.4" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qdldl_ldl_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_qdldl_ldl_module.f90&#45;&gt;sourcefile~sqpopt_sparse_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge3" class="edge">
+<title>sourcefile~sqpopt_qdldl_ldl_module.f90&#45;&gt;sourcefile~sqpopt_sparse_ldl_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M239.6,-249.6C229.05,-252.19 218.16,-255.04 208.02,-258 182.24,-265.52 153.86,-275.28 131.07,-283.51"/>
+<polygon fill="#000000" stroke="#000000" points="129.98,-280.18 121.78,-286.89 132.38,-286.76 129.98,-280.18"/>
+</g>
+<!-- sourcefile~sqpopt_symmetric_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node5" class="node">
+<title>sourcefile~sqpopt_symmetric_solver_module.f90</title>
+<g id="a_sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node5"><a xlink:href="../sourcefile/sqpopt_symmetric_solver_module.f90.html" xlink:title="sqpopt_symmetric_solver_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="635.31,-312.13 422.79,-312.13 422.79,-287.87 635.31,-287.87 635.31,-312.13"/>
+<text xml:space="preserve" text-anchor="middle" x="529.05" y="-296.4" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_symmetric_solver_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_sparse_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge4" class="edge">
+<title>sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_sparse_ldl_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M495.55,-312.59C467.3,-322.82 425.02,-336.44 386.79,-342 308.16,-353.44 286.37,-355.21 208.02,-342 179.43,-337.18 148.58,-326.38 125.19,-316.94"/>
+<polygon fill="#000000" stroke="#000000" points="126.65,-313.75 116.07,-313.16 123.97,-320.22 126.65,-313.75"/>
+</g>
+<!-- sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_dense_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge5" class="edge">
+<title>sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_dense_ldl_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M422.3,-309.67C413.11,-310.51 403.85,-311.36 394.74,-312.19"/>
+<polygon fill="#000000" stroke="#000000" points="394.46,-308.7 384.82,-313.1 395.1,-315.67 394.46,-308.7"/>
+</g>
+<!-- sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_mumps_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge6" class="edge">
+<title>sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_mumps_ldl_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M422.3,-290.33C414.39,-289.61 406.43,-288.88 398.55,-288.16"/>
+<polygon fill="#000000" stroke="#000000" points="398.89,-284.67 388.61,-287.25 398.25,-291.64 398.89,-284.67"/>
+</g>
+<!-- sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_qdldl_ldl_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge7" class="edge">
+<title>sourcefile~sqpopt_symmetric_solver_module.f90&#45;&gt;sourcefile~sqpopt_qdldl_ldl_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M488.03,-287.45C459.84,-278.77 421.15,-267.18 386.79,-258 379.62,-256.08 372.11,-254.16 364.61,-252.31"/>
+<polygon fill="#000000" stroke="#000000" points="365.7,-248.97 355.16,-249.99 364.04,-255.77 365.7,-248.97"/>
+</g>
+<!-- sourcefile~sqpopt_kkt_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node6" class="node">
+<title>sourcefile~sqpopt_kkt_module.f90</title>
+<g id="a_sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node6"><a xlink:href="../sourcefile/sqpopt_kkt_module.f90.html" xlink:title="sqpopt_kkt_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="805.83,-312.13 671.31,-312.13 671.31,-287.87 805.83,-287.87 805.83,-312.13"/>
+<text xml:space="preserve" text-anchor="middle" x="738.57" y="-296.4" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_kkt_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_kkt_module.f90&#45;&gt;sourcefile~sqpopt_symmetric_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge8" class="edge">
+<title>sourcefile~sqpopt_kkt_module.f90&#45;&gt;sourcefile~sqpopt_symmetric_solver_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M671.05,-300C663.23,-300 655.08,-300 646.82,-300"/>
+<polygon fill="#000000" stroke="#000000" points="647.01,-296.5 637.01,-300 647.01,-303.5 647.01,-296.5"/>
+</g>
+<!-- sourcefile~sqpopt_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node7" class="node">
+<title>sourcefile~sqpopt_module.f90</title>
+<g id="a_sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node7"><a xlink:href="../sourcefile/sqpopt_module.f90.html" xlink:title="sqpopt_module.F90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="2412.24,-377.13 2296.47,-377.13 2296.47,-352.87 2412.24,-352.87 2412.24,-377.13"/>
+<text xml:space="preserve" text-anchor="middle" x="2354.36" y="-361.4" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_module.F90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_symmetric_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge9" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_symmetric_solver_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M917.47,-505C772.01,-460.57 617.52,-360.55 556.78,-318.83"/>
+<polygon fill="#000000" stroke="#000000" points="558.98,-316.1 548.76,-313.29 555,-321.86 558.98,-316.1"/>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge14" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2334.96,-377.42C2282.4,-411.69 2126.05,-505 1982.07,-505 1982.07,-505 1982.07,-505 1329.01,-505 1146.99,-505 1095.41,-551.61 919.47,-505"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M917.47,-505C828.37,-477.78 770.79,-370.34 749.18,-322.82"/>
+<polygon fill="#000000" stroke="#000000" points="752.42,-321.49 745.19,-313.75 746.02,-324.31 752.42,-321.49"/>
+</g>
+<!-- sourcefile~sqpopt_options_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node8" class="node">
+<title>sourcefile~sqpopt_options_module.f90</title>
+<g id="a_sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node8"><a xlink:href="../sourcefile/sqpopt_options_module.f90.html" xlink:title="sqpopt_options_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1843.68,-90.14 1685.91,-90.14 1685.91,-65.86 1843.68,-65.86 1843.68,-90.14"/>
+<text xml:space="preserve" text-anchor="middle" x="1764.8" y="-74.4" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_options_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge22" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2346.67,-352.42C2327.18,-317.18 2266.58,-217.41 2184.46,-176"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2182.46,-176C2135.13,-152.13 2121.57,-149.03 2070.45,-135 1999.01,-115.39 1916.29,-100.38 1855.09,-90.7"/>
+<polygon fill="#000000" stroke="#000000" points="1855.84,-87.28 1845.42,-89.19 1854.76,-94.19 1855.84,-87.28"/>
+</g>
+<!-- sourcefile~sqpopt_diagnostics_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node9" class="node">
+<title>sourcefile~sqpopt_diagnostics_module.f90</title>
+<g id="a_sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node9"><a xlink:href="../sourcefile/sqpopt_diagnostics_module.f90.html" xlink:title="sqpopt_diagnostics_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="2070.45,-168.13 1891.68,-168.13 1891.68,-143.87 2070.45,-143.87 2070.45,-168.13"/>
+<text xml:space="preserve" text-anchor="middle" x="1981.07" y="-152.4" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_diagnostics_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_diagnostics_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge25" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_diagnostics_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2182.46,-176C2151.89,-160.58 2115.38,-154.03 2081.95,-151.82"/>
+<polygon fill="#000000" stroke="#000000" points="2082.43,-148.35 2072.26,-151.32 2082.06,-155.34 2082.43,-148.35"/>
+</g>
+<!-- sourcefile~sqpopt_inertia_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node10" class="node">
+<title>sourcefile~sqpopt_inertia_module.f90</title>
+<g id="a_sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node10"><a xlink:href="../sourcefile/sqpopt_inertia_module.f90.html" xlink:title="sqpopt_inertia_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="995.1,-215.13 841.83,-215.13 841.83,-190.87 995.1,-190.87 995.1,-215.13"/>
+<text xml:space="preserve" text-anchor="middle" x="918.47" y="-199.4" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_inertia_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge27" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1980.07,-348C1844.09,-325.22 1808.86,-326.25 1673.91,-298 1611.26,-284.88 1179.4,-147.25 1115.86,-155"/>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node11" class="node">
+<title>sourcefile~sqpopt_iterate_module.f90</title>
+<g id="a_sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node11"><a xlink:href="../sourcefile/sqpopt_iterate_module.f90.html" xlink:title="sqpopt_iterate_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="2260.47,-302.13 2106.45,-302.13 2106.45,-277.87 2260.47,-277.87 2260.47,-302.13"/>
+<text xml:space="preserve" text-anchor="middle" x="2183.46" y="-286.4" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_iterate_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_iterate_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge31" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_iterate_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2325.09,-352.45C2297.2,-340.06 2254.35,-321.03 2223.28,-307.24"/>
+<polygon fill="#000000" stroke="#000000" points="2224.76,-304.07 2214.2,-303.21 2221.92,-310.47 2224.76,-304.07"/>
+</g>
+<!-- sourcefile~sqpopt_least_squares_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node12" class="node">
+<title>sourcefile~sqpopt_least_squares_module.f90</title>
+<g id="a_sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node12"><a xlink:href="../sourcefile/sqpopt_least_squares_module.f90.html" xlink:title="sqpopt_least_squares_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1425.39,-323.13 1234.62,-323.13 1234.62,-298.87 1425.39,-298.87 1425.39,-323.13"/>
+<text xml:space="preserve" text-anchor="middle" x="1330.01" y="-307.4" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_least_squares_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_least_squares_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge33" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_least_squares_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2182.46,-386C2127.99,-392.76 2123.78,-425.05 2070.45,-438 1938.92,-469.94 1585.78,-496.35 1461.39,-443 1408.2,-420.18 1365.44,-364.37 1344.68,-333.11"/>
+<polygon fill="#000000" stroke="#000000" points="1347.68,-331.31 1339.31,-324.81 1341.8,-335.11 1347.68,-331.31"/>
+</g>
+<!-- sourcefile~sqpopt_qp_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node15" class="node">
+<title>sourcefile~sqpopt_qp_solver_module.f90</title>
+<g id="a_sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node15"><a xlink:href="../sourcefile/sqpopt_qp_solver_module.f90.html" xlink:title="sqpopt_qp_solver_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1414.89,-127.14 1245.12,-127.14 1245.12,-102.86 1414.89,-102.86 1414.89,-127.14"/>
+<text xml:space="preserve" text-anchor="middle" x="1330.01" y="-111.4" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qp_solver_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge41" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2182.46,-176C2161.76,-165.57 1788.84,-198.43 1765.8,-196"/>
+</g>
+<!-- sourcefile~sqpopt_trust_region_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node16" class="node">
+<title>sourcefile~sqpopt_trust_region_module.f90</title>
+<g id="a_sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node16"><a xlink:href="../sourcefile/sqpopt_trust_region_module.f90.html" xlink:title="sqpopt_trust_region_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1855.68,-438.13 1673.91,-438.13 1673.91,-413.87 1855.68,-413.87 1855.68,-438.13"/>
+<text xml:space="preserve" text-anchor="middle" x="1764.8" y="-422.4" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_trust_region_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_trust_region_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge47" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_trust_region_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2182.46,-386C2092.5,-397.16 2072.6,-419.34 1982.07,-424"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1980.07,-424C1943.36,-425.89 1903.06,-426.62 1867.42,-426.8"/>
+<polygon fill="#000000" stroke="#000000" points="1867.53,-423.3 1857.54,-426.84 1867.55,-430.3 1867.53,-423.3"/>
+</g>
+<!-- sourcefile~sqpopt_restoration_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node17" class="node">
+<title>sourcefile~sqpopt_restoration_module.f90</title>
+<g id="a_sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node17"><a xlink:href="../sourcefile/sqpopt_restoration_module.f90.html" xlink:title="sqpopt_restoration_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1637.91,-207.13 1461.39,-207.13 1461.39,-182.87 1637.91,-182.87 1637.91,-207.13"/>
+<text xml:space="preserve" text-anchor="middle" x="1549.65" y="-191.4" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_restoration_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_restoration_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge50" class="edge">
+<title>sourcefile~sqpopt_module.f90&#45;&gt;sourcefile~sqpopt_restoration_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2296.29,-372.1C2263.56,-376.18 2221.7,-381.38 2184.46,-386"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2182.46,-386C2137.48,-391.58 2026.66,-356.1 1982.07,-348"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1980.07,-348C1828.6,-320.48 1659.4,-246.45 1586.85,-212.47"/>
+<polygon fill="#000000" stroke="#000000" points="1588.37,-209.32 1577.83,-208.22 1585.38,-215.65 1588.37,-209.32"/>
+</g>
+<!-- sourcefile~sqpopt_options_module.f90&#45;&gt;sourcefile~sqpopt_symmetric_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge10" class="edge">
+<title>sourcefile~sqpopt_options_module.f90&#45;&gt;sourcefile~sqpopt_symmetric_solver_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1722.16,-65.38C1645.53,-43.31 1476.64,0 1331.01,0 1331.01,0 1331.01,0 917.47,0 735.81,0 587.65,-208.73 543.5,-277.98"/>
+<polygon fill="#000000" stroke="#000000" points="540.68,-275.88 538.33,-286.21 546.61,-279.6 540.68,-275.88"/>
+</g>
+<!-- sourcefile~sqpopt_options_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge15" class="edge">
+<title>sourcefile~sqpopt_options_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1685.57,-75.48C1645.25,-74.63 1595.3,-74.28 1550.65,-76"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1548.65,-76C1356.44,-83.4 1308.01,-83.91 1115.86,-75"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1113.86,-75C1027.58,-70.42 999.13,-41.56 919.47,-75"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M917.47,-75C826.29,-113.27 769.52,-227.56 748.64,-276.9"/>
+<polygon fill="#000000" stroke="#000000" points="745.45,-275.46 744.89,-286.04 751.93,-278.12 745.45,-275.46"/>
+</g>
+<!-- sourcefile~sqpopt_options_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge43" class="edge">
+<title>sourcefile~sqpopt_options_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1548.65,-76C1494.31,-78.09 1433.46,-89.81 1389.95,-99.86"/>
+<polygon fill="#000000" stroke="#000000" points="1389.4,-96.4 1380.47,-102.1 1391,-103.21 1389.4,-96.4"/>
+</g>
+<!-- sourcefile~sqpopt_options_module.f90&#45;&gt;sourcefile~sqpopt_restoration_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge51" class="edge">
+<title>sourcefile~sqpopt_options_module.f90&#45;&gt;sourcefile~sqpopt_restoration_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1750.09,-90.34C1727.98,-109.65 1682.42,-147.07 1637.91,-169 1630.42,-172.69 1622.3,-175.97 1614.13,-178.84"/>
+<polygon fill="#000000" stroke="#000000" points="1613.25,-175.45 1604.86,-181.91 1615.45,-182.09 1613.25,-175.45"/>
+</g>
+<!-- sourcefile~sqpopt_diagnostics_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge20" class="edge">
+<title>sourcefile~sqpopt_diagnostics_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1933.9,-143.42C1920.21,-139.42 1905.26,-134.79 1891.68,-130 1861.76,-119.45 1828.63,-105.68 1803.87,-94.96"/>
+<polygon fill="#000000" stroke="#000000" points="1805.42,-91.82 1794.85,-91.03 1802.62,-98.23 1805.42,-91.82"/>
+</g>
+<!-- sourcefile~sqpopt_diagnostics_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge39" class="edge">
+<title>sourcefile~sqpopt_diagnostics_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1931.74,-168.63C1878.76,-181.82 1797.13,-200.09 1765.8,-196"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1763.8,-196C1703.25,-188.09 1697.09,-156 1637.91,-141 1568.5,-123.41 1487.72,-117.11 1426.47,-115.1"/>
+<polygon fill="#000000" stroke="#000000" points="1426.88,-111.61 1416.78,-114.81 1426.67,-118.6 1426.88,-111.61"/>
+</g>
+<!-- sourcefile~sqpopt_inertia_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge11" class="edge">
+<title>sourcefile~sqpopt_inertia_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M894.57,-215.48C863.57,-232.39 808.04,-262.67 772.54,-282.02"/>
+<polygon fill="#000000" stroke="#000000" points="771.09,-278.83 763.99,-286.69 774.44,-284.97 771.09,-278.83"/>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge12" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1763.8,-234C1476.38,-195.41 1402.03,-264.07 1115.86,-311"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1113.86,-311C1026.79,-323.98 1007.18,-356.45 919.47,-349"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M917.47,-349C869.88,-344.96 817.39,-329.01 781.84,-316.39"/>
+<polygon fill="#000000" stroke="#000000" points="783.4,-313.23 772.8,-313.11 781.01,-319.81 783.4,-313.23"/>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge21" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2111.9,-277.39C2073.47,-270.42 2025.11,-261.48 1982.07,-253"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1980.07,-253C1933.12,-243.76 1829.48,-142.92 1785.81,-98.64"/>
+<polygon fill="#000000" stroke="#000000" points="1788.48,-96.36 1778.98,-91.67 1783.48,-101.26 1788.48,-96.36"/>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_diagnostics_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge24" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_diagnostics_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2163.61,-277.39C2128.23,-253.74 2051.74,-202.59 2010.23,-174.84"/>
+<polygon fill="#000000" stroke="#000000" points="2012.24,-171.97 2001.98,-169.32 2008.35,-177.78 2012.24,-171.97"/>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge26" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1329.01,-155C1234.38,-150.61 1209.89,-143.53 1115.86,-155"/>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_least_squares_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge32" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_least_squares_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1980.07,-253C1875.5,-232.41 1573.28,-273.54 1420.98,-296.7"/>
+<polygon fill="#000000" stroke="#000000" points="1420.69,-293.2 1411.33,-298.17 1421.74,-300.12 1420.69,-293.2"/>
+</g>
+<!-- sourcefile~sqpopt_qp_direct_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node14" class="node">
+<title>sourcefile~sqpopt_qp_direct_module.f90</title>
+<g id="a_sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node14"><a xlink:href="../sourcefile/sqpopt_qp_direct_module.f90.html" xlink:title="sqpopt_qp_direct_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1198.62,-127.14 1031.1,-127.14 1031.1,-102.86 1198.62,-102.86 1198.62,-127.14"/>
+<text xml:space="preserve" text-anchor="middle" x="1114.86" y="-111.4" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_qp_direct_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_qp_direct_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge37" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_qp_direct_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1548.65,-155C1454.28,-133.76 1427.63,-159.48 1331.01,-155"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1329.01,-155C1275.66,-152.53 1216.01,-140.52 1173.4,-130.3"/>
+<polygon fill="#000000" stroke="#000000" points="1174.42,-126.94 1163.88,-127.97 1172.76,-133.74 1174.42,-126.94"/>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge40" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1980.07,-253C1887.06,-230.85 1860.55,-246.72 1765.8,-234"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1763.8,-234C1722.81,-228.5 1709.73,-230.66 1673.91,-210 1654.31,-198.69 1657.77,-184.85 1637.91,-174 1603.08,-154.97 1589.37,-163.71 1550.65,-155"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1548.65,-155C1510.33,-146.38 1500.05,-147.95 1461.39,-141 1442.3,-137.57 1421.7,-133.59 1402.64,-129.79"/>
+<polygon fill="#000000" stroke="#000000" points="1403.59,-126.41 1393.1,-127.88 1402.21,-133.27 1403.59,-126.41"/>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_trust_region_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge46" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_trust_region_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1980.07,-386C1942.11,-396.4 1899.64,-404.96 1862.57,-411.44"/>
+<polygon fill="#000000" stroke="#000000" points="1862.01,-407.99 1852.75,-413.13 1863.2,-414.89 1862.01,-407.99"/>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_restoration_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge49" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_restoration_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1763.8,-234C1716.32,-227.63 1663.35,-217.94 1622.08,-209.82"/>
+<polygon fill="#000000" stroke="#000000" points="1623.02,-206.44 1612.53,-207.93 1621.66,-213.31 1623.02,-206.44"/>
+</g>
+<!-- sourcefile~sqpopt_soc_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node18" class="node">
+<title>sourcefile~sqpopt_soc_module.f90</title>
+<g id="a_sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node18"><a xlink:href="../sourcefile/sqpopt_soc_module.f90.html" xlink:title="sqpopt_soc_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="1618.04,-401.13 1481.27,-401.13 1481.27,-376.87 1618.04,-376.87 1618.04,-401.13"/>
+<text xml:space="preserve" text-anchor="middle" x="1549.65" y="-385.4" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_soc_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_soc_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge52" class="edge">
+<title>sourcefile~sqpopt_iterate_module.f90&#45;&gt;sourcefile~sqpopt_soc_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2166.66,-302.4C2145.74,-318.27 2107.21,-345.66 2070.45,-362 2033.25,-378.53 2021.32,-375.24 1982.07,-386"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1980.07,-386C1916.33,-403.47 1734.92,-398.18 1629.39,-393.28"/>
+<polygon fill="#000000" stroke="#000000" points="1629.84,-389.8 1619.68,-392.82 1629.5,-396.79 1629.84,-389.8"/>
+</g>
+<!-- sourcefile~sqpopt_least_squares_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge13" class="edge">
+<title>sourcefile~sqpopt_least_squares_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1234.3,-304.44C1197.15,-303.58 1154.29,-304.7 1115.86,-311"/>
+</g>
+<!-- sourcefile~sqpopt_nlls_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node13" class="node">
+<title>sourcefile~sqpopt_nlls_module.f90</title>
+<g id="a_sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_node13"><a xlink:href="../sourcefile/sqpopt_nlls_module.f90.html" xlink:title="sqpopt_nlls_module.f90">
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="2585.01,-377.13 2448.24,-377.13 2448.24,-352.87 2585.01,-352.87 2585.01,-377.13"/>
+<text xml:space="preserve" text-anchor="middle" x="2516.62" y="-361.4" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">sqpopt_nlls_module.f90</text>
+</a>
+</g>
+</g>
+<!-- sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge19" class="edge">
+<title>sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2448.12,-365C2440.19,-365 2432.09,-365 2424.14,-365"/>
+<polygon fill="#000000" stroke="#000000" points="2424.15,-361.5 2414.15,-365 2424.15,-368.5 2424.15,-361.5"/>
+</g>
+<!-- sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge23" class="edge">
+<title>sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_options_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1980.07,-78C1939.06,-76.11 1893.59,-75.85 1855.12,-76.16"/>
+<polygon fill="#000000" stroke="#000000" points="1855.42,-72.66 1845.46,-76.26 1855.49,-79.66 1855.42,-72.66"/>
+</g>
+<!-- sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge42" class="edge">
+<title>sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2503.44,-352.8C2468.49,-318.43 2363.85,-219.53 2260.47,-162 2147.54,-99.15 2111.17,-83.96 1982.07,-78"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1980.07,-78C1752.6,-39.91 1687.2,-15.09 1461.39,-62 1427.06,-69.13 1390.25,-84.92 1364.52,-97.42"/>
+<polygon fill="#000000" stroke="#000000" points="1362.97,-94.28 1355.57,-101.87 1366.09,-100.55 1362.97,-94.28"/>
+</g>
+<!-- sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_trust_region_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge48" class="edge">
+<title>sourcefile~sqpopt_nlls_module.f90&#45;&gt;sourcefile~sqpopt_trust_region_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M2459.21,-377.61C2444.02,-380.69 2427.55,-383.75 2412.24,-386 2360.22,-393.66 2045.73,-420.72 1982.07,-424"/>
+</g>
+<!-- sourcefile~sqpopt_qp_direct_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge16" class="edge">
+<title>sourcefile~sqpopt_qp_direct_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1066.89,-102.45C1013.78,-88.72 932.93,-69.35 919.47,-75"/>
+</g>
+<!-- sourcefile~sqpopt_qp_direct_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge28" class="edge">
+<title>sourcefile~sqpopt_qp_direct_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1068.16,-127.54C1055.94,-131.38 1042.86,-135.95 1031.1,-141 1002.08,-153.46 970.8,-171.25 948.75,-184.58"/>
+<polygon fill="#000000" stroke="#000000" points="947.01,-181.54 940.3,-189.75 950.66,-187.51 947.01,-181.54"/>
+</g>
+<!-- sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge17" class="edge">
+<title>sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1282.46,-102.39C1239.57,-91.71 1173.97,-77.7 1115.86,-75"/>
+</g>
+<!-- sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge29" class="edge">
+<title>sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1272.77,-127.59C1229.97,-136.68 1169.49,-148.46 1115.86,-155"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1113.86,-155C1063.92,-161.09 1008.32,-175.64 969.42,-187.13"/>
+<polygon fill="#000000" stroke="#000000" points="968.43,-183.77 959.86,-190 970.45,-190.48 968.43,-183.77"/>
+</g>
+<!-- sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_qp_direct_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge38" class="edge">
+<title>sourcefile~sqpopt_qp_solver_module.f90&#45;&gt;sourcefile~sqpopt_qp_direct_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1244.76,-115C1233.42,-115 1221.72,-115 1210.21,-115"/>
+<polygon fill="#000000" stroke="#000000" points="1210.31,-111.5 1200.31,-115 1210.31,-118.5 1210.31,-111.5"/>
+</g>
+<!-- sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge18" class="edge">
+<title>sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_kkt_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1113.86,-349C1031.27,-323.63 1005.55,-356.31 919.47,-349"/>
+</g>
+<!-- sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge30" class="edge">
+<title>sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_inertia_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1548.65,-429C1354.55,-404.76 1299.21,-417.16 1115.86,-349"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1113.86,-349C1038.3,-325.79 969.27,-258.41 937.64,-223.9"/>
+<polygon fill="#000000" stroke="#000000" points="940.38,-221.72 931.09,-216.62 935.18,-226.4 940.38,-221.72"/>
+</g>
+<!-- sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_least_squares_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge36" class="edge">
+<title>sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_least_squares_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1673.52,-432.77C1635.46,-434.2 1590.77,-434.01 1550.65,-429"/>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1548.65,-429C1509.27,-424.08 1497.44,-426.61 1461.39,-410 1418.17,-390.08 1375.71,-353.87 1351.5,-331.19"/>
+<polygon fill="#000000" stroke="#000000" points="1354.19,-328.92 1344.54,-324.55 1349.36,-333.99 1354.19,-328.92"/>
+</g>
+<!-- sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge45" class="edge">
+<title>sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1736.9,-413.38C1679.48,-385.27 1543.47,-312.33 1461.39,-216 1437.41,-187.86 1453.76,-164.71 1425.39,-141 1421.54,-137.79 1417.33,-134.97 1412.89,-132.5"/>
+<polygon fill="#000000" stroke="#000000" points="1414.73,-129.5 1404.21,-128.28 1411.68,-135.8 1414.73,-129.5"/>
+</g>
+<!-- sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_soc_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge53" class="edge">
+<title>sourcefile~sqpopt_trust_region_module.f90&#45;&gt;sourcefile~sqpopt_soc_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1691.04,-413.37C1671.29,-409.94 1649.81,-406.21 1629.73,-402.73"/>
+<polygon fill="#000000" stroke="#000000" points="1630.36,-399.28 1619.91,-401.02 1629.16,-406.18 1630.36,-399.28"/>
+</g>
+<!-- sourcefile~sqpopt_restoration_module.f90&#45;&gt;sourcefile~sqpopt_least_squares_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge34" class="edge">
+<title>sourcefile~sqpopt_restoration_module.f90&#45;&gt;sourcefile~sqpopt_least_squares_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1524.94,-207.63C1486.19,-228.29 1409.13,-269.36 1364.7,-293.04"/>
+<polygon fill="#000000" stroke="#000000" points="1363.2,-289.88 1356.02,-297.67 1366.49,-296.05 1363.2,-289.88"/>
+</g>
+<!-- sourcefile~sqpopt_restoration_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge44" class="edge">
+<title>sourcefile~sqpopt_restoration_module.f90&#45;&gt;sourcefile~sqpopt_qp_solver_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1494.82,-182.38C1483.47,-178.78 1471.79,-174.35 1461.39,-169 1443.37,-159.72 1443.51,-150.09 1425.39,-141 1417.89,-137.24 1409.77,-133.96 1401.55,-131.12"/>
+<polygon fill="#000000" stroke="#000000" points="1402.77,-127.83 1392.18,-128.1 1400.62,-134.5 1402.77,-127.83"/>
+</g>
+<!-- sourcefile~sqpopt_soc_module.f90&#45;&gt;sourcefile~sqpopt_least_squares_module.f90 -->
+<g id="sourcefile~~sqpopt_sparse_ldl_module.f90~~AfferentGraph_edge35" class="edge">
+<title>sourcefile~sqpopt_soc_module.f90&#45;&gt;sourcefile~sqpopt_least_squares_module.f90</title>
+<path fill="none" stroke="#000000" stroke-dasharray="5,2" d="M1503.56,-376.41C1489.93,-372.37 1474.98,-367.72 1461.39,-363 1430.57,-352.29 1396.33,-338.56 1370.67,-327.9"/>
+<polygon fill="#000000" stroke="#000000" points="1372.21,-324.75 1361.63,-324.12 1369.51,-331.21 1372.21,-324.75"/>
+</g>
+</g>
+</svg>
+</div>                <script>
+                  var pansourcefilesqpopt_sparse_ldl_modulef90AfferentGraph = svgPanZoom('#sourcefilesqpopt_sparse_ldl_modulef90AfferentGraph',
+                    {zoomEnabled: true, controlIconsEnabled: true, fit: true, center: true,}
+                  );
+                </script>          <div>
+            <a type="button" class="graph-help" data-bs-toggle="modal" href="#AfferentGraph-help-text">Help</a>
+          </div>
+          <div class="modal fade" id="AfferentGraph-help-text" tabindex="-1" role="dialog">
+            <div class="modal-dialog modal-lg" role="document">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h4 class="modal-title" id="-graph-help-label">Graph Key</h4>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+<p>Nodes of different colours represent the following: </p>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+ "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<!-- Generated by graphviz version 14.1.2 (20260126.1125)
+ -->
+<!-- Title: Graph Key Pages: 1 -->
+<svg width="200pt" height="32pt"
+ viewBox="0.00 0.00 200.00 32.00" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 28.27)">
+<title>Graph Key</title>
+<polygon fill="white" stroke="none" points="-4,4 -4,-28.27 195.52,-28.27 195.52,4 -4,4"/>
+<!-- Source File -->
+<g id="node1" class="node">
+<title>Source File</title>
+<polygon fill="#f0ad4e" stroke="#f0ad4e" points="69.27,-24.27 0,-24.27 0,0 69.27,0 69.27,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="34.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50" fill="white">Source File</text>
+</g>
+<!-- This Page&#39;s Entity -->
+<g id="node2" class="node">
+<title>This Page&#39;s Entity</title>
+<polygon fill="none" stroke="black" points="191.52,-24.27 87.75,-24.27 87.75,0 191.52,0 191.52,-24.27"/>
+<text xml:space="preserve" text-anchor="middle" x="139.63" y="-8.53" font-family="Helvetica,sans-Serif" font-size="10.50">This Page&#39;s Entity</text>
+</g>
+</g>
+</svg>
+
+<p>Solid arrows point from a file to a file which it depends on. A file
+is dependent upon another if the latter must be compiled before the former
+can be.
+</p>
+ </div>
+            </div>
+          </div>
+        </div>
+          </div>
+        </div>
+<br>
+      <section>
+        <h2><span class="anchor" id="src"></span>Source Code</h2>
+        <div class="hl codehilite"><pre><span></span><a id="ln-1" name="ln-1" href="#ln-1"></a><span class="c">!*******************************************************************************</span>
+<a id="ln-2" name="ln-2" href="#ln-2"></a><span class="c">!&gt; author: Jacob Williams</span>
+<a id="ln-3" name="ln-3" href="#ln-3"></a><span class="c">!  license: MIT</span>
+<a id="ln-4" name="ln-4" href="#ln-4"></a><span class="c">!</span>
+<a id="ln-5" name="ln-5" href="#ln-5"></a><span class="c">!  The interface of a sparse \( LDL^T \) backend: the abstract type that</span>
+<a id="ln-6" name="ln-6" href="#ln-6"></a><span class="c">!  each sparse solver extends ([[sqpopt_qdldl_ldl_type]],</span>
+<a id="ln-7" name="ln-7" href="#ln-7"></a><span class="c">!  [[sqpopt_mumps_ldl_type]]), and that [[sqpopt_symmetric_solver_type]]</span>
+<a id="ln-8" name="ln-8" href="#ln-8"></a><span class="c">!  holds and calls. A backend only factors and solves; the choice of the</span>
+<a id="ln-9" name="ln-9" href="#ln-9"></a><span class="c">!  backend, the iterative refinement, the counts, and the timing are</span>
+<a id="ln-10" name="ln-10" href="#ln-10"></a><span class="c">!  [[sqpopt_symmetric_solver_module]]&#39;s, and what the inertia means for the</span>
+<a id="ln-11" name="ln-11" href="#ln-11"></a><span class="c">!  optimization (e.g. what to do when it is unknown) is</span>
+<a id="ln-12" name="ln-12" href="#ln-12"></a><span class="c">!  [[sqpopt_kkt_module]]&#39;s.</span>
+<a id="ln-13" name="ln-13" href="#ln-13"></a><span class="c">!</span>
+<a id="ln-14" name="ln-14" href="#ln-14"></a><span class="c">!  A backend reports the inertia of the matrix it factored: `n_negative`</span>
+<a id="ln-15" name="ln-15" href="#ln-15"></a><span class="c">!  negative and `n_null` zero eigenvalues, if `inertia_known`. A backend</span>
+<a id="ln-16" name="ln-16" href="#ln-16"></a><span class="c">!  without pivoting may not always be able to tell (see</span>
+<a id="ln-17" name="ln-17" href="#ln-17"></a><span class="c">!  [[sqpopt_qdldl_ldl_module]]): it then says so, with</span>
+<a id="ln-18" name="ln-18" href="#ln-18"></a><span class="c">!  `inertia_known = .false.`, rather than guess.</span>
+<a id="ln-19" name="ln-19" href="#ln-19"></a>
+<a id="ln-20" name="ln-20" href="#ln-20"></a><span class="w">    </span><span class="k">module </span><span class="n">sqpopt_sparse_ldl_module</span><span class="w"></span>
+<a id="ln-21" name="ln-21" href="#ln-21"></a>
+<a id="ln-22" name="ln-22" href="#ln-22"></a><span class="w">    </span><span class="k">use </span><span class="n">sqpopt_kinds</span><span class="p">,</span><span class="w"> </span><span class="k">only</span><span class="p">:</span><span class="w"> </span><span class="n">wp</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="n">sqpopt_module_wp</span><span class="w"></span>
+<a id="ln-23" name="ln-23" href="#ln-23"></a>
+<a id="ln-24" name="ln-24" href="#ln-24"></a><span class="w">    </span><span class="k">implicit none</span>
+<a id="ln-25" name="ln-25" href="#ln-25"></a>
+<a id="ln-26" name="ln-26" href="#ln-26"></a><span class="k">    private</span>
+<a id="ln-27" name="ln-27" href="#ln-27"></a>
+<a id="ln-28" name="ln-28" href="#ln-28"></a><span class="k">    type</span><span class="p">,</span><span class="w"> </span><span class="k">abstract</span><span class="p">,</span><span class="w"> </span><span class="k">public</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">sqpopt_sparse_ldl_type</span><span class="w"></span>
+<a id="ln-29" name="ln-29" href="#ln-29"></a><span class="w">        </span><span class="c">!! a sparse symmetric \( LDL^T \) backend, for matrices with one</span>
+<a id="ln-30" name="ln-30" href="#ln-30"></a><span class="w">        </span><span class="c">!! sparsity pattern (see the module documentation)</span>
+<a id="ln-31" name="ln-31" href="#ln-31"></a><span class="w">        </span><span class="kt">integer</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">n_negative</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w">           </span><span class="c">!! of the last factorization: the number of negative eigenvalues</span>
+<a id="ln-32" name="ln-32" href="#ln-32"></a><span class="w">        </span><span class="kt">integer</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">n_null</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">0</span><span class="w">               </span><span class="c">!! of the last factorization: the number of zero eigenvalues</span>
+<a id="ln-33" name="ln-33" href="#ln-33"></a><span class="w">        </span><span class="kt">logical</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">inertia_known</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">true</span><span class="p">.</span><span class="w">   </span><span class="c">!! of the last factorization: whether `n_negative` and `n_null` are</span>
+<a id="ln-34" name="ln-34" href="#ln-34"></a><span class="w">                                            </span><span class="c">!! the matrix&#39;s (else they are those of the factors, which are not</span>
+<a id="ln-35" name="ln-35" href="#ln-35"></a><span class="w">                                            </span><span class="c">!! the matrix&#39;s: see the backend&#39;s documentation)</span>
+<a id="ln-36" name="ln-36" href="#ln-36"></a><span class="w">        </span><span class="kt">logical</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">out_of_memory</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">.</span><span class="n">false</span><span class="p">.</span><span class="w">  </span><span class="c">!! whether an allocation of the backend failed (it stays set)</span>
+<a id="ln-37" name="ln-37" href="#ln-37"></a><span class="w">        </span><span class="k">contains</span>
+<a id="ln-38" name="ln-38" href="#ln-38"></a><span class="k">        procedure</span><span class="p">(</span><span class="n">start_interface</span><span class="p">),</span><span class="w">      </span><span class="k">deferred</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">start</span><span class="w">      </span><span class="c">!! analyse the sparsity pattern</span>
+<a id="ln-39" name="ln-39" href="#ln-39"></a><span class="w">        </span><span class="k">procedure</span><span class="p">(</span><span class="n">refactor_interface</span><span class="p">),</span><span class="w">   </span><span class="k">deferred</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">refactor</span><span class="w">   </span><span class="c">!! factor new values</span>
+<a id="ln-40" name="ln-40" href="#ln-40"></a><span class="w">        </span><span class="k">procedure</span><span class="p">(</span><span class="n">back_solve_interface</span><span class="p">),</span><span class="w"> </span><span class="k">deferred</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">back_solve</span><span class="w"> </span><span class="c">!! one solve with the factors</span>
+<a id="ln-41" name="ln-41" href="#ln-41"></a><span class="w">        </span><span class="k">procedure</span><span class="p">(</span><span class="n">multiply_interface</span><span class="p">),</span><span class="w">   </span><span class="k">deferred</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">multiply</span><span class="w">   </span><span class="c">!! the product with the last values</span>
+<a id="ln-42" name="ln-42" href="#ln-42"></a><span class="w">        </span><span class="k">procedure</span><span class="p">(</span><span class="n">free_interface</span><span class="p">),</span><span class="w">       </span><span class="k">deferred</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">free</span><span class="w">       </span><span class="c">!! free everything</span>
+<a id="ln-43" name="ln-43" href="#ln-43"></a><span class="w">    </span><span class="k">end type </span><span class="n">sqpopt_sparse_ldl_type</span><span class="w"></span>
+<a id="ln-44" name="ln-44" href="#ln-44"></a>
+<a id="ln-45" name="ln-45" href="#ln-45"></a><span class="w">    </span><span class="k">abstract interface</span>
+<a id="ln-46" name="ln-46" href="#ln-46"></a>
+<a id="ln-47" name="ln-47" href="#ln-47"></a><span class="k">        subroutine </span><span class="n">start_interface</span><span class="p">(</span><span class="n">me</span><span class="p">,</span><span class="w"> </span><span class="n">n</span><span class="p">,</span><span class="w"> </span><span class="n">irow</span><span class="p">,</span><span class="w"> </span><span class="n">icol</span><span class="p">,</span><span class="w"> </span><span class="n">ok</span><span class="p">,</span><span class="w"> </span><span class="n">threads</span><span class="p">,</span><span class="w"> </span><span class="n">signs</span><span class="p">)</span><span class="w"></span>
+<a id="ln-48" name="ln-48" href="#ln-48"></a><span class="w">            </span><span class="c">!! start the backend for symmetric matrices of order `n` with the</span>
+<a id="ln-49" name="ln-49" href="#ln-49"></a><span class="w">            </span><span class="c">!! sparsity pattern `irow`/`icol` (each entry stands for itself and,</span>
+<a id="ln-50" name="ln-50" href="#ln-50"></a><span class="w">            </span><span class="c">!! off the diagonal, its mirror image; entries given more than once</span>
+<a id="ln-51" name="ln-51" href="#ln-51"></a><span class="w">            </span><span class="c">!! are added together). `ok` is false if it couldn&#39;t be started.</span>
+<a id="ln-52" name="ln-52" href="#ln-52"></a><span class="w">            </span><span class="k">import</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">sqpopt_sparse_ldl_type</span><span class="w"></span>
+<a id="ln-53" name="ln-53" href="#ln-53"></a><span class="w">            </span><span class="k">implicit none</span>
+<a id="ln-54" name="ln-54" href="#ln-54"></a><span class="k">            class</span><span class="p">(</span><span class="n">sqpopt_sparse_ldl_type</span><span class="p">),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">me</span><span class="w"></span>
+<a id="ln-55" name="ln-55" href="#ln-55"></a><span class="w">            </span><span class="kt">integer</span><span class="p">,</span><span class="w">               </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">n</span><span class="w">       </span><span class="c">!! order of the matrix</span>
+<a id="ln-56" name="ln-56" href="#ln-56"></a><span class="w">            </span><span class="kt">integer</span><span class="p">,</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">irow</span><span class="w">    </span><span class="c">!! row indices of the entries `dimension(nnz)`</span>
+<a id="ln-57" name="ln-57" href="#ln-57"></a><span class="w">            </span><span class="kt">integer</span><span class="p">,</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">icol</span><span class="w">    </span><span class="c">!! column indices of the entries `dimension(nnz)`</span>
+<a id="ln-58" name="ln-58" href="#ln-58"></a><span class="w">            </span><span class="kt">logical</span><span class="p">,</span><span class="w">               </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">ok</span><span class="w">      </span><span class="c">!! whether the backend is ready</span>
+<a id="ln-59" name="ln-59" href="#ln-59"></a><span class="w">            </span><span class="kt">integer</span><span class="p">,</span><span class="w"> </span><span class="k">optional</span><span class="p">,</span><span class="w">     </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">threads</span><span class="w"> </span><span class="c">!! number of OpenMP threads, if the backend uses them</span>
+<a id="ln-60" name="ln-60" href="#ln-60"></a><span class="w">            </span><span class="kt">integer</span><span class="p">,</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">optional</span><span class="p">,</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">signs</span><span class="w"> </span><span class="c">!! the expected sign of each row&#39;s pivot (`-1`,</span>
+<a id="ln-61" name="ln-61" href="#ln-61"></a><span class="w">                                                                 </span><span class="c">!! `0`, or `+1`), if the backend uses it</span>
+<a id="ln-62" name="ln-62" href="#ln-62"></a><span class="w">                                                                 </span><span class="c">!! `dimension(n)`</span>
+<a id="ln-63" name="ln-63" href="#ln-63"></a><span class="w">        </span><span class="k">end subroutine </span><span class="n">start_interface</span><span class="w"></span>
+<a id="ln-64" name="ln-64" href="#ln-64"></a>
+<a id="ln-65" name="ln-65" href="#ln-65"></a><span class="w">        </span><span class="k">subroutine </span><span class="n">refactor_interface</span><span class="p">(</span><span class="n">me</span><span class="p">,</span><span class="w"> </span><span class="n">val</span><span class="p">,</span><span class="w"> </span><span class="n">ok</span><span class="p">)</span><span class="w"></span>
+<a id="ln-66" name="ln-66" href="#ln-66"></a><span class="w">            </span><span class="c">!! factor the matrix with the values `val` (in the order of the</span>
+<a id="ln-67" name="ln-67" href="#ln-67"></a><span class="w">            </span><span class="c">!! pattern), and set `n_negative`, `n_null`, and `inertia_known`</span>
+<a id="ln-68" name="ln-68" href="#ln-68"></a><span class="w">            </span><span class="k">import</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">sqpopt_sparse_ldl_type</span><span class="p">,</span><span class="w"> </span><span class="n">wp</span><span class="w"></span>
+<a id="ln-69" name="ln-69" href="#ln-69"></a><span class="w">            </span><span class="k">implicit none</span>
+<a id="ln-70" name="ln-70" href="#ln-70"></a><span class="k">            class</span><span class="p">(</span><span class="n">sqpopt_sparse_ldl_type</span><span class="p">),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">me</span><span class="w"></span>
+<a id="ln-71" name="ln-71" href="#ln-71"></a><span class="w">            </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">val</span><span class="w"> </span><span class="c">!! values of the entries `dimension(nnz)`</span>
+<a id="ln-72" name="ln-72" href="#ln-72"></a><span class="w">            </span><span class="kt">logical</span><span class="p">,</span><span class="w">                </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">ok</span><span class="w">  </span><span class="c">!! whether the factorization succeeded</span>
+<a id="ln-73" name="ln-73" href="#ln-73"></a><span class="w">        </span><span class="k">end subroutine </span><span class="n">refactor_interface</span><span class="w"></span>
+<a id="ln-74" name="ln-74" href="#ln-74"></a>
+<a id="ln-75" name="ln-75" href="#ln-75"></a><span class="w">        </span><span class="k">subroutine </span><span class="n">back_solve_interface</span><span class="p">(</span><span class="n">me</span><span class="p">,</span><span class="w"> </span><span class="n">v</span><span class="p">,</span><span class="w"> </span><span class="n">ok</span><span class="p">)</span><span class="w"></span>
+<a id="ln-76" name="ln-76" href="#ln-76"></a><span class="w">            </span><span class="c">!! one solve with the factors, without refinement: `v` is overwritten</span>
+<a id="ln-77" name="ln-77" href="#ln-77"></a><span class="w">            </span><span class="c">!! by \( A^{-1} v \) (if not `ok`, `v` is unchanged)</span>
+<a id="ln-78" name="ln-78" href="#ln-78"></a><span class="w">            </span><span class="k">import</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">sqpopt_sparse_ldl_type</span><span class="p">,</span><span class="w"> </span><span class="n">wp</span><span class="w"></span>
+<a id="ln-79" name="ln-79" href="#ln-79"></a><span class="w">            </span><span class="k">implicit none</span>
+<a id="ln-80" name="ln-80" href="#ln-80"></a><span class="k">            class</span><span class="p">(</span><span class="n">sqpopt_sparse_ldl_type</span><span class="p">),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">me</span><span class="w"></span>
+<a id="ln-81" name="ln-81" href="#ln-81"></a><span class="w">            </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">v</span><span class="w">  </span><span class="c">!! the right-hand side, overwritten by the solution</span>
+<a id="ln-82" name="ln-82" href="#ln-82"></a><span class="w">            </span><span class="kt">logical</span><span class="p">,</span><span class="w">                </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w">   </span><span class="kd">::</span><span class="w"> </span><span class="n">ok</span><span class="w"> </span><span class="c">!! whether it was solved</span>
+<a id="ln-83" name="ln-83" href="#ln-83"></a><span class="w">        </span><span class="k">end subroutine </span><span class="n">back_solve_interface</span><span class="w"></span>
+<a id="ln-84" name="ln-84" href="#ln-84"></a>
+<a id="ln-85" name="ln-85" href="#ln-85"></a><span class="w">        </span><span class="k">subroutine </span><span class="n">multiply_interface</span><span class="p">(</span><span class="n">me</span><span class="p">,</span><span class="w"> </span><span class="n">x</span><span class="p">,</span><span class="w"> </span><span class="n">y</span><span class="p">)</span><span class="w"></span>
+<a id="ln-86" name="ln-86" href="#ln-86"></a><span class="w">            </span><span class="c">!! the product \( y = A x \) with the values last factored</span>
+<a id="ln-87" name="ln-87" href="#ln-87"></a><span class="w">            </span><span class="k">import</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">sqpopt_sparse_ldl_type</span><span class="p">,</span><span class="w"> </span><span class="n">wp</span><span class="w"></span>
+<a id="ln-88" name="ln-88" href="#ln-88"></a><span class="w">            </span><span class="k">implicit none</span>
+<a id="ln-89" name="ln-89" href="#ln-89"></a><span class="k">            class</span><span class="p">(</span><span class="n">sqpopt_sparse_ldl_type</span><span class="p">),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">me</span><span class="w"></span>
+<a id="ln-90" name="ln-90" href="#ln-90"></a><span class="w">            </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">in</span><span class="p">)</span><span class="w">  </span><span class="kd">::</span><span class="w"> </span><span class="n">x</span><span class="w"> </span><span class="c">!! the vector `dimension(n)`</span>
+<a id="ln-91" name="ln-91" href="#ln-91"></a><span class="w">            </span><span class="kt">real</span><span class="p">(</span><span class="n">wp</span><span class="p">),</span><span class="w"> </span><span class="k">dimension</span><span class="p">(:),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">out</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">y</span><span class="w"> </span><span class="c">!! the product `dimension(n)`</span>
+<a id="ln-92" name="ln-92" href="#ln-92"></a><span class="w">        </span><span class="k">end subroutine </span><span class="n">multiply_interface</span><span class="w"></span>
+<a id="ln-93" name="ln-93" href="#ln-93"></a>
+<a id="ln-94" name="ln-94" href="#ln-94"></a><span class="w">        </span><span class="k">subroutine </span><span class="n">free_interface</span><span class="p">(</span><span class="n">me</span><span class="p">)</span><span class="w"></span>
+<a id="ln-95" name="ln-95" href="#ln-95"></a><span class="w">            </span><span class="c">!! free everything the backend holds</span>
+<a id="ln-96" name="ln-96" href="#ln-96"></a><span class="w">            </span><span class="k">import</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">sqpopt_sparse_ldl_type</span><span class="w"></span>
+<a id="ln-97" name="ln-97" href="#ln-97"></a><span class="w">            </span><span class="k">implicit none</span>
+<a id="ln-98" name="ln-98" href="#ln-98"></a><span class="k">            class</span><span class="p">(</span><span class="n">sqpopt_sparse_ldl_type</span><span class="p">),</span><span class="w"> </span><span class="k">intent</span><span class="p">(</span><span class="n">inout</span><span class="p">)</span><span class="w"> </span><span class="kd">::</span><span class="w"> </span><span class="n">me</span><span class="w"></span>
+<a id="ln-99" name="ln-99" href="#ln-99"></a><span class="w">        </span><span class="k">end subroutine </span><span class="n">free_interface</span><span class="w"></span>
+<a id="ln-100" name="ln-100" href="#ln-100"></a>
+<a id="ln-101" name="ln-101" href="#ln-101"></a><span class="w">    </span><span class="k">end interface</span>
+<a id="ln-102" name="ln-102" href="#ln-102"></a>
+<a id="ln-103" name="ln-103" href="#ln-103"></a><span class="k">    end module </span><span class="n">sqpopt_sparse_ldl_module</span><span class="w"></span>
+<a id="ln-104" name="ln-104" href="#ln-104"></a><span class="c">!*******************************************************************************</span>
+</pre></div>
+
+      </section>
+    </div>
+  </div>
+
+      <hr>
+    </div> <!-- /container -->
+    <footer>
+      <div class="container">
+        <div class="row justify-content-between">
+          <div class="col">
+            <p>
+              sqpopt
+ was developed by Jacob Williams<br>              &copy; 2026 
+</p>
+          </div>
+          <div class="col">
+            <p class="text-end">
+              Documentation generated by
+              <a href="https://github.com/Fortran-FOSS-Programmers/ford">FORD</a>
+            </p>
+          </div>
+        </div>
+        <br>
+      </div> <!-- /container -->
+    </footer>
+    <!-- sqpopt theme: the button switches the theme, and remembers it for the guide too -->
+    <script>
+      document.querySelector('.theme-toggle').addEventListener('click', function () {
+        var root = document.documentElement;
+        var next = root.getAttribute('data-bs-theme') === 'dark' ? 'light' : 'dark';
+        root.setAttribute('data-bs-theme', next);
+        try { localStorage.setItem('sqpopt-theme', next); } catch (e) {}
+      });
+    </script>
+  </body>
+</html>
