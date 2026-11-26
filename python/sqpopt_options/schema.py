@@ -584,6 +584,13 @@ TOPICS: tuple[Topic, ...] = (
             _positive('qp_solver%direct_tol', 1e-8,
                       'The direct method\'s relative tolerance for a violated row or bound, and for the sign of a '
                       'multiplier.'),
+            _o('qp_solver%direct_relative_tol', 'bool', False,
+               'Test the rows relative to the terms of their linearization, max(1, |b_i|, |J_i|·|p|), instead '
+               'of max(1, |b_i|), for QPs whose steps are very long.'),
+            _o('qp_solver%direct_accept_inexact', 'bool', False,
+               "Accept a face whose step is optimal and feasible but satisfies the working set's rows only "
+               'approximately, instead of running the active-set solver (the next SQP iteration corrects the '
+               'step).'),
         ), relevance=_direct_qp_used),
         Section('General', (
             _o('qp_solver%auto_dense_max_n', 'int', 200,
@@ -671,6 +678,20 @@ TOPICS: tuple[Topic, ...] = (
             _o('qp_solver%sparse_qp%lsqr_itnlim', 'int', 0,
                'LSQR maximum iterations per solve (<= 0 means 2*(rows+columns)+10).',
                special={0: 'automatic'}),
+            _o('qp_solver%sparse_qp%basis_repair', 'bool', False,
+               'With the LU null space: if the basis picked has fewer columns than rows (its factorization '
+               'judged some pivots too small, though the rows may be independent), complete it with the slacks '
+               'of the rows left without a basic column, as MINOS and SNOPT do, instead of solving the QP by the '
+               'much slower LSQR method.'),
+            _positive('qp_solver%sparse_qp%basis_rel_tol', 1e-8,
+                      'With the LU null space: the relative singularity tolerance of the rank-revealing '
+                      'factorization that picks the basis (a column whose pivot is at most this times the '
+                      'largest element of its column of U is left out). A smaller value accepts a basis closer '
+                      'to singular.'),
+            _positive('qp_solver%sparse_qp%basis_eq_slack_weight', 1e-6,
+                      "With the LU null space: the weight of the equality rows' slacks when the basis is picked, "
+                      "relative to the free columns' 1. A larger value lets the slack of a row that depends on "
+                      'the others stand in for it.'),
         ), relevance=_qp_used(3)),
     )),
 

@@ -109,7 +109,7 @@
 !  `istat` is `0` on success, or else `lu1fac`'s `inform` code (it is never
 !  `1`, which only means that some columns are dependent).
 
-    subroutine independent_columns(nrows, ncols, irow, icol, val, rel_tol, abs_tol, independent, istat)
+    subroutine independent_columns(nrows, ncols, irow, icol, val, rel_tol, abs_tol, independent, istat, repair_rows)
 
     integer,                intent(in)  :: nrows       !! number of rows of `A`
     integer,                intent(in)  :: ncols       !! number of columns of `A`
@@ -120,8 +120,14 @@
     real(wp),               intent(in)  :: abs_tol     !! absolute singularity tolerance
     logical,  dimension(:), intent(out) :: independent !! `dimension(ncols)`: whether each column is in the subset
     integer,                intent(out) :: istat       !! status (0 = success)
+    logical,  dimension(:), intent(out), optional :: repair_rows !! `dimension(nrows)`: the rows a basis repair covers
+                                                         !! with their slacks: the pivot rows of the columns marked
+                                                         !! dependent, and the rows without a pivot (so that the
+                                                         !! columns of `independent` and those rows' unit columns
+                                                         !! make a square nonsingular basis, as in MINOS/SNOPT)
 
     integer(ip) :: m, n, nelem, lena, inform, attempt
+    integer     :: k
     integer(ip) :: luparm(30)
     real(rp)    :: parmlu(30)
     real(rp),    dimension(:), allocatable :: a, w
@@ -130,6 +136,7 @@
 
     independent = .false.
     istat = 0
+    if (present(repair_rows)) repair_rows = .true.   ! (no columns kept: every row needs its slack)
     if (ncols == 0) return
     if (nrows == 0 .or. size(val) == 0) return   ! (every column is zero)
 
@@ -140,7 +147,7 @@
     allocate(p(m), q(n), lenc(n), lenr(m), locc(n), locr(m), &
              iploc(n), iqloc(m), ipinv(m), iqinv(n), w(n))
 
-    do attempt = 1, 3   ! (enlarging the workspace if `lu1fac` asks for it)
+    do attempt = 1, 8   ! (doubling the workspace each time `lu1fac` asks for more: a large, dense basis can need several)
         if (allocated(a)) deallocate(a, indc, indr)
         allocate(a(lena), indc(lena), indr(lena))
         a(1:nelem)    = real(val, rp)
@@ -171,8 +178,16 @@
 
     if (inform == 0 .or. inform == 1) then
         independent = w > 0.0_rp
+        if (present(repair_rows)) then
+            ! LUSOL's k-th pivot is in row p(k) and column q(k), for k = 1..nrank (luparm(16))
+            repair_rows = .true.
+            do k = 1, min(int(luparm(16)), nrows)
+                if (w(q(k)) > 0.0_rp) repair_rows(p(k)) = .false.
+            end do
+        end if
     else
         istat = int(inform)
+        if (present(repair_rows)) repair_rows = .false.
     end if
 
     end subroutine independent_columns
